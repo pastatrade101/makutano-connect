@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
-import { createQuotation, listQuotations } from '$lib/server/quotations';
+import { createQuotation, findQuotationByExternalReference, listQuotations } from '$lib/server/quotations';
 import {
 	handle,
 	idempotencyKeyOf,
@@ -37,6 +37,19 @@ const itemSchema = z.object({
 
 const createSchema = z.object({
 	customerId: z.string().uuid().optional().nullable(),
+	customer: z
+		.object({
+			firstName: z.string().max(120).optional(),
+			lastName: z.string().max(120).optional(),
+			email: z.string().email().optional().nullable(),
+			phone: z.string().max(40).optional().nullable(),
+			whatsappPhone: z.string().max(40).optional().nullable(),
+			country: z.string().length(2).optional().nullable()
+		})
+		.optional()
+		.nullable(),
+	externalReference: z.string().max(200).optional().nullable(),
+	externalSource: z.string().max(100).optional().nullable(),
 	leadId: z.string().uuid().optional().nullable(),
 	bookingRequestId: z.string().uuid().optional().nullable(),
 	conversationId: z.string().uuid().optional().nullable(),
@@ -62,6 +75,13 @@ const createSchema = z.object({
 export const GET: RequestHandler = async (event) =>
 	handle(event, async () => {
 		const ctx = requireApiScope(event, 'quotations:read');
+		// Mirror lookup: a legacy backend finds its quotation's Connect twin by the
+		// reference it minted, without storing Connect ids in its own schema.
+		const externalReference = event.url.searchParams.get('externalReference');
+		if (externalReference) {
+			const mirror = await findQuotationByExternalReference(ctx.tenantId, externalReference);
+			return ok(mirror ? [mirror] : [], { page: 1, limit: 1, total: mirror ? 1 : 0, totalPages: 1 });
+		}
 		const pagination = paginationFrom(event.url);
 		const filters = parseQuery(
 			event.url,

@@ -9,6 +9,7 @@ import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { nextReference } from './db/references';
 import { createBooking } from './bookings';
+import { findOrCreateCustomer } from './customers';
 import { emit } from './events';
 import { AppError } from './errors';
 import { getTenantById } from './tenants';
@@ -20,6 +21,17 @@ const toDate = (v?: string | null): Date | null => (v ? new Date(v) : null);
 
 export type CreateQuotationInput = {
 	customerId?: string | null;
+	/** Legacy/API callers pass raw customer details; matched or created like §10. */
+	customer?: {
+		firstName?: string;
+		lastName?: string;
+		email?: string | null;
+		phone?: string | null;
+		whatsappPhone?: string | null;
+		country?: string | null;
+	} | null;
+	externalReference?: string | null;
+	externalSource?: string | null;
 	leadId?: string | null;
 	bookingRequestId?: string | null;
 	conversationId?: string | null;
@@ -47,8 +59,12 @@ export async function createQuotation(
 	if (!input.items?.length) throw new AppError('VALIDATION_ERROR', 'A quotation needs at least one item.');
 
 	// A quotation with no customer cannot become a booking later; derive one from the
-	// originating request when the caller did not supply it.
+	// inline customer details or the originating request when no id was supplied.
 	let customerId = input.customerId ?? null;
+	if (!customerId && input.customer) {
+		const matched = await findOrCreateCustomer(tenantId, { ...input.customer, source: 'API' }, tenant.country);
+		customerId = matched.id;
+	}
 	if (!customerId && input.bookingRequestId) {
 		const rows = await db()
 			.select({ customerId: schema.bookingRequests.customerId })
@@ -84,7 +100,11 @@ export async function createQuotation(
 			notes: input.notes ?? null,
 			terms: input.terms ?? null,
 			createdByUserId,
-			metadata: input.metadata ?? {}
+			metadata: {
+				...(input.metadata ?? {}),
+				...(input.externalReference ? { external_reference: input.externalReference } : {}),
+				...(input.externalSource ? { external_source: input.externalSource } : {})
+			}
 		})
 		.returning();
 
@@ -109,6 +129,24 @@ export async function createQuotation(
 		);
 
 	return quotation;
+}
+
+/** Find a quotation previously mirrored from a legacy system (metadata anchor). */
+export async function findQuotationByExternalReference(
+	tenantId: string,
+	externalReference: string
+): Promise<schema.Quotation | null> {
+	const rows = await db()
+		.select()
+		.from(schema.quotations)
+		.where(
+			and(
+				eq(schema.quotations.tenantId, tenantId),
+				sql`${schema.quotations.metadata}->>'external_reference' = ${externalReference}`
+			)
+		)
+		.limit(1);
+	return rows[0] ?? null;
 }
 
 export async function getQuotation(tenantId: string, id: string): Promise<schema.Quotation> {
@@ -323,4 +361,147 @@ export async function expireStaleQuotations(): Promise<number> {
 		)
 		.returning({ id: schema.quotations.id });
 	return rows.length;
+}
+
+/* ------------------------------------------- legacy quotation mirroring ---- */
+
+export type QuotationMirrorInput = {
+	externalReference: string; // the legacy system's code, e.g. GFQ-BCAE65 — the upsert anchor
+	externalSource: string;
+	customer?: { firstName?: string; lastName?: string; email?: string | null; phone?: string | null; whatsappPhone?: string | null } | null;
+	/** The legacy system's booking/enquiry id, resolved to our mirrored request when present. */
+	legacyBookingRequestId?: string | null;
+	title?: string | null;
+	status: 'DRAFT' | 'SENT' | 'VIEWED' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+	currency: string;
+	total: string;
+	items?: Array<{ label?: string; title?: string; amount?: number | string }> | null;
+	adults?: number;
+	children?: number;
+	travelDate?: string | null;
+	validUntil?: string | null;
+	notes?: string | null;
+	sentAt?: string | null;
+	viewedAt?: string | null;
+	acceptedAt?: string | null;
+	declinedAt?: string | null;
+	declineReason?: string | null;
+	createdAt?: string | null;
+};
+
+/**
+ * Upsert a quotation mirrored from a legacy integration (§34 transition).
+ *
+ * Unlike the native lifecycle, a mirror sets status and timestamps DIRECTLY and never
+ * converts an accepted quotation into a booking — the legacy system's semantics (a
+ * human confirms after acceptance) are preserved rather than reinterpreted. Idempotent
+ * on (tenant, externalReference); each call replaces the previous mirror state.
+ */
+export async function upsertQuotationMirror(tenantId: string, input: QuotationMirrorInput): Promise<schema.Quotation> {
+	const tenant = await getTenantById(tenantId);
+	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant could not be found.');
+
+	let customerId: string | null = null;
+	if (input.customer && (input.customer.email || input.customer.phone || input.customer.whatsappPhone || input.customer.firstName)) {
+		const matched = await findOrCreateCustomer(tenantId, { ...input.customer, source: 'API' }, tenant.country);
+		customerId = matched.id;
+	}
+
+	// Link to our mirror of the legacy enquiry when we hold one (dual-written rows carry
+	// the legacy id in metadata). Absence is fine — older enquiries were never mirrored.
+	let bookingRequestId: string | null = null;
+	if (input.legacyBookingRequestId) {
+		const rows = await db()
+			.select({ id: schema.bookingRequests.id })
+			.from(schema.bookingRequests)
+			.where(
+				and(
+					eq(schema.bookingRequests.tenantId, tenantId),
+					sql`${schema.bookingRequests.metadata}->>'goldfinch_booking_id' = ${input.legacyBookingRequestId}`
+				)
+			)
+			.limit(1);
+		bookingRequestId = rows[0]?.id ?? null;
+	}
+
+	const toDateOrNull = (v?: string | null): Date | null => (v ? new Date(v) : null);
+	const existing = await findQuotationByExternalReference(tenantId, input.externalReference);
+
+	const values = {
+		customerId,
+		bookingRequestId,
+		status: input.status,
+		currency: input.currency,
+		subtotal: input.total,
+		discount: '0',
+		tax: '0',
+		total: input.total,
+		validUntil: toDateOrNull(input.validUntil),
+		startDate: toDateOrNull(input.travelDate),
+		adults: input.adults ?? 1,
+		children: input.children ?? 0,
+		notes: [input.title, input.notes].filter(Boolean).join('\n\n') || null,
+		sentAt: toDateOrNull(input.sentAt),
+		viewedAt: toDateOrNull(input.viewedAt),
+		acceptedAt: toDateOrNull(input.acceptedAt),
+		declinedAt: toDateOrNull(input.declinedAt),
+		metadata: {
+			external_reference: input.externalReference,
+			external_source: input.externalSource,
+			mirror: true,
+			...(input.declineReason ? { decline_reason: input.declineReason } : {})
+		} as Record<string, unknown>,
+		updatedAt: new Date()
+	};
+
+	let quotation: schema.Quotation;
+	if (existing) {
+		[quotation] = await db()
+			.update(schema.quotations)
+			.set(values)
+			.where(and(eq(schema.quotations.id, existing.id), eq(schema.quotations.tenantId, tenantId)))
+			.returning();
+		await db().delete(schema.quotationItems).where(eq(schema.quotationItems.quotationId, existing.id));
+	} else {
+		const reference = await nextReference(db(), tenantId, 'QT', tenant.quotationPrefix || tenant.bookingReferencePrefix);
+		[quotation] = await db()
+			.insert(schema.quotations)
+			.values({
+				tenantId,
+				reference,
+				...values,
+				createdAt: input.createdAt ? new Date(input.createdAt) : undefined
+			})
+			.returning();
+	}
+
+	// Legacy items are display-only [{label, amount}]; the total is authoritative.
+	// An empty array becomes one synthetic line so the document never renders bare.
+	const items = (input.items ?? []).filter((i) => i && (i.label || i.title));
+	const rows = items.length
+		? items.map((item, index) => ({
+				tenantId,
+				quotationId: quotation.id,
+				type: 'CUSTOM' as const,
+				title: String(item.label ?? item.title ?? 'Item'),
+				quantity: 1,
+				unitPrice: String(Number(item.amount ?? 0).toFixed(2)),
+				total: String(Number(item.amount ?? 0).toFixed(2)),
+				sortOrder: index
+			}))
+		: [
+				{
+					tenantId,
+					quotationId: quotation.id,
+					type: 'CUSTOM' as const,
+					title: input.title || 'Quotation total',
+					quantity: 1,
+					unitPrice: input.total,
+					total: input.total,
+					sortOrder: 0
+				}
+			];
+	await db().insert(schema.quotationItems).values(rows);
+
+	return quotation;
 }
