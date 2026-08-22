@@ -43,6 +43,7 @@
 
 		<p class="mt-5 text-center text-[11px] text-slate-400">
 			Clients keep working inside their own CMS — this portal is optional.
+			<a href="/documentation" class="text-brand-600 hover:underline">API documentation →</a>
 		</p>
 	</div>
 </div>

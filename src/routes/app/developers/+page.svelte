@@ -19,7 +19,10 @@
 
 
 	<section class="card p-3">
-		<h2 class="text-sm font-semibold text-slate-800">Connect your website</h2>
+		<div class="flex items-center justify-between">
+			<h2 class="text-sm font-semibold text-slate-800">Connect your website</h2>
+			<a href="/documentation" class="text-xs font-medium text-brand-600 hover:underline">Full API documentation →</a>
+		</div>
 		<p class="mt-1 text-xs text-slate-500">Store these on your website's <b>server</b>. The secret key must never reach a browser.</p>
 		<pre class="mt-2 overflow-x-auto rounded-panel bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100"><code>MAKUTANO_API_URL={data.apiBaseUrl}
 MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
