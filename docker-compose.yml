@@ -1,0 +1,46 @@
+# Makutano Connect — production deployment.
+#
+#   cp .env.production.example .env      # fill in real values
+#   docker compose up -d --build
+#   docker compose exec connect node --experimental-strip-types scripts/migrate.ts
+#
+# Caddy terminates TLS for connect.makutano.co.tz and proxies to this container over
+# the shared `makutano-net` network, matching the existing production setup. The app
+# port is NOT published to the host: the only way in is through Caddy.
+
+services:
+  connect:
+    build: .
+    image: makutano-connect
+    container_name: makutano-connect
+    restart: unless-stopped
+
+    # All secrets injected at runtime — the image contains none.
+    env_file:
+      - .env
+
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      # Public origin. REQUIRED behind a domain/proxy or every form POST fails
+      # SvelteKit's CSRF origin check, and Embedded Signup launch URLs come out wrong.
+      ORIGIN: ${PUBLIC_APP_URL:-https://connect.makutano.co.tz}
+      # Let adapter-node build correct https URLs from Caddy's forwarded headers.
+      PROTOCOL_HEADER: x-forwarded-proto
+      HOST_HEADER: x-forwarded-host
+      # The in-process queue drains WhatsApp sends and webhook processing.
+      JOB_WORKER: "on"
+
+    networks:
+      - makutano-net
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  makutano-net:
+    external: true

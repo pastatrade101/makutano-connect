@@ -1,0 +1,49 @@
+{
+	"name": "makutano-connect",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"description": "Makutano Connect — multi-tenant SaaS engine for WhatsApp, bookings, leads, quotations and payments.",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"start": "node build/index.js",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"lint": "prettier --check . && eslint .",
+		"format": "prettier --write .",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "node --experimental-strip-types scripts/migrate.ts",
+		"db:studio": "drizzle-kit studio",
+		"db:seed": "node --experimental-strip-types scripts/seed.ts"
+	},
+	"dependencies": {
+		"drizzle-orm": "^0.38.4",
+		"postgres": "^3.4.5",
+		"zod": "^3.24.1"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-node": "^5.5.4",
+		"@sveltejs/kit": "^2.63.0",
+		"@sveltejs/vite-plugin-svelte": "^7.1.2",
+		"@tailwindcss/vite": "^4.0.0",
+		"@types/node": "^22.7.5",
+		"drizzle-kit": "^0.30.2",
+		"eslint": "^9.18.0",
+		"globals": "^15.14.0",
+		"prettier": "^3.4.2",
+		"svelte": "^5.56.2",
+		"svelte-check": "^4.0.5",
+		"tailwindcss": "^4.0.0",
+		"typescript": "^5.6.3",
+		"typescript-eslint": "^8.20.0",
+		"vite": "^8.0.16",
+		"vitest": "^2.1.8"
+	},
+	"engines": {
+		"node": ">=20"
+	}
+}

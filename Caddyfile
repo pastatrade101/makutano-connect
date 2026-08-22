@@ -1,0 +1,35 @@
+# Makutano Connect — add this block to the existing production Caddyfile.
+#
+# Caddy obtains and renews the certificate automatically, so the Meta webhook gets a
+# publicly trusted HTTPS endpoint with no manual TLS work. Meta will not deliver to a
+# self-signed or expired certificate.
+
+connect.makutano.co.tz {
+	encode zstd gzip
+
+	# Meta posts here. Nothing else about this path is special: the route
+	# authenticates the request by HMAC signature, not by network position.
+	# Generous body limit and no extra auth layer in front of it.
+	handle /webhooks/* {
+		reverse_proxy makutano-connect:3000
+	}
+
+	handle {
+		reverse_proxy makutano-connect:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/connect.makutano.co.tz.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}
