@@ -14,7 +14,7 @@
 	}
 </script>
 
-<div class="flex items-center justify-between border-t border-slate-200 px-3 py-2 text-xs text-slate-500">
+<div class="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
 	<span>Showing <b class="tabular-nums text-slate-700">{from}–{to}</b> of <b class="tabular-nums text-slate-700">{total}</b></span>
 	<div class="flex items-center gap-1">
 		<a

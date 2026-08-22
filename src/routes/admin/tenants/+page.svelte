@@ -14,12 +14,12 @@
 		<button class="btn-primary" onclick={() => (showForm = !showForm)}>Provision tenant</button>
 	</div>
 
-	{#if form?.message}<p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form.message}</p>{/if}
+	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	{#if form?.created}
-		<div class="rounded-md bg-emerald-50 p-3 ring-1 ring-emerald-200">
-			<p class="text-sm font-semibold text-emerald-900">{form.created.name} is live.</p>
-			<p class="mt-1 text-xs text-emerald-800">Copy these now — they are shown only once.</p>
+		<div class="rounded-panel border border-success/30 bg-success/10 p-3">
+			<p class="text-sm font-semibold text-success">{form.created.name} is live.</p>
+			<p class="mt-1 text-xs text-success">Copy these now — they are shown only once.</p>
 			<dl class="mt-2 space-y-1 text-xs">
 				<div><dt class="inline font-medium">API key: </dt><dd class="inline font-mono">{form.created.apiKey}</dd></div>
 				{#if form.created.ownerEmail}
@@ -69,14 +69,14 @@
 						<td class="table-cell text-right">
 							<form method="POST" action="?/openPortal" class="mb-1 inline-block">
 								<input type="hidden" name="id" value={row.tenant.id} />
-								<button class="text-xs text-brand-700 hover:underline">Open portal</button>
+								<button class="text-xs text-brand-600 hover:underline">Open portal</button>
 							</form>
 							<form method="POST" action="?/setStatus" use:enhance class="inline-flex items-center gap-1">
 								<input type="hidden" name="id" value={row.tenant.id} />
 								<select name="status" class="input w-auto py-1 text-xs">
 									{#each ['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'] as s (s)}<option value={s} selected={row.tenant.status === s}>{s}</option>{/each}
 								</select>
-								<button class="text-xs text-brand-700 hover:underline">Set</button>
+								<button class="text-xs text-brand-600 hover:underline">Set</button>
 							</form>
 						</td>
 					</tr>

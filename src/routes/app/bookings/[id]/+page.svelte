@@ -30,12 +30,12 @@
 		{/if}
 	</div>
 
-	{#if form?.message}<p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form.message}</p>{/if}
+	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Total</div><div class="text-lg font-semibold"><Money amount={data.booking.total} currency={data.booking.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Paid</div><div class="text-lg font-semibold text-emerald-600"><Money amount={data.booking.amountPaid} currency={data.booking.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Balance</div><div class="text-lg font-semibold {Number(data.booking.balanceDue) > 0 ? 'text-red-600' : 'text-slate-900'}"><Money amount={data.booking.balanceDue} currency={data.booking.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Paid</div><div class="text-lg font-semibold text-success"><Money amount={data.booking.amountPaid} currency={data.booking.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Balance</div><div class="text-lg font-semibold {Number(data.booking.balanceDue) > 0 ? 'text-danger' : 'text-slate-900'}"><Money amount={data.booking.balanceDue} currency={data.booking.currency} /></div></div>
 		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Travellers</div><div class="text-lg font-semibold tabular-nums">{data.booking.adults + data.booking.children}</div></div>
 	</div>
 
@@ -98,7 +98,7 @@
 					<div class="font-medium">{[data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || '—'}</div>
 					{#if data.customer?.email}<div class="text-slate-600">{data.customer.email}</div>{/if}
 					{#if data.customer?.whatsappPhone}<div class="text-slate-600">+{data.customer.whatsappPhone}</div>{/if}
-					{#if data.booking.bookingRequestId}<a href="/app/booking-requests/{data.booking.bookingRequestId}" class="mt-2 inline-block text-xs text-brand-700 hover:underline">Originating request →</a>{/if}
+					{#if data.booking.bookingRequestId}<a href="/app/booking-requests/{data.booking.bookingRequestId}" class="mt-2 inline-block text-xs text-brand-600 hover:underline">Originating request →</a>{/if}
 				</div>
 			</section>
 

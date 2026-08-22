@@ -22,7 +22,7 @@
 						<td class="table-cell"><StatusBadge value={c.status} /></td>
 						<td class="table-cell text-slate-500"><TimeAgo value={c.lastWebhookAt} /></td>
 						<td class="table-cell text-slate-500"><TimeAgo value={c.lastSuccessfulSendAt} /></td>
-						<td class="table-cell text-xs text-red-600">{c.lastErrorCode ?? '—'}</td>
+						<td class="table-cell text-xs text-danger">{c.lastErrorCode ?? '—'}</td>
 						<td class="table-cell text-slate-500"><TimeAgo value={c.tokenExpiresAt} /></td>
 					</tr>
 				{:else}

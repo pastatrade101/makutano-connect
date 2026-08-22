@@ -35,7 +35,7 @@
 					<tr>
 						<td class="table-cell font-mono text-xs">{job.kind}</td>
 						<td class="table-cell tabular-nums">{job.attempts}</td>
-						<td class="table-cell max-w-md truncate text-xs text-red-600">{job.last_error}</td>
+						<td class="table-cell max-w-md truncate text-xs text-danger">{job.last_error}</td>
 						<td class="table-cell text-slate-500"><TimeAgo value={job.created_at as string} /></td>
 					</tr>
 				{:else}

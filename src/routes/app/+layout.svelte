@@ -1,6 +1,6 @@
 <script lang="ts">
-	// Dense operational shell (§22): a narrow fixed sidebar on desktop, a bottom tab bar
-	// on mobile so the portal feels like an app rather than a shrunken website.
+	// Reback vertical layout: fixed white topbar, light sidenav with quiet gray items
+	// and a soft primary tint on the active route; bottom tab bar on mobile.
 	import { page } from '$app/state';
 	let { data, children } = $props();
 
@@ -20,6 +20,7 @@
 
 	const visible = $derived(NAV.filter((n) => !n.permission || data.permissions?.includes(n.permission as never)));
 	const primary = $derived(visible.filter((n) => n.primary).slice(0, 4));
+	const current = $derived(visible.find((n) => isActive(n.href))?.label ?? 'Overview');
 
 	function isActive(href: string): boolean {
 		return href === '/app' ? page.url.pathname === '/app' : page.url.pathname.startsWith(href);
@@ -27,61 +28,73 @@
 </script>
 
 <div class="flex min-h-screen">
-	<!-- Desktop sidebar -->
-	<aside class="hidden w-52 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
-		<div class="flex items-center gap-2 border-b border-slate-200 px-3 py-3">
-			<div class="flex size-7 items-center justify-center rounded bg-brand-700 text-sm font-bold text-white">M</div>
+	<!-- Sidenav (desktop) -->
+	<aside class="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex">
+		<div class="flex h-[70px] items-center gap-2.5 border-b border-slate-200 px-5">
+			<div class="flex size-8 items-center justify-center rounded-panel bg-brand-500 text-sm font-bold text-white">M</div>
 			<div class="min-w-0">
-				<div class="truncate text-sm font-semibold text-slate-900">{data.tenant.name}</div>
-				<div class="truncate text-[11px] text-slate-500">Makutano Connect</div>
+				<div class="truncate text-[15px] font-bold tracking-tight text-slate-800">Makutano</div>
+				<div class="-mt-0.5 text-[10px] font-semibold tracking-widest text-brand-500 uppercase">Connect</div>
 			</div>
 		</div>
 
-		<nav class="flex-1 space-y-0.5 overflow-y-auto p-2">
-			{#each visible as item (item.href)}
-				<a
-					href={item.href}
-					class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition {isActive(item.href)
-						? 'bg-brand-50 font-medium text-brand-800'
-						: 'text-slate-600 hover:bg-slate-50'}"
-				>
-					<svg class="size-4 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
-					{item.label}
-				</a>
-			{/each}
+		<nav class="flex-1 overflow-y-auto px-3 py-4">
+			<p class="px-2.5 pb-2 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Menu</p>
+			<div class="space-y-0.5">
+				{#each visible as item (item.href)}
+					<a
+						href={item.href}
+						class="flex items-center gap-3 rounded-panel px-2.5 py-2 text-[13.5px] transition {isActive(item.href)
+							? 'bg-brand-50 font-semibold text-brand-600'
+							: 'text-slate-500 hover:bg-[#f3f1fa] hover:text-slate-700'}"
+					>
+						<svg class="size-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
+						{item.label}
+					</a>
+				{/each}
+			</div>
 		</nav>
 
-		<div class="border-t border-slate-200 p-2">
+		<div class="border-t border-slate-200 p-3">
 			{#if data.user.isSuperAdmin}
-				<a href="/admin" class="mb-1 block rounded-md px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-50">Super admin →</a>
+				<a href="/admin" class="mb-1 block rounded-panel px-2.5 py-1.5 text-xs text-slate-500 hover:bg-[#f3f1fa]">Super admin →</a>
 			{/if}
-			<div class="px-2 pb-1 text-[11px] text-slate-500">
-				<div class="truncate font-medium text-slate-700">{data.user.fullName || data.user.email}</div>
-				<div class="truncate">{data.role?.replace(/_/g, ' ').toLowerCase()}</div>
-			</div>
-			<form method="POST" action="/logout">
-				<button type="submit" class="w-full rounded-md px-2 py-1.5 text-left text-xs text-slate-500 hover:bg-slate-50">Sign out</button>
-			</form>
 		</div>
 	</aside>
 
-	<div class="flex min-w-0 flex-1 flex-col pb-14 lg:pb-0">
-		<!-- Mobile top bar -->
-		<header class="flex items-center justify-between border-b border-slate-200 bg-white px-3 py-2 lg:hidden">
-			<div class="flex items-center gap-2">
-				<div class="flex size-6 items-center justify-center rounded bg-brand-700 text-xs font-bold text-white">M</div>
-				<span class="truncate text-sm font-semibold">{data.tenant.name}</span>
+	<div class="flex min-w-0 flex-1 flex-col pb-14 lg:pb-0 lg:pl-60">
+		<!-- Topbar -->
+		<header class="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-slate-200 bg-white px-4 lg:h-[70px] lg:px-6">
+			<div class="flex items-center gap-3">
+				<div class="flex size-7 items-center justify-center rounded-panel bg-brand-500 text-xs font-bold text-white lg:hidden">M</div>
+				<div>
+					<h2 class="text-[15px] font-semibold text-slate-800">{current}</h2>
+					<p class="hidden text-[11px] text-slate-400 lg:block">{data.tenant.name}</p>
+				</div>
 			</div>
-			<form method="POST" action="/logout"><button class="text-xs text-slate-500">Sign out</button></form>
+			<div class="flex items-center gap-3">
+				<div class="hidden text-right lg:block">
+					<div class="text-[13px] font-semibold text-slate-700">{data.user.fullName || data.user.email}</div>
+					<div class="text-[11px] text-slate-400 capitalize">{data.role?.replace(/_/g, ' ').toLowerCase()}</div>
+				</div>
+				<div class="flex size-9 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-600">
+					{(data.user.fullName || data.user.email).slice(0, 1).toUpperCase()}
+				</div>
+				<form method="POST" action="/logout">
+					<button type="submit" class="rounded-panel px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100" title="Sign out">
+						<svg class="size-4.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 6V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-2m2-8 3 4-3 4m-8-4h11" /></svg>
+					</button>
+				</form>
+			</div>
 		</header>
 
-		<main class="min-w-0 flex-1 p-3 sm:p-4">{@render children()}</main>
+		<main class="min-w-0 flex-1 p-4 lg:p-6">{@render children()}</main>
 	</div>
 
 	<!-- Mobile bottom tabs -->
 	<nav class="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-slate-200 bg-white lg:hidden">
 		{#each primary as item (item.href)}
-			<a href={item.href} class="flex flex-col items-center gap-0.5 py-2 text-[10px] {isActive(item.href) ? 'text-brand-700' : 'text-slate-500'}">
+			<a href={item.href} class="flex flex-col items-center gap-0.5 py-2 text-[10px] {isActive(item.href) ? 'font-semibold text-brand-500' : 'text-slate-400'}">
 				<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
 				{item.label}
 			</a>

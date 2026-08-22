@@ -28,10 +28,10 @@
 		</div>
 	</div>
 
-	{#if form?.message}<p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form.message}</p>{/if}
+	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	{#if data.quotation.convertedBookingId}
-		<p class="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-200">
+		<p class="rounded-panel bg-success/10 px-3 py-2 text-xs text-success">
 			Converted to a booking. <a href="/app/bookings/{data.quotation.convertedBookingId}" class="font-semibold underline">Open booking →</a>
 		</p>
 	{/if}
@@ -61,7 +61,7 @@
 			<tfoot class="bg-slate-50 text-sm">
 				<tr><td colspan="3" class="table-cell text-right text-slate-500">Subtotal</td><td class="table-cell"><Money amount={data.quotation.subtotal} currency={data.quotation.currency} /></td></tr>
 				{#if Number(data.quotation.discount) > 0}
-					<tr><td colspan="3" class="table-cell text-right text-slate-500">Discount</td><td class="table-cell text-emerald-700">−<Money amount={data.quotation.discount} currency={data.quotation.currency} /></td></tr>
+					<tr><td colspan="3" class="table-cell text-right text-slate-500">Discount</td><td class="table-cell text-success">−<Money amount={data.quotation.discount} currency={data.quotation.currency} /></td></tr>
 				{/if}
 				{#if Number(data.quotation.tax) > 0}
 					<tr><td colspan="3" class="table-cell text-right text-slate-500">Tax</td><td class="table-cell"><Money amount={data.quotation.tax} currency={data.quotation.currency} /></td></tr>

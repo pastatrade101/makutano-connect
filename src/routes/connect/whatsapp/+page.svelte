@@ -76,8 +76,8 @@
 <div class="flex min-h-screen items-center justify-center px-4 py-10">
 	<div class="w-full max-w-md">
 		<div class="card p-6 text-center">
-			<div class="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-emerald-100">
-				<svg class="size-6 text-emerald-700" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.7 15L2 22l5.2-1.4A10 10 0 1 0 12 2Z" /></svg>
+			<div class="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-success/15">
+				<svg class="size-6 text-success" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.7 15L2 22l5.2-1.4A10 10 0 1 0 12 2Z" /></svg>
 			</div>
 			<h1 class="text-base font-semibold text-slate-900">Connect WhatsApp</h1>
 			<p class="mt-1 text-xs text-slate-500">
@@ -85,7 +85,7 @@
 			</p>
 
 			{#if form?.success}
-				<div class="mt-5 rounded-md bg-emerald-50 px-3 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
+				<div class="mt-5 rounded-panel bg-success/10 px-3 py-3 text-sm text-success">
 					<p class="font-medium">WhatsApp connected.</p>
 					<p class="mt-0.5 text-xs">
 						{form.connection?.businessName ?? ''}
@@ -96,16 +96,16 @@
 					<a href={data.redirectUrl} class="btn-primary mt-4 w-full">Continue</a>
 				{/if}
 			{:else if data.mode === 'unauthenticated'}
-				<p class="mt-5 rounded-md bg-slate-50 px-3 py-3 text-xs text-slate-600">
+				<p class="mt-5 rounded-panel bg-slate-100 px-3 py-3 text-xs text-slate-600">
 					This connection link is invalid or has expired. Ask your provider for a new one.
 				</p>
 			{:else if !data.ready}
-				<p class="mt-5 rounded-md bg-amber-50 px-3 py-3 text-xs text-amber-800 ring-1 ring-amber-200">
+				<p class="mt-5 rounded-panel bg-warning/10 px-3 py-3 text-xs text-[#b58514]">
 					WhatsApp onboarding is not configured on this deployment yet.
 				</p>
 			{:else}
 				{#if form?.message || localError}
-					<p class="mt-4 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form?.message ?? localError}</p>
+					<p class="mt-4 rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form?.message ?? localError}</p>
 				{/if}
 				<button class="btn-primary mt-5 w-full" disabled={!sdkReady || busy} onclick={launch}>
 					{busy ? 'Connecting…' : sdkReady ? 'Continue with Facebook' : 'Loading…'}

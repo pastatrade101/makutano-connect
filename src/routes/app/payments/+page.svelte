@@ -34,7 +34,7 @@
 							<tr class="hover:bg-slate-50">
 								<td class="table-cell font-mono text-xs">{row.payment.reference}</td>
 								<td class="table-cell">
-									{#if row.booking}<a href="/app/bookings/{row.booking.id}" class="text-brand-800 hover:underline">{row.booking.bookingReference}</a>{:else}—{/if}
+									{#if row.booking}<a href="/app/bookings/{row.booking.id}" class="text-brand-600 hover:underline">{row.booking.bookingReference}</a>{:else}—{/if}
 								</td>
 								<td class="table-cell text-[11px] uppercase text-slate-500">{row.payment.provider}</td>
 								<td class="table-cell"><StatusBadge value={row.payment.status} /></td>

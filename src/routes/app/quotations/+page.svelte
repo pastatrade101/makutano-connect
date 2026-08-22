@@ -24,7 +24,7 @@
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as row (row.quotation.id)}
 							<tr class="hover:bg-slate-50">
-								<td class="table-cell"><a href="/app/quotations/{row.quotation.id}" class="font-medium text-brand-800 hover:underline">{row.quotation.reference}</a></td>
+								<td class="table-cell"><a href="/app/quotations/{row.quotation.id}" class="font-medium text-brand-600 hover:underline">{row.quotation.reference}</a></td>
 								<td class="table-cell text-slate-600">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
 								<td class="table-cell"><StatusBadge value={row.quotation.status} /></td>
 								<td class="table-cell"><Money amount={row.quotation.total} currency={row.quotation.currency} /></td>

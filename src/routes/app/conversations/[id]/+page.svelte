@@ -19,16 +19,16 @@
 		{/if}
 	</header>
 
-	{#if form?.message}<p class="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form.message}</p>{/if}
+	{#if form?.message}<p class="mt-2 rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	<ul class="flex-1 space-y-2 overflow-y-auto py-3">
 		{#each data.messages as m (m.id)}
 			<li class="flex {m.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}">
-				<div class="max-w-[75%] rounded-lg px-3 py-1.5 text-sm {m.direction === 'OUTBOUND' ? 'bg-brand-600 text-white' : 'bg-white text-slate-800 ring-1 ring-slate-200'}">
+				<div class="max-w-[75%] rounded-lg px-3 py-1.5 text-sm {m.direction === 'OUTBOUND' ? 'bg-brand-500 text-white' : 'bg-white text-slate-800 ring-1 ring-slate-200'}">
 					<p class="whitespace-pre-wrap">{m.body ?? `[${m.type}]`}</p>
-					<p class="mt-0.5 text-[10px] {m.direction === 'OUTBOUND' ? 'text-brand-100' : 'text-slate-400'}">
+					<p class="mt-0.5 text-[10px] {m.direction === 'OUTBOUND' ? 'text-white/70' : 'text-slate-400'}">
 						<TimeAgo value={m.createdAt} timezone={data.tenant.timezone} /> · {m.status.toLowerCase()}
-						{#if m.errorMessage}· <span class="text-red-200">{m.errorMessage}</span>{/if}
+						{#if m.errorMessage}· <span class="text-danger/40">{m.errorMessage}</span>{/if}
 					</p>
 				</div>
 			</li>

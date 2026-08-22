@@ -1,37 +1,54 @@
 <script lang="ts">
-	// Dense KPI tile (§22) — small, uniform, and scannable in a row of six.
+	// Reback stat card: muted uppercase title, heavy value, icon bubble in a soft
+	// brand tint. Dense enough to sit six-across on a dashboard row.
 	let {
 		label,
 		value,
 		hint = null,
 		tone = 'default',
-		href = null
+		href = null,
+		icon = null
 	}: {
 		label: string;
 		value: string | number;
 		hint?: string | null;
 		tone?: 'default' | 'warn' | 'good' | 'bad';
 		href?: string | null;
+		icon?: string | null;
 	} = $props();
 
 	const TONES = {
-		default: 'text-slate-900',
-		warn: 'text-amber-600',
-		good: 'text-emerald-600',
-		bad: 'text-red-600'
+		default: 'text-slate-800',
+		warn: 'text-warning',
+		good: 'text-success',
+		bad: 'text-danger'
+	} as const;
+
+	const BUBBLES = {
+		default: 'bg-brand-50 text-brand-500',
+		warn: 'bg-warning/10 text-warning',
+		good: 'bg-success/10 text-success',
+		bad: 'bg-danger/10 text-danger'
 	} as const;
 </script>
 
 {#snippet body()}
-	<div class="px-3 py-2.5">
-		<div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</div>
-		<div class="mt-0.5 text-xl font-semibold tabular-nums {TONES[tone]}">{value}</div>
-		{#if hint}<div class="mt-0.5 text-[11px] text-slate-400">{hint}</div>{/if}
+	<div class="flex items-center justify-between px-4 py-3">
+		<div class="min-w-0">
+			<div class="truncate text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{label}</div>
+			<div class="mt-1 text-[22px] leading-7 font-bold tabular-nums {TONES[tone]}">{value}</div>
+			{#if hint}<div class="mt-0.5 truncate text-[11px] text-slate-400">{hint}</div>{/if}
+		</div>
+		{#if icon}
+			<div class="flex size-10 shrink-0 items-center justify-center rounded-panel {BUBBLES[tone]}">
+				<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={icon} /></svg>
+			</div>
+		{/if}
 	</div>
 {/snippet}
 
 {#if href}
-	<a {href} class="card block transition hover:border-brand-500 hover:shadow-sm">{@render body()}</a>
+	<a {href} class="card block transition hover:-translate-y-px hover:shadow-md">{@render body()}</a>
 {:else}
 	<div class="card">{@render body()}</div>
 {/if}

@@ -6,7 +6,7 @@
 
 <div class="flex min-h-screen items-center justify-center px-4">
 	<div class="text-center">
-		<p class="text-4xl font-semibold text-slate-300 tabular-nums">{page.status}</p>
+		<p class="text-5xl font-bold text-slate-300 tabular-nums">{page.status}</p>
 		<p class="mt-2 text-sm text-slate-700">{page.error?.message ?? 'Something went wrong.'}</p>
 		{#if page.error?.requestId}
 			<p class="mt-1 font-mono text-[11px] text-slate-400">{page.error.requestId}</p>

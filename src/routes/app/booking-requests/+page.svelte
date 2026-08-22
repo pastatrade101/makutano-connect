@@ -53,7 +53,7 @@
 						{#each data.items as row (row.request.id)}
 							<tr class="hover:bg-slate-50">
 								<td class="table-cell">
-									<a href="/app/booking-requests/{row.request.id}" class="font-medium text-brand-800 hover:underline">{row.request.reference}</a>
+									<a href="/app/booking-requests/{row.request.id}" class="font-medium text-brand-600 hover:underline">{row.request.reference}</a>
 								</td>
 								<td class="table-cell">
 									<div class="font-medium text-slate-800">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</div>

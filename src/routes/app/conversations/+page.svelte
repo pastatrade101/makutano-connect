@@ -27,7 +27,7 @@
 								<span class="block truncate text-[11px] text-slate-500">{row.conversation.subject ?? row.conversation.channel.toLowerCase()}</span>
 							</span>
 							<span class="flex shrink-0 items-center gap-2 text-[11px] text-slate-400">
-								{#if row.conversation.unreadCount > 0}<span class="rounded-full bg-brand-600 px-1.5 font-semibold text-white">{row.conversation.unreadCount}</span>{/if}
+								{#if row.conversation.unreadCount > 0}<span class="rounded-full bg-brand-500 px-1.5 font-semibold text-white">{row.conversation.unreadCount}</span>{/if}
 								<TimeAgo value={row.conversation.lastMessageAt} timezone={data.tenant.timezone} />
 							</span>
 						</a>

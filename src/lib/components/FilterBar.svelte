@@ -24,10 +24,10 @@
 	const activeExtras = $derived(['assignee', 'source', 'from', 'to'].filter((k) => params.get(k)).length);
 </script>
 
-<form method="GET" class="flex flex-wrap items-center gap-2 border-b border-slate-200 px-3 py-2">
+<form method="GET" class="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3">
 	<div class="relative min-w-[180px] flex-1">
-		<input name="q" value={params.get('q') ?? ''} {placeholder} class="input pl-8" />
-		<svg class="pointer-events-none absolute left-2.5 top-2 size-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+		<input name="q" value={params.get('q') ?? ''} {placeholder} class="input pl-9" />
+		<svg class="pointer-events-none absolute left-3 top-2.5 size-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
 			<path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.4 9.84l3.13 3.13a.75.75 0 1 0 1.06-1.06l-3.13-3.13A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" />
 		</svg>
 	</div>
@@ -57,13 +57,13 @@
 	<button type="button" class="btn-secondary relative" onclick={() => (open = !open)}>
 		More filters
 		{#if activeExtras}
-			<span class="ml-1 rounded-full bg-brand-600 px-1.5 text-[10px] font-semibold text-white">{activeExtras}</span>
+			<span class="ml-1 rounded-full bg-brand-500 px-1.5 text-[10px] font-semibold text-white">{activeExtras}</span>
 		{/if}
 	</button>
 	<button type="submit" class="btn-primary">Apply</button>
 
 	{#if open}
-		<div class="mt-2 grid w-full grid-cols-1 gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 sm:grid-cols-4">
+		<div class="mt-2 grid w-full grid-cols-1 gap-3 rounded-panel border border-slate-200 bg-slate-50 p-3 sm:grid-cols-4">
 			<div>
 				<label class="label" for="filter-assignee">Assignee</label>
 				<input id="filter-assignee" name="assignee" value={params.get('assignee') ?? ''} placeholder="User id" class="input" />

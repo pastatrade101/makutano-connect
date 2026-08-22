@@ -12,9 +12,9 @@
 <div class="max-w-3xl space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">WhatsApp</h1>
 
-	{#if form?.message}<p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form.message}</p>{/if}
+	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 	{#if !data.featureEnabled}
-		<p class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">WhatsApp is not included in your current plan.</p>
+		<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">WhatsApp is not included in your current plan.</p>
 	{/if}
 
 	<section class="card">
@@ -30,7 +30,7 @@
 				<div><dt class="text-[11px] uppercase text-slate-500">Connected</dt><dd><TimeAgo value={c.connectedAt} timezone={data.tenant.timezone} /></dd></div>
 				<div><dt class="text-[11px] uppercase text-slate-500">Last inbound</dt><dd><TimeAgo value={c.lastWebhookAt} timezone={data.tenant.timezone} /></dd></div>
 				<div><dt class="text-[11px] uppercase text-slate-500">Last send</dt><dd><TimeAgo value={c.lastSuccessfulSendAt} timezone={data.tenant.timezone} /></dd></div>
-				<div><dt class="text-[11px] uppercase text-slate-500">Last error</dt><dd class="text-red-600">{c.lastErrorCode ?? '—'}</dd></div>
+				<div><dt class="text-[11px] uppercase text-slate-500">Last error</dt><dd class="text-danger">{c.lastErrorCode ?? '—'}</dd></div>
 			</dl>
 			{#if canConnect}
 				<div class="flex gap-2 border-t border-slate-200 p-3">
@@ -47,7 +47,7 @@
 				{#if canConnect && data.signupReady}
 					<a href="/connect/whatsapp" class="btn-primary mt-3">Connect WhatsApp</a>
 				{:else if !data.signupReady}
-					<p class="mt-3 text-xs text-amber-700">Embedded Signup is not configured on this deployment.</p>
+					<p class="mt-3 text-xs text-[#b58514]">Embedded Signup is not configured on this deployment.</p>
 				{/if}
 			</div>
 		{/if}
@@ -79,7 +79,7 @@
 											<option value="">Not mapped</option>
 											{#each data.templateEvents as e (e)}<option value={e} selected={t.eventKey === e}>{e.replace(/_/g, ' ')}</option>{/each}
 										</select>
-										<button class="text-xs text-brand-700 hover:underline">Save</button>
+										<button class="text-xs text-brand-600 hover:underline">Save</button>
 									</form>
 								{:else}
 									<span class="text-xs text-slate-500">{t.eventKey ?? '—'}</span>

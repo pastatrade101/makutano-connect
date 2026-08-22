@@ -42,12 +42,12 @@
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as row (row.booking.id)}
 							<tr class="hover:bg-slate-50">
-								<td class="table-cell"><a href="/app/bookings/{row.booking.id}" class="font-medium text-brand-800 hover:underline">{row.booking.bookingReference}</a></td>
+								<td class="table-cell"><a href="/app/bookings/{row.booking.id}" class="font-medium text-brand-600 hover:underline">{row.booking.bookingReference}</a></td>
 								<td class="table-cell">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
 								<td class="table-cell"><StatusBadge value={row.booking.status} /></td>
 								<td class="table-cell"><Money amount={row.booking.total} currency={row.booking.currency} /></td>
 								<td class="table-cell"><Money amount={row.booking.amountPaid} currency={row.booking.currency} /></td>
-								<td class="table-cell {Number(row.booking.balanceDue) > 0 ? 'font-medium text-red-600' : 'text-slate-500'}">
+								<td class="table-cell {Number(row.booking.balanceDue) > 0 ? 'font-medium text-danger' : 'text-slate-500'}">
 									<Money amount={row.booking.balanceDue} currency={row.booking.currency} />
 								</td>
 								<td class="table-cell text-slate-500"><TimeAgo value={row.booking.createdAt} timezone={data.tenant.timezone} /></td>

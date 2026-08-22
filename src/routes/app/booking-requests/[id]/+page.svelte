@@ -36,7 +36,7 @@
 	</div>
 
 	{#if form?.message}
-		<p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form.message}</p>
+		<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>
 	{/if}
 
 	<div class="grid gap-3 lg:grid-cols-3">
@@ -109,7 +109,7 @@
 				<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
 					<h2 class="text-sm font-semibold text-slate-800">WhatsApp conversation</h2>
 					{#if data.request.conversationId}
-						<a href="/app/conversations/{data.request.conversationId}" class="text-xs text-brand-700 hover:underline">Open thread</a>
+						<a href="/app/conversations/{data.request.conversationId}" class="text-xs text-brand-600 hover:underline">Open thread</a>
 					{/if}
 				</header>
 				{#if data.messages.length === 0}
@@ -118,9 +118,9 @@
 					<ul class="max-h-80 space-y-2 overflow-y-auto p-3">
 						{#each data.messages as m (m.id)}
 							<li class="flex {m.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}">
-								<div class="max-w-[80%] rounded-lg px-3 py-1.5 text-sm {m.direction === 'OUTBOUND' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-800'}">
+								<div class="max-w-[80%] rounded-lg px-3 py-1.5 text-sm {m.direction === 'OUTBOUND' ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-800'}">
 									<p class="whitespace-pre-wrap">{m.body ?? `[${m.type}]`}</p>
-									<p class="mt-0.5 text-[10px] {m.direction === 'OUTBOUND' ? 'text-brand-100' : 'text-slate-400'}">
+									<p class="mt-0.5 text-[10px] {m.direction === 'OUTBOUND' ? 'text-white/70' : 'text-slate-400'}">
 										<TimeAgo value={m.createdAt} timezone={tz} /> · {m.status.toLowerCase()}
 									</p>
 								</div>
@@ -146,7 +146,7 @@
 					{#if data.customer?.whatsappPhone}<div class="text-slate-600">+{data.customer.whatsappPhone}</div>{/if}
 					{#if data.customer?.country}<div class="text-[11px] uppercase text-slate-500">{data.customer.country}</div>{/if}
 					{#if data.customer}
-						<a href="/app/customers?q={data.customer.email ?? data.customer.whatsappPhone ?? ''}" class="mt-2 inline-block text-xs text-brand-700 hover:underline">Customer record →</a>
+						<a href="/app/customers?q={data.customer.email ?? data.customer.whatsappPhone ?? ''}" class="mt-2 inline-block text-xs text-brand-600 hover:underline">Customer record →</a>
 					{/if}
 				</div>
 			</section>

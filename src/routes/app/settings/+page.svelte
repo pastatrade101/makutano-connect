@@ -14,8 +14,8 @@
 <div class="max-w-3xl space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">Settings</h1>
 
-	{#if form?.success}<p class="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-200">Settings saved.</p>{/if}
-	{#if form?.message}<p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form.message}</p>{/if}
+	{#if form?.success}<p class="rounded-panel bg-success/10 px-3 py-2 text-xs text-success">Settings saved.</p>{/if}
+	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	<form method="POST" action="?/save" use:enhance class="card">
 		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Business</header>
@@ -39,7 +39,7 @@
 	<section class="card">
 		<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
 			<h2 class="text-sm font-semibold text-slate-800">Plan &amp; usage</h2>
-			<span class="badge bg-brand-50 text-brand-800 ring-1 ring-brand-200">{data.plan.code}</span>
+			<span class="badge bg-brand-50 text-brand-600 ring-1 ring-brand-200">{data.plan.code}</span>
 		</header>
 		<div class="space-y-3 p-3">
 			{#each [{ label: 'API requests', used: data.usage.apiRequests, limit: data.plan.limits.api_requests_per_minute ? undefined : undefined }, { label: 'Booking requests', used: data.usage.bookingRequests, limit: data.plan.limits.booking_requests_per_month }, { label: 'WhatsApp messages sent', used: data.usage.whatsappOutbound, limit: data.plan.limits.whatsapp_outbound_per_month }] as row (row.label)}
@@ -50,7 +50,7 @@
 					</div>
 					{#if row.limit}
 						<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-							<div class="h-full rounded-full {pct(row.used, row.limit) > 85 ? 'bg-red-500' : 'bg-brand-500'}" style="width: {pct(row.used, row.limit)}%"></div>
+							<div class="h-full rounded-full {pct(row.used, row.limit) > 85 ? 'bg-danger/100' : 'bg-brand-500'}" style="width: {pct(row.used, row.limit)}%"></div>
 						</div>
 					{/if}
 				</div>

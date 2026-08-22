@@ -14,14 +14,14 @@
 <div class="max-w-4xl space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">Developers</h1>
 
-	{#if form?.message}<p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form.message}</p>{/if}
+	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	<section class="card p-3">
 		<h2 class="text-sm font-semibold text-slate-800">Connect your website</h2>
 		<p class="mt-1 text-xs text-slate-500">Store these on your website's <b>server</b>. The secret key must never reach a browser.</p>
-		<pre class="mt-2 overflow-x-auto rounded-md bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100"><code>MAKUTANO_API_URL={data.apiBaseUrl}
+		<pre class="mt-2 overflow-x-auto rounded-panel bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100"><code>MAKUTANO_API_URL={data.apiBaseUrl}
 MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
-		<pre class="mt-2 overflow-x-auto rounded-md bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-700 ring-1 ring-slate-200"><code>curl -X POST "{data.apiBaseUrl}/api/v1/booking-requests" \
+		<pre class="mt-2 overflow-x-auto rounded-panel bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-700 ring-1 ring-slate-200"><code>curl -X POST "{data.apiBaseUrl}/api/v1/booking-requests" \
   -H "Authorization: Bearer $MAKUTANO_API_KEY" \
   -H "Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
@@ -30,9 +30,9 @@ MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
 	</section>
 
 	{#if form?.createdKey}
-		<div class="rounded-md bg-emerald-50 p-3 ring-1 ring-emerald-200">
-			<p class="text-xs font-semibold text-emerald-900">Copy this key now — it is shown only once.</p>
-			<code class="mt-1 block overflow-x-auto rounded bg-white px-2 py-1 font-mono text-xs text-slate-900 ring-1 ring-emerald-200">{form.createdKey.secret}</code>
+		<div class="rounded-panel border border-success/30 bg-success/10 p-3">
+			<p class="text-xs font-semibold text-success">Copy this key now — it is shown only once.</p>
+			<code class="mt-1 block overflow-x-auto rounded bg-white px-2 py-1 font-mono text-xs text-slate-900 ring-1 ring-success/30">{form.createdKey.secret}</code>
 		</div>
 	{/if}
 
@@ -77,7 +77,7 @@ MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
 							{#if canWrite && key.status === 'ACTIVE'}
 								<form method="POST" action="?/revokeKey" use:enhance>
 									<input type="hidden" name="id" value={key.id} />
-									<button class="text-xs text-red-600 hover:underline">Revoke</button>
+									<button class="text-xs text-danger hover:underline">Revoke</button>
 								</form>
 							{/if}
 						</td>
@@ -90,9 +90,9 @@ MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
 	</section>
 
 	{#if form?.createdEndpoint}
-		<div class="rounded-md bg-emerald-50 p-3 ring-1 ring-emerald-200">
-			<p class="text-xs font-semibold text-emerald-900">Signing secret — shown once. Verify every delivery with it.</p>
-			<code class="mt-1 block overflow-x-auto rounded bg-white px-2 py-1 font-mono text-xs ring-1 ring-emerald-200">{form.createdEndpoint.secret}</code>
+		<div class="rounded-panel border border-success/30 bg-success/10 p-3">
+			<p class="text-xs font-semibold text-success">Signing secret — shown once. Verify every delivery with it.</p>
+			<code class="mt-1 block overflow-x-auto rounded bg-white px-2 py-1 font-mono text-xs ring-1 ring-success/30">{form.createdEndpoint.secret}</code>
 		</div>
 	{/if}
 
@@ -124,13 +124,13 @@ MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
 					<tr>
 						<td class="table-cell max-w-xs truncate font-mono text-xs">{ep.url}</td>
 						<td class="table-cell text-[11px] text-slate-500">{ep.events.length ? ep.events.join(', ') : 'all'}</td>
-						<td class="table-cell tabular-nums {ep.consecutiveFailures > 0 ? 'text-red-600' : 'text-slate-500'}">{ep.consecutiveFailures}</td>
+						<td class="table-cell tabular-nums {ep.consecutiveFailures > 0 ? 'text-danger' : 'text-slate-500'}">{ep.consecutiveFailures}</td>
 						<td class="table-cell text-slate-500"><TimeAgo value={ep.lastSuccessAt} timezone={data.tenant.timezone} /></td>
 						<td class="table-cell text-right">
 							{#if canHooks}
 								<form method="POST" action="?/deleteEndpoint" use:enhance>
 									<input type="hidden" name="id" value={ep.id} />
-									<button class="text-xs text-red-600 hover:underline">Delete</button>
+									<button class="text-xs text-danger hover:underline">Delete</button>
 								</form>
 							{/if}
 						</td>

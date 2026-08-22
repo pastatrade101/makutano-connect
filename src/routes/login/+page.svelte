@@ -9,14 +9,14 @@
 <div class="flex min-h-screen items-center justify-center px-4">
 	<div class="w-full max-w-sm">
 		<div class="mb-6 text-center">
-			<div class="mx-auto mb-3 flex size-11 items-center justify-center rounded-lg bg-brand-700 text-lg font-bold text-white">M</div>
-			<h1 class="text-lg font-semibold text-slate-900">Makutano Connect</h1>
-			<p class="mt-1 text-xs text-slate-500">Booking, WhatsApp and payment infrastructure</p>
+			<div class="mx-auto mb-3 flex size-12 items-center justify-center rounded-panel bg-brand-500 text-lg font-bold text-white shadow-panel">M</div>
+			<h1 class="text-xl font-bold tracking-tight text-slate-800">Makutano <span class="text-brand-500">Connect</span></h1>
+			<p class="mt-1 text-xs text-slate-400">Booking, WhatsApp and payment infrastructure</p>
 		</div>
 
 		<form
 			method="POST"
-			class="card space-y-3 p-5"
+			class="card space-y-4 p-6"
 			use:enhance={() => {
 				submitting = true;
 				return async ({ update }) => {
@@ -26,7 +26,7 @@
 			}}
 		>
 			{#if form?.message}
-				<p class="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">{form.message}</p>
+				<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>
 			{/if}
 			<div>
 				<label class="label" for="email">Email</label>
@@ -41,7 +41,7 @@
 			</button>
 		</form>
 
-		<p class="mt-4 text-center text-[11px] text-slate-400">
+		<p class="mt-5 text-center text-[11px] text-slate-400">
 			Clients keep working inside their own CMS — this portal is optional.
 		</p>
 	</div>
