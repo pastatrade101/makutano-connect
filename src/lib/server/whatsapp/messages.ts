@@ -35,6 +35,8 @@ export type SendParams = {
 	sentByUserId?: string | null;
 	/** Collapses duplicate sends of the same logical notification. */
 	dedupeKey?: string;
+	/** false → the caller dispatches itself (sync mode); the queue is skipped. */
+	enqueueJob?: boolean;
 };
 
 /** Build the exact Cloud API request body for a content union member. */
@@ -123,11 +125,13 @@ export async function queueMessage(params: SendParams): Promise<schema.Message> 
 		})
 		.returning();
 
-	await enqueue(
-		'whatsapp.send',
-		{ messageId: message.id },
-		{ tenantId: params.tenantId, dedupeKey: params.dedupeKey ? `wa-send:${params.dedupeKey}` : undefined }
-	);
+	if (params.enqueueJob !== false) {
+		await enqueue(
+			'whatsapp.send',
+			{ messageId: message.id },
+			{ tenantId: params.tenantId, dedupeKey: params.dedupeKey ? `wa-send:${params.dedupeKey}` : undefined }
+		);
+	}
 	await touchConversation(conversationId);
 	return message;
 }
