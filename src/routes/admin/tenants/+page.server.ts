@@ -12,7 +12,8 @@ import { setActiveTenant } from '$lib/server/auth/session';
 import { provisionTenant, slugify } from '$lib/server/tenants';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ url }) => {
+	const q = url.searchParams.get('q')?.trim().toLowerCase() ?? '';
 	const tenants = await db()
 		.select({
 			tenant: schema.tenants,
@@ -26,8 +27,12 @@ export const load: PageServerLoad = async () => {
 		.leftJoin(schema.plans, eq(schema.plans.id, schema.tenants.planId))
 		.orderBy(desc(schema.tenants.createdAt));
 
+	const filtered = q
+		? tenants.filter((t) => t.tenant.name.toLowerCase().includes(q) || t.tenant.slug.toLowerCase().includes(q))
+		: tenants;
+
 	const plans = await db().select().from(schema.plans).orderBy(schema.plans.sortOrder);
-	return { tenants, plans: plans.length ? plans : DEFAULT_PLANS.map((p) => ({ ...p, id: p.code })) };
+	return { tenants: filtered, q, plans: plans.length ? plans : DEFAULT_PLANS.map((p) => ({ ...p, id: p.code })) };
 };
 
 export const actions: Actions = {
