@@ -125,3 +125,52 @@ suite('relay end-to-end', () => {
 		await expect(ctx.relay.relayRawWebhook({ url: 'http://not-loopback/x', rawBody: '{}', signature: '' })).resolves.toBeUndefined();
 	});
 });
+
+suite('multi-number primary selection', () => {
+	let ctx2: {
+		connections: typeof import('../src/lib/server/whatsapp/connections');
+		tenants: typeof import('../src/lib/server/tenants');
+		db: typeof import('../src/lib/server/db');
+	};
+	let tenant: { id: string };
+	const stamp2 = `${Date.now()}-multi`;
+
+	beforeAll(async () => {
+		ctx2 = {
+			connections: await import('../src/lib/server/whatsapp/connections'),
+			tenants: await import('../src/lib/server/tenants'),
+			db: await import('../src/lib/server/db')
+		};
+		tenant = await ctx2.tenants.provisionTenant({ name: 'Multi Co', slug: `multi-${stamp2}` });
+	}, 60_000);
+
+	afterAll(async () => {
+		const { db, schema } = ctx2.db;
+		const { eq } = await import('drizzle-orm');
+		await db().delete(schema.tenants).where(eq(schema.tenants.id, tenant.id));
+	});
+
+	it('a newly connected number takes over sending from the previous one', async () => {
+		await ctx2.connections.upsertConnection({ tenantId: tenant.id, phoneNumberId: `old-${stamp2}`, accessToken: 'old-token' });
+		await new Promise((r) => setTimeout(r, 20)); // distinct updated_at
+		await ctx2.connections.upsertConnection({ tenantId: tenant.id, phoneNumberId: `new-${stamp2}`, accessToken: 'new-token' });
+
+		const chosen = await ctx2.connections.getConnectionForTenant(tenant.id);
+		expect(chosen?.phoneNumberId).toBe(`new-${stamp2}`);
+		expect(chosen?.isPrimary).toBe(true);
+
+		const credentials = await ctx2.connections.resolveCredentials(tenant.id);
+		expect(credentials?.accessToken).toBe('new-token');
+
+		// Inbound for the OLD number still routes — history and webhooks survive.
+		const routed = await ctx2.connections.resolveTenantByPhoneNumberId(`old-${stamp2}`);
+		expect(routed?.tenantId).toBe(tenant.id);
+	});
+
+	it('a live secondary beats a disconnected primary', async () => {
+		await ctx2.connections.disconnect(tenant.id); // disconnects the current primary (new-)
+		const chosen = await ctx2.connections.getConnectionForTenant(tenant.id);
+		expect(chosen?.phoneNumberId).toBe(`old-${stamp2}`);
+		expect(chosen?.status).toBe('CONNECTED');
+	});
+});

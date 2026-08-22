@@ -5,7 +5,7 @@
 //      tenant, so it may never be claimed by two tenants.
 //   2. A decrypted token is produced only here, only for the tenant that owns it,
 //      and is never returned to any HTTP response or written to a log (§29).
-import { and, eq, isNotNull, lt } from 'drizzle-orm';
+import { and, eq, isNotNull, lt, sql } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { decrypt, encrypt } from '../encryption';
 import { AppError } from '../errors';
@@ -48,11 +48,18 @@ export function toSafeConnection(row: schema.WhatsappConnection): SafeConnection
 }
 
 export async function getConnectionForTenant(tenantId: string): Promise<schema.WhatsappConnection | null> {
+	// Selection order matters the moment a tenant has connected more than one number:
+	// a live connection beats a dead one, the primary beats the rest, and newest wins
+	// among equals — so connecting your own number immediately takes over sending.
 	const rows = await db()
 		.select()
 		.from(schema.whatsappConnections)
 		.where(eq(schema.whatsappConnections.tenantId, tenantId))
-		.orderBy(schema.whatsappConnections.updatedAt)
+		.orderBy(
+			sql`(${schema.whatsappConnections.status} = 'CONNECTED') desc`,
+			sql`${schema.whatsappConnections.isPrimary} desc`,
+			sql`${schema.whatsappConnections.updatedAt} desc`
+		)
 		.limit(1);
 	return rows[0] ?? null;
 }
@@ -117,6 +124,22 @@ export async function upsertConnection(input: UpsertConnectionInput): Promise<sc
 			}
 		})
 		.returning();
+
+	// The number that just (re)connected becomes the tenant's primary sender; any
+	// other rows the tenant holds are demoted rather than deleted, preserving their
+	// history and their webhook routing.
+	await db()
+		.update(schema.whatsappConnections)
+		.set({ isPrimary: false })
+		.where(
+			and(
+				eq(schema.whatsappConnections.tenantId, input.tenantId),
+				sql`${schema.whatsappConnections.id} <> ${row.id}`
+			)
+		);
+	if (!row.isPrimary) {
+		await db().update(schema.whatsappConnections).set({ isPrimary: true }).where(eq(schema.whatsappConnections.id, row.id));
+	}
 
 	return row;
 }
