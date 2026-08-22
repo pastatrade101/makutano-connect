@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Chart from '$components/Chart.svelte';
 	import Money from '$components/Money.svelte';
 	import StatTile from '$components/StatTile.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
@@ -7,6 +8,24 @@
 
 	const s = $derived(data.stats);
 	const tz = $derived(data.tenant.timezone);
+
+	// Reback-style smooth area chart: brand + info series over the last fortnight.
+	const chartOptions = $derived({
+		chart: { type: 'area' as const, height: 240, toolbar: { show: false }, fontFamily: 'inherit', zoom: { enabled: false } },
+		series: [
+			{ name: 'Enquiries', data: data.activity.requests },
+			{ name: 'Messages', data: data.activity.messages }
+		],
+		xaxis: { categories: data.activity.labels, labels: { style: { colors: '#8486a7', fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+		yaxis: { labels: { style: { colors: '#8486a7', fontSize: '11px' } } },
+		colors: ['#1c84ee', '#4ecac2'],
+		stroke: { curve: 'smooth' as const, width: 2.5 },
+		fill: { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
+		dataLabels: { enabled: false },
+		grid: { borderColor: '#eaedf1', strokeDashArray: 4 },
+		legend: { labels: { colors: '#5d7186' } },
+		tooltip: { theme: 'light' as const }
+	});
 </script>
 
 <svelte:head><title>Overview · {data.tenant.name}</title></svelte:head>
@@ -33,6 +52,15 @@
 		<StatTile label="Cancelled" value={s.bookings.cancelled} href="/app/bookings?status=CANCELLED" />
 		<StatTile label="Unpaid" value={s.bookings.unpaid} tone={s.bookings.unpaid > 0 ? 'bad' : 'default'} href="/app/bookings?payment=unpaid" />
 	</div>
+
+	<section class="card">
+		<header class="card-header">
+			<h2 class="card-title">Activity — last 14 days</h2>
+		</header>
+		<div class="px-2 pt-2">
+			<Chart options={chartOptions} />
+		</div>
+	</section>
 
 	<div class="grid gap-4 lg:grid-cols-3">
 		<section class="card lg:col-span-2">

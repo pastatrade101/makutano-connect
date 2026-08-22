@@ -20,10 +20,26 @@ export const load: PageServerLoad = async () => {
 			(select count(*) from payments where status = 'FAILED')::int as payments_failed
 	`)) as unknown as Array<Record<string, number>>;
 
+	const activity = (await db().execute(sql`
+		with days as (select generate_series(current_date - 13, current_date, '1 day')::date as day)
+		select to_char(d.day, 'DD Mon') as label,
+			(select count(*)::int from messages m where m.created_at::date = d.day) as messages,
+			(select count(*)::int from booking_requests br where br.created_at::date = d.day) as requests
+		from days d order by d.day
+	`)) as unknown as Array<{ label: string; messages: number; requests: number }>;
+
 	const recentJobs = (await db().execute(sql`
 		select kind, status, attempts, last_error, created_at
 		from jobs where status in ('DEAD','FAILED') order by created_at desc limit 10
 	`)) as unknown as Array<Record<string, unknown>>;
 
-	return { counts, recentJobs };
+	return {
+		counts,
+		recentJobs,
+		activity: {
+			labels: activity.map((r) => r.label),
+			messages: activity.map((r) => Number(r.messages)),
+			requests: activity.map((r) => Number(r.requests))
+		}
+	};
 };

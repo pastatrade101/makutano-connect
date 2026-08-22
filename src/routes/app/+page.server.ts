@@ -5,26 +5,46 @@ import { paymentStats } from '$lib/server/payments';
 import { listConversations } from '$lib/server/conversations';
 import { listBookingRequests } from '$lib/server/booking-requests';
 import { getConnectionForTenant, toSafeConnection } from '$lib/server/whatsapp/connections';
+import { db } from '$lib/server/db';
+import { sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
+
+/** Daily activity for the overview chart: enquiries in, messages exchanged. */
+async function dailySeries(tenantId: string) {
+	const rows = (await db().execute(sql`
+		with days as (select generate_series(current_date - 13, current_date, '1 day')::date as day)
+		select to_char(d.day, 'DD Mon') as label,
+			(select count(*)::int from booking_requests br where br.tenant_id = ${tenantId}::uuid and br.created_at::date = d.day) as requests,
+			(select count(*)::int from messages m where m.tenant_id = ${tenantId}::uuid and m.created_at::date = d.day) as messages
+		from days d order by d.day
+	`)) as unknown as Array<{ label: string; requests: number; messages: number }>;
+	return {
+		labels: rows.map((r) => r.label),
+		requests: rows.map((r) => Number(r.requests)),
+		messages: rows.map((r) => Number(r.messages))
+	};
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const tenantId = locals.tenant!.id;
 	const pagination = { page: 1, limit: 8, order: 'desc' as const };
 
-	const [requests, bookings, customers, payments, recent, inbox, connection] = await Promise.all([
+	const [requests, bookings, customers, payments, recent, inbox, connection, activity] = await Promise.all([
 		bookingRequestStats(tenantId),
 		bookingStats(tenantId),
 		customerStats(tenantId),
 		paymentStats(tenantId),
 		listBookingRequests(tenantId, pagination),
 		listConversations(tenantId, pagination, { open: true }),
-		getConnectionForTenant(tenantId)
+		getConnectionForTenant(tenantId),
+		dailySeries(tenantId)
 	]);
 
 	return {
 		stats: { requests, bookings, customers, payments },
 		recentRequests: recent.items,
 		inbox: inbox.items,
-		whatsapp: connection ? toSafeConnection(connection) : null
+		whatsapp: connection ? toSafeConnection(connection) : null,
+		activity
 	};
 };

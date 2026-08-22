@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$app/forms';
 	let { data, form } = $props();
 	const canWrite = $derived(data.permissions?.includes('tenant:write'));
@@ -11,11 +12,11 @@
 
 <svelte:head><title>Settings · {data.tenant.name}</title></svelte:head>
 
+<FormToast {form} successTitle="Settings saved" />
+
 <div class="max-w-3xl space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">Settings</h1>
 
-	{#if form?.success}<p class="rounded-panel bg-success/10 px-3 py-2 text-xs text-success">Settings saved.</p>{/if}
-	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	<form method="POST" action="?/save" use:enhance class="card">
 		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Business</header>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$app/forms';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
@@ -8,13 +9,14 @@
 
 <svelte:head><title>Tenants · Makutano Admin</title></svelte:head>
 
+<FormToast {form} successTitle="Done" />
+
 <div class="space-y-3">
 	<div class="flex items-center justify-between">
 		<h1 class="text-base font-semibold text-slate-900">Tenants</h1>
 		<button class="btn-primary" onclick={() => (showForm = !showForm)}>Provision tenant</button>
 	</div>
 
-	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	{#if form?.created}
 		<div class="rounded-panel border border-success/30 bg-success/10 p-3">

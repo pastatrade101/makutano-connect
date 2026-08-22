@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$app/forms';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
@@ -11,6 +12,8 @@
 </script>
 
 <svelte:head><title>{data.quotation.reference} · {data.tenant.name}</title></svelte:head>
+
+<FormToast {form} successTitle="Quotation updated" />
 
 <div class="mx-auto max-w-3xl space-y-3">
 	<div class="flex flex-wrap items-center justify-between gap-2">
@@ -28,7 +31,6 @@
 		</div>
 	</div>
 
-	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	{#if data.quotation.convertedBookingId}
 		<p class="rounded-panel bg-success/10 px-3 py-2 text-xs text-success">

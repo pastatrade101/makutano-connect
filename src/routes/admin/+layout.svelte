@@ -2,6 +2,7 @@
 	// Reback dark-menu variant for the platform admin: sidenav on #262d34 with muted
 	// items that light to white, and the same white topbar as the portal.
 	import { page } from '$app/state';
+	import Toasts from '$components/Toasts.svelte';
 	let { data, children } = $props();
 
 	const NAV = [
@@ -16,6 +17,8 @@
 	const current = $derived(NAV.find((n) => isActive(n.href))?.label ?? 'Admin');
 	const isActive = (href: string) => (href === '/admin' ? page.url.pathname === '/admin' : page.url.pathname.startsWith(href));
 </script>
+
+<Toasts />
 
 <div class="flex min-h-screen">
 	<aside class="hidden w-64 shrink-0 flex-col bg-sidenav-dark lg:flex">
@@ -61,6 +64,9 @@
 				<form method="POST" action="/logout"><button class="text-xs text-slate-500">Sign out</button></form>
 			</div>
 		</header>
-		<main class="min-w-0 flex-1 p-4 lg:p-6">{@render children()}</main>
+		<main class="min-w-0 flex-1 p-4 lg:p-6">
+			{@render children()}
+			<footer class="mt-8 text-center text-[11px] text-slate-400">{new Date().getFullYear()} © Makutano Connect</footer>
+		</main>
 	</div>
 </div>

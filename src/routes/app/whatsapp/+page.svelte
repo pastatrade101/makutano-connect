@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$app/forms';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
@@ -9,10 +10,11 @@
 
 <svelte:head><title>WhatsApp · {data.tenant.name}</title></svelte:head>
 
+<FormToast {form} successTitle="Done" />
+
 <div class="max-w-3xl space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">WhatsApp</h1>
 
-	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 	{#if !data.featureEnabled}
 		<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">WhatsApp is not included in your current plan.</p>
 	{/if}

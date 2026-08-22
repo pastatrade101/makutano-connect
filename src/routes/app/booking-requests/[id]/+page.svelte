@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$app/forms';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
@@ -13,6 +14,8 @@
 </script>
 
 <svelte:head><title>{data.request.reference} · {data.tenant.name}</title></svelte:head>
+
+<FormToast {form} successTitle="Saved" />
 
 <div class="space-y-3">
 	<div class="flex flex-wrap items-center justify-between gap-2">

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$app/forms';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
@@ -11,10 +12,11 @@
 
 <svelte:head><title>Developers · {data.tenant.name}</title></svelte:head>
 
+<FormToast {form} successTitle="Done" />
+
 <div class="max-w-4xl space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">Developers</h1>
 
-	{#if form?.message}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>{/if}
 
 	<section class="card p-3">
 		<h2 class="text-sm font-semibold text-slate-800">Connect your website</h2>
