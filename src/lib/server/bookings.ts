@@ -297,6 +297,29 @@ export async function changeBookingStatus(
 		});
 	}
 	
+	// "Request payment" means REQUEST it: moving to AWAITING_PAYMENT sends the mapped
+	// payment reminder with the outstanding amount. Fire-and-forget, compliance-gated.
+	if (toStatus === 'AWAITING_PAYMENT') {
+		void (async () => {
+			const [customer] = updated.customerId
+				? await db().select().from(schema.customers).where(eq(schema.customers.id, updated.customerId)).limit(1)
+				: [];
+			const tenant = await getTenantById(tenantId);
+			await sendEventTemplate(
+				tenantId,
+				'PAYMENT_REMINDER',
+				customer?.whatsappPhone,
+				{
+					customer: { firstName: customer?.firstName, lastName: customer?.lastName },
+					business: { name: tenant?.name ?? '' },
+					booking: { reference: updated.bookingReference, total: updated.total },
+					payment: { amountDue: `${updated.currency} ${updated.balanceDue ?? updated.total}` }
+				},
+				`booking-PAYMENT_REMINDER:${updated.id}`
+			);
+		})().catch(() => undefined);
+	}
+
 	// Customer notification through the Template Center — only when the tenant mapped
 	// an approved template to BOOKING_CONFIRMED. Fire-and-forget: fulfilment never blocks.
 	if (toStatus === 'CONFIRMED') {
