@@ -122,7 +122,14 @@ export async function tenantControlCenter(tenantId: string) {
 		tenant: row.tenant,
 		plan: row.plan,
 		plans,
-		entitlements,
+		// Serializable summary only — TenantEntitlements carries a resolver function
+		// that cannot cross the server→client boundary.
+		entitlements: {
+			planCode: entitlements.planCode,
+			planName: entitlements.planName,
+			tenantStatus: entitlements.tenantStatus,
+			subscriptionStatus: entitlements.subscriptionStatus
+		},
 		entitlementRows: ENTITLEMENTS.map((definition) => entitlements.resolved[definition.key]),
 		usage,
 		subscription: subscription[0] ?? null,
