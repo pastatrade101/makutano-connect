@@ -14,6 +14,10 @@ describe('workspace resolver', () => {
 		expect(normalizeWorkspace(undefined)).toBe('HYBRID');
 		expect(normalizeWorkspace('garbage')).toBe('HYBRID');
 		expect(normalizeWorkspace('BOOKINGS')).toBe('BOOKINGS');
+		// Regression: a raw jsonb write once double-encoded the value; the quoted form
+		// must still resolve to the right workspace, not fail open to HYBRID.
+		expect(normalizeWorkspace('"BOOKINGS"')).toBe('BOOKINGS');
+		expect(normalizeWorkspace('"ORDERS"')).toBe('ORDERS');
 		expect(normalizeWorkspace('SERVICE')).toBe('SERVICE');
 	});
 

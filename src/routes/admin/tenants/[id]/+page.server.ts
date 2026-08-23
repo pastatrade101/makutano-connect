@@ -39,7 +39,7 @@ export const actions: Actions = {
 			await db()
 				.update(schema.tenants)
 				.set({
-					settings: sql`jsonb_set(coalesce(${schema.tenants.settings}, '{}'::jsonb), '{capabilities}', ${JSON.stringify(value)}::jsonb, true)`,
+					settings: sql`jsonb_set(coalesce(${schema.tenants.settings}, '{}'::jsonb), '{capabilities}', to_jsonb(${value}::text), true)`,
 					updatedAt: new Date()
 				})
 				.where(eq(schema.tenants.id, tenantId));

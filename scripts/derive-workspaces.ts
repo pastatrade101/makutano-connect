@@ -41,7 +41,7 @@ try {
 		if (apply) {
 			await sql`
 				update tenants
-				set settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{capabilities}', ${JSON.stringify(derived)}::jsonb, true),
+				set settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{capabilities}', to_jsonb(${derived}::text), true),
 					updated_at = now()
 				where id = ${t.id}`;
 			await sql`

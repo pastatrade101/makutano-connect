@@ -9,7 +9,8 @@ export type Workspace = 'BOOKINGS' | 'ORDERS' | 'SERVICE' | 'HYBRID';
 
 /** Legacy tenants stored 'BOTH'; unknown values fail open to the everything view. */
 export function normalizeWorkspace(value: unknown): Workspace {
-	const v = String(value ?? '');
+	// Tolerates accidentally double-encoded values ('"BOOKINGS"') from raw jsonb writes.
+	const v = String(value ?? '').replace(/^"|"$/g, '');
 	if (v === 'BOOKINGS' || v === 'ORDERS' || v === 'SERVICE') return v;
 	return 'HYBRID';
 }
