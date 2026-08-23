@@ -144,6 +144,36 @@ suite('commerce integration', () => {
 		await expect(ctx.payments.createPayment(tenantB.id, { orderId: order.id, amount: '1.00' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
 	});
 
+	it('refuses a cross-tenant customer on the order UPDATE path (BOLA regression)', async () => {
+		// createOrder always verified ownership; updateDraftOrder did not, letting a
+		// tenant point its own draft at a foreign customer and read the PII back.
+		const foreign = await ctx.customers.findOrCreateCustomer(tenantB.id, {
+			firstName: 'Private',
+			lastName: 'Person',
+			email: `private-${stamp}@example.com`
+		});
+		const draft = await ctx.orders.createOrder(tenantA.id, { items: [{ title: 'Thing', unitPrice: '5.00' }] });
+
+		await expect(ctx.orders.updateDraftOrder(tenantA.id, draft.id, { customerId: foreign.id })).rejects.toMatchObject({
+			code: 'CUSTOMER_NOT_FOUND'
+		});
+		// And creation rejects it too, as it always did.
+		await expect(
+			ctx.orders.createOrder(tenantA.id, { customerId: foreign.id, items: [{ title: 'X', unitPrice: '1.00' }] })
+		).rejects.toMatchObject({ code: 'CUSTOMER_NOT_FOUND' });
+
+		// Detail never surfaces a foreign customer even if one were somehow stored.
+		const detail = await ctx.orders.getOrderDetail(tenantA.id, draft.id);
+		expect(detail.customer).toBeNull();
+	});
+
+	it('clearing the customer with null still works', async () => {
+		const mine = await ctx.customers.findOrCreateCustomer(tenantA.id, { firstName: 'Mine', email: `mine-${stamp}@example.com` });
+		const draft = await ctx.orders.createOrder(tenantA.id, { customerId: mine.id, items: [{ title: 'Thing', unitPrice: '5.00' }] });
+		const cleared = await ctx.orders.updateDraftOrder(tenantA.id, draft.id, { customerId: null });
+		expect(cleared.customerId).toBeNull();
+	});
+
 	it('keeps catalog tenant-isolated and batch fetch scoped', async () => {
 		const item = await ctx.catalog.createCatalogItem(tenantA.id, { name: 'Secret product', price: '10.00' });
 		await expect(ctx.catalog.getCatalogItem(tenantB.id, item.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });

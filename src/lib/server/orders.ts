@@ -201,7 +201,11 @@ export async function getOrderDetail(tenantId: string, id: string) {
 			.orderBy(desc(schema.orderStatusHistory.createdAt)),
 		db().select().from(schema.payments).where(eq(schema.payments.orderId, id)).orderBy(desc(schema.payments.createdAt)),
 		order.customerId
-			? db().select().from(schema.customers).where(eq(schema.customers.id, order.customerId)).limit(1)
+			? db()
+					.select()
+					.from(schema.customers)
+					.where(and(eq(schema.customers.id, order.customerId), eq(schema.customers.tenantId, tenantId)))
+					.limit(1)
 			: Promise.resolve([]),
 		order.conversationId
 			? db().select().from(schema.conversations).where(eq(schema.conversations.id, order.conversationId)).limit(1)
@@ -251,7 +255,10 @@ export async function listOrders(tenantId: string, p: Pagination, filters: Order
 				)`
 			})
 			.from(schema.orders)
-			.leftJoin(schema.customers, eq(schema.customers.id, schema.orders.customerId))
+			.leftJoin(
+				schema.customers,
+				and(eq(schema.customers.id, schema.orders.customerId), eq(schema.customers.tenantId, tenantId))
+			)
 			.where(where)
 			.orderBy(desc(schema.orders.createdAt))
 			.limit(p.limit)
@@ -277,6 +284,19 @@ export async function updateDraftOrder(
 		throw new AppError('CONFLICT', `A ${order.status} order can no longer be edited.`);
 	}
 	void actor;
+
+	// A customer id from the caller is a link, not authorization — verify ownership on
+	// the UPDATE path too, or an attacker could point their own draft at another
+	// tenant's customer and read it back through the detail endpoint.
+	// Truthiness, not `!== undefined`: an explicit null still clears the customer.
+	if (input.customerId) {
+		const owned = await db()
+			.select({ id: schema.customers.id })
+			.from(schema.customers)
+			.where(and(eq(schema.customers.id, input.customerId), eq(schema.customers.tenantId, tenantId)))
+			.limit(1);
+		if (!owned[0]) throw new AppError('CUSTOMER_NOT_FOUND', 'Customer could not be found.');
+	}
 
 	const items = input.items;
 	const { subtotal, total } = items?.length
@@ -336,7 +356,11 @@ const STATUS_NOTIFY: Partial<Record<schema.Order['status'], NotifyEvent>> = {
 
 async function orderTemplateContext(tenantId: string, order: schema.Order) {
 	const [customer] = order.customerId
-		? await db().select().from(schema.customers).where(eq(schema.customers.id, order.customerId)).limit(1)
+		? await db()
+				.select()
+				.from(schema.customers)
+				.where(and(eq(schema.customers.id, order.customerId), eq(schema.customers.tenantId, tenantId)))
+				.limit(1)
 		: [];
 	const tenant = await getTenantById(tenantId);
 	const items = await db().select().from(schema.orderItems).where(eq(schema.orderItems.orderId, order.id));

@@ -76,6 +76,12 @@ export const POST: RequestHandler = async (event) => {
 		}
 		const body = submissionSchema.parse(parsedBody);
 
+		// Per-IP gate BEFORE resolution, so a flood against unknown ids is throttled too
+		// (the sibling GET config route does the same). The per-form limits below then
+		// bound abuse of any single published form.
+		const ip = ipHash(event);
+		await enforce(`widget-submit:${ip}`, 30, 60);
+
 		const { form, tenant } = await resolvePublicForm(event.params.publicId ?? '');
 
 		if (!originAllowed(form, event.request.headers.get('origin'))) {
@@ -83,7 +89,6 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		// Burst + sustained limits, keyed on visitor AND on the form itself.
-		const ip = ipHash(event);
 		await enforce(`widget:${form.publicId}:${ip}`, 5, 120);
 		await enforce(`widget:${form.publicId}`, 200, 3600);
 
