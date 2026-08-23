@@ -1,4 +1,5 @@
 import { error, fail, type Actions } from '@sveltejs/kit';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { eq } from 'drizzle-orm';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { addBookingRequestNote, getBookingRequestDetail, updateBookingRequest } from '$lib/server/booking-requests';
@@ -14,8 +15,8 @@ import type { PageServerLoad } from './$types';
 const idOf = (params: { id?: string }) => parseUuid(params.id ?? '', 'booking request id');
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	requirePermission(locals.permissions, 'booking_requests:read');
-	const tenantId = locals.tenant!.id;
+	requireTenantPermission(locals, 'booking_requests:read');
+	const tenantId = requireTenant(locals).id;
 
 	let detail;
 	try {
@@ -43,7 +44,7 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'booking_requests:write');
 		const data = await request.formData();
 		try {
-			await updateBookingRequest(locals.tenant!.id, idOf(params), {
+			await updateBookingRequest(requireTenant(locals).id, idOf(params), {
 				status: String(data.get('status') ?? '') as never
 			});
 			return { success: true };
@@ -55,7 +56,7 @@ export const actions: Actions = {
 	assign: async ({ locals, params, request }) => {
 		requirePermission(locals.permissions, 'booking_requests:write');
 		const data = await request.formData();
-		await updateBookingRequest(locals.tenant!.id, idOf(params), {
+		await updateBookingRequest(requireTenant(locals).id, idOf(params), {
 			assigneeUserId: String(data.get('assigneeUserId') ?? '') || null
 		});
 		return { success: true };
@@ -66,7 +67,7 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const body = String(data.get('body') ?? '').trim();
 		if (!body) return fail(400, { message: 'Write something first.' });
-		await addBookingRequestNote(locals.tenant!.id, idOf(params), body, locals.user!.id);
+		await addBookingRequestNote(requireTenant(locals).id, idOf(params), body, locals.user!.id);
 		return { success: true };
 	},
 
@@ -84,7 +85,7 @@ export const actions: Actions = {
 				.limit(1)
 		)[0];
 		// Re-check tenancy explicitly: the id came from the URL, not from a credential.
-		if (!bookingRequest || bookingRequest.tenantId !== locals.tenant!.id)
+		if (!bookingRequest || bookingRequest.tenantId !== requireTenant(locals).id)
 			return fail(404, { message: 'Request not found.' });
 
 		const customer = bookingRequest.customerId
@@ -97,7 +98,7 @@ export const actions: Actions = {
 
 		try {
 			await queueMessage({
-				tenantId: locals.tenant!.id,
+				tenantId: requireTenant(locals).id,
 				to,
 				content: { type: 'text', text },
 				conversationId: bookingRequest.conversationId,

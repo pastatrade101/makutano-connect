@@ -22,7 +22,7 @@
 
 <FormToast {form} successTitle="Plan saved" />
 
-<div class="max-w-5xl space-y-3">
+<div class="space-y-3">
 	<div>
 		<h1 class="text-base font-semibold text-slate-800">Plans</h1>
 		<p class="text-xs text-slate-400">Entitlements every tenant on the plan inherits. A tenant can be given individual overrides in its Control Center.</p>

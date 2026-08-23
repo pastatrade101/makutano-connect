@@ -1,11 +1,12 @@
 import { requirePermission } from '$lib/server/auth/permissions';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { bookingRequestStats, listBookingRequests } from '$lib/server/booking-requests';
 import { paginationFrom } from '$lib/server/http';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	requirePermission(locals.permissions, 'booking_requests:read');
-	const tenantId = locals.tenant!.id;
+	requireTenantPermission(locals, 'booking_requests:read');
+	const tenantId = requireTenant(locals).id;
 	const pagination = paginationFrom(url);
 
 	const status = url.searchParams.get('status');

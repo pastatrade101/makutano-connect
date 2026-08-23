@@ -201,7 +201,7 @@
 			</div>
 		</header>
 
-		<main class="min-w-0 flex-1 p-4 lg:p-6">
+		<main class="mx-auto w-full min-w-0 max-w-[1600px] flex-1 p-4 lg:p-6">
 			{#if data.tenantSuspended}
 				<div class="mb-4 rounded-panel bg-danger/10 px-4 py-3 text-sm text-danger">
 					<b>This account is suspended.</b> You can still view your data, but new orders, bookings, messages and API writes are blocked. Please contact support.

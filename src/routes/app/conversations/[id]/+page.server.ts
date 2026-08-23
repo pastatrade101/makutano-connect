@@ -1,4 +1,5 @@
 import { error, fail, type Actions } from '@sveltejs/kit';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { eq } from 'drizzle-orm';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { getConversation, listMessages, markConversationRead } from '$lib/server/conversations';
@@ -11,8 +12,8 @@ import type { PageServerLoad } from './$types';
 const idOf = (params: { id?: string }) => parseUuid(params.id ?? '', 'conversation id');
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	requirePermission(locals.permissions, 'conversations:read');
-	const tenantId = locals.tenant!.id;
+	requireTenantPermission(locals, 'conversations:read');
+	const tenantId = requireTenant(locals).id;
 	try {
 		const id = idOf(params);
 		const conversation = await getConversation(tenantId, id);
@@ -34,12 +35,12 @@ export const actions: Actions = {
 		const text = String(data.get('text') ?? '').trim();
 		if (!text) return fail(400, { message: 'Write a message first.' });
 
-		const conversation = await getConversation(locals.tenant!.id, idOf(params));
+		const conversation = await getConversation(requireTenant(locals).id, idOf(params));
 		if (!conversation.externalId) return fail(400, { message: 'This conversation has no WhatsApp number.' });
 
 		try {
 			await queueMessage({
-				tenantId: locals.tenant!.id,
+				tenantId: requireTenant(locals).id,
 				to: conversation.externalId,
 				content: { type: 'text', text },
 				conversationId: conversation.id,

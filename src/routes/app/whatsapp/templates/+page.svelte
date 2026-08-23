@@ -26,7 +26,7 @@
 
 <FormToast {form} successTitle="Done" />
 
-<div class="max-w-4xl space-y-3">
+<div class="space-y-3">
 	<div class="flex items-center justify-between">
 		<div>
 			<a href="/app/whatsapp" class="text-xs text-slate-500 hover:underline">← WhatsApp</a>

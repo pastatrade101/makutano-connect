@@ -14,7 +14,7 @@
 
 <FormToast {form} successTitle="Done" />
 
-<div class="max-w-4xl space-y-3">
+<div class="space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">Developers</h1>
 
 

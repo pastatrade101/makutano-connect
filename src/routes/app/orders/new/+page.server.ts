@@ -1,4 +1,5 @@
 import { fail, redirect, type Actions } from '@sveltejs/kit';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { listCatalogItems } from '$lib/server/catalog';
 import { getConversation } from '$lib/server/conversations';
@@ -9,8 +10,8 @@ import { eq, and, desc } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	requirePermission(locals.permissions, 'orders:write');
-	const tenantId = locals.tenant!.id;
+	requireTenantPermission(locals, 'orders:write');
+	const tenantId = requireTenant(locals).id;
 
 	// Conversation → Order: prefill customer + linkage from the thread the staff
 	// member came from. The id is verified tenant-scoped, never trusted.
@@ -51,7 +52,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
 	create: async ({ locals, request }) => {
-		requirePermission(locals.permissions, 'orders:write');
+		requireTenantPermission(locals, 'orders:write');
 		const data = await request.formData();
 		let items: Array<Record<string, unknown>>;
 		try {
@@ -64,7 +65,7 @@ export const actions: Actions = {
 		let orderId: string;
 		try {
 			const order = await createOrder(
-				locals.tenant!.id,
+				requireTenant(locals).id,
 				{
 					customerId: String(data.get('customerId') ?? '') || null,
 					conversationId: String(data.get('conversationId') ?? '') || null,

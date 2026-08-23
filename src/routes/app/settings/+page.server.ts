@@ -1,4 +1,5 @@
 import { fail, type Actions } from '@sveltejs/kit';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { eq } from 'drizzle-orm';
 import { audit } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/auth/permissions';
@@ -8,8 +9,8 @@ import { db, schema } from '$lib/server/db';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	requirePermission(locals.permissions, 'tenant:read');
-	const tenantId = locals.tenant!.id;
+	const tenant = requireTenantPermission(locals, 'tenant:read');
+	const tenantId = requireTenant(locals).id;
 
 	const [ent, usage, members] = await Promise.all([
 		effectiveEntitlements(tenantId),
@@ -23,16 +24,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		settings: {
-			capabilities: String((locals.tenant!.settings as Record<string, unknown>)?.capabilities ?? 'BOTH'),
-			name: locals.tenant!.name,
-			slug: locals.tenant!.slug,
-			timezone: locals.tenant!.timezone,
-			currency: locals.tenant!.currency,
-			country: locals.tenant!.country,
-			locale: locals.tenant!.locale,
-			logoUrl: locals.tenant!.logoUrl,
-			bookingReferencePrefix: locals.tenant!.bookingReferencePrefix,
-			quotationPrefix: locals.tenant!.quotationPrefix
+			capabilities: String((tenant.settings as Record<string, unknown>)?.capabilities ?? 'BOTH'),
+			name: tenant.name,
+			slug: tenant.slug,
+			timezone: tenant.timezone,
+			currency: tenant.currency,
+			country: tenant.country,
+			locale: tenant.locale,
+			logoUrl: tenant.logoUrl,
+			bookingReferencePrefix: tenant.bookingReferencePrefix,
+			quotationPrefix: tenant.quotationPrefix
 		},
 		plan: { code: ent.planCode, name: ent.planName, status: ent.subscriptionStatus },
 		period: currentPeriod(),
@@ -55,16 +56,17 @@ export const actions: Actions = {
 		if (!name) return fail(400, { message: 'Business name is required.' });
 
 		const capabilities = String(data.get('capabilities') ?? 'BOTH');
+		const tenant = requireTenant(locals);
 		await db()
 			.update(schema.tenants)
 			.set({
 				settings: {
-					...((locals.tenant!.settings as Record<string, unknown>) ?? {}),
+					...((tenant.settings as Record<string, unknown>) ?? {}),
 					capabilities: ['BOOKINGS', 'ORDERS', 'BOTH'].includes(capabilities) ? capabilities : 'BOTH'
 				},
 				name,
-				timezone: String(data.get('timezone') ?? locals.tenant!.timezone),
-				currency: String(data.get('currency') ?? locals.tenant!.currency)
+				timezone: String(data.get('timezone') ?? tenant.timezone),
+				currency: String(data.get('currency') ?? tenant.currency)
 					.toUpperCase()
 					.slice(0, 3),
 				country:
@@ -86,14 +88,14 @@ export const actions: Actions = {
 						.slice(0, 8) || 'QT',
 				updatedAt: new Date()
 			})
-			.where(eq(schema.tenants.id, locals.tenant!.id));
+			.where(eq(schema.tenants.id, requireTenant(locals).id));
 
-		invalidateEntitlements(locals.tenant!.id);
+		invalidateEntitlements(requireTenant(locals).id);
 		await audit(
-			locals.tenant!.id,
+			requireTenant(locals).id,
 			'tenant.updated',
 			{ type: 'user', userId: locals.user!.id },
-			{ type: 'tenant', id: locals.tenant!.id }
+			{ type: 'tenant', id: requireTenant(locals).id }
 		);
 		return { success: true };
 	}

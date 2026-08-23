@@ -14,7 +14,7 @@
 
 <FormToast {form} successTitle="Catalog updated" />
 
-<div class="max-w-4xl space-y-3">
+<div class="space-y-3">
 	<div class="flex items-center justify-between">
 		<div>
 			<h1 class="text-base font-semibold text-slate-800">Catalog</h1>

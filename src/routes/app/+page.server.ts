@@ -1,4 +1,5 @@
 import { bookingRequestStats } from '$lib/server/booking-requests';
+import { requireTenant } from '$lib/server/guards';
 import { bookingStats } from '$lib/server/bookings';
 import { customerStats } from '$lib/server/customers';
 import { paymentStats } from '$lib/server/payments';
@@ -26,7 +27,7 @@ async function dailySeries(tenantId: string) {
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const tenantId = locals.tenant!.id;
+	const tenantId = requireTenant(locals).id;
 	const pagination = { page: 1, limit: 8, order: 'desc' as const };
 
 	const [requests, bookings, customers, payments, recent, inbox, connection, activity] = await Promise.all([

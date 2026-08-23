@@ -1,4 +1,5 @@
 import { fail, type Actions } from '@sveltejs/kit';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { eq, and } from 'drizzle-orm';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { db, schema } from '$lib/server/db';
@@ -14,8 +15,8 @@ import {
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	requirePermission(locals.permissions, 'whatsapp:read');
-	const templates = await listTemplates(locals.tenant!.id);
+	requireTenantPermission(locals, 'whatsapp:read');
+	const templates = await listTemplates(requireTenant(locals).id);
 	return {
 		templates,
 		events: NOTIFY_EVENTS,
@@ -42,7 +43,7 @@ export const actions: Actions = {
 						return url ? { type: 'URL' as const, text, url } : { type: 'QUICK_REPLY' as const, text };
 					});
 			}
-			await createTemplateDraft(locals.tenant!.id, {
+			await createTemplateDraft(requireTenant(locals).id, {
 				name: String(data.get('name') ?? ''),
 				language: String(data.get('language') ?? 'en'),
 				category: String(data.get('category') ?? 'UTILITY') as 'UTILITY' | 'MARKETING',
@@ -62,7 +63,7 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'whatsapp:connect');
 		const data = await request.formData();
 		try {
-			await submitTemplateToMeta(locals.tenant!.id, String(data.get('id') ?? ''));
+			await submitTemplateToMeta(requireTenant(locals).id, String(data.get('id') ?? ''));
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -75,7 +76,7 @@ export const actions: Actions = {
 		await db()
 			.update(schema.whatsappTemplates)
 			.set({ eventKey: String(data.get('eventKey') ?? '') || null, updatedAt: new Date() })
-			.where(and(eq(schema.whatsappTemplates.id, String(data.get('id') ?? '')), eq(schema.whatsappTemplates.tenantId, locals.tenant!.id)));
+			.where(and(eq(schema.whatsappTemplates.id, String(data.get('id') ?? '')), eq(schema.whatsappTemplates.tenantId, requireTenant(locals).id)));
 		return { success: true };
 	},
 
@@ -85,13 +86,13 @@ export const actions: Actions = {
 		await db()
 			.update(schema.whatsappTemplates)
 			.set({ enabled: String(data.get('enabled')) === 'true', updatedAt: new Date() })
-			.where(and(eq(schema.whatsappTemplates.id, String(data.get('id') ?? '')), eq(schema.whatsappTemplates.tenantId, locals.tenant!.id)));
+			.where(and(eq(schema.whatsappTemplates.id, String(data.get('id') ?? '')), eq(schema.whatsappTemplates.tenantId, requireTenant(locals).id)));
 		return { success: true };
 	},
 
 	sync: async ({ locals }) => {
 		requirePermission(locals.permissions, 'whatsapp:connect');
-		await enqueue('whatsapp.templates.sync', { tenantId: locals.tenant!.id }, { tenantId: locals.tenant!.id });
+		await enqueue('whatsapp.templates.sync', { tenantId: requireTenant(locals).id }, { tenantId: requireTenant(locals).id });
 		return { success: true };
 	}
 };

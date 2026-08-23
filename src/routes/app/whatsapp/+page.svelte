@@ -12,7 +12,7 @@
 
 <FormToast {form} successTitle="Done" />
 
-<div class="max-w-3xl space-y-3">
+<div class="mx-auto max-w-5xl space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">WhatsApp</h1>
 
 	{#if !data.featureEnabled}

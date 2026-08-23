@@ -146,7 +146,7 @@
 			</div>
 		</header>
 
-		<main class="min-w-0 flex-1 p-4 lg:p-6">
+		<main class="mx-auto w-full min-w-0 max-w-[1600px] flex-1 p-4 lg:p-6">
 			{@render children()}
 			<footer class="mt-8 text-center text-[11px] text-slate-400">{new Date().getFullYear()} © Makutano Connect</footer>
 		</main>

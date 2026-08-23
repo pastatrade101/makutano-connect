@@ -16,7 +16,7 @@
 
 <FormToast {form} successTitle="Done" />
 
-<div class="max-w-4xl space-y-4">
+<div class="mx-auto max-w-6xl space-y-4">
 	<div class="flex flex-wrap items-start justify-between gap-2">
 		<div>
 			<a href="/admin/whatsapp" class="text-xs text-slate-500 hover:underline">← WhatsApp connections</a>

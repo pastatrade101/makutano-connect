@@ -1,4 +1,5 @@
 import { error, fail, type Actions } from '@sveltejs/kit';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { changeOrderStatus, getOrderDetail } from '$lib/server/orders';
 import { createPayment } from '$lib/server/payments';
@@ -9,9 +10,9 @@ import type { PageServerLoad } from './$types';
 const idOf = (params: { id?: string }) => parseUuid(params.id ?? '', 'order id');
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	requirePermission(locals.permissions, 'orders:read');
+	requireTenantPermission(locals, 'orders:read');
 	try {
-		return await getOrderDetail(locals.tenant!.id, idOf(params));
+		return await getOrderDetail(requireTenant(locals).id, idOf(params));
 	} catch {
 		error(404, 'Order not found');
 	}
@@ -23,7 +24,7 @@ export const actions: Actions = {
 		const data = await request.formData();
 		try {
 			await changeOrderStatus(
-				locals.tenant!.id,
+				requireTenant(locals).id,
 				idOf(params),
 				String(data.get('status')) as never,
 				{ userId: locals.user!.id },
@@ -42,7 +43,7 @@ export const actions: Actions = {
 		if (!/^\d+(\.\d{1,2})?$/.test(amount)) return fail(400, { message: 'Enter a valid amount.' });
 		try {
 			await createPayment(
-				locals.tenant!.id,
+				requireTenant(locals).id,
 				{ orderId: idOf(params), amount, provider: String(data.get('provider') ?? 'MANUAL'), description: String(data.get('description') ?? '') || null },
 				{ userId: locals.user!.id }
 			);

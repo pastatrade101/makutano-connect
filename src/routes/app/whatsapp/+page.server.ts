@@ -1,4 +1,5 @@
 import { fail, type Actions } from '@sveltejs/kit';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { audit } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { can } from '$lib/server/entitlements';
@@ -9,8 +10,8 @@ import { listTemplates, setTemplateEvent, TEMPLATE_EVENTS } from '$lib/server/wh
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	requirePermission(locals.permissions, 'whatsapp:read');
-	const tenantId = locals.tenant!.id;
+	requireTenantPermission(locals, 'whatsapp:read');
+	const tenantId = requireTenant(locals).id;
 	const [connection, templates, enabled] = await Promise.all([
 		getConnectionForTenant(tenantId),
 		listTemplates(tenantId),
@@ -36,10 +37,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
 	disconnect: async ({ locals }) => {
 		requirePermission(locals.permissions, 'whatsapp:connect');
-		const connection = await disconnect(locals.tenant!.id);
+		const connection = await disconnect(requireTenant(locals).id);
 		if (!connection) return fail(404, { message: 'No WhatsApp connection to disconnect.' });
 		await audit(
-			locals.tenant!.id,
+			requireTenant(locals).id,
 			'whatsapp.disconnected',
 			{ type: 'user', userId: locals.user!.id },
 			{ type: 'whatsapp_connection', id: connection.id }
@@ -49,7 +50,7 @@ export const actions: Actions = {
 
 	sync: async ({ locals }) => {
 		requirePermission(locals.permissions, 'whatsapp:connect');
-		await enqueue('whatsapp.templates.sync', { tenantId: locals.tenant!.id }, { tenantId: locals.tenant!.id });
+		await enqueue('whatsapp.templates.sync', { tenantId: requireTenant(locals).id }, { tenantId: requireTenant(locals).id });
 		return { success: true, queued: true };
 	},
 
@@ -58,7 +59,7 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const templateId = String(data.get('templateId') ?? '');
 		const eventKey = String(data.get('eventKey') ?? '') || null;
-		await setTemplateEvent(locals.tenant!.id, templateId, eventKey as never);
+		await setTemplateEvent(requireTenant(locals).id, templateId, eventKey as never);
 		return { success: true };
 	}
 };

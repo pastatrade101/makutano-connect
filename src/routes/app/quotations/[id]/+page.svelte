@@ -15,7 +15,7 @@
 
 <FormToast {form} successTitle="Quotation updated" />
 
-<div class="mx-auto max-w-3xl space-y-3">
+<div class="mx-auto max-w-4xl space-y-3">
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div>
 			<a href="/app/quotations" class="text-xs text-slate-500 hover:underline">← Quotations</a>

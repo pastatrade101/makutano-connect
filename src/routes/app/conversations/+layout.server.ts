@@ -1,13 +1,13 @@
-import { requirePermission } from '$lib/server/auth/permissions';
+import { requireTenantPermission } from '$lib/server/guards';
 import { listConversations } from '$lib/server/conversations';
 import type { LayoutServerLoad } from './$types';
 
 /** The chat list lives in the layout so the two-pane inbox shares it across
  *  the index (empty state) and every open thread. */
 export const load: LayoutServerLoad = async ({ locals, url }) => {
-	requirePermission(locals.permissions, 'conversations:read');
+	const tenant = requireTenantPermission(locals, 'conversations:read');
 	const q = url.searchParams.get('cq')?.trim().toLowerCase() ?? '';
-	const { items } = await listConversations(locals.tenant!.id, { page: 1, limit: 50, order: 'desc' });
+	const { items } = await listConversations(tenant.id, { page: 1, limit: 50, order: 'desc' });
 	const threads = items
 		.map(({ conversation, customer }) => ({
 			id: conversation.id,

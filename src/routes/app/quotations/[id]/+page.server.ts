@@ -1,4 +1,5 @@
 import { error, fail, redirect, type Actions } from '@sveltejs/kit';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { acceptQuotation, declineQuotation, getQuotationDetail, sendQuotation } from '$lib/server/quotations';
 import { toAppError } from '$lib/server/errors';
@@ -8,9 +9,9 @@ import type { PageServerLoad } from './$types';
 const idOf = (params: { id?: string }) => parseUuid(params.id ?? '', 'quotation id');
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	requirePermission(locals.permissions, 'quotations:read');
+	requireTenantPermission(locals, 'quotations:read');
 	try {
-		return await getQuotationDetail(locals.tenant!.id, idOf(params));
+		return await getQuotationDetail(requireTenant(locals).id, idOf(params));
 	} catch {
 		error(404, 'Quotation not found');
 	}
@@ -20,7 +21,7 @@ export const actions: Actions = {
 	send: async ({ locals, params }) => {
 		requirePermission(locals.permissions, 'quotations:write');
 		try {
-			await sendQuotation(locals.tenant!.id, idOf(params), locals.user!.id);
+			await sendQuotation(requireTenant(locals).id, idOf(params), locals.user!.id);
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -32,7 +33,7 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'bookings:write');
 		let bookingId: string;
 		try {
-			const result = await acceptQuotation(locals.tenant!.id, idOf(params), { userId: locals.user!.id });
+			const result = await acceptQuotation(requireTenant(locals).id, idOf(params), { userId: locals.user!.id });
 			bookingId = result.booking.id;
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -44,7 +45,7 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'quotations:write');
 		const data = await request.formData();
 		try {
-			await declineQuotation(locals.tenant!.id, idOf(params), String(data.get('reason') ?? '') || undefined);
+			await declineQuotation(requireTenant(locals).id, idOf(params), String(data.get('reason') ?? '') || undefined);
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });

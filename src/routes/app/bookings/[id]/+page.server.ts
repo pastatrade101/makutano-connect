@@ -1,4 +1,5 @@
 import { error, fail, type Actions } from '@sveltejs/kit';
+import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { changeBookingStatus, getBookingDetail } from '$lib/server/bookings';
 import { createPayment } from '$lib/server/payments';
@@ -9,9 +10,9 @@ import type { PageServerLoad } from './$types';
 const idOf = (params: { id?: string }) => parseUuid(params.id ?? '', 'booking id');
 
 export const load: PageServerLoad = async ({ locals, params }) => {
-	requirePermission(locals.permissions, 'bookings:read');
+	requireTenantPermission(locals, 'bookings:read');
 	try {
-		const detail = await getBookingDetail(locals.tenant!.id, idOf(params));
+		const detail = await getBookingDetail(requireTenant(locals).id, idOf(params));
 		// §15: passport fields carry stricter access controls than the rest of a booking.
 		const canSeeSensitive = locals.permissions.includes('travelers:read_sensitive');
 		return {
@@ -32,7 +33,7 @@ export const actions: Actions = {
 		const data = await request.formData();
 		try {
 			await changeBookingStatus(
-				locals.tenant!.id,
+				requireTenant(locals).id,
 				idOf(params),
 				String(data.get('status')) as never,
 				{ userId: locals.user!.id },
@@ -52,7 +53,7 @@ export const actions: Actions = {
 		try {
 			// Recording a payment recomputes the booking balance and may confirm it (§19).
 			await createPayment(
-				locals.tenant!.id,
+				requireTenant(locals).id,
 				{
 					bookingId: idOf(params),
 					amount,
