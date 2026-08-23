@@ -21,7 +21,10 @@ const stamp = `${Date.now()}-pack`;
 const tenantIds: string[] = [];
 
 async function mkTenant(workspace: string) {
-	const tenant = await provisionTestTenant({ name: `Pack ${workspace}`, slug: `pack-${workspace.toLowerCase()}-${stamp}` });
+	const tenant = await provisionTestTenant({
+		name: `Pack ${workspace}`,
+		slug: `pack-${workspace.toLowerCase()}-${stamp}`
+	});
 	const { db, schema } = ctx.db;
 	const { eq } = await import('drizzle-orm');
 	await db()
@@ -53,6 +56,7 @@ suite('template packs', () => {
 			ctx.packs.packForWorkspace(ws).map((t) => t.name);
 
 		const bookings = names('BOOKINGS');
+		expect(bookings).toContain('payment_request');
 		expect(bookings).toContain('booking_confirmed');
 		expect(bookings).toContain('trip_reminder');
 		expect(bookings).toContain('payment_received');
@@ -87,12 +91,33 @@ suite('template packs', () => {
 
 		const { db, schema } = ctx.db;
 		const { eq } = await import('drizzle-orm');
-		const rows = await db().select().from(schema.whatsappTemplates).where(eq(schema.whatsappTemplates.tenantId, tenantId));
+		const rows = await db()
+			.select()
+			.from(schema.whatsappTemplates)
+			.where(eq(schema.whatsappTemplates.tenantId, tenantId));
 		const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
 		expect(byName['booking_confirmed'].eventKey).toBe('BOOKING_CONFIRMED');
 		expect(byName['booking_confirmed'].status).toBe('DRAFT');
 		expect(byName['booking_confirmed'].variables).toEqual(['customer.first_name', 'booking.reference']);
-		expect(byName['payment_received'].variables).toEqual(['customer.first_name', 'payment.amount', 'payment.reference']);
+		expect(byName['payment_received'].variables).toEqual([
+			'customer.first_name',
+			'payment.amount',
+			'payment.reference'
+		]);
+		expect(byName['payment_request'].eventKey).toBe('PAYMENT_REQUESTED');
+		expect(byName['payment_request'].variables).toEqual([
+			'customer.first_name',
+			'payment.amount_due',
+			'transaction.type_label',
+			'transaction.reference',
+			'payment.method',
+			'payment.instructions',
+			'payment.reference'
+		]);
+		expect(byName['payment_request'].buttons).toEqual([
+			{ type: 'QUICK_REPLY', text: 'I have paid' },
+			{ type: 'QUICK_REPLY', text: 'Need help' }
+		]);
 		expect(byName['order_received']).toBeUndefined(); // BOOKINGS never gets order templates
 
 		const tenant = (await db().select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)))[0];
@@ -105,15 +130,17 @@ suite('template packs', () => {
 		const { db, schema } = ctx.db;
 		const { and, eq } = await import('drizzle-orm');
 		// The tenant already customised order_received and Meta approved it.
-		await db().insert(schema.whatsappTemplates).values({
-			tenantId,
-			name: 'order_received',
-			language: 'en',
-			status: 'APPROVED',
-			bodyText: 'Custom body {{1}}',
-			eventKey: 'ORDER_RECEIVED',
-			variables: ['customer.first_name']
-		});
+		await db()
+			.insert(schema.whatsappTemplates)
+			.values({
+				tenantId,
+				name: 'order_received',
+				language: 'en',
+				status: 'APPROVED',
+				bodyText: 'Custom body {{1}}',
+				eventKey: 'ORDER_RECEIVED',
+				variables: ['customer.first_name']
+			});
 
 		const result = await ctx.packs.applyTemplatePack(tenantId, {}, { submit: false });
 		expect(result.skippedExisting).toContain('order_received');

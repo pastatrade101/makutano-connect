@@ -18,6 +18,8 @@
 	const rel = (m: Parameters<typeof moduleRelevant>[1]) => moduleRelevant(caps, m);
 	const attention = $derived.by(() => {
 		const items: Array<{ label: string; count: number; href: string; tone: 'warn' | 'info' | 'bad' }> = [];
+		// Money first: a reported payment is a customer waiting on the business.
+		if (n('payments_reported')) items.push({ label: n('payments_reported') === 1 ? 'payment reported — verify' : 'payments reported — verify', count: n('payments_reported'), href: '/app/payments?verify=1', tone: 'bad' });
 		if (n('unread_chats')) items.push({ label: n('unread_chats') === 1 ? 'conversation waiting for a reply' : 'conversations waiting for a reply', count: n('unread_chats'), href: '/app/conversations', tone: 'info' });
 		if (rel('enquiries') && n('new_enquiries')) items.push({ label: n('new_enquiries') === 1 ? 'new enquiry' : 'new enquiries', count: n('new_enquiries'), href: '/app/booking-requests?status=NEW', tone: 'warn' });
 		if (rel('orders') && n('orders_to_confirm')) items.push({ label: n('orders_to_confirm') === 1 ? 'order awaiting confirmation' : 'orders awaiting confirmation', count: n('orders_to_confirm'), href: '/app/orders?status=PENDING_CONFIRMATION', tone: 'warn' });

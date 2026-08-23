@@ -22,7 +22,7 @@ import { createTemplateDraft, submitTemplateToMeta, type NotifyEvent } from './t
 import { resolveCredentials } from './connections';
 import { log } from '../logger';
 
-export const PACK_VERSION = 1;
+export const PACK_VERSION = 3;
 
 type PackTemplate = {
 	name: string;
@@ -30,6 +30,7 @@ type PackTemplate = {
 	bodyText: string;
 	/** Which workspace module makes this template relevant; 'always' ships to everyone. */
 	module: 'enquiries' | 'bookings' | 'orders' | 'quotations' | 'always';
+	buttons?: Array<{ type: 'QUICK_REPLY'; text: string }>;
 };
 
 /**
@@ -103,6 +104,19 @@ const PACK: PackTemplate[] = [
 			"Hi {{customer.first_name}}, your order {{order.number}} has been delivered. Thank you for choosing {{business.name}} — reply here if anything isn't right."
 	},
 	{
+		// V2: the actionable request — how to pay + one-tap customer response. One
+		// generic template serves bookings, orders and quotations via transaction.*.
+		name: 'payment_request',
+		eventKey: 'PAYMENT_REQUESTED',
+		module: 'always',
+		bodyText:
+			'Hi {{customer.first_name}}, {{payment.amount_due}} is due for your {{transaction.type_label}} {{transaction.reference}}. Method: {{payment.method}}. {{payment.instructions}}. Reference: {{payment.reference}}. Tap I have paid after paying.',
+		buttons: [
+			{ type: 'QUICK_REPLY', text: 'I have paid' },
+			{ type: 'QUICK_REPLY', text: 'Need help' }
+		]
+	},
+	{
 		name: 'payment_received',
 		eventKey: 'PAYMENT_RECEIVED',
 		module: 'always',
@@ -114,7 +128,11 @@ const PACK: PackTemplate[] = [
 		eventKey: 'PAYMENT_REMINDER',
 		module: 'always',
 		bodyText:
-			'Hi {{customer.first_name}}, a friendly reminder that {{payment.amount_due}} is outstanding with {{business.name}}. Please contact us if you need any assistance.'
+			'Hi {{customer.first_name}}, {{payment.amount_due}} is still due for your {{transaction.type_label}} {{transaction.reference}}. Method: {{payment.method}}. {{payment.instructions}}. Reference: {{payment.reference}}.',
+		buttons: [
+			{ type: 'QUICK_REPLY', text: 'I have paid' },
+			{ type: 'QUICK_REPLY', text: 'Need help' }
+		]
 	}
 ];
 
@@ -179,7 +197,8 @@ export async function applyTemplatePack(
 				name: item.name,
 				bodyText: item.bodyText,
 				category: 'UTILITY',
-				eventKey: item.eventKey
+				eventKey: item.eventKey,
+				buttons: item.buttons
 			});
 			if (canSubmit) {
 				await submitTemplateToMeta(tenantId, draft.id);
@@ -223,6 +242,10 @@ export async function applyTemplatePack(
 			}
 		}
 	);
-	log.info('template_pack_applied', { tenantId, workspace, ...{ submitted: result.submitted.length, skipped: result.skippedExisting.length, failed: result.failed.length } });
+	log.info('template_pack_applied', {
+		tenantId,
+		workspace,
+		...{ submitted: result.submitted.length, skipped: result.skippedExisting.length, failed: result.failed.length }
+	});
 	return result;
 }

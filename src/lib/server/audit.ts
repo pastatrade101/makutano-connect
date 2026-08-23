@@ -57,6 +57,17 @@ export type AuditAction =
 	| 'form.submission'
 	| 'payment.created'
 	| 'payment.modified'
+	| 'payment.requested'
+	| 'payment.whatsapp_request_queued'
+	| 'payment.whatsapp_request_delivered'
+	| 'payment.whatsapp_request_read'
+	| 'payment.reported'
+	| 'payment.verified'
+	| 'payment.provider_verified'
+	| 'payment.partial_recorded'
+	| 'payment.not_found'
+	| 'payment.reminder_sent'
+	| 'payment.received_notification_sent'
 	| 'webhook_endpoint.created'
 	| 'webhook_endpoint.deleted';
 
@@ -71,20 +82,18 @@ export async function audit(
 	exec?: Executor
 ): Promise<void> {
 	try {
-		await (exec ?? db())
-			.insert(schema.auditLogs)
-			.values({
-				tenantId,
-				action,
-				actorType: actor.type,
-				actorUserId: actor.userId ?? null,
-				actorApiKeyId: actor.apiKeyId ?? null,
-				entityType: entity?.type ?? null,
-				entityId: entity?.id ?? null,
-				metadata,
-				ipHash: actor.ipHash ?? null,
-				requestId: actor.requestId ?? null
-			});
+		await (exec ?? db()).insert(schema.auditLogs).values({
+			tenantId,
+			action,
+			actorType: actor.type,
+			actorUserId: actor.userId ?? null,
+			actorApiKeyId: actor.apiKeyId ?? null,
+			entityType: entity?.type ?? null,
+			entityId: entity?.id ?? null,
+			metadata,
+			ipHash: actor.ipHash ?? null,
+			requestId: actor.requestId ?? null
+		});
 	} catch (err) {
 		log.error('audit_write_failed', { action, error: (err as Error)?.message });
 		// Inside a transaction a failed insert has already poisoned it, so swallowing

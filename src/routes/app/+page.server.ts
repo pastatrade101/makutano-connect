@@ -38,6 +38,7 @@ async function actionCentre(tenantId: string) {
 			(select count(*)::int from bookings b where b.tenant_id = ${tenantId}::uuid and b.status = 'AWAITING_PAYMENT') as bookings_unpaid,
 			(select count(*)::int from quotations q where q.tenant_id = ${tenantId}::uuid and q.status = 'SENT') as quotes_waiting,
 			(select count(*)::int from conversations c where c.tenant_id = ${tenantId}::uuid and c.unread_count > 0) as unread_chats,
+			(select count(*)::int from payment_requests pr where pr.tenant_id = ${tenantId}::uuid and pr.status = 'REPORTED') as payments_reported,
 			(select count(*)::int from conversations c where c.tenant_id = ${tenantId}::uuid and c.created_at::date = current_date) as chats_today,
 			(select count(*)::int from orders o where o.tenant_id = ${tenantId}::uuid and o.created_at::date = current_date) as orders_today,
 			(select count(*)::int from booking_requests r where r.tenant_id = ${tenantId}::uuid and r.created_at::date = current_date) as enquiries_today,

@@ -45,6 +45,8 @@
 		PENDING_CONFIRMATION: 'bg-warning/10 text-warning',
 		DISPATCHED: 'bg-info/10 text-info',
 		UNPAID: 'bg-danger/10 text-danger',
+		REQUESTED: 'bg-warning/10 text-warning',
+		REPORTED: 'bg-orange/10 text-orange',
 		PAID: 'bg-success/10 text-success'
 	};
 

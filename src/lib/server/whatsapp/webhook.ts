@@ -50,6 +50,7 @@ export type InboundMessageEvent = {
 	timestamp: string;
 	type: string;
 	text: string | null;
+	buttonPayload?: string | null;
 	contactName: string | null;
 	raw: Record<string, unknown>;
 };
@@ -101,6 +102,7 @@ export function parseWebhook(body: any): WebhookEvent[] {
 						m.interactive?.list_reply?.title ??
 						m.interactive?.button_reply?.title ??
 						null,
+					buttonPayload: m.button?.payload ?? m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? null,
 					contactName: contact?.profile?.name ?? null,
 					raw: m
 				});

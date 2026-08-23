@@ -8,6 +8,7 @@
 // API response never waits on Meta and a transient Meta outage retries instead of
 // losing the message.
 import { and, eq } from 'drizzle-orm';
+import { audit } from '../audit';
 import { db, schema } from '../db';
 import { recordUsage } from '../billing';
 import { assertAllowed } from '../entitlements';
@@ -209,7 +210,7 @@ export async function markMessageStatus(params: {
 	errorMessage?: string | null;
 }): Promise<void> {
 	const now = new Date();
-	await db()
+	const [message] = await db()
 		.update(schema.messages)
 		.set({
 			status: params.status,
@@ -219,5 +220,26 @@ export async function markMessageStatus(params: {
 			...(params.errorMessage ? { errorMessage: params.errorMessage.slice(0, 500) } : {}),
 			updatedAt: now
 		})
-		.where(and(eq(schema.messages.waMessageId, params.waMessageId)));
+		.where(and(eq(schema.messages.waMessageId, params.waMessageId)))
+		.returning();
+	if (!message || (params.status !== 'DELIVERED' && params.status !== 'READ')) return;
+	const [paymentRequest] = await db()
+		.select({ id: schema.paymentRequests.id })
+		.from(schema.paymentRequests)
+		.where(
+			and(
+				eq(schema.paymentRequests.tenantId, message.tenantId),
+				eq(schema.paymentRequests.requestMessageId, message.id)
+			)
+		)
+		.limit(1);
+	if (paymentRequest) {
+		await audit(
+			message.tenantId,
+			params.status === 'READ' ? 'payment.whatsapp_request_read' : 'payment.whatsapp_request_delivered',
+			{ type: 'meta' },
+			{ type: 'payment_request', id: paymentRequest.id },
+			{ messageId: message.id, waMessageId: params.waMessageId }
+		);
+	}
 }

@@ -92,6 +92,22 @@
 	</form>
 {/if}
 
+<!-- §9: the customer says they've paid — staff see it right here, with the next step -->
+{#if data.paymentRequest}
+	<div class="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-2 {data.paymentRequest.status === 'REPORTED' ? 'bg-orange/10' : 'bg-warning/10'}">
+		<span class="text-xs font-semibold text-slate-800">
+			{data.paymentRequest.status === 'REPORTED' ? 'Payment reported' : data.paymentRequest.status === 'PARTIALLY_PAID' ? 'Payment partially received' : 'Payment requested'}
+		</span>
+		<span class="text-xs tabular-nums text-slate-600">{data.paymentRequest.currency} {data.paymentRequest.amountRequested}</span>
+		{#if data.paymentRequest.status === 'REPORTED'}
+			<span class="badge bg-orange/15 text-orange">Verification needed</span>
+			<a href="/app/payments?verify={data.paymentRequest.id}" class="ml-auto text-xs font-semibold text-brand-600 hover:underline">Verify payment</a>
+		{:else}
+			<span class="ml-auto text-[11px] text-slate-500">waiting for the customer to pay</span>
+		{/if}
+	</div>
+{/if}
+
 <!-- §7: what this customer already has going on, without leaving the chat -->
 {#if data.context.length}
 	<div class="flex items-center gap-1.5 overflow-x-auto border-b border-slate-100 bg-white px-4 py-2">

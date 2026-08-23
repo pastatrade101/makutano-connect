@@ -97,4 +97,38 @@ describe('payload parsing', () => {
 		expect(parseWebhook({})).toEqual([]);
 		expect(parseWebhook({ entry: [] })).toEqual([]);
 	});
+
+	it('preserves a template quick-reply payload so callbacks target the exact request', async () => {
+		const { parseWebhook } = await import('../src/lib/server/whatsapp/webhook');
+		const [event] = parseWebhook({
+			entry: [
+				{
+					changes: [
+						{
+							value: {
+								metadata: { phone_number_id: '1234567890' },
+								messages: [
+									{
+										id: 'wamid.BUTTON',
+										from: '255712345678',
+										timestamp: '1700000002',
+										type: 'button',
+										button: {
+											text: 'I have paid',
+											payload: 'connect:payment_report:123e4567-e89b-42d3-a456-426614174000'
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		});
+		expect(event).toMatchObject({
+			kind: 'message',
+			text: 'I have paid',
+			buttonPayload: 'connect:payment_report:123e4567-e89b-42d3-a456-426614174000'
+		});
+	});
 });

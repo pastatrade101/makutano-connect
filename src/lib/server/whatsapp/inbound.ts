@@ -11,6 +11,7 @@ import { findOrCreateCustomer } from '../customers';
 import { emit } from '../events';
 import { log } from '../logger';
 import { applyInboundCompliance } from './compliance';
+import { paymentRequestIdFromPayload, reportPayment, unambiguousRequestForCustomer } from '../payment-requests';
 import { markWebhookSeen, resolveTenantForEvent } from './connections';
 import { markMessageStatus } from './messages';
 import type { WebhookEvent } from './webhook';
@@ -115,7 +116,35 @@ export async function processInboundEvent(event: WebhookEvent): Promise<void> {
 		type: event.type,
 		text: event.text
 	});
+	// "I have paid" quick-reply: record the CLAIM against the customer's outstanding
+	// payment request. Never money — staff (or a provider webhook) verifies. Duplicate
+	// Meta deliveries were already collapsed by the waMessageId conflict above, and
+	// reportPayment itself no-ops once the request has left REQUESTED.
+	const payloadRequestId = paymentRequestIdFromPayload(event.buttonPayload);
+	if (payloadRequestId || (!event.buttonPayload && isPaymentReportText(event.text))) {
+		try {
+			const request = payloadRequestId
+				? { id: payloadRequestId }
+				: await unambiguousRequestForCustomer(tenantId, customer.id);
+			if (request) {
+				await reportPayment(tenantId, request.id, {
+					customerId: customer.id,
+					conversationId: conversation.id,
+					messageId: event.messageId
+				});
+			}
+		} catch (err) {
+			log.warn('payment_report_hook_failed', { tenantId, error: (err as Error)?.message });
+		}
+	}
 	log.info('whatsapp_message_received', { tenantId, conversationId: conversation.id, type: event.type });
+}
+
+/** The pack's quick-reply title, matched loosely enough to survive translation edits. */
+function isPaymentReportText(text: string | null | undefined): boolean {
+	if (!text) return false;
+	const t = text.trim().toLowerCase();
+	return t === 'i have paid' || t === 'nimelipa' || t === 'i paid' || t === 'paid';
 }
 function mapStatus(status: string): schema.Message['status'] | null {
 	switch (status) {

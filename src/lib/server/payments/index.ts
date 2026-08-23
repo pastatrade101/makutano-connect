@@ -13,6 +13,7 @@ import { AppError } from '../errors';
 import { getTenantById } from '../tenants';
 import type { Pagination } from '../http';
 import { providerFor } from './providers';
+import { audit } from '../audit';
 
 const dec = (v: string | number | null | undefined) => Number(v ?? 0);
 
@@ -147,6 +148,20 @@ export async function setPaymentStatus(
 	status: schema.Payment['status'],
 	extra: { providerPaymentId?: string | null; failureCode?: string | null; failureMessage?: string | null } = {}
 ): Promise<schema.Payment> {
+	const before = await getPayment(tenantId, paymentId);
+	if (
+		before.status === status &&
+		(extra.providerPaymentId === undefined || extra.providerPaymentId === before.providerPaymentId) &&
+		(extra.failureCode === undefined || extra.failureCode === before.failureCode) &&
+		(extra.failureMessage === undefined || extra.failureMessage === before.failureMessage)
+	) {
+		return before;
+	}
+
+	if (status === 'SUCCEEDED' && before.provider !== 'MANUAL') {
+		await assertProviderPaymentMatchesRequest(tenantId, before);
+	}
+
 	const [payment] = await db()
 		.update(schema.payments)
 		.set({
@@ -176,7 +191,7 @@ export async function setPaymentStatus(
 			const [customer] = booking?.customerId
 				? await dbh().select().from(sch.customers).where(eqh(sch.customers.id, booking.customerId)).limit(1)
 				: [];
-			await sendEventTemplate(
+			const receiptMessage = await sendEventTemplate(
 				tenantId,
 				'PAYMENT_RECEIVED',
 				customer?.whatsappPhone,
@@ -187,6 +202,15 @@ export async function setPaymentStatus(
 				},
 				`payment-received:${payment.id}`
 			);
+			if (receiptMessage) {
+				await audit(
+					tenantId,
+					'payment.received_notification_sent',
+					{ type: 'system' },
+					{ type: 'payment', id: payment.id },
+					{ messageId: receiptMessage.id }
+				);
+			}
 		})().catch(() => undefined);
 	}
 	if ((status === 'SUCCEEDED' || status === 'FAILED') && payment.orderId) {
@@ -196,7 +220,7 @@ export async function setPaymentStatus(
 				const [customer] = order.customerId
 					? await dbh().select().from(sch.customers).where(eqh(sch.customers.id, order.customerId)).limit(1)
 					: [];
-				await sendEventTemplate(
+				const receiptMessage = await sendEventTemplate(
 					tenantId,
 					'PAYMENT_RECEIVED',
 					customer?.whatsappPhone,
@@ -207,10 +231,20 @@ export async function setPaymentStatus(
 					},
 					`payment-received:${payment.id}`
 				);
+				if (receiptMessage) {
+					await audit(
+						tenantId,
+						'payment.received_notification_sent',
+						{ type: 'system' },
+						{ type: 'payment', id: payment.id },
+						{ messageId: receiptMessage.id }
+					);
+				}
 			})().catch(() => undefined);
 		}
 	}
 	if (status === 'SUCCEEDED') {
+		if (payment.provider !== 'MANUAL') await applyProviderPaymentToRequest(tenantId, payment);
 		await emit(tenantId, 'payment.succeeded', {
 			id: payment.id,
 			reference: payment.reference,
@@ -230,6 +264,86 @@ export async function setPaymentStatus(
 		});
 	}
 	return payment;
+}
+
+function linkedPaymentRequestId(payment: schema.Payment): string | null {
+	const value = (payment.metadata as Record<string, unknown> | null)?.paymentRequestId;
+	return typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
+}
+
+async function assertProviderPaymentMatchesRequest(tenantId: string, payment: schema.Payment): Promise<void> {
+	const requestId = linkedPaymentRequestId(payment);
+	if (!requestId) return;
+	const [request] = await db()
+		.select()
+		.from(schema.paymentRequests)
+		.where(and(eq(schema.paymentRequests.id, requestId), eq(schema.paymentRequests.tenantId, tenantId)))
+		.limit(1);
+	if (!request)
+		throw new AppError('NOT_FOUND', 'The provider payment does not match a payment request in this workspace.');
+	if (payment.currency !== request.currency) {
+		throw new AppError('CONFLICT', 'The provider-confirmed currency does not match the payment request.');
+	}
+	const remaining = Math.max(0, dec(request.amountRequested) - dec(request.amountReceived));
+	if (dec(payment.amount) > remaining + 0.005) {
+		throw new AppError('CONFLICT', 'The provider-confirmed amount exceeds the outstanding payment request.');
+	}
+}
+
+/**
+ * Authenticated provider success is authoritative and bypasses the customer-report
+ * step. Totals are recomputed from linked SUCCEEDED payments, making retries idempotent.
+ */
+async function applyProviderPaymentToRequest(tenantId: string, payment: schema.Payment): Promise<void> {
+	const requestId = linkedPaymentRequestId(payment);
+	if (!requestId) return;
+	const [request] = await db()
+		.select()
+		.from(schema.paymentRequests)
+		.where(and(eq(schema.paymentRequests.id, requestId), eq(schema.paymentRequests.tenantId, tenantId)))
+		.limit(1);
+	if (!request || request.status === 'CANCELLED') return;
+
+	const rows = (await db().execute<{ received: string }>(sql`
+		select coalesce(sum(amount - amount_refunded), 0)::numeric(14,2) as received
+		from payments
+		where tenant_id = ${tenantId}::uuid
+		  and status in ('SUCCEEDED','PARTIALLY_REFUNDED')
+		  and metadata->>'paymentRequestId' = ${requestId}
+	`)) as unknown as Array<{ received: string }>;
+	const received = dec(rows[0]?.received);
+	const result: schema.PaymentRequest['status'] =
+		received + 0.005 >= dec(request.amountRequested) ? 'PAID' : 'PARTIALLY_PAID';
+
+	await db()
+		.update(schema.paymentRequests)
+		.set({
+			status: result,
+			amountReceived: received.toFixed(2),
+			paymentId: payment.id,
+			verifiedByUserId: null,
+			verifiedAt: new Date(),
+			verificationStartedAt: null,
+			updatedAt: new Date()
+		})
+		.where(and(eq(schema.paymentRequests.id, requestId), eq(schema.paymentRequests.tenantId, tenantId)));
+
+	await audit(
+		tenantId,
+		'payment.provider_verified',
+		{ type: 'system' },
+		{ type: 'payment_request', id: requestId },
+		{ provider: payment.provider, paymentReference: payment.reference, received: received.toFixed(2), result }
+	);
+	if (result === 'PARTIALLY_PAID') {
+		await audit(
+			tenantId,
+			'payment.partial_recorded',
+			{ type: 'system' },
+			{ type: 'payment_request', id: requestId },
+			{ provider: payment.provider, totalReceived: received.toFixed(2) }
+		);
+	}
 }
 
 export async function refundPayment(

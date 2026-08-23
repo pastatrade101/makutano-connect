@@ -32,8 +32,17 @@ export type TemplateContext = {
 		deliveryLocation?: string | null;
 	} | null;
 	booking?: { reference?: string | null; startDate?: string | null; total?: string | null } | null;
+	/** Generic transaction descriptor so one template serves bookings, orders and quotes. */
+	transaction?: { typeLabel?: string | null; reference?: string | null } | null;
 	quotation?: { reference?: string | null; total?: string | null; link?: string | null } | null;
-	payment?: { amount?: string | null; amountDue?: string | null; link?: string | null; reference?: string | null } | null;
+	payment?: {
+		amount?: string | null;
+		amountDue?: string | null;
+		link?: string | null;
+		reference?: string | null;
+		method?: string | null;
+		instructions?: string | null;
+	} | null;
 };
 
 /** The whole vocabulary a tenant can use. Adding here makes it available everywhere. */
@@ -45,7 +54,10 @@ export const TEMPLATE_VARIABLES: Record<string, { label: string; resolve: (ctx: 
 	},
 	'business.name': { label: 'Business name', resolve: (c) => c.business?.name || '' },
 	'order.number': { label: 'Order number', resolve: (c) => c.order?.number || '' },
-	'order.total': { label: 'Order total', resolve: (c) => (c.order?.total ? `${c.order.currency ?? ''} ${c.order.total}`.trim() : '') },
+	'order.total': {
+		label: 'Order total',
+		resolve: (c) => (c.order?.total ? `${c.order.currency ?? ''} ${c.order.total}`.trim() : '')
+	},
 	'order.items_summary': { label: 'Order items summary', resolve: (c) => c.order?.itemsSummary || '' },
 	'delivery.address': { label: 'Delivery address', resolve: (c) => c.order?.deliveryLocation || '' },
 	'booking.reference': { label: 'Booking reference', resolve: (c) => c.booking?.reference || '' },
@@ -56,7 +68,14 @@ export const TEMPLATE_VARIABLES: Record<string, { label: string; resolve: (ctx: 
 	'payment.amount_due': { label: 'Amount due', resolve: (c) => c.payment?.amountDue || '' },
 	'payment.link': { label: 'Payment link', resolve: (c) => c.payment?.link || '' },
 	'payment.reference': { label: 'Payment reference', resolve: (c) => c.payment?.reference || '' },
-	'quotation.link': { label: 'Quotation link', resolve: (c) => c.quotation?.link || '' }
+	'payment.method': { label: 'Payment method', resolve: (c) => c.payment?.method || '' },
+	'payment.instructions': { label: 'Payment instructions', resolve: (c) => c.payment?.instructions || '' },
+	'quotation.link': { label: 'Quotation link', resolve: (c) => c.quotation?.link || '' },
+	'transaction.type_label': {
+		label: 'Transaction type (booking/order/quotation)',
+		resolve: (c) => c.transaction?.typeLabel || ''
+	},
+	'transaction.reference': { label: 'Transaction reference', resolve: (c) => c.transaction?.reference || '' }
 };
 
 const VARIABLE_PATTERN = /\{\{\s*([a-z_]+\.[a-z_]+)\s*\}\}/g;
@@ -87,6 +106,7 @@ export const NOTIFY_EVENTS = [
 	'BOOKING_REQUEST_RECEIVED',
 	'BOOKING_CONFIRMED',
 	'QUOTATION_READY',
+	'PAYMENT_REQUESTED',
 	'PAYMENT_REMINDER',
 	'PAYMENT_RECEIVED',
 	'TRIP_REMINDER',
@@ -112,7 +132,10 @@ export type TemplateDraftInput = {
 	eventKey?: NotifyEvent | null;
 };
 
-export async function createTemplateDraft(tenantId: string, input: TemplateDraftInput): Promise<schema.WhatsappTemplate> {
+export async function createTemplateDraft(
+	tenantId: string,
+	input: TemplateDraftInput
+): Promise<schema.WhatsappTemplate> {
 	const name = input.name
 		.toLowerCase()
 		.replace(/[^a-z0-9_]+/g, '_')
@@ -165,10 +188,24 @@ export async function submitTemplateToMeta(tenantId: string, templateId: string)
 	const examples = resolveVariables(variables, {
 		customer: { firstName: 'Amina', lastName: 'Juma' },
 		business: { name: 'Example Business' },
-		order: { number: 'ORD-2026-00001', total: '250.00', currency: 'USD', itemsSummary: '2× Item', deliveryLocation: 'City centre' },
+		order: {
+			number: 'ORD-2026-00001',
+			total: '250.00',
+			currency: 'USD',
+			itemsSummary: '2× Item',
+			deliveryLocation: 'City centre'
+		},
 		booking: { reference: 'BK-2026-00001', startDate: '14 Oct 2026', total: '1200.00' },
 		quotation: { reference: 'QT-2026-00001', total: '900.00' },
-		payment: { amount: 'USD 100.00', amountDue: 'USD 50.00', link: 'https://example.com/pay' }
+		payment: {
+			amount: 'USD 100.00',
+			amountDue: 'USD 50.00',
+			link: 'https://example.com/pay',
+			reference: 'PY-2026-00001',
+			method: 'Bank Transfer',
+			instructions: 'CRDB Bank · Name: Example Business · Number: 0150000000000'
+		},
+		transaction: { typeLabel: 'booking', reference: 'BK-2026-00001' }
 	}).map((v) => v || 'example');
 
 	const components: Array<Record<string, unknown>> = [];
@@ -183,7 +220,9 @@ export async function submitTemplateToMeta(tenantId: string, templateId: string)
 	if (buttons.length) {
 		components.push({
 			type: 'BUTTONS',
-			buttons: buttons.map((b) => (b.type === 'URL' ? { type: 'URL', text: b.text, url: b.url } : { type: 'QUICK_REPLY', text: b.text }))
+			buttons: buttons.map((b) =>
+				b.type === 'URL' ? { type: 'URL', text: b.text, url: b.url } : { type: 'QUICK_REPLY', text: b.text }
+			)
 		});
 	}
 
@@ -221,10 +260,11 @@ export async function sendEventTemplate(
 	event: NotifyEvent,
 	to: string | null | undefined,
 	ctx: TemplateContext,
-	dedupeKey: string
-): Promise<boolean> {
+	dedupeKey: string,
+	options: { quickReplyPayloads?: string[] } = {}
+): Promise<schema.Message | null> {
 	try {
-		if (!to) return false;
+		if (!to) return null;
 		const rows = await db()
 			.select()
 			.from(schema.whatsappTemplates)
@@ -238,16 +278,32 @@ export async function sendEventTemplate(
 			)
 			.limit(1);
 		const template = rows[0];
-		if (!template) return false;
+		if (!template) return null;
 
 		const values = resolveVariables((template.variables ?? []) as string[], ctx);
 		// Meta rejects empty body parameters outright; a skipped send that shows up in
 		// the log beats a guaranteed FAILED message in the customer's thread.
 		if (values.some((v) => !v || !v.trim())) {
 			log.info('template_send_skipped', { tenantId, event, reason: 'missing_variable_value' });
-			return false;
+			return null;
 		}
-		await queueMessage({
+		const components: Array<Record<string, unknown>> = values.length
+			? [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }]
+			: [];
+		const quickReplyButtons = ((template.buttons ?? []) as Array<{ type?: string }>).filter(
+			(button) => button.type === 'QUICK_REPLY'
+		);
+		for (let index = 0; index < quickReplyButtons.length; index += 1) {
+			const payload = options.quickReplyPayloads?.[index];
+			if (!payload) continue;
+			components.push({
+				type: 'button',
+				sub_type: 'quick_reply',
+				index: String(index),
+				parameters: [{ type: 'payload', payload }]
+			});
+		}
+		return await queueMessage({
 			tenantId,
 			to,
 			dedupeKey,
@@ -255,12 +311,11 @@ export async function sendEventTemplate(
 				type: 'template',
 				templateName: template.name,
 				language: template.language,
-				components: values.length ? [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }] : undefined
+				components: components.length ? components : undefined
 			}
 		});
-		return true;
 	} catch (err) {
 		log.warn('event_template_send_failed', { tenantId, event, error: (err as Error)?.message });
-		return false;
+		return null;
 	}
 }

@@ -8,6 +8,7 @@ import { toAppError } from '$lib/server/errors';
 import { parseUuid } from '$lib/server/http';
 import { log } from '$lib/server/logger';
 import { createBatchOrder } from '$lib/server/order-batches';
+import { requestForConversationCustomer } from '$lib/server/payment-requests';
 import { queueMessage } from '$lib/server/whatsapp/messages';
 import type { PageServerLoad } from './$types';
 
@@ -80,8 +81,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				.limit(1)
 		)[0] ?? null;
 
+		const paymentRequest = await requestForConversationCustomer(tenantId, conversation.customerId);
+
 		await markConversationRead(tenantId, id);
-		return { conversation, messages: items, customer, context, outstanding: outstanding.toFixed(2), openBatch };
+		return { conversation, messages: items, customer, context, outstanding: outstanding.toFixed(2), openBatch, paymentRequest };
 	} catch {
 		error(404, 'Conversation not found');
 	}

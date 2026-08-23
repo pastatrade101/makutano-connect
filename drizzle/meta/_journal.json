@@ -50,6 +50,20 @@
       "when": 1787498999918,
       "tag": "0006_order_batches",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787509391694,
+      "tag": "0007_payment_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787512229485,
+      "tag": "0008_exotic_luckman",
+      "breakpoints": true
     }
   ]
 }

@@ -8,14 +8,11 @@
 
 	const tz = $derived(data.tenant.timezone);
 	const canWrite = $derived(data.permissions?.includes('bookings:write'));
-	const canPay = $derived(data.permissions?.includes('payments:write'));
+	const canPay = $derived(data.permissions?.includes('payments:write') && data.entitlements?.['payments.enabled'] === true);
 	/** The booking journey as buttons (§20); destructive moves demoted to quiet links. */
 	const FORWARD: Record<string, Array<{ to: string; label: string }>> = {
 		DRAFT: [{ to: 'PENDING', label: 'Mark pending' }],
-		PENDING: [
-			{ to: 'AWAITING_PAYMENT', label: 'Request payment' },
-			{ to: 'CONFIRMED', label: 'Confirm booking' }
-		],
+		PENDING: [{ to: 'CONFIRMED', label: 'Confirm booking' }],
 		AWAITING_PAYMENT: [{ to: 'CONFIRMED', label: 'Confirm booking' }],
 		PARTIALLY_PAID: [{ to: 'CONFIRMED', label: 'Confirm booking' }],
 		CONFIRMED: [
@@ -38,11 +35,30 @@
 	const destructive = $derived(DESTRUCTIVE[data.booking.status] ?? []);
 	const balance = $derived(Math.max(0, Number(data.booking.balanceDue ?? 0)));
 	let confirmDestructive = $state<string | null>(null);
+	let showRequestPanel = $state(false);
+	let requestAmount = $state('');
+	let selectedMethodKey = $state('');
+	$effect(() => {
+		if (!data.payMethods.some((method) => method.key === selectedMethodKey)) selectedMethodKey = data.payMethods[0]?.key ?? '';
+	});
+	const customerName = $derived([data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || 'the customer');
+	const activeRequest = $derived(
+		data.paymentRequests.find((r) => ['REQUESTED', 'REPORTED', 'PARTIALLY_PAID'].includes(r.status)) ?? null
+	);
+	const selectedMethod = $derived(data.payMethods.find((method) => method.key === selectedMethodKey) ?? data.payMethods[0] ?? null);
+	const requestReady = $derived(
+		!!selectedMethod &&
+		!!data.customer?.whatsappPhone &&
+		data.requestTemplateReady &&
+		Number(requestAmount) > 0 &&
+		Number(requestAmount) <= balance
+	);
 </script>
 
 <svelte:head><title>{data.booking.bookingReference} · {data.tenant.name}</title></svelte:head>
 
-<FormToast {form} successTitle="Booking updated" />
+	<FormToast {form} successTitle="Booking updated" />
+	{#if form?.warning}<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#8a6815]">{form.warning}</p>{/if}
 
 <div class="space-y-3">
 	<div class="flex flex-wrap items-center justify-between gap-2">
@@ -51,6 +67,17 @@
 			<h1 class="flex items-center gap-2 text-base font-semibold text-slate-900">{data.booking.bookingReference} <StatusBadge value={data.booking.status} /></h1>
 		</div>
 		<div class="flex flex-wrap items-center gap-1.5">
+			{#if canPay && balance > 0 && !activeRequest && ['DRAFT', 'PENDING', 'AWAITING_PAYMENT', 'PARTIALLY_PAID'].includes(data.booking.status)}
+				<button class="btn-primary" onclick={() => { requestAmount = balance.toFixed(2); showRequestPanel = !showRequestPanel; }}>
+					Request payment
+				</button>
+			{/if}
+			{#if canPay && activeRequest && activeRequest.status !== 'REPORTED'}
+				<form method="POST" action="?/remindPayment" use:enhance>
+					<input type="hidden" name="requestId" value={activeRequest.id} />
+					<button class="btn-secondary">Send payment reminder</button>
+				</form>
+			{/if}
 			{#if canWrite}
 				{#each forward as move, i (move.to)}
 					<form method="POST" action="?/status" use:enhance>
@@ -87,6 +114,81 @@
 		</div>
 	{/if}
 
+
+	{#if showRequestPanel}
+		<!-- §4: compact confirm step BEFORE anything is sent -->
+		<form
+			method="POST"
+			action="?/requestPayment"
+				use:enhance={() => async ({ result, update }) => { await update(); if (result.type === 'success') showRequestPanel = false; }}
+			class="card space-y-3 p-4"
+		>
+			<h2 class="card-title">Request payment</h2>
+			<dl class="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
+				<div class="flex justify-between sm:block"><dt class="text-slate-400">Customer</dt><dd class="font-medium text-slate-700">{customerName}</dd></div>
+				<div class="flex justify-between sm:block"><dt class="text-slate-400">Booking</dt><dd class="font-medium text-slate-700">{data.booking.bookingReference}</dd></div>
+			</dl>
+			<div class="grid gap-3 sm:grid-cols-2">
+				<div>
+					<label class="label" for="pr-amount">Amount to request ({data.booking.currency})</label>
+					<input id="pr-amount" name="amount" inputmode="decimal" bind:value={requestAmount} class="input" />
+					<p class="mt-1 text-[11px] text-slate-400">Outstanding balance: {data.booking.currency} {balance.toFixed(2)} — lower it for a deposit.</p>
+				</div>
+				<div>
+					<label class="label" for="pr-method">Payment method</label>
+					{#if data.payMethods.length}
+						<select id="pr-method" name="methodKey" class="input" bind:value={selectedMethodKey}>
+							{#each data.payMethods as m (m.key)}
+								<option value={m.key}>{m.displayName}{m.number || m.accountNumber ? ` · ${m.accountNumber ?? m.number}` : ''}</option>
+							{/each}
+						</select>
+					{:else}
+						<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">
+							No usable payment method is configured. Add the details the customer needs before sending.
+							<a href="/app/settings" class="font-semibold underline">Add one in Settings</a>
+						</p>
+					{/if}
+				</div>
+				</div>
+				{#if selectedMethod}
+					<dl class="rounded-panel bg-slate-50 p-3 text-xs sm:col-span-2">
+						<div class="flex gap-3"><dt class="w-28 shrink-0 text-slate-400">Payment details</dt><dd class="font-medium text-slate-700">{selectedMethod.summary}</dd></div>
+						<div class="mt-1 flex gap-3"><dt class="w-28 shrink-0 text-slate-400">Reference</dt><dd class="font-mono font-medium text-slate-700">{data.booking.bookingReference}</dd></div>
+					</dl>
+				{/if}
+				<div class="flex items-center justify-between gap-2">
+					<p class="text-[11px] text-slate-500">
+						{#if !data.customer?.whatsappPhone}Add a WhatsApp number to this customer before sending.
+						{:else if !data.requestTemplateReady}The payment request template is not approved and enabled yet.
+						{:else if !selectedMethod}Choose a usable payment method.
+						{:else if Number(requestAmount) > balance}Amount cannot exceed the outstanding balance.
+						{:else if requestReady}WhatsApp: ready to send ✓
+						{:else}Enter an amount greater than zero.{/if}
+					</p>
+				<div class="flex gap-2">
+					<button type="button" class="btn-secondary" onclick={() => (showRequestPanel = false)}>Cancel</button>
+						<button class="btn-primary" disabled={!requestReady}>Request payment</button>
+				</div>
+			</div>
+		</form>
+	{/if}
+
+	{#if data.paymentRequests.length}
+		<div class="card divide-y divide-slate-100">
+			{#each data.paymentRequests as pr (pr.id)}
+				<div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-xs">
+					<span class="font-medium text-slate-700">{pr.currency} {pr.amountRequested} requested</span>
+					<StatusBadge value={pr.status} size="xs" />
+					{#if pr.status === 'REPORTED'}
+							<a href="/app/payments?verify={pr.id}" class="font-semibold text-brand-600 hover:underline">Verify payment</a>
+					{:else if Number(pr.amountReceived) > 0}
+						<span class="text-slate-500">received {pr.currency} {pr.amountReceived}</span>
+					{/if}
+					<span class="ml-auto text-slate-400"><TimeAgo value={pr.createdAt} timezone={tz} /></span>
+				</div>
+			{/each}
+		</div>
+	{/if}
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Total</div><div class="text-lg font-semibold"><Money amount={data.booking.total} currency={data.booking.currency} /></div></div>

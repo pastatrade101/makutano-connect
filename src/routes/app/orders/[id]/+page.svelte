@@ -9,7 +9,7 @@
 
 	const tz = $derived(data.tenant.timezone);
 	const canWrite = $derived(data.permissions?.includes('orders:write'));
-	const canPay = $derived(data.permissions?.includes('payments:write'));
+	const canPay = $derived(data.permissions?.includes('payments:write') && data.entitlements?.['payments.enabled'] === true);
 
 	/** The happy path as buttons; destructive moves live in quiet links below. */
 	const FORWARD: Record<string, Array<{ to: string; label: string }>> = {
@@ -40,12 +40,30 @@
 	const destructive = $derived(DESTRUCTIVE[data.order.status] ?? []);
 	const outstanding = $derived(Math.max(0, Number(data.order.total) - Number(data.order.amountPaid)));
 	let confirmDestructive = $state<string | null>(null);
+	let showRequestPanel = $state(false);
+	let requestAmount = $state('');
+	let selectedMethodKey = $state('');
+	$effect(() => {
+		if (!data.payMethods.some((method) => method.key === selectedMethodKey)) selectedMethodKey = data.payMethods[0]?.key ?? '';
+	});
 	const customerName = $derived([data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || '—');
+	const activeRequest = $derived(
+		data.paymentRequests.find((request) => ['REQUESTED', 'REPORTED', 'PARTIALLY_PAID'].includes(request.status)) ?? null
+	);
+	const selectedMethod = $derived(data.payMethods.find((method) => method.key === selectedMethodKey) ?? data.payMethods[0] ?? null);
+	const requestReady = $derived(
+		!!selectedMethod &&
+		!!data.customer?.whatsappPhone &&
+		data.requestTemplateReady &&
+		Number(requestAmount) > 0 &&
+		Number(requestAmount) <= outstanding
+	);
 </script>
 
 <svelte:head><title>{data.order.orderNumber} · {data.tenant.name}</title></svelte:head>
 
-<FormToast {form} successTitle="Order updated" />
+	<FormToast {form} successTitle="Order updated" />
+	{#if form?.warning}<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#8a6815]">{form.warning}</p>{/if}
 
 <div class="space-y-3">
 	<div class="flex flex-wrap items-center justify-between gap-2">
@@ -57,7 +75,16 @@
 				<StatusBadge value={data.order.paymentStatus} size="xs" />
 			</h1>
 		</div>
-		<div class="flex flex-wrap items-center gap-1.5">
+			<div class="flex flex-wrap items-center gap-1.5">
+				{#if canPay && outstanding > 0 && !activeRequest && !['CANCELLED', 'REFUNDED'].includes(data.order.status)}
+					<button class="btn-primary" onclick={() => { requestAmount = outstanding.toFixed(2); showRequestPanel = !showRequestPanel; }}>Request payment</button>
+				{/if}
+				{#if canPay && activeRequest && activeRequest.status !== 'REPORTED'}
+					<form method="POST" action="?/remindPayment" use:enhance>
+						<input type="hidden" name="requestId" value={activeRequest.id} />
+						<button class="btn-secondary">Send payment reminder</button>
+					</form>
+				{/if}
 			{#if canWrite}
 				{#each forward as move, i (move.to)}
 					<form method="POST" action="?/status" use:enhance>
@@ -75,9 +102,69 @@
 				</form>
 			{/if}
 		</div>
-	</div>
+		</div>
 
-	{#if canWrite && destructive.length}
+		{#if showRequestPanel}
+			<form
+				method="POST"
+				action="?/requestPayment"
+				use:enhance={() => async ({ result, update }) => { await update(); if (result.type === 'success') showRequestPanel = false; }}
+				class="card space-y-3 p-4"
+			>
+				<h2 class="card-title">Request payment</h2>
+				<dl class="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
+					<div class="flex justify-between sm:block"><dt class="text-slate-400">Customer</dt><dd class="font-medium text-slate-700">{customerName}</dd></div>
+					<div class="flex justify-between sm:block"><dt class="text-slate-400">Order</dt><dd class="font-medium text-slate-700">{data.order.orderNumber}</dd></div>
+				</dl>
+				<div class="grid gap-3 sm:grid-cols-2">
+					<div>
+						<label class="label" for="pr-amount">Amount to request ({data.order.currency})</label>
+						<input id="pr-amount" name="amount" inputmode="decimal" bind:value={requestAmount} class="input" />
+						<p class="mt-1 text-[11px] text-slate-400">Outstanding: {data.order.currency} {outstanding.toFixed(2)}</p>
+					</div>
+					<div>
+						<label class="label" for="pr-method">Payment method</label>
+						{#if data.payMethods.length}
+							<select id="pr-method" name="methodKey" class="input" bind:value={selectedMethodKey}>
+								{#each data.payMethods as method (method.key)}<option value={method.key}>{method.displayName}</option>{/each}
+							</select>
+						{:else}
+							<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">Add a usable method in <a href="/app/settings" class="font-semibold underline">Settings</a>.</p>
+						{/if}
+					</div>
+					{#if selectedMethod}
+						<dl class="rounded-panel bg-slate-50 p-3 text-xs sm:col-span-2">
+							<div class="flex gap-3"><dt class="w-28 shrink-0 text-slate-400">Payment details</dt><dd class="font-medium text-slate-700">{selectedMethod.summary}</dd></div>
+							<div class="mt-1 flex gap-3"><dt class="w-28 shrink-0 text-slate-400">Reference</dt><dd class="font-mono font-medium text-slate-700">{data.order.orderNumber}</dd></div>
+						</dl>
+					{/if}
+				</div>
+				<div class="flex items-center justify-between gap-2">
+					<p class="text-[11px] text-slate-500">
+						{#if !data.customer?.whatsappPhone}Add the customer's WhatsApp number.
+						{:else if !data.requestTemplateReady}The payment request template is not approved and enabled yet.
+						{:else if requestReady}WhatsApp: ready to send ✓
+						{:else}Choose valid payment details and amount.{/if}
+					</p>
+					<div class="flex gap-2"><button type="button" class="btn-secondary" onclick={() => (showRequestPanel = false)}>Cancel</button><button class="btn-primary" disabled={!requestReady}>Request payment</button></div>
+				</div>
+			</form>
+		{/if}
+
+		{#if data.paymentRequests.length}
+			<div class="card divide-y divide-slate-100">
+				{#each data.paymentRequests as request (request.id)}
+					<div class="flex flex-wrap items-center gap-2 px-4 py-2.5 text-xs">
+						<span class="font-medium text-slate-700">{request.currency} {request.amountRequested} requested</span>
+						<StatusBadge value={request.status} size="xs" />
+						{#if request.status === 'REPORTED'}<a href="/app/payments?verify={request.id}" class="font-semibold text-brand-600 hover:underline">Verify payment</a>{/if}
+						<span class="ml-auto text-slate-400"><TimeAgo value={request.createdAt} timezone={tz} /></span>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		{#if canWrite && destructive.length}
 		<div class="flex justify-end gap-3 text-[11px]">
 			{#each destructive as move (move.to)}
 				{#if confirmDestructive === move.to}

@@ -1,6 +1,6 @@
 // WhatsApp message templates (§18). Templates live in Meta; this table mirrors them per
 // tenant and maps our domain events onto approved template names.
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or, sql } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { log } from '../logger';
 import { graphRequest } from './client';
@@ -98,8 +98,51 @@ export async function syncTemplates(tenantId: string): Promise<number> {
 				}
 			});
 	}
+
+	// payment_reminder_v2 is deliberately submitted while disabled so the current
+	// approved reminder keeps production traffic during Meta review. The first sync
+	// that sees V2 APPROVED atomically promotes it and removes the old event mapping.
+	// This is name-scoped and never edits either template's approved Meta body.
+	await promoteApprovedPaymentReminderV2(tenantId);
 	log.info('templates_synced', { tenantId, count: templates.length });
 	return templates.length;
+}
+
+/**
+ * Complete the pre-authorized reminder V2 rollout only after Meta is authoritative.
+ * Exported so the database transition can be tested without calling Meta.
+ */
+export async function promoteApprovedPaymentReminderV2(tenantId: string): Promise<boolean> {
+	const [approvedPaymentReminderV2] = await db()
+		.select({ id: schema.whatsappTemplates.id })
+		.from(schema.whatsappTemplates)
+		.where(
+			and(
+				eq(schema.whatsappTemplates.tenantId, tenantId),
+				eq(schema.whatsappTemplates.name, 'payment_reminder_v2'),
+				eq(schema.whatsappTemplates.status, 'APPROVED')
+			)
+		)
+		.limit(1);
+	if (!approvedPaymentReminderV2) return false;
+	await db()
+		.update(schema.whatsappTemplates)
+		.set({
+			eventKey: sql`case when ${schema.whatsappTemplates.id} = ${approvedPaymentReminderV2.id}::uuid then 'PAYMENT_REMINDER' else null end`,
+			enabled: sql`case when ${schema.whatsappTemplates.id} = ${approvedPaymentReminderV2.id}::uuid then true else ${schema.whatsappTemplates.enabled} end`,
+			updatedAt: new Date()
+		})
+		.where(
+			and(
+				eq(schema.whatsappTemplates.tenantId, tenantId),
+				or(
+					eq(schema.whatsappTemplates.id, approvedPaymentReminderV2.id),
+					eq(schema.whatsappTemplates.eventKey, 'PAYMENT_REMINDER')
+				)
+			)
+		);
+	log.info('payment_reminder_v2_promoted', { tenantId, templateId: approvedPaymentReminderV2.id });
+	return true;
 }
 
 function mapStatus(metaStatus?: string): schema.WhatsappTemplate['status'] {

@@ -3,6 +3,8 @@
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$app/forms';
 	let { data, form } = $props();
+	let showMethodForm = $state(false);
+	let methodKind = $state<'MOBILE' | 'BANK' | 'ONLINE'>('MOBILE');
 	const canWrite = $derived(data.permissions?.includes('tenant:write'));
 
 </script>
@@ -46,7 +48,81 @@
 		{#if canWrite}<div class="border-t border-slate-200 p-3"><button class="btn-primary">Save settings</button></div>{/if}
 	</form>
 
-	<section class="card">
+		<!-- How customers can pay — shown in payment request messages -->
+	<section class="card p-4">
+		<div class="mb-2 flex items-center justify-between">
+			<h2 class="card-title">Payment methods</h2>
+			{#if canWrite}<button class="btn-secondary !py-1.5 text-xs" onclick={() => (showMethodForm = !showMethodForm)}>Add method</button>{/if}
+		</div>
+		<p class="mb-3 text-[11px] text-slate-400">
+			These details are included when you request a payment on WhatsApp. Display information only — never enter PINs or passwords.
+		</p>
+
+		{#if showMethodForm && canWrite}
+				<form method="POST" action="?/savePaymentMethod" use:enhance={() => async ({ update }) => { await update({ reset: true }); showMethodForm = false; }} class="mb-3 grid gap-3 rounded-panel border border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-3">
+					<div>
+						<label class="label" for="pm-kind">Type</label>
+						<select id="pm-kind" name="kind" class="input" bind:value={methodKind}>
+						<option value="MOBILE">Mobile payment / Lipa Namba</option>
+						<option value="BANK">Bank transfer</option>
+						<option value="ONLINE">Online payment link</option>
+					</select>
+					</div>
+					<div><label class="label" for="pm-name">Display name</label><input id="pm-name" name="displayName" required class="input" placeholder={methodKind === 'BANK' ? 'Bank Transfer' : methodKind === 'ONLINE' ? 'Pay online' : 'M-Pesa Lipa Namba'} /></div>
+					{#if methodKind === 'MOBILE'}
+						<div><label class="label" for="pm-provider">Provider</label><input id="pm-provider" name="provider" class="input" placeholder="M-Pesa" /></div>
+						<div><label class="label" for="pm-number">Lipa Namba / number</label><input id="pm-number" name="number" required class="input" placeholder="5123456" /></div>
+						<div><label class="label" for="pm-account">Business name</label><input id="pm-account" name="accountName" class="input" placeholder="Goldfinch Adventures" /></div>
+					{:else if methodKind === 'BANK'}
+						<div><label class="label" for="pm-bank">Bank</label><input id="pm-bank" name="bank" class="input" placeholder="CRDB Bank" /></div>
+						<div><label class="label" for="pm-account">Account name</label><input id="pm-account" name="accountName" class="input" placeholder="Goldfinch Adventures" /></div>
+						<div><label class="label" for="pm-account-number">Account number</label><input id="pm-account-number" name="accountNumber" required class="input" placeholder="0150…" /></div>
+						<div><label class="label" for="pm-branch">Branch <span class="font-normal text-slate-400">(optional)</span></label><input id="pm-branch" name="branch" class="input" /></div>
+						<div><label class="label" for="pm-swift">SWIFT <span class="font-normal text-slate-400">(optional)</span></label><input id="pm-swift" name="swift" class="input" /></div>
+					{:else}
+						<div class="sm:col-span-2">
+							<label class="label" for="pm-provider">Connected provider</label>
+							{#if data.onlinePaymentProviders.length}
+								<select id="pm-provider" name="provider" class="input">{#each data.onlinePaymentProviders as provider (provider.code)}<option value={provider.code}>{provider.code}</option>{/each}</select>
+							{:else}
+								<p class="rounded-panel bg-slate-50 px-3 py-2 text-xs text-slate-500">No online provider is connected. Connect will not accept a pasted success URL as proof of payment.</p>
+							{/if}
+							<p class="mt-1 text-[11px] text-slate-400">The provider generates a fresh secure URL for each payment request.</p>
+						</div>
+					{/if}
+					<div class="sm:col-span-2"><label class="label" for="pm-instr">Extra instructions <span class="font-normal text-slate-400">(optional)</span></label><input id="pm-instr" name="instructions" class="input" placeholder="Send the confirmation SMS screenshot here" /></div>
+					<div class="flex items-end gap-3">
+						<label class="flex min-h-10 items-center gap-2 text-xs text-slate-600"><input type="checkbox" name="enabled" checked /> Enabled</label>
+						<button class="btn-primary ml-auto" disabled={methodKind === 'ONLINE' && data.onlinePaymentProviders.length === 0}>Save method</button>
+					</div>
+			</form>
+		{/if}
+
+		{#if data.settings.paymentMethods.length === 0}
+				<p class="rounded-panel bg-slate-50 px-3 py-2 text-xs text-slate-500">No payment methods yet — add one before requesting payment.</p>
+		{:else}
+			<ul class="divide-y divide-slate-100">
+				{#each data.settings.paymentMethods as m (m.key)}
+					<li class="flex flex-wrap items-center gap-2 py-2 text-sm">
+						<span class="badge bg-slate-100 text-slate-500">{m.kind === 'MOBILE' ? 'Mobile' : m.kind === 'BANK' ? 'Bank' : 'Online'}</span>
+						<span class="font-medium text-slate-700">{m.displayName}</span>
+						{#if m.bank}<span class="text-xs text-slate-500">{m.bank}</span>{/if}
+						{#if m.number || m.accountNumber}<span class="font-mono text-xs text-slate-500">{m.accountNumber ?? m.number}</span>{/if}
+						{#if m.accountName}<span class="text-xs text-slate-500">{m.accountName}</span>{/if}
+						{#if !m.enabled}<span class="badge bg-slate-100 text-slate-400">Disabled</span>{/if}
+						{#if canWrite}
+							<form method="POST" action="?/removePaymentMethod" use:enhance class="ml-auto">
+								<input type="hidden" name="key" value={m.key} />
+								<button class="text-xs text-slate-400 hover:text-danger hover:underline">Remove</button>
+							</form>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
+
+<section class="card">
 		<header class="card-header">
 			<h2 class="card-title">Plan &amp; usage</h2>
 			<span class="badge bg-brand-50 text-brand-600">{data.plan.name}</span>

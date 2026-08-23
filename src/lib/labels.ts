@@ -40,7 +40,9 @@ const STATUS: Record<string, string> = {
 	PENDING: 'Pending',
 	REJECTED: 'Needs changes',
 	PAUSED: 'Paused',
-	SUBMITTED: 'Awaiting approval'
+	SUBMITTED: 'Awaiting approval',
+	REQUESTED: 'Requested',
+	REPORTED: 'Reported — verify'
 };
 
 /** "PENDING_CONFIRMATION" → "Awaiting confirmation". Unknown values degrade gracefully. */

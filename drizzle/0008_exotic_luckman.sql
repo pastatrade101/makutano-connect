@@ -1,0 +1,10 @@
+ALTER TABLE "payment_requests" ADD COLUMN "method_details" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "payment_requests" ADD COLUMN "payment_reference" text;--> statement-breakpoint
+ALTER TABLE "payment_requests" ADD COLUMN "request_message_id" uuid;--> statement-breakpoint
+ALTER TABLE "payment_requests" ADD COLUMN "verification_started_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "payment_requests" ADD CONSTRAINT "payment_requests_request_message_id_messages_id_fk" FOREIGN KEY ("request_message_id") REFERENCES "public"."messages"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "payment_requests_conversation_idx" ON "payment_requests" USING btree ("conversation_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_requests_reported_message_key" ON "payment_requests" USING btree ("tenant_id","reported_message_id") WHERE "payment_requests"."reported_message_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_requests_active_booking_amount_key" ON "payment_requests" USING btree ("tenant_id","booking_id","amount_requested") WHERE "payment_requests"."booking_id" is not null and "payment_requests"."status" in ('REQUESTED','REPORTED','PARTIALLY_PAID');--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_requests_active_order_amount_key" ON "payment_requests" USING btree ("tenant_id","order_id","amount_requested") WHERE "payment_requests"."order_id" is not null and "payment_requests"."status" in ('REQUESTED','REPORTED','PARTIALLY_PAID');--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_requests_active_quotation_amount_key" ON "payment_requests" USING btree ("tenant_id","quotation_id","amount_requested") WHERE "payment_requests"."quotation_id" is not null and "payment_requests"."status" in ('REQUESTED','REPORTED','PARTIALLY_PAID');

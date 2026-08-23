@@ -296,11 +296,25 @@ export async function changeBookingStatus(
 			reason: reason ?? null
 		});
 	}
-	
+
 	// "Request payment" means REQUEST it: moving to AWAITING_PAYMENT sends the mapped
 	// payment reminder with the outstanding amount. Fire-and-forget, compliance-gated.
+	// Skipped when a payment request drove this transition — createPaymentRequest has
+	// already messaged the customer with the full payment instructions.
 	if (toStatus === 'AWAITING_PAYMENT') {
 		void (async () => {
+			const [activeRequest] = await db()
+				.select({ id: schema.paymentRequests.id })
+				.from(schema.paymentRequests)
+				.where(
+					and(
+						eq(schema.paymentRequests.tenantId, tenantId),
+						eq(schema.paymentRequests.bookingId, id),
+						inArray(schema.paymentRequests.status, ['REQUESTED', 'REPORTED', 'PARTIALLY_PAID'])
+					)
+				)
+				.limit(1);
+			if (activeRequest) return;
 			const [customer] = updated.customerId
 				? await db().select().from(schema.customers).where(eq(schema.customers.id, updated.customerId)).limit(1)
 				: [];
@@ -335,7 +349,11 @@ export async function changeBookingStatus(
 				{
 					customer: { firstName: customer?.firstName, lastName: customer?.lastName },
 					business: { name: tenant?.name ?? '' },
-					booking: { reference: updated.bookingReference, startDate: updated.startDate ? String(updated.startDate).slice(0, 10) : null, total: updated.total }
+					booking: {
+						reference: updated.bookingReference,
+						startDate: updated.startDate ? String(updated.startDate).slice(0, 10) : null,
+						total: updated.total
+					}
 				},
 				`booking-BOOKING_CONFIRMED:${updated.id}`
 			);

@@ -100,6 +100,16 @@ export const paymentStatusEnum = pgEnum('payment_status', [
 	'REFUNDED',
 	'PARTIALLY_REFUNDED'
 ]);
+export const paymentRequestStatusEnum = pgEnum('payment_request_status', [
+	// Business asked the customer to pay.
+	'REQUESTED',
+	// Customer says they paid — NOT verified, never money.
+	'REPORTED',
+	// Verified in full / in part by staff or a trusted provider webhook.
+	'PAID',
+	'PARTIALLY_PAID',
+	'CANCELLED'
+]);
 export const notificationChannelEnum = pgEnum('notification_channel', [
 	'WHATSAPP',
 	'EMAIL',
@@ -960,6 +970,81 @@ export const payments = pgTable(
 	]
 );
 
+/**
+ * A payment REQUEST: the unit of "please pay X for Y" (§payment-workflow brief).
+ *
+ * Distinct from `payments` (money actually recorded): a request is asked, maybe
+ * reported by the customer, then verified — at which point a real payments row is
+ * created through the existing createPayment path and the two are linked. A booking
+ * can carry several requests over its life (deposit now, balance later); history is
+ * never overwritten.
+ */
+export const paymentRequests = pgTable(
+	'payment_requests',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+		bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'cascade' }),
+		orderId: uuid('order_id').references(() => orders.id, { onDelete: 'cascade' }),
+		quotationId: uuid('quotation_id').references(() => quotations.id, { onDelete: 'cascade' }),
+		conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+		status: paymentRequestStatusEnum('status').notNull().default('REQUESTED'),
+		amountRequested: money('amount_requested').notNull(),
+		amountReceived: money('amount_received').notNull().default('0'),
+		currency: text('currency').notNull().default('USD'),
+		/** Key of the tenant payment method presented to the customer (settings.paymentMethods). */
+		methodKey: text('method_key'),
+		methodLabel: text('method_label'),
+		/** Immutable, display-only snapshot of the instructions shown when this request was sent. */
+		methodDetails: jsonb('method_details')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		/** Customer-facing reference to put on the transfer; normally the transaction reference. */
+		paymentReference: text('payment_reference'),
+		note: text('note'),
+		requestedByUserId: uuid('requested_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		/** Local outbound message row, used to audit delivery/read without parsing message bodies. */
+		requestMessageId: uuid('request_message_id').references(() => messages.id, { onDelete: 'set null' }),
+		reportedAt: timestamp('reported_at', { withTimezone: true }),
+		/** WhatsApp message id of the customer's "I have paid" press, for traceability. */
+		reportedMessageId: text('reported_message_id'),
+		/** Short-lived compare-and-set lock that prevents two staff confirmations recording money twice. */
+		verificationStartedAt: timestamp('verification_started_at', { withTimezone: true }),
+		verifiedByUserId: uuid('verified_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		verifiedAt: timestamp('verified_at', { withTimezone: true }),
+		/** The payments row created at verification — the actual money record. */
+		paymentId: uuid('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+		lastReminderAt: timestamp('last_reminder_at', { withTimezone: true }),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		index('payment_requests_tenant_status_idx').on(t.tenantId, t.status, t.createdAt),
+		index('payment_requests_booking_idx').on(t.bookingId),
+		index('payment_requests_order_idx').on(t.orderId),
+		index('payment_requests_customer_idx').on(t.customerId),
+		index('payment_requests_conversation_idx').on(t.conversationId),
+		uniqueIndex('payment_requests_reported_message_key')
+			.on(t.tenantId, t.reportedMessageId)
+			.where(sql`${t.reportedMessageId} is not null`),
+		// The select-before-insert check in createPaymentRequest is friendly UX; these
+		// indexes are the actual concurrency guarantee for double-clicked requests.
+		uniqueIndex('payment_requests_active_booking_amount_key')
+			.on(t.tenantId, t.bookingId, t.amountRequested)
+			.where(sql`${t.bookingId} is not null and ${t.status} in ('REQUESTED','REPORTED','PARTIALLY_PAID')`),
+		uniqueIndex('payment_requests_active_order_amount_key')
+			.on(t.tenantId, t.orderId, t.amountRequested)
+			.where(sql`${t.orderId} is not null and ${t.status} in ('REQUESTED','REPORTED','PARTIALLY_PAID')`),
+		uniqueIndex('payment_requests_active_quotation_amount_key')
+			.on(t.tenantId, t.quotationId, t.amountRequested)
+			.where(sql`${t.quotationId} is not null and ${t.status} in ('REQUESTED','REPORTED','PARTIALLY_PAID')`)
+	]
+);
+
 export const paymentTransactions = pgTable(
 	'payment_transactions',
 	{
@@ -1339,6 +1424,7 @@ export type BookingRequest = typeof bookingRequests.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type Quotation = typeof quotations.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
+export type PaymentRequest = typeof paymentRequests.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type WhatsappOnboardingSession = typeof whatsappOnboardingSessions.$inferSelect;
