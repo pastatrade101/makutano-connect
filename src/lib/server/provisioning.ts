@@ -17,6 +17,7 @@ import { env } from './env';
 import { AppError } from './errors';
 import { log } from './logger';
 import { slugify } from './tenants';
+import { workspaceForIndustry } from '$lib/workspace';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
@@ -40,8 +41,8 @@ export function industryLabel(value: string | null): string {
 	return INDUSTRIES.find((i) => i.value === value)?.label ?? 'Other';
 }
 
-function capabilitiesFor(industry: string | null | undefined): 'BOOKINGS' | 'ORDERS' | 'BOTH' {
-	return (INDUSTRIES.find((i) => i.value === industry)?.capabilities ?? 'BOTH') as 'BOOKINGS' | 'ORDERS' | 'BOTH';
+function capabilitiesFor(industry: string | null | undefined) {
+	return workspaceForIndustry(industry);
 }
 
 /** Metrics pre-seeded at zero so the first period exists before anything is metered. */
@@ -71,7 +72,7 @@ export type ProvisionTenantInput = {
 	owner?: ProvisionOwner;
 	industry?: string | null;
 	/** UI preference only — which modules lead the portal. Never an authorization input. */
-	capabilities?: 'BOOKINGS' | 'ORDERS' | 'BOTH' | null;
+	capabilities?: 'BOOKINGS' | 'ORDERS' | 'SERVICE' | 'HYBRID' | null;
 	country?: string | null;
 	currency?: string | null;
 	timezone?: string | null;

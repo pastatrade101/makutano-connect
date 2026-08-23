@@ -5,9 +5,14 @@ import { requirePermission } from '$lib/server/auth/permissions';
 import { COMMON_UNITS, createBatch, listBatches } from '$lib/server/order-batches';
 import { toAppError } from '$lib/server/errors';
 import { paginationFrom } from '$lib/server/http';
+import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
+	const workspaceRelevant = moduleRelevant(
+		normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities),
+		'orders'
+	);
 	requireTenantPermission(locals, 'orders:read');
 	const tenantId = requireTenant(locals).id;
 	const status = url.searchParams.get('status');
@@ -15,6 +20,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		status: (status === 'OPEN' || status === 'CLOSED' ? status : undefined) as never
 	});
 	return {
+		workspaceRelevant,
 		batches: items.map((r) => ({ ...r.batch, orders: r.orders, revenue: r.revenue })),
 		total,
 		status: status ?? '',

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import { sourceLabel, statusLabel } from '$lib/labels';
 	import EmptyState from '$components/EmptyState.svelte';
 	import FilterBar from '$components/FilterBar.svelte';
@@ -16,6 +17,9 @@
 
 <svelte:head><title>Orders · {data.tenant.name}</title></svelte:head>
 
+{#if !data.workspaceRelevant}
+	<WorkspaceNotice module="Orders" />
+{:else}
 <div class="space-y-3">
 	<div class="flex items-center justify-between">
 		<h1 class="text-base font-semibold text-slate-800">Orders</h1>
@@ -68,3 +72,4 @@
 		{/if}
 	</div>
 </div>
+{/if}

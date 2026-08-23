@@ -1,4 +1,5 @@
 <script lang="ts">
+	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import { enhance } from '$app/forms';
 	import EmptyState from '$components/EmptyState.svelte';
 	import FormToast from '$components/FormToast.svelte';
@@ -14,6 +15,9 @@
 
 <FormToast {form} successTitle="Batch saved" />
 
+{#if !data.workspaceRelevant}
+	<WorkspaceNotice module="Order batches" />
+{:else}
 <div class="space-y-3">
 	<div class="flex items-center justify-between gap-2">
 		<div>
@@ -99,3 +103,4 @@
 		</div>
 	{/if}
 </div>
+{/if}

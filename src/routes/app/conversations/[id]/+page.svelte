@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { moduleRelevant } from '$lib/workspace';
 	// Reback chat thread: header with avatar + context, bubbles with delivery ticks
 	// (✓ sent, ✓✓ delivered, ✓✓ tinted read), composer pinned at the bottom.
 	import { enhance } from '$app/forms';
@@ -16,7 +17,7 @@
 	let showContext = $state(false);
 	let batchQty = $state('');
 	const canOrder = $derived(
-		data.tenant.capabilities !== 'BOOKINGS' && data.permissions?.includes('orders:write') && !!data.customer
+		moduleRelevant(data.tenant.capabilities, 'orders') && data.permissions?.includes('orders:write') && !!data.customer
 	);
 
 	const TICKS: Record<string, { marks: number; tinted: boolean }> = {
@@ -49,7 +50,7 @@
 		{#if data.conversation.bookingRequestId}
 			<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary !py-1.5 text-xs">Open enquiry</a>
 		{/if}
-		{#if data.tenant.capabilities !== 'BOOKINGS' && data.permissions?.includes('orders:write')}
+		{#if moduleRelevant(data.tenant.capabilities, 'orders') && data.permissions?.includes('orders:write')}
 			<a href="/app/orders/new?conversation={data.conversation.id}" class="btn-primary !py-1.5 text-xs">Create order</a>
 		{/if}
 		{#if data.context.length || Number(data.outstanding) > 0}

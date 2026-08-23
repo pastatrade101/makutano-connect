@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { WORKSPACE_OPTIONS, normalizeWorkspace } from '$lib/workspace';
 	// Tenant Control Center — the operational view of one tenant: what it is, what it
 	// may do, what it has used, and the levers to change all three.
 	import { enhance } from '$app/forms';
@@ -8,6 +9,7 @@
 	let { data, form } = $props();
 
 	const suspended = $derived(data.tenant.status === 'SUSPENDED');
+	const tenantWorkspace = $derived(normalizeWorkspace((data.tenant.settings as Record<string, unknown>)?.capabilities));
 	let confirming = $state<string | null>(null);
 	let editingKey = $state<string | null>(null);
 
@@ -101,6 +103,20 @@
 			<div>
 				<dt class="text-slate-400">Industry</dt>
 				<dd class="mt-0.5 font-medium text-slate-700">{data.industryLabel ?? '—'}</dd>
+			</div>
+			<div>
+				<dt class="text-slate-400">Workspace</dt>
+				<dd class="mt-0.5">
+					<form method="POST" action="?/workspace" use:enhance class="flex items-center gap-1.5">
+						<select name="workspace" class="input w-auto !py-1 text-xs">
+							{#each WORKSPACE_OPTIONS as opt (opt.value)}
+								<option value={opt.value} selected={tenantWorkspace === opt.value}>{opt.label}</option>
+							{/each}
+						</select>
+						<button class="btn-secondary !px-2 !py-1 text-[11px]">Save</button>
+					</form>
+					<p class="mt-0.5 text-[10px] text-slate-400">UI relevance only — plan entitlements still decide access.</p>
+				</dd>
 			</div>
 			<div>
 				<dt class="text-slate-400">Onboarding</dt>

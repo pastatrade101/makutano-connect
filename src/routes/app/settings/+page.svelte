@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { WORKSPACE_OPTIONS } from '$lib/workspace';
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$app/forms';
 	let { data, form } = $props();
@@ -30,12 +31,15 @@
 			</div>
 			<div><label class="label" for="quotationPrefix">Quotation prefix</label><input id="quotationPrefix" name="quotationPrefix" value={data.settings.quotationPrefix} class="input" disabled={!canWrite} /></div>
 			<div>
-				<label class="label" for="capabilities">Business mode</label>
+				<label class="label" for="capabilities">How do you use Connect?</label>
 				<select id="capabilities" name="capabilities" class="input" disabled={!canWrite}>
-					<option value="BOTH" selected={data.settings.capabilities === 'BOTH'}>Bookings + Orders</option>
-					<option value="BOOKINGS" selected={data.settings.capabilities === 'BOOKINGS'}>Bookings only</option>
-					<option value="ORDERS" selected={data.settings.capabilities === 'ORDERS'}>Orders only</option>
+					{#each WORKSPACE_OPTIONS as opt (opt.value)}
+						<option value={opt.value} selected={data.settings.capabilities === opt.value}>{opt.label} — {opt.hint.toLowerCase()}</option>
+					{/each}
 				</select>
+				<p class="mt-1 text-[11px] text-slate-400">
+					This organises your menus and dashboard around your kind of work. It never adds or removes plan features.
+				</p>
 				<p class="mt-1 text-[11px] text-slate-400">Controls which features appear in navigation — nothing is deleted by switching.</p>
 			</div>
 		</div>

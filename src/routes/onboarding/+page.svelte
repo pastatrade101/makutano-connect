@@ -1,10 +1,18 @@
 <script lang="ts">
+	import { WORKSPACE_OPTIONS, workspaceForIndustry } from '$lib/workspace';
 	import { enhance } from '$app/forms';
 	import AuthShell from '$lib/components/AuthShell.svelte';
 
 	let { data, form } = $props();
 	let submitting = $state(false);
-	let mainUse = $state('BOTH');
+	let industry = $state(form?.industry ?? '');
+	let mainUse = $state('HYBRID');
+	// Picking an industry suggests the workspace that fits it — the user still chooses.
+	const recommended = $derived(workspaceForIndustry(industry || null));
+	let mainUseTouched = $state(false);
+	$effect(() => {
+		if (!mainUseTouched) mainUse = recommended;
+	});
 	let selectedPlan = $state(
 		form?.planId || data.plans.find((p) => p.code === data.defaultPlanCode)?.id || data.plans[0]?.id || ''
 	);
@@ -44,7 +52,7 @@
 
 				<div>
 					<label class="label" for="industry">Industry</label>
-					<select id="industry" name="industry" required class="input" value={form?.industry ?? ''}>
+					<select id="industry" name="industry" required class="input" bind:value={industry}>
 						<option value="" disabled>Choose one…</option>
 						{#each data.industries as industry (industry.value)}
 							<option value={industry.value}>{industry.label}</option>
@@ -76,11 +84,14 @@
 		<div class="card p-6">
 			<h2 class="mb-1 text-sm font-semibold text-slate-700">What will you mainly use Connect for?</h2>
 			<p class="mb-3 text-[11px] text-slate-400">This shapes your menus and dashboard — you can change it anytime in Settings.</p>
-			<div class="grid gap-2 sm:grid-cols-3">
-				{#each [{ value: 'ORDERS', label: 'Simple orders', hint: 'Customers order what you sell — fish, food, products' }, { value: 'BOOKINGS', label: 'Bookings & enquiries', hint: 'Tours, stays, appointments, quotes' }, { value: 'BOTH', label: 'A combination', hint: 'A bit of everything' }] as opt (opt.value)}
+			<div class="grid gap-2 sm:grid-cols-2">
+				{#each WORKSPACE_OPTIONS as opt (opt.value)}
 					<label class="cursor-pointer rounded-panel border p-3 transition {mainUse === opt.value ? 'border-brand-500 bg-brand-50/60 ring-1 ring-brand-500' : 'border-slate-200 hover:border-slate-300'}">
-						<input type="radio" name="mainUse" value={opt.value} bind:group={mainUse} class="sr-only" />
-						<span class="block text-sm font-semibold text-slate-700">{opt.label}</span>
+						<input type="radio" name="mainUse" value={opt.value} bind:group={mainUse} onchange={() => (mainUseTouched = true)} class="sr-only" />
+						<span class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+							{opt.label}
+							{#if recommended === opt.value}<span class="badge bg-brand-50 text-brand-600">Suggested</span>{/if}
+						</span>
 						<span class="mt-0.5 block text-[11px] text-slate-500">{opt.hint}</span>
 					</label>
 				{/each}

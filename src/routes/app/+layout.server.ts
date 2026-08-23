@@ -4,6 +4,7 @@ import { db, schema } from '$lib/server/db';
 import { approachingLimits, effectiveEntitlements } from '$lib/server/entitlements';
 import { membershipsForUser } from '$lib/server/tenants';
 import { pathForStage, stageForUser } from '$lib/server/signup';
+import { normalizeWorkspace } from '$lib/workspace';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -56,10 +57,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			slug: locals.tenant.slug,
 			timezone: locals.tenant.timezone,
 			currency: locals.tenant.currency,
-			capabilities: String((locals.tenant.settings as Record<string, unknown>)?.capabilities ?? 'BOTH') as
-				| 'BOOKINGS'
-				| 'ORDERS'
-				| 'BOTH'
+			capabilities: normalizeWorkspace((locals.tenant.settings as Record<string, unknown>)?.capabilities)
 		},
 		role: locals.role,
 		permissions: locals.permissions,

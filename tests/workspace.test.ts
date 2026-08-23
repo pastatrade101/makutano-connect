@@ -1,0 +1,67 @@
+// Workspace resolver — the §9 rule (relevance is never authorization) and the
+// acceptance matrix for all four business types.
+import { describe, expect, it } from 'vitest';
+import {
+	moduleRelevant,
+	normalizeWorkspace,
+	showModule,
+	workspaceForIndustry
+} from '../src/lib/workspace';
+
+describe('workspace resolver', () => {
+	it('normalizes legacy and unknown values safely', () => {
+		expect(normalizeWorkspace('BOTH')).toBe('HYBRID'); // legacy tenants
+		expect(normalizeWorkspace(undefined)).toBe('HYBRID');
+		expect(normalizeWorkspace('garbage')).toBe('HYBRID');
+		expect(normalizeWorkspace('BOOKINGS')).toBe('BOOKINGS');
+		expect(normalizeWorkspace('SERVICE')).toBe('SERVICE');
+	});
+
+	it('tour operator: orders and catalog are simply not part of the world', () => {
+		expect(moduleRelevant('BOOKINGS', 'orders')).toBe(false);
+		expect(moduleRelevant('BOOKINGS', 'catalog')).toBe(false);
+		expect(moduleRelevant('BOOKINGS', 'enquiries')).toBe(true);
+		expect(moduleRelevant('BOOKINGS', 'bookings')).toBe(true);
+		expect(moduleRelevant('BOOKINGS', 'quotations')).toBe(true);
+	});
+
+	it('WhatsApp seller: booking flows are simply not part of the world', () => {
+		expect(moduleRelevant('ORDERS', 'orders')).toBe(true);
+		expect(moduleRelevant('ORDERS', 'catalog')).toBe(true);
+		expect(moduleRelevant('ORDERS', 'bookings')).toBe(false);
+		expect(moduleRelevant('ORDERS', 'enquiries')).toBe(false);
+		expect(moduleRelevant('ORDERS', 'quotations')).toBe(false);
+	});
+
+	it('service business: enquiry → quote, neither orders nor bookings', () => {
+		expect(moduleRelevant('SERVICE', 'enquiries')).toBe(true);
+		expect(moduleRelevant('SERVICE', 'quotations')).toBe(true);
+		expect(moduleRelevant('SERVICE', 'orders')).toBe(false);
+		expect(moduleRelevant('SERVICE', 'bookings')).toBe(false);
+	});
+
+	it('hybrid: both worlds', () => {
+		expect(moduleRelevant('HYBRID', 'orders')).toBe(true);
+		expect(moduleRelevant('HYBRID', 'bookings')).toBe(true);
+	});
+
+	it('§9: HYBRID workspace with orders.enabled=false still shows no Orders', () => {
+		// Workspace says relevant, but the plan says no — the plan wins.
+		expect(showModule('HYBRID', 'orders', false, true)).toBe(false);
+		// And a permitted, entitled module hidden by workspace stays hidden.
+		expect(showModule('BOOKINGS', 'orders', true, true)).toBe(false);
+		// All three agree → shown.
+		expect(showModule('HYBRID', 'orders', true, true)).toBe(true);
+		// Entitled + relevant but the USER may not touch it → hidden.
+		expect(showModule('HYBRID', 'orders', true, false)).toBe(false);
+	});
+
+	it('industry defaults are sensible and never grant anything', () => {
+		expect(workspaceForIndustry('TRAVEL_TOURISM')).toBe('BOOKINGS');
+		expect(workspaceForIndustry('RETAIL')).toBe('ORDERS');
+		expect(workspaceForIndustry('RESTAURANT_FOOD')).toBe('ORDERS');
+		expect(workspaceForIndustry('PROFESSIONAL_SERVICES')).toBe('SERVICE');
+		expect(workspaceForIndustry('OTHER')).toBe('HYBRID');
+		expect(workspaceForIndustry(null)).toBe('HYBRID');
+	});
+});

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { moduleRelevant } from '$lib/workspace';
 	// Forms & Widgets — the no-code intake manager. Compact by design: list on top,
 	// one expandable editor per form. Copy the hosted URL or the one-line embed.
 	import { enhance } from '$app/forms';
@@ -41,9 +42,9 @@
 			<div>
 				<label class="label" for="nf-type">Template</label>
 				<select id="nf-type" name="type" class="input w-auto">
-					<option value="BOOKING">Booking enquiry</option>
-					<option value="ORDER">Product order</option>
-					<option value="QUOTE">Quote request</option>
+					{#if moduleRelevant(data.tenant.capabilities, 'enquiries')}<option value="BOOKING">Booking enquiry</option>{/if}
+					{#if moduleRelevant(data.tenant.capabilities, 'orders')}<option value="ORDER">Product order</option>{/if}
+					{#if moduleRelevant(data.tenant.capabilities, 'quotations')}<option value="QUOTE">Quote request</option>{/if}
 					<option value="LEAD">Contact / lead</option>
 				</select>
 			</div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import EmptyState from '$components/EmptyState.svelte';
 	import FilterBar from '$components/FilterBar.svelte';
 	import Money from '$components/Money.svelte';
@@ -14,6 +15,9 @@
 
 <svelte:head><title>Bookings · {data.tenant.name}</title></svelte:head>
 
+{#if !data.workspaceRelevant}
+	<WorkspaceNotice module="Bookings" />
+{:else}
 <div class="space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">Bookings</h1>
 
@@ -60,3 +64,4 @@
 		{/if}
 	</div>
 </div>
+{/if}

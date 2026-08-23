@@ -2,9 +2,14 @@ import { requirePermission } from '$lib/server/auth/permissions';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { listOrders, orderStats } from '$lib/server/orders';
 import { paginationFrom } from '$lib/server/http';
+import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
+	const workspaceRelevant = moduleRelevant(
+		normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities),
+		'orders'
+	);
 	requireTenantPermission(locals, 'orders:read');
 	const pagination = paginationFrom(url);
 	const status = url.searchParams.get('status');
@@ -19,5 +24,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		orderStats(requireTenant(locals).id)
 	]);
 	const filtered = payment === 'unpaid' ? items.filter((r) => r.order.paymentStatus === 'UNPAID' || r.order.paymentStatus === 'PARTIALLY_PAID') : items;
-	return { items: filtered, total, pagination, stats };
+	return {
+		workspaceRelevant, items: filtered, total, pagination, stats };
 };

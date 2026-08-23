@@ -6,6 +6,7 @@ import { requirePermission } from '$lib/server/auth/permissions';
 import { currentPeriod } from '$lib/server/billing';
 import { effectiveEntitlements, invalidateEntitlements, usageSummary } from '$lib/server/entitlements';
 import { db, schema } from '$lib/server/db';
+import { normalizeWorkspace } from '$lib/workspace';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -24,7 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		settings: {
-			capabilities: String((tenant.settings as Record<string, unknown>)?.capabilities ?? 'BOTH'),
+			capabilities: normalizeWorkspace((tenant.settings as Record<string, unknown>)?.capabilities),
 			name: tenant.name,
 			slug: tenant.slug,
 			timezone: tenant.timezone,
@@ -62,7 +63,7 @@ export const actions: Actions = {
 			.set({
 				settings: {
 					...((tenant.settings as Record<string, unknown>) ?? {}),
-					capabilities: ['BOOKINGS', 'ORDERS', 'BOTH'].includes(capabilities) ? capabilities : 'BOTH'
+					capabilities: ['BOOKINGS', 'ORDERS', 'SERVICE', 'HYBRID'].includes(capabilities) ? capabilities : 'HYBRID'
 				},
 				name,
 				timezone: String(data.get('timezone') ?? tenant.timezone),

@@ -136,7 +136,7 @@ export const actions: Actions = {
 				source: 'SELF_SERVICE',
 				owner: { kind: 'existing', userId: event.locals.user.id },
 				industry,
-				capabilities: (['BOOKINGS', 'ORDERS', 'BOTH'].includes(mainUse) ? mainUse : null) as never,
+				capabilities: (['BOOKINGS', 'ORDERS', 'SERVICE', 'HYBRID'].includes(mainUse) ? mainUse : null) as never,
 				country,
 				currency: defaults.currency,
 				timezone: defaults.timezone,

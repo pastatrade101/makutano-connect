@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Toasts from '$components/Toasts.svelte';
+	import { moduleRelevant, type Module } from '$lib/workspace';
 	let { data, children } = $props();
 
 	/** Whole days left on the trial, or null when the end date is unknown. */
@@ -21,7 +22,8 @@
 		icon: string;
 		permission: string | null;
 		primary?: boolean;
-		capability?: 'BOOKINGS' | 'ORDERS';
+		/** Which workspace module this belongs to — resolved by $lib/workspace. */
+		module?: Module;
 		/** Entitlement that must be on, or the item renders locked. */
 		entitlement?: string;
 	};
@@ -39,10 +41,10 @@
 			// Operational modules — only the ones this business actually runs on.
 			label: 'Work',
 			items: [
-				{ href: '/app/booking-requests', label: 'Enquiries', icon: 'M4 3h12v14l-3-2-3 2-3-2-3 2V3Z', permission: 'booking_requests:read', primary: true, capability: 'BOOKINGS' },
-				{ href: '/app/bookings', label: 'Bookings', icon: 'M3 5h14v12H3V5Zm2 3h10v2H5V8Z', permission: 'bookings:read', capability: 'BOOKINGS' },
-				{ href: '/app/orders', label: 'Orders', icon: 'M5 4h10l1.5 3v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V7L5 4Zm-1 3h12M8 10a2 2 0 0 0 4 0', permission: 'orders:read', primary: true, capability: 'ORDERS', entitlement: 'orders.enabled' },
-				{ href: '/app/quotations', label: 'Quotations', icon: 'M5 3h7l3 3v11H5V3Zm7 0v3h3', permission: 'quotations:read', entitlement: 'quotations.enabled' },
+				{ href: '/app/booking-requests', label: 'Enquiries', icon: 'M4 3h12v14l-3-2-3 2-3-2-3 2V3Z', permission: 'booking_requests:read', primary: true, module: 'enquiries' },
+				{ href: '/app/bookings', label: 'Bookings', icon: 'M3 5h14v12H3V5Zm2 3h10v2H5V8Z', permission: 'bookings:read', module: 'bookings' },
+				{ href: '/app/orders', label: 'Orders', icon: 'M5 4h10l1.5 3v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V7L5 4Zm-1 3h12M8 10a2 2 0 0 0 4 0', permission: 'orders:read', primary: true, module: 'orders', entitlement: 'orders.enabled' },
+				{ href: '/app/quotations', label: 'Quotations', icon: 'M5 3h7l3 3v11H5V3Zm7 0v3h3', permission: 'quotations:read', module: 'quotations', entitlement: 'quotations.enabled' },
 				{ href: '/app/payments', label: 'Payments', icon: 'M2 6h16v8H2V6Zm0 3h16', permission: 'payments:read' }
 			]
 		},
@@ -53,8 +55,8 @@
 				{ href: '/app/whatsapp', label: 'WhatsApp', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.enabled' },
 				{ href: '/app/whatsapp/templates', label: 'Message templates', icon: 'M4 4h12v4H4V4Zm0 6h12v2H4v-2Zm0 4h8v2H4v-2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.templatesEnabled' },
 				{ href: '/app/forms', label: 'Forms & widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read', entitlement: 'forms.hostedEnabled' },
-				{ href: '/app/catalog', label: 'Catalog', icon: 'M4 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v11l-3-1.8L10 16l-3-1.8L4 16V5Z', permission: 'catalog:read', capability: 'ORDERS' },
-				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read', capability: 'BOOKINGS' },
+				{ href: '/app/catalog', label: 'Catalog', icon: 'M4 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v11l-3-1.8L10 16l-3-1.8L4 16V5Z', permission: 'catalog:read', module: 'catalog' },
+				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read', module: 'leads' },
 				{ href: '/app/developers', label: 'Integrations', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5', permission: 'api_keys:read', entitlement: 'api.enabled' },
 				{ href: '/app/settings', label: 'Settings', icon: 'M10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', permission: 'tenant:read' }
 			]
@@ -63,7 +65,9 @@
 
 	const allowed = (item: Item) => {
 		if (item.permission && !data.permissions?.includes(item.permission as never)) return false;
-		if (item.capability && data.tenant.capabilities !== 'BOTH' && data.tenant.capabilities !== item.capability) return false;
+		// Relevance, not authorization: the module simply is not part of this business's
+		// world. Entitlements and server-side checks still gate everything reachable.
+		if (item.module && !moduleRelevant(data.tenant.capabilities, item.module)) return false;
 		return true;
 	};
 	/** Locked = visible but not navigable, so the tenant can see what a plan adds. */
@@ -77,17 +81,18 @@
 	type QuickItem = { href: string; label: string; hint: string };
 	const quickCreate = $derived.by(() => {
 		const items: QuickItem[] = [];
+		const ws = data.tenant.capabilities;
 		const can = (perm: string) => data.permissions?.includes(perm as never);
-		const orders = data.tenant.capabilities !== 'BOOKINGS' && data.entitlements?.['orders.enabled'] === true;
-		const bookings = data.tenant.capabilities !== 'ORDERS';
-		if (orders && can('orders:write')) {
+		const ent = (key: string) => data.entitlements?.[key] === true;
+		// Workspace relevance AND entitlement AND permission — the §9 triple, in order.
+		if (moduleRelevant(ws, 'orders') && ent('orders.enabled') && can('orders:write')) {
 			items.push({ href: '/app/orders/new', label: 'New order', hint: 'Record a customer order' });
 			items.push({ href: '/app/orders/batches', label: 'New batch', hint: 'A selling round with shared price' });
 		}
-		if (bookings && can('booking_requests:write')) {
-			items.push({ href: '/app/booking-requests', label: 'New enquiry', hint: 'Log a booking enquiry' });
+		if (moduleRelevant(ws, 'enquiries') && can('booking_requests:write')) {
+			items.push({ href: '/app/booking-requests', label: 'New enquiry', hint: ws === 'SERVICE' ? 'Log a customer enquiry' : 'Log a booking enquiry' });
 		}
-		if (data.entitlements?.['quotations.enabled'] === true && can('quotations:write') && bookings) {
+		if (moduleRelevant(ws, 'quotations') && ent('quotations.enabled') && can('quotations:write')) {
 			items.push({ href: '/app/quotations', label: 'New quotation', hint: 'Draft a quote to send' });
 		}
 		if (can('customers:write')) {

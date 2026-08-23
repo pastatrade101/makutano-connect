@@ -8,6 +8,7 @@ import { audit } from './audit';
 import { db, schema } from './db';
 import { effectiveEntitlements } from './entitlements';
 import { log } from './logger';
+import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 
 export type ChecklistItem = {
 	key: string;
@@ -71,8 +72,8 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 		count('booking_requests', tenantId).then(async (n) => n + (await count('orders', tenantId)))
 	]);
 
-	const capabilities = String((tenant.settings as Record<string, unknown>)?.capabilities ?? 'BOTH');
-	const sellsProducts = capabilities === 'ORDERS' || capabilities === 'BOTH';
+	const workspace = normalizeWorkspace((tenant.settings as Record<string, unknown>)?.capabilities);
+	const sellsProducts = moduleRelevant(workspace, 'orders');
 
 	const items: ChecklistItem[] = [
 		{

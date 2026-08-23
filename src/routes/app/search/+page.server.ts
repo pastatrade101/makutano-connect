@@ -3,6 +3,7 @@
 // infrastructure, and every query is tenant-scoped by construction.
 import { sql } from 'drizzle-orm';
 import { requireTenant } from '$lib/server/guards';
+import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import { db } from '$lib/server/db';
 import type { PageServerLoad } from './$types';
 
@@ -24,6 +25,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const digits = q.replace(/\D/g, '');
 	const phoneTerm = digits.length >= 3 ? `%${digits}%` : null;
 
+	// Relevance filter (§14): a tour operator's search never surfaces orders, a
+	// seller's never surfaces bookings. sql`false` collapses that branch of the union.
+	const ws = normalizeWorkspace((requireTenant(locals).settings as Record<string, unknown>)?.capabilities);
+	const wantOrders = moduleRelevant(ws, 'orders');
+	const wantBookings = moduleRelevant(ws, 'bookings');
+	const wantEnquiries = moduleRelevant(ws, 'enquiries');
+	const wantQuotes = moduleRelevant(ws, 'quotations');
+
 	const rows = (await db().execute(sql`
 		select * from (
 			select 'customer' as kind, c.id::text,
@@ -40,25 +49,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				(select coalesce(nullif(trim(c.first_name || ' ' || c.last_name), ''), null) from customers c where c.id = o.customer_id),
 				o.status::text, o.created_at
 			from orders o
-			where o.tenant_id = ${tenantId}::uuid and o.order_number ilike ${term}
+			where ${wantOrders} and o.tenant_id = ${tenantId}::uuid and o.order_number ilike ${term}
 			union all
 			select 'booking', b.id::text, b.booking_reference,
 				(select coalesce(nullif(trim(c.first_name || ' ' || c.last_name), ''), null) from customers c where c.id = b.customer_id),
 				b.status::text, b.created_at
 			from bookings b
-			where b.tenant_id = ${tenantId}::uuid and b.booking_reference ilike ${term}
+			where ${wantBookings} and b.tenant_id = ${tenantId}::uuid and b.booking_reference ilike ${term}
 			union all
 			select 'request', r.id::text, r.reference,
 				(select coalesce(nullif(trim(c.first_name || ' ' || c.last_name), ''), null) from customers c where c.id = r.customer_id),
 				r.status::text, r.created_at
 			from booking_requests r
-			where r.tenant_id = ${tenantId}::uuid and r.reference ilike ${term}
+			where ${wantEnquiries} and r.tenant_id = ${tenantId}::uuid and r.reference ilike ${term}
 			union all
 			select 'quotation', qt.id::text, qt.reference,
 				(select coalesce(nullif(trim(c.first_name || ' ' || c.last_name), ''), null) from customers c where c.id = qt.customer_id),
 				qt.status::text, qt.created_at
 			from quotations qt
-			where qt.tenant_id = ${tenantId}::uuid and qt.reference ilike ${term}
+			where ${wantQuotes} and qt.tenant_id = ${tenantId}::uuid and qt.reference ilike ${term}
 		) t
 		order by at desc
 		limit 30
