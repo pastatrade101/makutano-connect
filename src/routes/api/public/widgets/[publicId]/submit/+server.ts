@@ -93,9 +93,14 @@ export const POST: RequestHandler = async (event) => {
 			return json({ success: true, data: { message: form.successMessage ?? 'Thank you.' } }, { headers: cors });
 		}
 
-		// Required-field enforcement from the form's own configuration.
+		// Required-field enforcement from the form's own configuration. On catalog-backed
+		// order forms the product/variant/quantity fields are replaced by the picker, so a
+		// submission carrying catalog items satisfies them.
+		const catalogSatisfied = (form.catalogItemIds?.length ?? 0) > 0 && (body.items?.length ?? 0) > 0;
+		const PICKER_KEYS = new Set(['product', 'variant', 'quantity']);
 		const enabledKeys = new Set(FORM_FIELD_CATALOG[form.type].filter((f) => form.fields[f.key]?.enabled).map((f) => f.key));
 		for (const fieldDef of FORM_FIELD_CATALOG[form.type]) {
+			if (catalogSatisfied && PICKER_KEYS.has(fieldDef.key)) continue;
 			if (form.fields[fieldDef.key]?.enabled && form.fields[fieldDef.key]?.required) {
 				const value = body.fields[fieldDef.key];
 				if (value === undefined || String(value).trim() === '') {
