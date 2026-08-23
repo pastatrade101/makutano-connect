@@ -25,29 +25,31 @@ suite('rate limiting', () => {
 
 	it('counts down within a window and then refuses', async () => {
 		const scope = `test-scope-${Date.now()}`;
-		const first = await rateLimit.consume(scope, 3, 60);
+		const first = await rateLimit.consume(scope, 3, 3600);
 		expect(first.allowed).toBe(true);
 		expect(first.remaining).toBe(2);
 		expect(first.resetAt).toBeInstanceOf(Date);
 
-		await rateLimit.consume(scope, 3, 60);
-		await rateLimit.consume(scope, 3, 60);
-		const fourth = await rateLimit.consume(scope, 3, 60);
+		await rateLimit.consume(scope, 3, 3600);
+		await rateLimit.consume(scope, 3, 3600);
+		const fourth = await rateLimit.consume(scope, 3, 3600);
 		expect(fourth.allowed).toBe(false);
 		expect(fourth.remaining).toBe(0);
 	});
 
 	it('enforce() throws RATE_LIMITED only once the limit is passed', async () => {
 		const scope = `test-enforce-${Date.now()}`;
-		await expect(rateLimit.enforce(scope, 1, 60)).resolves.toBeTruthy();
-		await expect(rateLimit.enforce(scope, 1, 60)).rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429 });
+		await expect(rateLimit.enforce(scope, 1, 3600)).resolves.toBeTruthy();
+		await expect(rateLimit.enforce(scope, 1, 3600)).rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429 });
 	});
 
 	it('keeps separate scopes independent — one tenant cannot exhaust another', async () => {
+		// A long window on purpose: with 60s these calls can straddle a fixed-window
+		// boundary, resetting the counter mid-test and failing for the wrong reason.
 		const a = `tenant-a-${Date.now()}`;
 		const b = `tenant-b-${Date.now()}`;
-		await rateLimit.consume(a, 1, 60);
-		expect((await rateLimit.consume(a, 1, 60)).allowed).toBe(false);
-		expect((await rateLimit.consume(b, 1, 60)).allowed).toBe(true);
+		await rateLimit.consume(a, 1, 3600);
+		expect((await rateLimit.consume(a, 1, 3600)).allowed).toBe(false);
+		expect((await rateLimit.consume(b, 1, 3600)).allowed).toBe(true);
 	});
 });
