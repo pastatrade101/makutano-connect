@@ -6,15 +6,16 @@
 	const c = $derived(data.counts);
 
 	const chartOptions = $derived({
-		chart: { type: 'bar' as const, height: 230, toolbar: { show: false }, fontFamily: 'inherit', stacked: false },
+		chart: { type: 'bar' as const, height: 230, toolbar: { show: false }, fontFamily: 'inherit' },
 		series: [
 			{ name: 'Messages', data: data.activity.messages },
-			{ name: 'Enquiries', data: data.activity.requests }
+			{ name: 'Enquiries', data: data.activity.requests },
+			{ name: 'Orders', data: data.activity.orders }
 		],
 		xaxis: { categories: data.activity.labels, labels: { style: { colors: '#8486a7', fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
 		yaxis: { labels: { style: { colors: '#8486a7', fontSize: '11px' } } },
-		colors: ['#1c84ee', '#7f56da'],
-		plotOptions: { bar: { columnWidth: '45%', borderRadius: 3 } },
+		colors: ['#1c84ee', '#7f56da', '#22c55e'],
+		plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
 		dataLabels: { enabled: false },
 		grid: { borderColor: '#eaedf1', strokeDashArray: 4 },
 		legend: { labels: { colors: '#5d7186' } }
@@ -24,31 +25,88 @@
 <svelte:head><title>System health · Makutano Admin</title></svelte:head>
 
 <div class="space-y-4">
-	<h1 class="text-base font-semibold text-slate-900">System health</h1>
+	<h1 class="text-base font-semibold text-slate-800">System health</h1>
 
-	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-		<StatTile label="Tenants" value={c.tenants} hint="{c.active_tenants} active" href="/admin/tenants" />
-		<StatTile label="WhatsApp live" value={c.connections} tone="good" href="/admin/whatsapp" />
-		<StatTile label="Needs re-auth" value={c.unhealthy_connections} tone={c.unhealthy_connections ? 'bad' : 'default'} href="/admin/whatsapp" />
-		<StatTile label="Requests 24h" value={c.requests_24h} />
-		<StatTile label="Messages 24h" value={c.messages_24h} hint="{c.failed_messages_24h} failed" tone={c.failed_messages_24h ? 'warn' : 'default'} />
-		<StatTile label="Bookings" value={c.bookings} />
+	<!-- Platform -->
+	<div>
+		<p class="pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Platform</p>
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+			<StatTile label="Tenants" value={c.tenants} hint="{c.active_tenants} active" href="/admin/tenants" />
+			<StatTile label="Suspended" value={c.suspended_tenants} tone={c.suspended_tenants ? 'bad' : 'default'} href="/admin/tenants" />
+			<StatTile label="With overrides" value={c.overridden_tenants} hint="custom entitlements" href="/admin/plans" />
+			<StatTile label="Active forms" value={c.active_forms} hint="{c.form_submissions} submissions" />
+			<StatTile label="Approved templates" value={c.approved_templates} />
+		</div>
 	</div>
 
-	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-		<StatTile label="Jobs pending" value={c.jobs_pending} />
-		<StatTile label="Jobs dead" value={c.jobs_dead} tone={c.jobs_dead ? 'bad' : 'default'} />
-		<StatTile label="Webhooks dead" value={c.webhooks_dead} tone={c.webhooks_dead ? 'bad' : 'default'} href="/admin/errors" />
-		<StatTile label="Payments failed" value={c.payments_failed} tone={c.payments_failed ? 'bad' : 'default'} href="/admin/errors" />
+	<!-- Commerce + conversations -->
+	<div>
+		<p class="pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Last 24 hours</p>
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+			<StatTile label="Enquiries" value={c.requests_24h} />
+			<StatTile label="Orders" value={c.orders_24h} hint="{c.orders_awaiting} awaiting confirmation" tone={c.orders_awaiting ? 'warn' : 'default'} />
+			<StatTile label="Messages" value={c.messages_24h} hint="{c.failed_messages_24h} failed" tone={c.failed_messages_24h ? 'warn' : 'default'} />
+			<StatTile label="WhatsApp live" value={c.connections} tone="good" href="/admin/whatsapp" />
+			<StatTile label="Needs re-auth" value={c.unhealthy_connections} tone={c.unhealthy_connections ? 'bad' : 'default'} href="/admin/whatsapp" />
+			<StatTile label="Opted out" value={c.opted_out} hint="compliance" />
+		</div>
+	</div>
+
+	<!-- Delivery -->
+	<div>
+		<p class="pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Delivery</p>
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+			<StatTile label="Jobs pending" value={c.jobs_pending} />
+			<StatTile label="Jobs dead" value={c.jobs_dead} tone={c.jobs_dead ? 'bad' : 'default'} />
+			<StatTile label="Webhooks dead" value={c.webhooks_dead} tone={c.webhooks_dead ? 'bad' : 'default'} href="/admin/errors" />
+			<StatTile label="Payments failed" value={c.payments_failed} tone={c.payments_failed ? 'bad' : 'default'} href="/admin/errors" />
+		</div>
+	</div>
+
+	<div class="grid gap-4 lg:grid-cols-3">
+		<section class="card lg:col-span-2">
+			<header class="card-header"><h2 class="card-title">Platform activity — last 14 days</h2></header>
+			<div class="px-2 pt-2"><Chart options={chartOptions} /></div>
+		</section>
+
+		<div class="space-y-4">
+			<!-- The actionable list: who is about to hit a wall -->
+			<section class="card">
+				<header class="card-header"><h2 class="card-title">Approaching limits</h2></header>
+				<ul class="divide-y divide-slate-100">
+					{#each data.nearLimit as row (row.tenantId + row.key)}
+						<li class="px-4 py-2.5">
+							<div class="flex items-center justify-between gap-2 text-xs">
+								<a href="/admin/tenants/{row.tenantId}" class="truncate font-medium text-brand-600 hover:underline">{row.tenantName}</a>
+								<span class="shrink-0 tabular-nums {row.percent >= 100 ? 'text-danger' : 'text-warning'}">{row.used}/{row.limit}</span>
+							</div>
+							<div class="mt-0.5 text-[11px] text-slate-400">{row.label}</div>
+							<div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
+								<div class="h-full rounded-full {row.percent >= 100 ? 'bg-danger' : 'bg-warning'}" style="width: {Math.min(100, row.percent)}%"></div>
+							</div>
+						</li>
+					{:else}
+						<li class="px-4 py-6 text-center text-xs text-slate-400">No tenant is near a plan limit.</li>
+					{/each}
+				</ul>
+			</section>
+
+			<section class="card">
+				<header class="card-header"><h2 class="card-title">Plan mix</h2></header>
+				<ul class="divide-y divide-slate-100">
+					{#each data.planMix as p (p.code)}
+						<li class="flex items-center justify-between px-4 py-2 text-sm">
+							<span class="font-mono text-[11px] text-slate-500">{p.code}</span>
+							<span class="tabular-nums font-semibold text-slate-700">{p.tenants}</span>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		</div>
 	</div>
 
 	<section class="card">
-		<header class="card-header"><h2 class="card-title">Platform activity — last 14 days</h2></header>
-		<div class="px-2 pt-2"><Chart options={chartOptions} /></div>
-	</section>
-
-	<section class="card">
-		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Failed background jobs</header>
+		<header class="card-header"><h2 class="card-title">Failed background jobs</h2></header>
 		<table class="min-w-full divide-y divide-slate-100">
 			<thead class="bg-slate-50"><tr><th class="table-head">Job</th><th class="table-head">Attempts</th><th class="table-head">Error</th><th class="table-head">When</th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
@@ -60,7 +118,7 @@
 						<td class="table-cell text-slate-500"><TimeAgo value={job.created_at as string} /></td>
 					</tr>
 				{:else}
-					<tr><td colspan="4" class="px-3 py-6 text-center text-xs text-slate-500">No failed jobs. </td></tr>
+					<tr><td colspan="4" class="px-3 py-6 text-center text-xs text-slate-400">No failed jobs.</td></tr>
 				{/each}
 			</tbody>
 		</table>

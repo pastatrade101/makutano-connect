@@ -43,6 +43,7 @@
 			label: 'Platform',
 			items: [
 				{ href: '/app/whatsapp', label: 'WhatsApp', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.enabled' },
+				{ href: '/app/whatsapp/templates', label: 'Templates', icon: 'M4 4h12v4H4V4Zm0 6h12v2H4v-2Zm0 4h8v2H4v-2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.templatesEnabled' },
 				{ href: '/app/forms', label: 'Forms & Widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read', entitlement: 'forms.hostedEnabled' },
 				{ href: '/app/developers', label: 'Developers', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5', permission: 'api_keys:read', entitlement: 'api.enabled' },
 				{ href: '/app/settings', label: 'Settings', icon: 'M10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', permission: 'tenant:read' }
@@ -71,8 +72,14 @@
 		if (browser) localStorage.setItem('mk-nav-collapsed', collapsed ? '1' : '0');
 	}
 
+	// All nav hrefs, longest first — used to pick the most specific match so a parent
+	// route (WhatsApp) does not light up while a child route (Templates) is open.
+	const allHrefs = GROUPS.flatMap((g) => g.items.map((i) => i.href)).sort((a, b) => b.length - a.length);
+
 	function isActive(href: string): boolean {
-		return href === '/app' ? page.url.pathname === '/app' : page.url.pathname.startsWith(href);
+		if (href === '/app') return page.url.pathname === '/app';
+		const best = allHrefs.find((h) => h !== '/app' && (page.url.pathname === h || page.url.pathname.startsWith(`${h}/`)));
+		return best === href;
 	}
 
 	function submitSearch(event: SubmitEvent) {
