@@ -100,7 +100,7 @@ export const notificationChannelEnum = pgEnum('notification_channel', [
 export const notificationStatusEnum = pgEnum('notification_status', ['PENDING', 'SENT', 'FAILED', 'READ']);
 export const jobStatusEnum = pgEnum('job_status', ['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'DEAD']);
 export const subscriptionStatusEnum = pgEnum('subscription_status', ['TRIALING', 'ACTIVE', 'PAST_DUE', 'CANCELLED']);
-export const templateStatusEnum = pgEnum('template_status', ['APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED']);
+export const templateStatusEnum = pgEnum('template_status', ['APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED', 'DRAFT', 'SUBMITTED']);
 
 /* ------------------------------------------------------------- helpers ---- */
 
@@ -348,8 +348,20 @@ export const whatsappTemplates = pgTable(
 			.$type<unknown[]>()
 			.notNull()
 			.default(sql`'[]'::jsonb`),
-		// Event mapping (§18): BOOKING_REQUEST_RECEIVED, QUOTATION_READY, …
+		// Event mapping (§18): BOOKING_REQUEST_RECEIVED, ORDER_CONFIRMED, …
 		eventKey: text('event_key'),
+		/* --- Template Center authoring (named-variable canonical form) ---------- */
+		// The tenant designs "Hello {{customer.first_name}}, order {{order.number}}…";
+		// Connect converts named variables to Meta's positional {{1}},{{2}} on submit
+		// and back-fills values from the standard variable registry at send time.
+		headerText: text('header_text'),
+		bodyText: text('body_text'),
+		footerText: text('footer_text'),
+		/** [{ type: 'QUICK_REPLY'|'URL', text: string, url?: string }] */
+		buttons: jsonb('buttons').$type<Array<Record<string, unknown>>>().notNull().default(sql`'[]'::jsonb`),
+		/** Ordered named variables as they appear in the body → positional index. */
+		variables: jsonb('variables').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		enabled: boolean('enabled').notNull().default(true),
 		lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
@@ -842,6 +854,7 @@ export const payments = pgTable(
 			.notNull()
 			.references(() => tenants.id, { onDelete: 'cascade' }),
 		bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
+		orderId: uuid('order_id'), // nullable commerce link; FK added in migration, bookings unaffected
 		customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'set null' }),
 		reference: text('reference').notNull(), // EMN-PY-2026-00001
 		provider: text('provider').notNull().default('MANUAL'), // STRIPE|FLUTTERWAVE|PESAPAL|AZAMPAY|BANK_TRANSFER|MANUAL
@@ -1252,3 +1265,211 @@ export type WhatsappTemplate = typeof whatsappTemplates.$inferSelect;
 export type WebhookEndpoint = typeof webhookEndpoints.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Role = (typeof roleEnum.enumValues)[number];
+
+/* ================== Conversational commerce: orders + catalog + forms ==== */
+/* All additive. Nothing above this line changed — the booking domain keeps  */
+/* its exact shape and behaviour.                                            */
+
+export const orderStatusEnum = pgEnum('order_status', [
+	'DRAFT',
+	'PENDING_CONFIRMATION',
+	'CONFIRMED',
+	'PROCESSING',
+	'READY',
+	'DISPATCHED',
+	'DELIVERED',
+	'CANCELLED',
+	'REFUNDED'
+]);
+
+export const orderPaymentStatusEnum = pgEnum('order_payment_status', [
+	'UNPAID',
+	'PARTIALLY_PAID',
+	'PAID',
+	'REFUNDED',
+	'FAILED'
+]);
+
+/** Acquisition channels for commerce — deliberately wider than the booking `source`
+ *  enum, which stays untouched. */
+export const orderSourceEnum = pgEnum('order_source', [
+	'WHATSAPP_DIRECT',
+	'WHATSAPP_STATUS',
+	'WHATSAPP_GROUP',
+	'WEBSITE',
+	'INSTAGRAM',
+	'FACEBOOK',
+	'MANUAL',
+	'API',
+	'OTHER'
+]);
+
+export const catalogItemTypeEnum = pgEnum('catalog_item_type', [
+	'PRODUCT',
+	'SERVICE',
+	'TOUR',
+	'ACCOMMODATION',
+	'EXPERIENCE',
+	'OTHER'
+]);
+
+export const deliveryMethodEnum = pgEnum('delivery_method', ['DELIVERY', 'PICKUP']);
+
+export const formTypeEnum = pgEnum('form_type', ['BOOKING', 'ORDER', 'QUOTE', 'LEAD']);
+
+/** Lightweight catalog — enough to reference what is booked, quoted or ordered.
+ *  Businesses with their own catalog keep it and pass externalReference instead. */
+export const catalogItems = pgTable(
+	'catalog_items',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		type: catalogItemTypeEnum('type').notNull().default('PRODUCT'),
+		name: text('name').notNull(),
+		description: text('description'),
+		sku: text('sku'),
+		externalReference: text('external_reference'),
+		externalSource: text('external_source'),
+		price: money('price'),
+		currency: text('currency'),
+		imageUrl: text('image_url'),
+		/** [{ label: "Black / 43", price?: "230.00", sku?: "NIKE-AM-43-BLK" }] */
+		variants: jsonb('variants').$type<Array<Record<string, unknown>>>().notNull().default(sql`'[]'::jsonb`),
+		isActive: boolean('is_active').notNull().default(true),
+		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		index('catalog_items_tenant_idx').on(t.tenantId, t.isActive),
+		uniqueIndex('catalog_items_tenant_sku_key').on(t.tenantId, t.sku).where(sql`${t.sku} is not null`)
+	]
+);
+
+export const orders = pgTable(
+	'orders',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		orderNumber: text('order_number').notNull(), // e.g. MKD-OR-2026-00001, race-free (§14)
+		customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+		conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+		leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'set null' }),
+		status: orderStatusEnum('status').notNull().default('DRAFT'),
+		/** Independent of fulfilment status: a CONFIRMED order may still be UNPAID. */
+		paymentStatus: orderPaymentStatusEnum('payment_status').notNull().default('UNPAID'),
+		source: orderSourceEnum('source').notNull().default('MANUAL'),
+		currency: text('currency').notNull().default('USD'),
+		subtotal: money('subtotal').notNull().default('0'),
+		discount: money('discount').notNull().default('0'),
+		deliveryFee: money('delivery_fee').notNull().default('0'),
+		total: money('total').notNull().default('0'),
+		amountPaid: money('amount_paid').notNull().default('0'),
+		deliveryMethod: deliveryMethodEnum('delivery_method'),
+		deliveryLocation: text('delivery_location'),
+		notes: text('notes'),
+		externalReference: text('external_reference'),
+		externalSource: text('external_source'),
+		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+		dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
+		deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+		cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('orders_tenant_number_key').on(t.tenantId, t.orderNumber),
+		index('orders_tenant_status_idx').on(t.tenantId, t.status, t.createdAt),
+		index('orders_tenant_payment_idx').on(t.tenantId, t.paymentStatus),
+		index('orders_customer_idx').on(t.customerId),
+		index('orders_conversation_idx').on(t.conversationId)
+	]
+);
+
+export const orderItems = pgTable(
+	'order_items',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		orderId: uuid('order_id')
+			.notNull()
+			.references(() => orders.id, { onDelete: 'cascade' }),
+		catalogItemId: uuid('catalog_item_id').references(() => catalogItems.id, { onDelete: 'set null' }),
+		title: text('title').notNull(),
+		variant: text('variant'), // "Black / Size 43", "256GB / Black"
+		sku: text('sku'),
+		quantity: integer('quantity').notNull().default(1),
+		unitPrice: money('unit_price').notNull().default('0'),
+		discount: money('discount').notNull().default('0'),
+		total: money('total').notNull().default('0'),
+		externalReference: text('external_reference'),
+		externalSource: text('external_source'),
+		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		createdAt: createdAt()
+	},
+	(t) => [index('order_items_order_idx').on(t.orderId)]
+);
+
+export const orderStatusHistory = pgTable(
+	'order_status_history',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		orderId: uuid('order_id')
+			.notNull()
+			.references(() => orders.id, { onDelete: 'cascade' }),
+		fromStatus: orderStatusEnum('from_status'),
+		toStatus: orderStatusEnum('to_status').notNull(),
+		reason: text('reason'),
+		changedByUserId: uuid('changed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		changedByApiKeyId: uuid('changed_by_api_key_id').references(() => apiKeys.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(t) => [index('order_status_history_order_idx').on(t.orderId, t.createdAt)]
+);
+
+/** Hosted public forms / embeddable widgets. publicId is the OPAQUE identifier the
+ *  browser sees — never a tenant id, never an API key. */
+export const forms = pgTable(
+	'forms',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		publicId: text('public_id').notNull(),
+		type: formTypeEnum('type').notNull(),
+		name: text('name').notNull(),
+		heading: text('heading'),
+		description: text('description'),
+		ctaText: text('cta_text'),
+		successMessage: text('success_message'),
+		/** { fieldKey: { enabled: boolean, required: boolean } } */
+		fields: jsonb('fields').$type<Record<string, { enabled: boolean; required: boolean }>>().notNull().default(sql`'{}'::jsonb`),
+		/** Catalog items offered on ORDER/BOOKING forms; empty = free-text item entry. */
+		catalogItemIds: jsonb('catalog_item_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		/** Allowed embedding origins; empty = any origin. */
+		allowedOrigins: jsonb('allowed_origins').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		branding: jsonb('branding').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		isActive: boolean('is_active').notNull().default(true),
+		submissionCount: integer('submission_count').notNull().default(0),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [uniqueIndex('forms_public_id_key').on(t.publicId), index('forms_tenant_idx').on(t.tenantId)]
+);
+
+export type Order = typeof orders.$inferSelect;
+export type OrderItem = typeof orderItems.$inferSelect;
+export type CatalogItem = typeof catalogItems.$inferSelect;
+export type Form = typeof forms.$inferSelect;

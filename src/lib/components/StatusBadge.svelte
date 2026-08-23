@@ -40,7 +40,11 @@
 		NEGOTIATING: 'bg-purple/10 text-purple',
 		DELIVERED: 'bg-success/10 text-success',
 		READ: 'bg-info/10 text-info',
-		QUEUED: 'bg-slate-100 text-slate-500'
+		QUEUED: 'bg-slate-100 text-slate-500',
+		PENDING_CONFIRMATION: 'bg-warning/10 text-warning',
+		DISPATCHED: 'bg-info/10 text-info',
+		UNPAID: 'bg-danger/10 text-danger',
+		PAID: 'bg-success/10 text-success'
 	};
 
 	const tone = $derived(TONES[value ?? ''] ?? 'bg-slate-100 text-slate-600 ring-slate-200');

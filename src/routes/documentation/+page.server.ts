@@ -6,9 +6,10 @@ import gettingStarted from '$lib/docs/01-getting-started.md?raw';
 import bookingLifecycle from '$lib/docs/02-booking-lifecycle.md?raw';
 import whatsapp from '$lib/docs/03-whatsapp.md?raw';
 import webhooks from '$lib/docs/04-webhooks-portal-errors.md?raw';
+import commerce from '$lib/docs/05-orders-forms.md?raw';
 import type { PageServerLoad } from './$types';
 
-const SOURCE = [gettingStarted, bookingLifecycle, whatsapp, webhooks].join('\n\n');
+const SOURCE = [gettingStarted, bookingLifecycle, commerce, whatsapp, webhooks].join('\n\n');
 
 const slugify = (text: string) =>
 	text

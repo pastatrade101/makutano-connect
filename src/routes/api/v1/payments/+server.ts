@@ -18,6 +18,7 @@ import { requireScope } from '$lib/server/auth/permissions';
 
 const createSchema = z.object({
 	bookingId: z.string().uuid().optional().nullable(),
+	orderId: z.string().uuid().optional().nullable(),
 	customerId: z.string().uuid().optional().nullable(),
 	provider: z.enum(['MANUAL', 'BANK_TRANSFER', 'STRIPE', 'FLUTTERWAVE', 'PESAPAL', 'AZAMPAY']).optional(),
 	amount: z.string().regex(/^\d+(\.\d{1,2})?$/),

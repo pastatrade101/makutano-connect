@@ -27,6 +27,12 @@ export const PERMISSIONS = [
 	'quotations:write',
 	'payments:read',
 	'payments:write',
+	'orders:read',
+	'orders:write',
+	'catalog:read',
+	'catalog:write',
+	'forms:read',
+	'forms:write',
 	'travelers:read_sensitive', // §15 passport data
 	'webhooks:read',
 	'webhooks:write',
@@ -40,6 +46,9 @@ export type Permission = (typeof PERMISSIONS)[number];
 const ALL: Permission[] = [...PERMISSIONS];
 
 const READ_ONLY: Permission[] = [
+	'orders:read',
+	'catalog:read',
+	'forms:read',
 	'tenant:read',
 	'members:read',
 	'whatsapp:read',
@@ -56,6 +65,8 @@ const READ_ONLY: Permission[] = [
 
 const SALES: Permission[] = [
 	...READ_ONLY,
+	'orders:write',
+	'catalog:write',
 	'customers:write',
 	'leads:write',
 	'conversations:write',
@@ -68,6 +79,7 @@ const BOOKING_AGENT: Permission[] = [...SALES, 'bookings:write', 'payments:write
 
 const ADMIN: Permission[] = [
 	...BOOKING_AGENT,
+	'forms:write',
 	'tenant:write',
 	'members:write',
 	'api_keys:read',
@@ -104,6 +116,10 @@ export function requirePermission(permissions: readonly Permission[] | undefined
 /* ---- API key scopes (§6) map onto the same permission vocabulary ------------ */
 
 export const API_SCOPES = [
+	'orders:read',
+	'orders:write',
+	'catalog:read',
+	'catalog:write',
 	'bookings:read',
 	'bookings:write',
 	'booking_requests:read',

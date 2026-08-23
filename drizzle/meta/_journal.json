@@ -8,6 +8,20 @@
       "when": 1787406798705,
       "tag": "0000_initial_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787465217611,
+      "tag": "0001_commerce_orders_catalog_forms",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787466531544,
+      "tag": "0002_template_center",
+      "breakpoints": true
     }
   ]
 }

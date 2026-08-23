@@ -33,6 +33,15 @@
 				<p class="mt-1 text-[11px] text-slate-400">New references only, e.g. {data.settings.bookingReferencePrefix}-BK-2026-00001</p>
 			</div>
 			<div><label class="label" for="quotationPrefix">Quotation prefix</label><input id="quotationPrefix" name="quotationPrefix" value={data.settings.quotationPrefix} class="input" disabled={!canWrite} /></div>
+			<div>
+				<label class="label" for="capabilities">Business mode</label>
+				<select id="capabilities" name="capabilities" class="input" disabled={!canWrite}>
+					<option value="BOTH" selected={data.settings.capabilities === 'BOTH'}>Bookings + Orders</option>
+					<option value="BOOKINGS" selected={data.settings.capabilities === 'BOOKINGS'}>Bookings only</option>
+					<option value="ORDERS" selected={data.settings.capabilities === 'ORDERS'}>Orders only</option>
+				</select>
+				<p class="mt-1 text-[11px] text-slate-400">Controls which features appear in navigation — nothing is deleted by switching.</p>
+			</div>
 		</div>
 		{#if canWrite}<div class="border-t border-slate-200 p-3"><button class="btn-primary">Save settings</button></div>{/if}
 	</form>

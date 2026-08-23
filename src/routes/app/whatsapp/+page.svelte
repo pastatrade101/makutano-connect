@@ -57,7 +57,7 @@
 
 	<section class="card">
 		<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-			<h2 class="text-sm font-semibold text-slate-800">Message templates</h2>
+			<h2 class="text-sm font-semibold text-slate-800">Message templates <a href="/app/whatsapp/templates" class="ml-2 text-xs font-medium text-brand-600 hover:underline">Open Template Center →</a></h2>
 			{#if canConnect}
 				<form method="POST" action="?/sync" use:enhance><button class="btn-secondary">Sync from Meta</button></form>
 			{/if}

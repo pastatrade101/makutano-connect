@@ -6,21 +6,14 @@ import { log } from '../logger';
 import { graphRequest } from './client';
 import { resolveCredentials } from './connections';
 
-/** Event → template mapping keys (§18). */
-export const TEMPLATE_EVENTS = [
-	'BOOKING_REQUEST_RECEIVED',
-	'QUOTATION_READY',
-	'PAYMENT_REMINDER',
-	'PAYMENT_RECEIVED',
-	'BOOKING_CONFIRMED',
-	'TRIP_REMINDER'
-] as const;
-
-export type TemplateEvent = (typeof TEMPLATE_EVENTS)[number];
+/** Event → template mapping keys — one vocabulary shared with the Template Center. */
+export { NOTIFY_EVENTS as TEMPLATE_EVENTS } from './template-engine';
+export type { NotifyEvent as TemplateEvent } from './template-engine';
+import type { NotifyEvent as TemplateEventT } from './template-engine';
 
 export async function templateForEvent(
 	tenantId: string,
-	event: TemplateEvent
+	event: TemplateEventT
 ): Promise<schema.WhatsappTemplate | null> {
 	const rows = await db()
 		.select()
@@ -44,7 +37,7 @@ export async function listTemplates(tenantId: string) {
 		.orderBy(schema.whatsappTemplates.name);
 }
 
-export async function setTemplateEvent(tenantId: string, templateId: string, event: TemplateEvent | null) {
+export async function setTemplateEvent(tenantId: string, templateId: string, event: TemplateEventT | null) {
 	const [row] = await db()
 		.update(schema.whatsappTemplates)
 		.set({ eventKey: event, updatedAt: new Date() })

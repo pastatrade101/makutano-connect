@@ -19,7 +19,15 @@ export const EVENTS = [
 	'quotation.accepted',
 	'payment.succeeded',
 	'payment.failed',
-	'message.received'
+	'message.received',
+	'order.created',
+	'order.confirmed',
+	'order.processing',
+	'order.ready',
+	'order.dispatched',
+	'order.delivered',
+	'order.cancelled',
+	'order.refunded'
 ] as const;
 
 export type DomainEvent = (typeof EVENTS)[number];

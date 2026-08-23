@@ -24,6 +24,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		settings: {
+			capabilities: String((locals.tenant!.settings as Record<string, unknown>)?.capabilities ?? 'BOTH'),
 			name: locals.tenant!.name,
 			slug: locals.tenant!.slug,
 			timezone: locals.tenant!.timezone,
@@ -53,9 +54,14 @@ export const actions: Actions = {
 		const name = String(data.get('name') ?? '').trim();
 		if (!name) return fail(400, { message: 'Business name is required.' });
 
+		const capabilities = String(data.get('capabilities') ?? 'BOTH');
 		await db()
 			.update(schema.tenants)
 			.set({
+				settings: {
+					...((locals.tenant!.settings as Record<string, unknown>) ?? {}),
+					capabilities: ['BOOKINGS', 'ORDERS', 'BOTH'].includes(capabilities) ? capabilities : 'BOTH'
+				},
 				name,
 				timezone: String(data.get('timezone') ?? locals.tenant!.timezone),
 				currency: String(data.get('currency') ?? locals.tenant!.currency)

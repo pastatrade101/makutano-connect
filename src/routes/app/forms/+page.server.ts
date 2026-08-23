@@ -1,0 +1,90 @@
+import { fail, type Actions } from '@sveltejs/kit';
+import { audit } from '$lib/server/audit';
+import { requirePermission } from '$lib/server/auth/permissions';
+import { listCatalogItems } from '$lib/server/catalog';
+import { env } from '$lib/server/env';
+import { toAppError } from '$lib/server/errors';
+import { createForm, FORM_FIELD_CATALOG, getForm, listForms, regeneratePublicId, updateForm } from '$lib/server/forms';
+import type { PageServerLoad } from './$types';
+
+export const load: PageServerLoad = async ({ locals }) => {
+	requirePermission(locals.permissions, 'forms:read');
+	const tenantId = locals.tenant!.id;
+	const [formsList, { items: catalog }] = await Promise.all([
+		listForms(tenantId),
+		listCatalogItems(tenantId, { page: 1, limit: 100, order: 'desc' }, { activeOnly: true })
+	]);
+	return {
+		forms: formsList,
+		fieldCatalog: FORM_FIELD_CATALOG,
+		catalog: catalog.map((c) => ({ id: c.id, name: c.name })),
+		baseUrl: env().PUBLIC_APP_URL.replace(/\/+$/, '')
+	};
+};
+
+export const actions: Actions = {
+	create: async ({ locals, request }) => {
+		requirePermission(locals.permissions, 'forms:write');
+		const data = await request.formData();
+		const name = String(data.get('name') ?? '').trim();
+		const type = String(data.get('type') ?? 'BOOKING') as 'BOOKING' | 'ORDER' | 'QUOTE' | 'LEAD';
+		if (!name) return fail(400, { message: 'Give the form a name.' });
+		try {
+			const created = await createForm(locals.tenant!.id, { type, name });
+			await audit(locals.tenant!.id, 'form.created', { type: 'user', userId: locals.user!.id }, { type: 'form', id: created.id });
+			return { success: true, editId: created.id };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
+	save: async ({ locals, request }) => {
+		requirePermission(locals.permissions, 'forms:write');
+		const data = await request.formData();
+		const id = String(data.get('id') ?? '');
+		try {
+			const form = await getForm(locals.tenant!.id, id);
+			const fields: Record<string, { enabled: boolean; required: boolean }> = {};
+			for (const def of FORM_FIELD_CATALOG[form.type]) {
+				fields[def.key] = {
+					enabled: data.get(`field_${def.key}`) === 'on',
+					required: data.get(`required_${def.key}`) === 'on'
+				};
+			}
+			await updateForm(locals.tenant!.id, id, {
+				name: String(data.get('name') ?? form.name),
+				heading: String(data.get('heading') ?? '') || null,
+				description: String(data.get('description') ?? '') || null,
+				ctaText: String(data.get('ctaText') ?? '') || null,
+				successMessage: String(data.get('successMessage') ?? '') || null,
+				fields,
+				catalogItemIds: data.getAll('catalogItemIds').map(String),
+				allowedOrigins: String(data.get('allowedOrigins') ?? '')
+					.split(/[\n,]/)
+					.map((s) => s.trim())
+					.filter(Boolean),
+				branding: { accentColor: String(data.get('accentColor') ?? '') || undefined }
+			});
+			await audit(locals.tenant!.id, 'form.updated', { type: 'user', userId: locals.user!.id }, { type: 'form', id });
+			return { success: true };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
+	toggle: async ({ locals, request }) => {
+		requirePermission(locals.permissions, 'forms:write');
+		const data = await request.formData();
+		const id = String(data.get('id') ?? '');
+		await updateForm(locals.tenant!.id, id, { isActive: String(data.get('isActive')) === 'true' });
+		return { success: true };
+	},
+
+	regenerate: async ({ locals, request }) => {
+		requirePermission(locals.permissions, 'forms:write');
+		const data = await request.formData();
+		await regeneratePublicId(locals.tenant!.id, String(data.get('id') ?? ''));
+		await audit(locals.tenant!.id, 'form.updated', { type: 'user', userId: locals.user!.id }, { type: 'form', id: String(data.get('id')) }, { action: 'public_id_regenerated' });
+		return { success: true };
+	}
+};

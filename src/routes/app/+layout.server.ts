@@ -38,7 +38,11 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			name: locals.tenant.name,
 			slug: locals.tenant.slug,
 			timezone: locals.tenant.timezone,
-			currency: locals.tenant.currency
+			currency: locals.tenant.currency,
+			capabilities: String((locals.tenant.settings as Record<string, unknown>)?.capabilities ?? 'BOTH') as
+				| 'BOOKINGS'
+				| 'ORDERS'
+				| 'BOTH'
 		},
 		role: locals.role,
 		permissions: locals.permissions,

@@ -4,6 +4,10 @@ import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { nextReference } from '../db/references';
 import { applyPaymentTotals, getBooking } from '../bookings';
+import { applyOrderPaymentTotals, getOrder } from '../orders';
+import { sendEventTemplate } from '../whatsapp/template-engine';
+import { db as dbh, schema as sch } from '../db';
+import { eq as eqh } from 'drizzle-orm';
 import { emit } from '../events';
 import { AppError } from '../errors';
 import { getTenantById } from '../tenants';
@@ -14,6 +18,7 @@ const dec = (v: string | number | null | undefined) => Number(v ?? 0);
 
 export type CreatePaymentInput = {
 	bookingId?: string | null;
+	orderId?: string | null;
 	customerId?: string | null;
 	provider?: string;
 	amount: string;
@@ -32,9 +37,10 @@ export async function createPayment(
 	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant could not be found.');
 	if (dec(input.amount) <= 0) throw new AppError('VALIDATION_ERROR', 'Payment amount must be greater than zero.');
 
-	// Scoped read: a payment can only ever attach to a booking of the same tenant.
+	// Scoped reads: a payment can only ever attach to a booking or order of this tenant.
 	const booking = input.bookingId ? await getBooking(tenantId, input.bookingId) : null;
-	const currency = input.currency ?? booking?.currency ?? tenant.currency;
+	const order = input.orderId ? await getOrder(tenantId, input.orderId) : null;
+	const currency = input.currency ?? booking?.currency ?? order?.currency ?? tenant.currency;
 	const provider = providerFor(input.provider ?? 'MANUAL');
 	const reference = await nextReference(db(), tenantId, 'PY', tenant.bookingReferencePrefix);
 
@@ -43,7 +49,8 @@ export async function createPayment(
 		.values({
 			tenantId,
 			bookingId: booking?.id ?? null,
-			customerId: input.customerId ?? booking?.customerId ?? null,
+			orderId: order?.id ?? null,
+			customerId: input.customerId ?? booking?.customerId ?? order?.customerId ?? null,
 			reference,
 			provider: provider.code,
 			status: 'PENDING',
@@ -107,11 +114,12 @@ export async function getPayment(tenantId: string, id: string): Promise<schema.P
 export async function listPayments(
 	tenantId: string,
 	p: Pagination,
-	filters: { status?: schema.Payment['status']; bookingId?: string } = {}
+	filters: { status?: schema.Payment['status']; bookingId?: string; orderId?: string } = {}
 ) {
 	const conditions: SQL[] = [eq(schema.payments.tenantId, tenantId)];
 	if (filters.status) conditions.push(eq(schema.payments.status, filters.status));
 	if (filters.bookingId) conditions.push(eq(schema.payments.bookingId, filters.bookingId));
+	if (filters.orderId) conditions.push(eq(schema.payments.orderId, filters.orderId));
 	if (p.q) conditions.push(sql`${schema.payments.reference} ilike ${`%${p.q}%`}`);
 	const where = and(...conditions);
 
@@ -158,13 +166,35 @@ export async function setPaymentStatus(
 	if (status === 'SUCCEEDED' && payment.bookingId) {
 		await applyPaymentTotals(tenantId, payment.bookingId);
 	}
+	if ((status === 'SUCCEEDED' || status === 'FAILED') && payment.orderId) {
+		const order = await applyOrderPaymentTotals(tenantId, payment.orderId);
+		if (status === 'SUCCEEDED') {
+			void (async () => {
+				const [customer] = order.customerId
+					? await dbh().select().from(sch.customers).where(eqh(sch.customers.id, order.customerId)).limit(1)
+					: [];
+				await sendEventTemplate(
+					tenantId,
+					'PAYMENT_RECEIVED',
+					customer?.whatsappPhone,
+					{
+						customer: { firstName: customer?.firstName, lastName: customer?.lastName },
+						order: { number: order.orderNumber, total: order.total, currency: order.currency },
+						payment: { amount: `${payment.currency} ${payment.amount}` }
+					},
+					`payment-received:${payment.id}`
+				);
+			})().catch(() => undefined);
+		}
+	}
 	if (status === 'SUCCEEDED') {
 		await emit(tenantId, 'payment.succeeded', {
 			id: payment.id,
 			reference: payment.reference,
 			amount: payment.amount,
 			currency: payment.currency,
-			bookingId: payment.bookingId
+			bookingId: payment.bookingId,
+			orderId: payment.orderId
 		});
 	}
 	if (status === 'FAILED') {
@@ -172,7 +202,8 @@ export async function setPaymentStatus(
 			id: payment.id,
 			reference: payment.reference,
 			failureCode: payment.failureCode,
-			bookingId: payment.bookingId
+			bookingId: payment.bookingId,
+			orderId: payment.orderId
 		});
 	}
 	return payment;
@@ -228,6 +259,7 @@ export async function refundPayment(
 	});
 
 	if (payment.bookingId) await applyPaymentTotals(tenantId, payment.bookingId);
+	if (payment.orderId) await applyOrderPaymentTotals(tenantId, payment.orderId);
 	return refund;
 }
 

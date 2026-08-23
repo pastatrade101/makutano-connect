@@ -8,14 +8,15 @@
 	import Toasts from '$components/Toasts.svelte';
 	let { data, children } = $props();
 
-	type Item = { href: string; label: string; icon: string; permission: string | null; primary?: boolean };
+	type Item = { href: string; label: string; icon: string; permission: string | null; primary?: boolean; capability?: 'BOOKINGS' | 'ORDERS' };
 	const GROUPS: Array<{ label: string; items: Item[] }> = [
 		{
 			label: 'General',
 			items: [
 				{ href: '/app', label: 'Overview', icon: 'M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-4v-5H8v5H4a1 1 0 0 1-1-1v-6.5Z', permission: null, primary: true },
-				{ href: '/app/booking-requests', label: 'Requests', icon: 'M4 3h12v14l-3-2-3 2-3-2-3 2V3Z', permission: 'booking_requests:read', primary: true },
-				{ href: '/app/bookings', label: 'Bookings', icon: 'M3 5h14v12H3V5Zm2 3h10v2H5V8Z', permission: 'bookings:read', primary: true },
+				{ href: '/app/booking-requests', label: 'Requests', icon: 'M4 3h12v14l-3-2-3 2-3-2-3 2V3Z', permission: 'booking_requests:read', primary: true, capability: 'BOOKINGS' },
+				{ href: '/app/bookings', label: 'Bookings', icon: 'M3 5h14v12H3V5Zm2 3h10v2H5V8Z', permission: 'bookings:read', primary: true, capability: 'BOOKINGS' },
+				{ href: '/app/orders', label: 'Orders', icon: 'M5 4h10l1.5 3v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V7L5 4Zm-1 3h12M8 10a2 2 0 0 0 4 0', permission: 'orders:read', primary: true, capability: 'ORDERS' },
 				{ href: '/app/conversations', label: 'Inbox', icon: 'M3 4h14v9H7l-4 3V4Z', permission: 'conversations:read', primary: true }
 			]
 		},
@@ -23,6 +24,7 @@
 			label: 'Sales',
 			items: [
 				{ href: '/app/quotations', label: 'Quotations', icon: 'M5 3h7l3 3v11H5V3Zm7 0v3h3', permission: 'quotations:read' },
+				{ href: '/app/catalog', label: 'Catalog', icon: 'M4 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v11l-3-1.8L10 16l-3-1.8L4 16V5Z', permission: 'catalog:read', capability: 'ORDERS' },
 				{ href: '/app/customers', label: 'Customers', icon: 'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 7a6 6 0 0 1 12 0H4Z', permission: 'customers:read' },
 				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read' },
 				{ href: '/app/payments', label: 'Payments', icon: 'M2 6h16v8H2V6Zm0 3h16', permission: 'payments:read' }
@@ -32,13 +34,18 @@
 			label: 'Platform',
 			items: [
 				{ href: '/app/whatsapp', label: 'WhatsApp', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read' },
+				{ href: '/app/forms', label: 'Forms & Widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read' },
 				{ href: '/app/developers', label: 'Developers', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5', permission: 'api_keys:read' },
 				{ href: '/app/settings', label: 'Settings', icon: 'M10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', permission: 'tenant:read' }
 			]
 		}
 	];
 
-	const allowed = (item: Item) => !item.permission || data.permissions?.includes(item.permission as never);
+	const allowed = (item: Item) => {
+		if (item.permission && !data.permissions?.includes(item.permission as never)) return false;
+		if (item.capability && data.tenant.capabilities !== 'BOTH' && data.tenant.capabilities !== item.capability) return false;
+		return true;
+	};
 	const groups = $derived(GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length));
 	const flat = $derived(groups.flatMap((g) => g.items));
 	const primary = $derived(flat.filter((n) => n.primary).slice(0, 4));

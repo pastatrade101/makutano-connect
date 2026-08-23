@@ -5,7 +5,7 @@
 import { sql } from 'drizzle-orm';
 import type { Database } from './index';
 
-export type ReferenceKind = 'RQ' | 'BK' | 'QT' | 'PY';
+export type ReferenceKind = 'RQ' | 'BK' | 'QT' | 'PY' | 'OR';
 
 /**
  * Reserve the next reference for a tenant, e.g. EMN-RQ-2026-00001.

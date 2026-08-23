@@ -36,9 +36,14 @@
 			</p>
 		</div>
 	</div>
-	{#if data.conversation.bookingRequestId}
-		<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary shrink-0 !py-1.5 text-xs">Open request</a>
-	{/if}
+	<div class="flex shrink-0 items-center gap-1.5">
+		{#if data.conversation.bookingRequestId}
+			<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary !py-1.5 text-xs">Open request</a>
+		{/if}
+		{#if data.tenant.capabilities !== 'BOOKINGS' && data.permissions?.includes('orders:write')}
+			<a href="/app/orders/new?conversation={data.conversation.id}" class="btn-primary !py-1.5 text-xs">Create order</a>
+		{/if}
+	</div>
 </header>
 
 <div class="flex-1 space-y-2.5 overflow-y-auto bg-canvas/60 p-4">
