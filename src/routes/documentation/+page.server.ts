@@ -8,9 +8,10 @@ import whatsapp from '$lib/docs/03-whatsapp.md?raw';
 import whatsappTemplates from '$lib/docs/06-whatsapp-templates.md?raw';
 import webhooks from '$lib/docs/04-webhooks-portal-errors.md?raw';
 import commerce from '$lib/docs/05-orders-forms.md?raw';
+import accounts from '$lib/docs/07-accounts-onboarding.md?raw';
 import type { PageServerLoad } from './$types';
 
-const SOURCE = [gettingStarted, bookingLifecycle, commerce, whatsapp, whatsappTemplates, webhooks].join('\n\n');
+const SOURCE = [gettingStarted, accounts, bookingLifecycle, commerce, whatsapp, whatsappTemplates, webhooks].join('\n\n');
 
 const slugify = (text: string) =>
 	text

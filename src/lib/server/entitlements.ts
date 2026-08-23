@@ -244,7 +244,12 @@ export async function assertTenantActive(tenantId: string): Promise<void> {
 	if (ent.tenantStatus === 'CANCELLED') {
 		throw new AppError('TENANT_SUSPENDED', 'This account is closed.');
 	}
-	if (ent.subscriptionStatus === 'CANCELLED') {
+	// Self-signup can land a tenant here when trials are switched off: the account exists
+	// and the owner can sign in, but nothing may be written until it is activated.
+	if (ent.tenantStatus === 'PENDING') {
+		throw new AppError('SUBSCRIPTION_INACTIVE', 'This account is awaiting activation.');
+	}
+	if (ent.subscriptionStatus === 'CANCELLED' || ent.subscriptionStatus === 'EXPIRED') {
 		throw new AppError('SUBSCRIPTION_INACTIVE', 'This subscription has ended. Please renew to continue.');
 	}
 }

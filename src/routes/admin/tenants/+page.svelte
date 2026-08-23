@@ -53,9 +53,29 @@
 		</form>
 	{/if}
 
+	<form method="GET" class="card flex flex-wrap items-end gap-3 p-3">
+		<div class="min-w-[220px] flex-1">
+			<label class="label" for="t-q">Search</label>
+			<input id="t-q" name="q" value={data.q} placeholder="Name, slug or owner email" class="input" />
+		</div>
+		<div>
+			<label class="label" for="t-source">Provisioned via</label>
+			<select id="t-source" name="source" class="input">
+				<option value="" selected={!data.source}>All</option>
+				<option value="SELF_SERVICE" selected={data.source === 'SELF_SERVICE'}>Self-service signup</option>
+				<option value="ADMIN" selected={data.source === 'ADMIN'}>Platform Admin</option>
+				<option value="IMPORT" selected={data.source === 'IMPORT'}>Import</option>
+			</select>
+		</div>
+		<button class="btn-secondary">Filter</button>
+		{#if data.q || data.source}
+			<a href="/admin/tenants" class="text-xs text-slate-500 hover:underline">Clear</a>
+		{/if}
+	</form>
+
 	<div class="card overflow-hidden">
 		<table class="min-w-full divide-y divide-slate-100">
-			<thead class="bg-slate-50"><tr><th class="table-head">Tenant</th><th class="table-head">Plan</th><th class="table-head">Status</th><th class="table-head">WhatsApp</th><th class="table-head">Requests</th><th class="table-head">Created</th><th class="table-head"></th></tr></thead>
+			<thead class="bg-slate-50"><tr><th class="table-head">Tenant</th><th class="table-head">Owner</th><th class="table-head">Source</th><th class="table-head">Plan</th><th class="table-head">Status</th><th class="table-head">WhatsApp</th><th class="table-head">Requests</th><th class="table-head">Created</th><th class="table-head"></th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.tenants as row (row.tenant.id)}
 					<tr class="hover:bg-slate-50">
@@ -63,7 +83,31 @@
 							<a href="/admin/tenants/{row.tenant.id}" class="font-medium text-brand-600 hover:underline">{row.tenant.name}</a>
 							<div class="font-mono text-[11px] text-slate-500">{row.tenant.slug}</div>
 						</td>
-						<td class="table-cell text-slate-600">{row.plan?.name ?? '—'}</td>
+						<td class="table-cell">
+							{#if row.ownerEmail}
+								<span class="text-xs text-slate-600">{row.ownerEmail}</span>
+								{#if !row.ownerVerified}
+									<span class="badge ml-1 bg-warning/15 text-[#b58514]">unverified</span>
+								{/if}
+							{:else}
+								<span class="text-xs text-slate-400">no owner</span>
+							{/if}
+						</td>
+						<td class="table-cell">
+							<span
+								class="badge {row.tenant.provisioningSource === 'SELF_SERVICE'
+									? 'bg-purple/10 text-purple'
+									: 'bg-slate-100 text-slate-600'}"
+							>
+								{row.tenant.provisioningSource === 'SELF_SERVICE' ? 'Self-service' : row.tenant.provisioningSource === 'IMPORT' ? 'Import' : 'Admin'}
+							</span>
+						</td>
+						<td class="table-cell text-slate-600">
+							{row.plan?.name ?? '—'}
+							{#if row.subscriptionStatus && row.subscriptionStatus !== 'ACTIVE'}
+								<div class="text-[11px] text-slate-400">{row.subscriptionStatus}</div>
+							{/if}
+						</td>
 						<td class="table-cell"><StatusBadge value={row.tenant.status} /></td>
 						<td class="table-cell">{#if row.whatsapp}<StatusBadge value={row.whatsapp} size="xs" />{:else}<span class="text-xs text-slate-400">—</span>{/if}</td>
 						<td class="table-cell tabular-nums">{row.requests}</td>
@@ -77,7 +121,7 @@
 							<form method="POST" action="?/setStatus" use:enhance class="inline-flex items-center gap-1">
 								<input type="hidden" name="id" value={row.tenant.id} />
 								<select name="status" class="input w-auto py-1 text-xs">
-									{#each ['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELLED'] as s (s)}<option value={s} selected={row.tenant.status === s}>{s}</option>{/each}
+									{#each ['ACTIVE', 'TRIAL', 'PENDING', 'SUSPENDED', 'CANCELLED'] as s (s)}<option value={s} selected={row.tenant.status === s}>{s}</option>{/each}
 								</select>
 								<button class="text-xs text-brand-600 hover:underline">Set</button>
 							</form>

@@ -1,7 +1,9 @@
 // Job handler registry. Each entry is a pure async function of the job payload; the
 // worker owns retries, so a handler's only job is to throw on failure.
 import type { Job } from '../db/schema';
+import { sendEmail } from '../email';
 import { log } from '../logger';
+import { purgeExpiredTokens } from '../auth/verification';
 import { purgeExpiredKeys } from '../idempotency';
 import { purgeExpired as purgeRateLimits } from '../rate-limit';
 import { deliverPendingWebhook } from '../webhooks/deliver';
@@ -37,9 +39,15 @@ export const handlers: Record<string, JobHandler> = {
 		await deliverNotification(String(payload.notificationId));
 	},
 	'email.send': async (payload) => {
-		// Email provider adapter is pluggable; without EMAIL_PROVIDER_KEY this is a no-op
-		// that still records the attempt, so nothing silently disappears.
-		log.info('email_send_stub', { to: payload.to, subject: payload.subject });
+		const result = await sendEmail({
+			to: String(payload.to ?? ''),
+			subject: String(payload.subject ?? ''),
+			html: String(payload.html ?? payload.text ?? ''),
+			text: String(payload.text ?? '')
+		});
+		// A job that silently "succeeded" without delivering would hide a broken
+		// deployment; failing lets the queue retry and surfaces it in the job list.
+		if (!result.delivered) throw new Error(`email not delivered: ${result.reason ?? 'unknown'}`);
 	},
 	'payment.reconcile': async (payload) => {
 		const { reconcilePayment } = await import('../payments/reconcile');
@@ -51,6 +59,7 @@ export const handlers: Record<string, JobHandler> = {
 	'maintenance.cleanup': async () => {
 		const keys = await purgeExpiredKeys();
 		const buckets = await purgeRateLimits();
-		log.info('maintenance_cleanup', { idempotencyKeys: keys, rateLimitBuckets: buckets });
+		const tokens = await purgeExpiredTokens();
+		log.info('maintenance_cleanup', { idempotencyKeys: keys, rateLimitBuckets: buckets, verificationTokens: tokens });
 	}
 };

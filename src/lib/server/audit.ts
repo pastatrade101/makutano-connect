@@ -1,7 +1,10 @@
 // Append-only audit trail (§27). Writing an audit row must never break the operation
 // that triggered it, so failures are logged and swallowed.
-import { db, schema } from './db';
+import { db, schema, type Database } from './db';
 import { log } from './logger';
+
+/** Anything that can run an insert — the pool, or an open transaction. */
+type Executor = Pick<Database, 'insert'>;
 
 export type AuditActor = {
 	type: 'user' | 'api_key' | 'system' | 'meta';
@@ -12,6 +15,13 @@ export type AuditActor = {
 };
 
 export type AuditAction =
+	| 'signup.started'
+	| 'signup.verification_sent'
+	| 'email.verified'
+	| 'tenant.provisioned'
+	| 'plan.selected'
+	| 'subscription.created'
+	| 'onboarding.completed'
 	| 'tenant.created'
 	| 'tenant.updated'
 	| 'tenant.suspended'
@@ -53,10 +63,13 @@ export async function audit(
 	action: AuditAction,
 	actor: AuditActor,
 	entity?: { type?: string; id?: string },
-	metadata: Record<string, unknown> = {}
+	metadata: Record<string, unknown> = {},
+	// Pass an open transaction to make the audit row part of the same atomic unit —
+	// provisioning does this so a rolled-back tenant leaves no trace of having existed.
+	exec?: Executor
 ): Promise<void> {
 	try {
-		await db()
+		await (exec ?? db())
 			.insert(schema.auditLogs)
 			.values({
 				tenantId,
@@ -72,5 +85,8 @@ export async function audit(
 			});
 	} catch (err) {
 		log.error('audit_write_failed', { action, error: (err as Error)?.message });
+		// Inside a transaction a failed insert has already poisoned it, so swallowing
+		// here would only defer the error to a confusing later statement.
+		if (exec) throw err;
 	}
 }

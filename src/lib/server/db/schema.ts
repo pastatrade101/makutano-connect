@@ -19,9 +19,19 @@ import {
 
 /* ------------------------------------------------------------------ enums -- */
 
-export const tenantStatusEnum = pgEnum('tenant_status', ['ACTIVE', 'SUSPENDED', 'CANCELLED', 'TRIAL']);
+export const tenantStatusEnum = pgEnum('tenant_status', [
+	'ACTIVE',
+	'SUSPENDED',
+	'CANCELLED',
+	'TRIAL',
+	// Self-signup created the tenant but activation is still pending (no billing yet).
+	'PENDING'
+]);
+/** How a tenant came into existence — Platform Admin, the public signup, or a legacy import. */
+export const provisioningSourceEnum = pgEnum('provisioning_source', ['ADMIN', 'SELF_SERVICE', 'IMPORT']);
 export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'VIEWER']);
 export const apiKeyEnvEnum = pgEnum('api_key_environment', ['live', 'test']);
+export const verificationPurposeEnum = pgEnum('verification_purpose', ['EMAIL_VERIFICATION', 'PASSWORD_RESET']);
 export const apiKeyStatusEnum = pgEnum('api_key_status', ['ACTIVE', 'REVOKED']);
 export const waConnectionStatusEnum = pgEnum('whatsapp_connection_status', [
 	'CONNECTED',
@@ -99,7 +109,13 @@ export const notificationChannelEnum = pgEnum('notification_channel', [
 ]);
 export const notificationStatusEnum = pgEnum('notification_status', ['PENDING', 'SENT', 'FAILED', 'READ']);
 export const jobStatusEnum = pgEnum('job_status', ['PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'DEAD']);
-export const subscriptionStatusEnum = pgEnum('subscription_status', ['TRIALING', 'ACTIVE', 'PAST_DUE', 'CANCELLED']);
+export const subscriptionStatusEnum = pgEnum('subscription_status', [
+	'TRIALING',
+	'ACTIVE',
+	'PAST_DUE',
+	'CANCELLED',
+	'EXPIRED'
+]);
 export const templateStatusEnum = pgEnum('template_status', ['APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED', 'DRAFT', 'SUBMITTED']);
 
 /* ------------------------------------------------------------- helpers ---- */
@@ -157,6 +173,13 @@ export const tenants = pgTable(
 		locale: text('locale').notNull().default('en'),
 		bookingReferencePrefix: text('booking_reference_prefix').notNull().default('MKT'),
 		quotationPrefix: text('quotation_prefix').notNull().default('QT'),
+		// Business profile — collected during onboarding, editable in Settings afterwards.
+		industry: text('industry'),
+		businessPhone: text('business_phone'),
+		websiteUrl: text('website_url'),
+		/** ADMIN for Platform-Admin provisioning, SELF_SERVICE for the public signup. */
+		provisioningSource: provisioningSourceEnum('provisioning_source').notNull().default('ADMIN'),
+		onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
 		settings: jsonb('settings')
 			.$type<Record<string, unknown>>()
 			.notNull()
@@ -189,6 +212,8 @@ export const users = pgTable(
 		fullName: text('full_name').notNull().default(''),
 		isSuperAdmin: boolean('is_super_admin').notNull().default(false),
 		isActive: boolean('is_active').notNull().default(true),
+		/** Null until the user proves control of the address. Gates self-signup provisioning. */
+		emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
 		lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
@@ -232,6 +257,34 @@ export const sessions = pgTable(
 		createdAt: createdAt()
 	},
 	(t) => [index('sessions_user_idx').on(t.userId), index('sessions_expiry_idx').on(t.expiresAt)]
+);
+
+/**
+ * Single-use, expiring tokens for email verification and password reset.
+ *
+ * Only the sha-256 of the token is stored: a database leak must not yield a working
+ * verification link, exactly as with `sessions`. A row is consumed (not deleted) so a
+ * replayed link is recognisably spent rather than merely unknown.
+ */
+export const verificationTokens = pgTable(
+	'verification_tokens',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		purpose: verificationPurposeEnum('purpose').notNull(),
+		tokenHash: text('token_hash').notNull(),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		consumedAt: timestamp('consumed_at', { withTimezone: true }),
+		ipHash: text('ip_hash'),
+		createdAt: createdAt()
+	},
+	(t) => [
+		uniqueIndex('verification_tokens_hash_key').on(t.tokenHash),
+		index('verification_tokens_user_idx').on(t.userId, t.purpose),
+		index('verification_tokens_expiry_idx').on(t.expiresAt)
+	]
 );
 
 export const apiKeys = pgTable(
@@ -1053,6 +1106,8 @@ export const subscriptions = pgTable(
 		status: subscriptionStatusEnum('status').notNull().default('ACTIVE'),
 		currentPeriodStart: timestamp('current_period_start', { withTimezone: true }).notNull().defaultNow(),
 		currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }).notNull(),
+		/** Set while status is TRIALING; null once the tenant is on a paid period. */
+		trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
 		cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
 		cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
 		createdAt: createdAt(),
@@ -1270,6 +1325,9 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 export type Tenant = typeof tenants.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type TenantMembership = typeof tenantMemberships.$inferSelect;
+export type VerificationToken = typeof verificationTokens.$inferSelect;
+export type VerificationPurpose = (typeof verificationPurposeEnum.enumValues)[number];
+export type ProvisioningSource = (typeof provisioningSourceEnum.enumValues)[number];
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type Plan = typeof plans.$inferSelect;
 export type WhatsappConnection = typeof whatsappConnections.$inferSelect;

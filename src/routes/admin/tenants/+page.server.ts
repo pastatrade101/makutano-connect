@@ -4,12 +4,11 @@ import { fail, redirect, type Actions } from '@sveltejs/kit';
 import { desc, eq, sql } from 'drizzle-orm';
 import { audit } from '$lib/server/audit';
 import { createApiKey } from '$lib/server/api-keys';
-import { hashPassword } from '$lib/server/auth/password';
 import { DEFAULT_PLANS } from '$lib/server/billing';
 import { db, schema } from '$lib/server/db';
 import { toAppError } from '$lib/server/errors';
 import { setActiveTenant } from '$lib/server/auth/session';
-import { provisionTenant, slugify } from '$lib/server/tenants';
+import { provisionTenant } from '$lib/server/provisioning';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -21,18 +20,36 @@ export const load: PageServerLoad = async ({ url }) => {
 			requests: sql<number>`(select count(*) from booking_requests br where br.tenant_id = ${schema.tenants.id})::int`,
 			whatsapp: sql<
 				string | null
-			>`(select status::text from whatsapp_connections wc where wc.tenant_id = ${schema.tenants.id} limit 1)`
+			>`(select status::text from whatsapp_connections wc where wc.tenant_id = ${schema.tenants.id} limit 1)`,
+			// Who owns this tenant, and did they arrive through signup or through us?
+			ownerEmail: sql<string | null>`(
+				select u.email from tenant_memberships tm
+				join users u on u.id = tm.user_id
+				where tm.tenant_id = ${schema.tenants.id} and tm.role = 'OWNER'
+				order by tm.created_at limit 1
+			)`,
+			ownerVerified: sql<boolean | null>`(
+				select u.email_verified_at is not null from tenant_memberships tm
+				join users u on u.id = tm.user_id
+				where tm.tenant_id = ${schema.tenants.id} and tm.role = 'OWNER'
+				order by tm.created_at limit 1
+			)`,
+			subscriptionStatus: sql<string | null>`(
+				select s.status::text from subscriptions s
+				where s.tenant_id = ${schema.tenants.id} order by s.created_at desc limit 1
+			)`
 		})
 		.from(schema.tenants)
 		.leftJoin(schema.plans, eq(schema.plans.id, schema.tenants.planId))
 		.orderBy(desc(schema.tenants.createdAt));
 
-	const filtered = q
-		? tenants.filter((t) => t.tenant.name.toLowerCase().includes(q) || t.tenant.slug.toLowerCase().includes(q))
-		: tenants;
+	const source = url.searchParams.get('source')?.trim().toUpperCase() ?? '';
+	const filtered = tenants
+		.filter((t) => !q || t.tenant.name.toLowerCase().includes(q) || t.tenant.slug.toLowerCase().includes(q) || (t.ownerEmail ?? '').toLowerCase().includes(q))
+		.filter((t) => !source || t.tenant.provisioningSource === source);
 
 	const plans = await db().select().from(schema.plans).orderBy(schema.plans.sortOrder);
-	return { tenants: filtered, q, plans: plans.length ? plans : DEFAULT_PLANS.map((p) => ({ ...p, id: p.code })) };
+	return { tenants: filtered, q, source, plans: plans.length ? plans : DEFAULT_PLANS.map((p) => ({ ...p, id: p.code })) };
 };
 
 export const actions: Actions = {
@@ -45,53 +62,26 @@ export const actions: Actions = {
 		if (!name) return fail(400, { message: 'Business name is required.' });
 
 		try {
-			const tenant = await provisionTenant({
+			// Exactly the same service the public signup uses — only the source and the
+			// lifecycle differ (an admin-created tenant is ACTIVE from the first second).
+			const { tenant, temporaryPassword } = await provisionTenant({
 				name,
-				slug: slugify(String(data.get('slug') ?? '') || name),
+				slug: String(data.get('slug') ?? '') || name,
 				planCode: String(data.get('planCode') ?? 'STARTER'),
-				country:
-					String(data.get('country') ?? '')
-						.toUpperCase()
-						.slice(0, 2) || undefined,
-				currency: String(data.get('currency') ?? 'USD')
-					.toUpperCase()
-					.slice(0, 3),
+				source: 'ADMIN',
+				owner: ownerEmail ? { kind: 'email', email: ownerEmail } : undefined,
+				country: String(data.get('country') ?? '') || null,
+				currency: String(data.get('currency') ?? 'USD'),
 				timezone: String(data.get('timezone') ?? 'Africa/Dar_es_Salaam'),
-				bookingReferencePrefix: String(data.get('prefix') ?? '') || undefined
+				bookingReferencePrefix: String(data.get('prefix') ?? '') || undefined,
+				actor: { type: 'user', userId: locals.user!.id, ipHash: locals.ipHash, requestId: locals.requestId }
 			});
-
-			// Optional owner account, created with a temporary password the admin passes on.
-			let temporaryPassword: string | null = null;
-			if (ownerEmail) {
-				const existing = (await db().select().from(schema.users).where(eq(schema.users.email, ownerEmail)).limit(1))[0];
-				let userId = existing?.id;
-				if (!userId) {
-					temporaryPassword = `mk-${crypto.randomUUID().slice(0, 12)}`;
-					const [created] = await db()
-						.insert(schema.users)
-						.values({ email: ownerEmail, passwordHash: await hashPassword(temporaryPassword), fullName: '' })
-						.returning({ id: schema.users.id });
-					userId = created.id;
-				}
-				await db()
-					.insert(schema.tenantMemberships)
-					.values({ tenantId: tenant.id, userId, role: 'OWNER', acceptedAt: new Date() })
-					.onConflictDoNothing();
-				await audit(tenant.id, 'user.invited', { type: 'user', userId: locals.user!.id }, { type: 'user', id: userId });
-			}
 
 			const key = await createApiKey({
 				tenantId: tenant.id,
 				name: 'Website integration',
 				createdByUserId: locals.user!.id
 			});
-			await audit(
-				tenant.id,
-				'tenant.created',
-				{ type: 'user', userId: locals.user!.id },
-				{ type: 'tenant', id: tenant.id },
-				{ name }
-			);
 
 			// Credentials are surfaced once, right here — there is no way to read them back.
 			return {

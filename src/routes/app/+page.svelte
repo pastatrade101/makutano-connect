@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import Chart from '$components/Chart.svelte';
+	import OnboardingChecklist from '$components/OnboardingChecklist.svelte';
 	import Money from '$components/Money.svelte';
 	import StatTile from '$components/StatTile.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
@@ -7,6 +9,8 @@
 	let { data } = $props();
 
 	const s = $derived(data.stats);
+	// ?welcome=1 arrives once, straight after signup — it only changes the wording.
+	const justSignedUp = $derived(page.url.searchParams.get('welcome') === '1');
 	const tz = $derived(data.tenant.timezone);
 
 	// Reback-style smooth area chart: brand + info series over the last fortnight.
@@ -35,6 +39,15 @@
 		<h1 class="text-base font-semibold text-slate-900">Overview</h1>
 		<a href="/app/booking-requests" class="btn-secondary">All requests</a>
 	</div>
+
+	{#if data.onboarding}
+		<OnboardingChecklist
+			items={data.onboarding.items}
+			completed={data.onboarding.completed}
+			total={data.onboarding.total}
+			welcome={justSignedUp}
+		/>
+	{/if}
 
 	{#if !data.whatsapp || data.whatsapp.status !== 'CONNECTED'}
 		<div class="flex flex-wrap items-center justify-between gap-2 rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">

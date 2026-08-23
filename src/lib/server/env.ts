@@ -28,14 +28,38 @@ const schema = z.object({
 	// --- Infrastructure ---
 	REDIS_URL: z.string().default(''),
 	EMAIL_FROM: z.string().default(''),
+	EMAIL_PROVIDER: z.enum(['resend', 'none']).default('resend'),
 	EMAIL_PROVIDER_KEY: z.string().default(''),
+
+	// --- Self-signup (§ client onboarding) ---
+	SIGNUP_ENABLED: z.enum(['on', 'off']).default('on'),
+	// Plan a visitor lands on when they do not pick one.
+	SIGNUP_DEFAULT_PLAN: z.string().default('STARTER'),
+	// 0 disables trials entirely — new tenants then wait in PENDING for activation.
+	SIGNUP_TRIAL_DAYS: z.coerce.number().int().min(0).max(365).default(14),
+	// Cloudflare Turnstile. Both blank = no challenge; the code path is already wired.
+	TURNSTILE_SITE_KEY: z.string().default(''),
+	TURNSTILE_SECRET_KEY: z.string().default(''),
 
 	// --- Behaviour flags ---
 	NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 	JOB_WORKER: z.enum(['on', 'off']).default('on'),
 	JOB_POLL_MS: z.coerce.number().int().min(200).default(2000),
 	LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-	DB_POOL_MAX: z.coerce.number().int().min(1).default(10)
+	/**
+	 * Connection pool size — and it must stay ABOVE the app's peak concurrent fan-out.
+	 *
+	 * Measured against Supabase's transaction pooler: issuing more queries at once than
+	 * `max` wedges the client permanently. postgres-js pipelines the overflow onto
+	 * in-use connections, Supavisor does not answer them, and the queue never drains —
+	 * the request hangs forever while the database shows only idle connections, so it
+	 * never surfaces as a lock, a slow query or an error. The same overflow against a
+	 * DIRECT session connection queues correctly and completes.
+	 *
+	 * A single page here already fans out 8-10 queries (admin Control Center, portal
+	 * dashboard), so 10 was one concurrent request away from wedging the process.
+	 */
+	DB_POOL_MAX: z.coerce.number().int().min(1).default(25)
 });
 
 export type Env = z.infer<typeof schema>;
@@ -74,6 +98,12 @@ export function env(): Env {
 export function assertEnv(): Env {
 	const e = env();
 	return e;
+}
+
+/** True when verification email can actually leave the building. */
+export function emailReady(): boolean {
+	const e = env();
+	return e.EMAIL_PROVIDER !== 'none' && !!e.EMAIL_PROVIDER_KEY && !!e.EMAIL_FROM;
 }
 
 /** True once Embedded Signup can run end-to-end (§7). */

@@ -4,6 +4,7 @@
 //   tenant active → plan permits → allowance left → compliance permits → send
 // and that compliance can only ever be stricter than the plan.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { provisionTestTenant } from './support';
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const suite = TEST_DB ? describe : describe.skip;
@@ -61,7 +62,7 @@ suite('entitlements + enforcement', () => {
 			compliance: await import('../src/lib/server/whatsapp/compliance'),
 			customers: await import('../src/lib/server/customers')
 		};
-		const tenant = await ctx.tenants.provisionTenant({ name: 'Entitlement Co', slug: `ent-${stamp}`, planCode: 'STARTER' });
+		const tenant = await provisionTestTenant({ name: 'Entitlement Co', slug: `ent-${stamp}`, planCode: 'STARTER' });
 		tenantId = tenant.id;
 		const { db, schema } = ctx.db;
 		const [user] = await db()

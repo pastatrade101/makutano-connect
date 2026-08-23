@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	let { form } = $props();
+	let { data, form } = $props();
 	let submitting = $state(false);
 </script>
 
@@ -33,7 +33,10 @@
 				<input id="email" name="email" type="email" autocomplete="username" required value={form?.email ?? ''} class="input" />
 			</div>
 			<div>
-				<label class="label" for="password">Password</label>
+				<div class="mb-1.5 flex items-baseline justify-between">
+					<label class="label mb-0" for="password">Password</label>
+					<a href="/forgot-password" class="text-[11px] text-brand-600 hover:underline">Forgot password?</a>
+				</div>
 				<input id="password" name="password" type="password" autocomplete="current-password" required class="input" />
 			</div>
 			<button type="submit" class="btn-primary w-full" disabled={submitting}>
@@ -41,7 +44,14 @@
 			</button>
 		</form>
 
-		<p class="mt-5 text-center text-[11px] text-slate-400">
+		{#if data.signupEnabled}
+			<p class="mt-5 text-center text-xs text-slate-500">
+				New to Makutano Connect?
+				<a href="/signup" class="font-medium text-brand-600 hover:underline">Create an account</a>
+			</p>
+		{/if}
+
+		<p class="mt-3 text-center text-[11px] text-slate-400">
 			Clients keep working inside their own CMS — this portal is optional.
 			<a href="/documentation" class="text-brand-600 hover:underline">API documentation →</a>
 		</p>

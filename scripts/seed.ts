@@ -147,7 +147,9 @@ try {
 				email: email.toLowerCase(),
 				passwordHash: await hashPassword(password),
 				fullName: 'Platform Admin',
-				isSuperAdmin: true
+				isSuperAdmin: true,
+				// Seeded by an operator with database access — no verification link to send.
+				emailVerifiedAt: new Date()
 			});
 			console.log(`Created super admin ${email}`);
 			if (!process.env.SEED_SUPER_ADMIN_PASSWORD) console.log(`Temporary password: ${password}`);

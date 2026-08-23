@@ -8,6 +8,7 @@
 //   TEST_DATABASE_URL=postgres://localhost:5432/makutano_test npm run db:migrate
 //   TEST_DATABASE_URL=postgres://localhost:5432/makutano_test npm test
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { provisionTestTenant } from './support';
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const suite = TEST_DB ? describe : describe.skip;
@@ -80,12 +81,12 @@ suite('multi-tenant engine', () => {
 			inbound: await import('../src/lib/server/whatsapp/inbound')
 		};
 
-		tenantA = await ctx.tenants.provisionTenant({
+		tenantA = await provisionTestTenant({
 			name: 'Tenant A Safaris',
 			slug: `test-a-${stamp}`,
 			bookingReferencePrefix: 'TSTA'
 		});
-		tenantB = await ctx.tenants.provisionTenant({
+		tenantB = await provisionTestTenant({
 			name: 'Tenant B Tours',
 			slug: `test-b-${stamp}`,
 			bookingReferencePrefix: 'TSTB'
@@ -436,7 +437,7 @@ suite('webhook tenant routing', () => {
 			tenants: await import('../src/lib/server/tenants'),
 			db: await import('../src/lib/server/db')
 		};
-		routeTenant = await routingCtx.tenants.provisionTenant({ name: 'Routing Co', slug: `route-${suffix}` });
+		routeTenant = await provisionTestTenant({ name: 'Routing Co', slug: `route-${suffix}` });
 		await routingCtx.connections.upsertConnection({
 			tenantId: routeTenant.id,
 			phoneNumberId: `pnid-${suffix}`,

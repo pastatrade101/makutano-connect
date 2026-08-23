@@ -6,7 +6,6 @@
 // by that resolved id.
 import { and, eq, isNull } from 'drizzle-orm';
 import { db, schema } from './db';
-import { AppError } from './errors';
 import { permissionsForRole, type Permission } from './auth/permissions';
 import type { Role } from './db/schema';
 
@@ -70,56 +69,9 @@ export async function resolveTenantForUser(
 	return { tenant: chosen.tenant, role, permissions: permissionsForRole(role) };
 }
 
-export type ProvisionInput = {
-	name: string;
-	slug: string;
-	planCode?: string;
-	timezone?: string;
-	currency?: string;
-	country?: string;
-	bookingReferencePrefix?: string;
-	quotationPrefix?: string;
-};
-
-/**
- * Admin/invisible provisioning (§4): the client does not register — Makutano creates
- * the tenant, assigns a plan and generates credentials.
- */
-export async function provisionTenant(input: ProvisionInput): Promise<schema.Tenant> {
-	const existing = await getTenantBySlug(input.slug);
-	if (existing) throw new AppError('CONFLICT', `A tenant with the slug "${input.slug}" already exists.`);
-
-	const plan = input.planCode
-		? (await db().select().from(schema.plans).where(eq(schema.plans.code, input.planCode)).limit(1))[0]
-		: (await db().select().from(schema.plans).where(eq(schema.plans.code, 'STARTER')).limit(1))[0];
-
-	const prefix =
-		(input.bookingReferencePrefix || input.slug.slice(0, 3)).toUpperCase().replace(/[^A-Z0-9]/g, '') || 'MKT';
-
-	const [tenant] = await db()
-		.insert(schema.tenants)
-		.values({
-			name: input.name,
-			slug: input.slug,
-			planId: plan?.id ?? null,
-			timezone: input.timezone ?? 'Africa/Dar_es_Salaam',
-			currency: input.currency ?? 'USD',
-			country: input.country ?? null,
-			bookingReferencePrefix: prefix,
-			quotationPrefix: input.quotationPrefix ?? 'QT'
-		})
-		.returning();
-
-	if (plan) {
-		const periodEnd = new Date();
-		periodEnd.setMonth(periodEnd.getMonth() + 1);
-		await db()
-			.insert(schema.subscriptions)
-			.values({ tenantId: tenant.id, planId: plan.id, currentPeriodEnd: periodEnd });
-	}
-
-	return tenant;
-}
+// Tenant provisioning lives in ./provisioning.ts — a single transactional service
+// shared by Platform Admin and public self-signup. There is deliberately no second
+// implementation here.
 
 export function slugify(value: string): string {
 	return value

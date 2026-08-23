@@ -65,6 +65,80 @@
 		</p>
 	{/if}
 
+	<!-- Where this account came from, and who is behind it -->
+	<section class="card p-4">
+		<h2 class="card-title mb-3">Account origin</h2>
+		<dl class="grid gap-x-6 gap-y-2.5 text-xs sm:grid-cols-2 lg:grid-cols-4">
+			<div>
+				<dt class="text-slate-400">Provisioned via</dt>
+				<dd class="mt-0.5">
+					<span
+						class="badge {data.tenant.provisioningSource === 'SELF_SERVICE'
+							? 'bg-purple/10 text-purple'
+							: 'bg-slate-100 text-slate-600'}"
+					>
+						{data.tenant.provisioningSource === 'SELF_SERVICE'
+							? 'Self-service signup'
+							: data.tenant.provisioningSource === 'IMPORT'
+								? 'Legacy import'
+								: 'Platform Admin'}
+					</span>
+				</dd>
+			</div>
+			<div>
+				<dt class="text-slate-400">Owner</dt>
+				<dd class="mt-0.5 font-medium text-slate-700">
+					{#if data.owner}
+						{data.owner.email}
+						{#if !data.owner.emailVerifiedAt}
+							<span class="badge ml-1 bg-warning/15 text-[#b58514]">unverified</span>
+						{/if}
+					{:else}
+						<span class="text-slate-400">No owner assigned</span>
+					{/if}
+				</dd>
+			</div>
+			<div>
+				<dt class="text-slate-400">Industry</dt>
+				<dd class="mt-0.5 font-medium text-slate-700">{data.industryLabel ?? '—'}</dd>
+			</div>
+			<div>
+				<dt class="text-slate-400">Onboarding</dt>
+				<dd class="mt-0.5 font-medium text-slate-700">
+					{#if data.tenant.onboardingCompletedAt}
+						Completed <TimeAgo value={data.tenant.onboardingCompletedAt} />
+					{:else}
+						<span class="text-slate-500">In progress</span>
+					{/if}
+				</dd>
+			</div>
+			<div>
+				<dt class="text-slate-400">Business phone</dt>
+				<dd class="mt-0.5 font-medium text-slate-700">{data.tenant.businessPhone ?? '—'}</dd>
+			</div>
+			<div>
+				<dt class="text-slate-400">Website</dt>
+				<dd class="mt-0.5 font-medium text-slate-700">
+					{#if data.tenant.websiteUrl}
+						<a href={data.tenant.websiteUrl} rel="noreferrer noopener" target="_blank" class="text-brand-600 hover:underline">
+							{data.tenant.websiteUrl}
+						</a>
+					{:else}—{/if}
+				</dd>
+			</div>
+			<div>
+				<dt class="text-slate-400">Country / currency</dt>
+				<dd class="mt-0.5 font-medium text-slate-700">{data.tenant.country ?? '—'} · {data.tenant.currency}</dd>
+			</div>
+			<div>
+				<dt class="text-slate-400">Owner last signed in</dt>
+				<dd class="mt-0.5 font-medium text-slate-700">
+					{#if data.owner?.lastLoginAt}<TimeAgo value={data.owner.lastLoginAt} />{:else}Never{/if}
+				</dd>
+			</div>
+		</dl>
+	</section>
+
 	<!-- Overview counters -->
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
 		{#each [['Members', data.counts.members], ['API keys', data.counts.api_keys], ['Customers', data.counts.customers], ['Requests', data.counts.booking_requests], ['Orders', data.counts.orders], ['Forms', data.counts.forms], ['Webhooks', data.counts.webhooks], ['Templates', data.counts.templates]] as [label, value] (label)}
@@ -161,7 +235,7 @@
 					{#if data.subscription}
 						<form method="POST" action="?/subscription" use:enhance class="flex items-center gap-2">
 							<select name="status" class="input py-1.5 text-xs">
-								{#each ['ACTIVE', 'TRIALING', 'PAST_DUE', 'CANCELLED'] as s (s)}
+								{#each ['ACTIVE', 'TRIALING', 'PAST_DUE', 'CANCELLED', 'EXPIRED'] as s (s)}
 									<option value={s} selected={data.subscription.subscription.status === s}>{s}</option>
 								{/each}
 							</select>

@@ -7,11 +7,14 @@ import { db, schema } from '$lib/server/db';
 import { toAppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
 import { enforce } from '$lib/server/rate-limit';
+import { signupEnabled } from '$lib/server/provisioning';
+import { pathForStage, stageForUser } from '$lib/server/signup';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, '/app');
-	return {};
+	// A half-finished signup must resume where it stopped, not bounce off /app.
+	if (locals.user) redirect(303, locals.user.isSuperAdmin ? '/admin' : pathForStage(await stageForUser(locals.user)));
+	return { signupEnabled: signupEnabled() };
 };
 
 export const actions: Actions = {
@@ -56,6 +59,6 @@ export const actions: Actions = {
 			requestId: event.locals.requestId
 		});
 
-		redirect(303, user.isSuperAdmin ? '/admin' : '/app');
+		redirect(303, user.isSuperAdmin ? '/admin' : pathForStage(await stageForUser(user)));
 	}
 };

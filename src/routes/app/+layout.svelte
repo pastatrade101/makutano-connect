@@ -8,6 +8,13 @@
 	import Toasts from '$components/Toasts.svelte';
 	let { data, children } = $props();
 
+	/** Whole days left on the trial, or null when the end date is unknown. */
+	const trialDaysLeft = $derived.by(() => {
+		const endsAt = data.trial?.endsAt;
+		if (!endsAt) return null;
+		return Math.max(0, Math.ceil((new Date(endsAt).getTime() - Date.now()) / 86_400_000));
+	});
+
 	type Item = {
 		href: string;
 		label: string;
@@ -205,6 +212,21 @@
 			{#if data.tenantSuspended}
 				<div class="mb-4 rounded-panel bg-danger/10 px-4 py-3 text-sm text-danger">
 					<b>This account is suspended.</b> You can still view your data, but new orders, bookings, messages and API writes are blocked. Please contact support.
+				</div>
+			{:else if data.trial}
+				<div class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-panel bg-brand-50 px-4 py-2.5 text-xs text-brand-800">
+					<span>
+						{#if trialDaysLeft === null}
+							You're on a free trial — everything is switched on.
+						{:else if trialDaysLeft > 1}
+							<b>{trialDaysLeft} days</b> left on your free trial. Nothing is charged until you choose a plan.
+						{:else if trialDaysLeft === 1}
+							Your free trial ends <b>tomorrow</b>.
+						{:else}
+							Your free trial ends <b>today</b>.
+						{/if}
+					</span>
+					<a href="/app/settings" class="font-semibold underline">Manage plan</a>
 				</div>
 			{:else if data.nearLimits?.length}
 				<div class="mb-4 rounded-panel bg-warning/10 px-4 py-2.5 text-xs text-[#b58514]">

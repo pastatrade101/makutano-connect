@@ -1,5 +1,7 @@
 import { bookingRequestStats } from '$lib/server/booking-requests';
 import { requireTenant } from '$lib/server/guards';
+import { dismissOnboarding, onboardingState } from '$lib/server/onboarding';
+import type { Actions } from './$types';
 import { bookingStats } from '$lib/server/bookings';
 import { customerStats } from '$lib/server/customers';
 import { paymentStats } from '$lib/server/payments';
@@ -41,11 +43,22 @@ export const load: PageServerLoad = async ({ locals }) => {
 		dailySeries(tenantId)
 	]);
 
+	const onboarding = await onboardingState(tenantId);
+
 	return {
 		stats: { requests, bookings, customers, payments },
 		recentRequests: recent.items,
 		inbox: inbox.items,
 		whatsapp: connection ? toSafeConnection(connection) : null,
-		activity
+		activity,
+		// Hidden once dismissed or finished — a checklist that never goes away is nagging.
+		onboarding: onboarding.dismissed || onboarding.allDone ? null : onboarding
 	};
+};
+
+export const actions: Actions = {
+	dismissOnboarding: async ({ locals }) => {
+		await dismissOnboarding(requireTenant(locals).id);
+		return { dismissed: true };
+	}
 };

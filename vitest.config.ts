@@ -10,7 +10,7 @@ export default defineConfig({
 		// The integration suite can run against a REMOTE Postgres (Supabase, eu-west-1),
 		// where every round-trip costs hundreds of ms. These are latency budgets, not
 		// slow tests: the same suite finishes in <1s against a local database.
-		testTimeout: 60_000,
+		testTimeout: 120_000,
 		hookTimeout: 60_000
 	},
 	resolve: {

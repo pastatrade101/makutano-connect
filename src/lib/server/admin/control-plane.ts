@@ -12,6 +12,7 @@ import {
 	type EntitlementValue
 } from '../entitlements';
 import { AppError } from '../errors';
+import { industryLabel } from '../provisioning';
 
 export type AdminActor = { userId: string; requestId?: string | null };
 
@@ -115,8 +116,23 @@ export async function tenantControlCenter(tenantId: string) {
 			.leftJoin(schema.users, eq(schema.users.id, schema.auditLogs.actorUserId))
 			.where(eq(schema.auditLogs.tenantId, tenantId))
 			.orderBy(desc(schema.auditLogs.createdAt))
-			.limit(15)
+			.limit(15),
 	]);
+
+	// Sequential, not part of the fan-out above: the pool is a shared, finite resource
+	// and this page already asks a lot of it at once.
+	const members = await db()
+		.select({
+			email: schema.users.email,
+			fullName: schema.users.fullName,
+			role: schema.tenantMemberships.role,
+			emailVerifiedAt: schema.users.emailVerifiedAt,
+			lastLoginAt: schema.users.lastLoginAt
+		})
+		.from(schema.tenantMemberships)
+		.innerJoin(schema.users, eq(schema.users.id, schema.tenantMemberships.userId))
+		.where(eq(schema.tenantMemberships.tenantId, tenantId))
+		.orderBy(schema.tenantMemberships.createdAt);
 
 	return {
 		tenant: row.tenant,
@@ -136,7 +152,10 @@ export async function tenantControlCenter(tenantId: string) {
 		connections,
 		counts: (counts as unknown as Array<Record<string, number>>)[0] ?? {},
 		recentErrors: recentErrors as unknown as Array<Record<string, unknown>>,
-		recentAudit
+		recentAudit,
+		members,
+		owner: members.find((m) => m.role === 'OWNER') ?? null,
+		industryLabel: row.tenant.industry ? industryLabel(row.tenant.industry) : null
 	};
 }
 

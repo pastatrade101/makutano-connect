@@ -2,6 +2,7 @@
 // endpoint receiving Meta's exact bytes + signature after cutover.
 import http from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { provisionTestTenant } from './support';
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const suite = TEST_DB ? describe : describe.skip;
@@ -88,8 +89,8 @@ suite('relay end-to-end', () => {
 		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 		sinkPort = (server.address() as { port: number }).port;
 
-		relayTenant = await ctx.tenants.provisionTenant({ name: 'Relay Co', slug: `relay-${stamp}` });
-		plainTenant = await ctx.tenants.provisionTenant({ name: 'Plain Co', slug: `plain-${stamp}` });
+		relayTenant = await provisionTestTenant({ name: 'Relay Co', slug: `relay-${stamp}` });
+		plainTenant = await provisionTestTenant({ name: 'Plain Co', slug: `plain-${stamp}` });
 		await liftLimits(relayTenant.id);
 		await liftLimits(plainTenant.id);
 
@@ -167,7 +168,7 @@ suite('multi-number primary selection', () => {
 			tenants: await import('../src/lib/server/tenants'),
 			db: await import('../src/lib/server/db')
 		};
-		tenant = await ctx2.tenants.provisionTenant({ name: 'Multi Co', slug: `multi-${stamp2}` });
+		tenant = await provisionTestTenant({ name: 'Multi Co', slug: `multi-${stamp2}` });
 		await liftLimits(tenant.id);
 	}, 60_000);
 

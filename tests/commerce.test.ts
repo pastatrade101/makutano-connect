@@ -1,6 +1,7 @@
 // Orders + catalog + forms + template engine — same standards as the booking suite:
 // tenant isolation is mandatory, money is computed server-side, lifecycles audit.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { provisionTestTenant } from './support';
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const suite = TEST_DB ? describe : describe.skip;
@@ -96,8 +97,8 @@ suite('commerce integration', () => {
 			payments: await import('../src/lib/server/payments'),
 			forms: await import('../src/lib/server/forms')
 		};
-		tenantA = await ctx.tenants.provisionTenant({ name: 'Shop A', slug: `shop-a-${stamp}`, bookingReferencePrefix: 'SHA' });
-		tenantB = await ctx.tenants.provisionTenant({ name: 'Shop B', slug: `shop-b-${stamp}`, bookingReferencePrefix: 'SHB' });
+		tenantA = await provisionTestTenant({ name: 'Shop A', slug: `shop-a-${stamp}`, bookingReferencePrefix: 'SHA' });
+		tenantB = await provisionTestTenant({ name: 'Shop B', slug: `shop-b-${stamp}`, bookingReferencePrefix: 'SHB' });
 		await liftLimits(tenantA.id);
 		await liftLimits(tenantB.id);
 	}, 60_000);
