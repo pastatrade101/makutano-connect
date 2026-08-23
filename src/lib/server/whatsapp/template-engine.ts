@@ -32,8 +32,8 @@ export type TemplateContext = {
 		deliveryLocation?: string | null;
 	} | null;
 	booking?: { reference?: string | null; startDate?: string | null; total?: string | null } | null;
-	quotation?: { reference?: string | null; total?: string | null } | null;
-	payment?: { amount?: string | null; amountDue?: string | null; link?: string | null } | null;
+	quotation?: { reference?: string | null; total?: string | null; link?: string | null } | null;
+	payment?: { amount?: string | null; amountDue?: string | null; link?: string | null; reference?: string | null } | null;
 };
 
 /** The whole vocabulary a tenant can use. Adding here makes it available everywhere. */
@@ -54,7 +54,9 @@ export const TEMPLATE_VARIABLES: Record<string, { label: string; resolve: (ctx: 
 	'quotation.total': { label: 'Quotation total', resolve: (c) => c.quotation?.total || '' },
 	'payment.amount': { label: 'Payment amount', resolve: (c) => c.payment?.amount || '' },
 	'payment.amount_due': { label: 'Amount due', resolve: (c) => c.payment?.amountDue || '' },
-	'payment.link': { label: 'Payment link', resolve: (c) => c.payment?.link || '' }
+	'payment.link': { label: 'Payment link', resolve: (c) => c.payment?.link || '' },
+	'payment.reference': { label: 'Payment reference', resolve: (c) => c.payment?.reference || '' },
+	'quotation.link': { label: 'Quotation link', resolve: (c) => c.quotation?.link || '' }
 };
 
 const VARIABLE_PATTERN = /\{\{\s*([a-z_]+\.[a-z_]+)\s*\}\}/g;
@@ -239,6 +241,12 @@ export async function sendEventTemplate(
 		if (!template) return false;
 
 		const values = resolveVariables((template.variables ?? []) as string[], ctx);
+		// Meta rejects empty body parameters outright; a skipped send that shows up in
+		// the log beats a guaranteed FAILED message in the customer's thread.
+		if (values.some((v) => !v || !v.trim())) {
+			log.info('template_send_skipped', { tenantId, event, reason: 'missing_variable_value' });
+			return false;
+		}
 		await queueMessage({
 			tenantId,
 			to,

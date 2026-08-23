@@ -26,6 +26,7 @@ import type { Pagination } from './http';
 import { resolveCredentials } from './whatsapp/connections';
 import { queueMessage } from './whatsapp/messages';
 import { templateForEvent } from './whatsapp/templates';
+import { resolveVariables } from './whatsapp/template-engine';
 
 export type BookingRequestItemInput = {
 	type?: schema.BookingRequest extends never ? never : (typeof schema.bookingItemTypeEnum.enumValues)[number];
@@ -241,24 +242,26 @@ async function sendAcknowledgement(
 
 	const template = await templateForEvent(tenantId, 'BOOKING_REQUEST_RECEIVED');
 	const name = customer.firstName || 'there';
+	// Resolve the template's OWN variable list — approved templates differ in how many
+	// parameters they take, and Meta rejects any mismatch outright.
+	const tenant = template ? await getTenantById(tenantId) : null;
+	const values = template
+		? resolveVariables((template.variables ?? []) as string[], {
+				customer: { firstName: customer.firstName, lastName: customer.lastName },
+				business: { name: tenant?.name ?? '' },
+				booking: { reference: request.reference }
+			})
+		: [];
 	await queueMessage({
 		tenantId,
 		to: waPhone,
 		dedupeKey: `br-ack:${request.id}`,
-		content: template
+		content: template && values.length && values.every((v) => v && v.trim())
 			? {
 					type: 'template',
 					templateName: template.name,
 					language: template.language,
-					components: [
-						{
-							type: 'body',
-							parameters: [
-								{ type: 'text', text: name },
-								{ type: 'text', text: request.reference }
-							]
-						}
-					]
+					components: [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }]
 				}
 			: {
 					type: 'text',

@@ -165,6 +165,29 @@ export async function setPaymentStatus(
 
 	if (status === 'SUCCEEDED' && payment.bookingId) {
 		await applyPaymentTotals(tenantId, payment.bookingId);
+		// Same courtesy order payments already get: a receipt through the Template
+		// Center when the tenant mapped one. Fire-and-forget.
+		void (async () => {
+			const [booking] = await dbh()
+				.select()
+				.from(sch.bookings)
+				.where(eqh(sch.bookings.id, payment.bookingId!))
+				.limit(1);
+			const [customer] = booking?.customerId
+				? await dbh().select().from(sch.customers).where(eqh(sch.customers.id, booking.customerId)).limit(1)
+				: [];
+			await sendEventTemplate(
+				tenantId,
+				'PAYMENT_RECEIVED',
+				customer?.whatsappPhone,
+				{
+					customer: { firstName: customer?.firstName, lastName: customer?.lastName },
+					booking: booking ? { reference: booking.bookingReference, total: booking.total } : null,
+					payment: { amount: `${payment.currency} ${payment.amount}`, reference: payment.reference }
+				},
+				`payment-received:${payment.id}`
+			);
+		})().catch(() => undefined);
 	}
 	if ((status === 'SUCCEEDED' || status === 'FAILED') && payment.orderId) {
 		const order = await applyOrderPaymentTotals(tenantId, payment.orderId);
@@ -180,7 +203,7 @@ export async function setPaymentStatus(
 					{
 						customer: { firstName: customer?.firstName, lastName: customer?.lastName },
 						order: { number: order.orderNumber, total: order.total, currency: order.currency },
-						payment: { amount: `${payment.currency} ${payment.amount}` }
+						payment: { amount: `${payment.currency} ${payment.amount}`, reference: payment.reference }
 					},
 					`payment-received:${payment.id}`
 				);

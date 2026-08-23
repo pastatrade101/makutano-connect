@@ -13,6 +13,7 @@ import { assertAllowed } from './entitlements';
 import { createBooking } from './bookings';
 import { findOrCreateCustomer } from './customers';
 import { emit } from './events';
+import { sendEventTemplate } from './whatsapp/template-engine';
 import { AppError } from './errors';
 import { getTenantById } from './tenants';
 import type { Pagination } from './http';
@@ -246,6 +247,27 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 		currency: updated.currency,
 		customerId: updated.customerId
 	});
+
+	// Notify the customer through the Template Center. The view link comes from the
+	// quotation's own metadata (set by the tenant's site/integration); if it is absent
+	// the engine's empty-variable guard skips the send rather than breaking at Meta.
+	void (async () => {
+		const [customer] = updated.customerId
+			? await db().select().from(schema.customers).where(eq(schema.customers.id, updated.customerId)).limit(1)
+			: [];
+		const meta = (updated.metadata ?? {}) as Record<string, unknown>;
+		const link = String(meta.viewUrl ?? meta.publicUrl ?? meta.link ?? '');
+		await sendEventTemplate(
+			tenantId,
+			'QUOTATION_READY',
+			customer?.whatsappPhone,
+			{
+				customer: { firstName: customer?.firstName, lastName: customer?.lastName },
+				quotation: { reference: updated.reference, total: `${updated.currency} ${updated.total}`, link }
+			},
+			`quotation-QUOTATION_READY:${updated.id}:${updated.version}`
+		);
+	})().catch(() => undefined);
 	return updated;
 }
 
