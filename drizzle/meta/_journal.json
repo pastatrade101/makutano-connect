@@ -43,6 +43,13 @@
       "when": 1787482747302,
       "tag": "0005_backfill_verified_users",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787498999918,
+      "tag": "0006_order_batches",
+      "breakpoints": true
     }
   ]
 }

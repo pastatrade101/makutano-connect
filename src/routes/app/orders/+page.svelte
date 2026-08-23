@@ -10,7 +10,7 @@
 
 	const STATUSES = ['DRAFT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'DELIVERED', 'CANCELLED', 'REFUNDED'].map((v) => ({ value: v, label: v.replace(/_/g, ' ') }));
 	const PAYMENTS = [{ value: 'unpaid', label: 'Unpaid only' }, { value: 'PAID', label: 'Paid' }, { value: 'PARTIALLY_PAID', label: 'Partially paid' }];
-	const SOURCES = ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'WEBSITE', 'INSTAGRAM', 'FACEBOOK', 'MANUAL', 'API', 'OTHER'].map((v) => ({ value: v, label: v.replace(/_/g, ' ') }));
+	const SOURCES = ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'PHONE', 'WALK_IN', 'WEBSITE', 'INSTAGRAM', 'FACEBOOK', 'MANUAL', 'API', 'OTHER'].map((v) => ({ value: v, label: v.replace(/_/g, ' ') }));
 </script>
 
 <svelte:head><title>Orders · {data.tenant.name}</title></svelte:head>
@@ -18,7 +18,10 @@
 <div class="space-y-3">
 	<div class="flex items-center justify-between">
 		<h1 class="text-base font-semibold text-slate-800">Orders</h1>
-		<a href="/app/orders/new" class="btn-primary">New order</a>
+		<div class="flex gap-2">
+			<a href="/app/orders/batches" class="btn-secondary">Batches</a>
+			<a href="/app/orders/new" class="btn-primary">New order</a>
+		</div>
 	</div>
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">

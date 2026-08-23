@@ -1376,14 +1376,20 @@ export const orderPaymentStatusEnum = pgEnum('order_payment_status', [
 export const orderSourceEnum = pgEnum('order_source', [
 	'WHATSAPP_DIRECT',
 	'WHATSAPP_STATUS',
+	// The merchant records that the customer came from a group they run. Connect never
+	// reads or scrapes groups — this is provenance the staff member types in.
 	'WHATSAPP_GROUP',
 	'WEBSITE',
 	'INSTAGRAM',
 	'FACEBOOK',
 	'MANUAL',
 	'API',
+	'PHONE',
+	'WALK_IN',
 	'OTHER'
 ]);
+
+export const orderBatchStatusEnum = pgEnum('order_batch_status', ['OPEN', 'CLOSED']);
 
 export const catalogItemTypeEnum = pgEnum('catalog_item_type', [
 	'PRODUCT',
@@ -1429,6 +1435,38 @@ export const catalogItems = pgTable(
 	]
 );
 
+/**
+ * Order Batch — one selling round with shared defaults (§fish-seller workflow).
+ *
+ * "Saturday Fish Delivery — 4 July: Fresh Fish, KG, TZS 14,000" is created once; each
+ * order in the batch then only needs a customer and a quantity. This replaces the
+ * numbered list the seller maintains by hand inside a WhatsApp message. It is NOT
+ * inventory: nothing is reserved, counted or forecast.
+ */
+export const orderBatches = pgTable(
+	'order_batches',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		description: text('description'),
+		status: orderBatchStatusEnum('status').notNull().default('OPEN'),
+		/** The day everyone gets their fish. Inherited by orders created in the batch. */
+		fulfilmentDate: timestamp('fulfilment_date', { withTimezone: true }),
+		defaultItemTitle: text('default_item_title').notNull(),
+		defaultUnit: text('default_unit'),
+		defaultUnitPrice: money('default_unit_price').notNull().default('0'),
+		currency: text('currency').notNull().default('USD'),
+		defaultDeliveryMethod: deliveryMethodEnum('default_delivery_method'),
+		createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [index('order_batches_tenant_idx').on(t.tenantId, t.status, t.fulfilmentDate)]
+);
+
 export const orders = pgTable(
 	'orders',
 	{
@@ -1450,8 +1488,13 @@ export const orders = pgTable(
 		deliveryFee: money('delivery_fee').notNull().default('0'),
 		total: money('total').notNull().default('0'),
 		amountPaid: money('amount_paid').notNull().default('0'),
+		batchId: uuid('batch_id').references(() => orderBatches.id, { onDelete: 'set null' }),
 		deliveryMethod: deliveryMethodEnum('delivery_method'),
 		deliveryLocation: text('delivery_location'),
+		/** When the customer gets it — a promise, not a shipping engine. */
+		deliveryDate: timestamp('delivery_date', { withTimezone: true }),
+		/** Intended method ("Cash on Delivery", "Mobile Payment"). Actual money recorded in payments. */
+		paymentMethod: text('payment_method'),
 		notes: text('notes'),
 		externalReference: text('external_reference'),
 		externalSource: text('external_source'),
@@ -1469,7 +1512,8 @@ export const orders = pgTable(
 		index('orders_tenant_status_idx').on(t.tenantId, t.status, t.createdAt),
 		index('orders_tenant_payment_idx').on(t.tenantId, t.paymentStatus),
 		index('orders_customer_idx').on(t.customerId),
-		index('orders_conversation_idx').on(t.conversationId)
+		index('orders_conversation_idx').on(t.conversationId),
+		index('orders_batch_idx').on(t.batchId)
 	]
 );
 
@@ -1488,6 +1532,8 @@ export const orderItems = pgTable(
 		variant: text('variant'), // "Black / Size 43", "256GB / Black"
 		sku: text('sku'),
 		quantity: integer('quantity').notNull().default(1),
+		/** KG, Piece, Pack, Box… free text, shown next to the quantity. Never an enum. */
+		unit: text('unit'),
 		unitPrice: money('unit_price').notNull().default('0'),
 		discount: money('discount').notNull().default('0'),
 		total: money('total').notNull().default('0'),
@@ -1551,6 +1597,7 @@ export const forms = pgTable(
 );
 
 export type Order = typeof orders.$inferSelect;
+export type OrderBatch = typeof orderBatches.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type CatalogItem = typeof catalogItems.$inferSelect;
 export type Form = typeof forms.$inferSelect;

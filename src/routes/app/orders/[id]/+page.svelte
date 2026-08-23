@@ -60,8 +60,8 @@
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Total</div><div class="text-lg font-bold"><Money amount={data.order.total} currency={data.order.currency} /></div></div>
 		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Paid</div><div class="text-lg font-bold text-success"><Money amount={data.order.amountPaid} currency={data.order.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Delivery</div><div class="text-sm font-semibold">{data.order.deliveryMethod ?? '—'}{#if Number(data.order.deliveryFee) > 0} · <Money amount={data.order.deliveryFee} currency={data.order.currency} />{/if}</div><div class="truncate text-[11px] text-slate-400">{data.order.deliveryLocation ?? ''}</div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Source</div><div class="text-sm font-semibold">{data.order.source.replace(/_/g, ' ')}</div>{#if data.order.externalReference}<div class="truncate font-mono text-[11px] text-slate-400">{data.order.externalSource ?? 'ext'}:{data.order.externalReference}</div>{/if}</div>
+		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Delivery</div><div class="text-sm font-semibold">{data.order.deliveryMethod ?? '—'}{#if data.order.deliveryDate} · {new Date(data.order.deliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{/if}</div><div class="truncate text-[11px] text-slate-400">{data.order.deliveryLocation ?? ''}</div></div>
+		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Source</div><div class="text-sm font-semibold">{data.order.source.replace(/_/g, ' ')}</div>{#if data.batch}<a href="/app/orders/batches/{data.batch.id}" class="truncate text-[11px] text-brand-600 hover:underline">{data.batch.name}</a>{:else if data.order.paymentMethod}<div class="truncate text-[11px] text-slate-400">{data.order.paymentMethod}</div>{/if}</div>
 	</div>
 
 	<div class="grid gap-3 lg:grid-cols-3">
@@ -78,7 +78,7 @@
 									{#if item.sku || item.externalReference}<div class="font-mono text-[11px] text-slate-400">{item.sku ?? item.externalReference}</div>{/if}
 								</td>
 								<td class="table-cell text-slate-500">{item.variant ?? '—'}</td>
-								<td class="table-cell tabular-nums">{item.quantity}</td>
+								<td class="table-cell tabular-nums">{item.quantity}{item.unit ? ` ${item.unit}` : ''}</td>
 								<td class="table-cell"><Money amount={item.unitPrice} currency={data.order.currency} /></td>
 								<td class="table-cell"><Money amount={item.total} currency={data.order.currency} /></td>
 							</tr>
@@ -98,8 +98,8 @@
 				{#if canPay}
 					<form method="POST" action="?/payment" use:enhance class="flex flex-wrap items-end gap-2 border-b border-slate-100 p-3">
 						<div><label class="label" for="amount">Amount</label><input id="amount" name="amount" placeholder="0.00" class="input w-32" /></div>
-						<div><label class="label" for="provider">Method</label><select id="provider" name="provider" class="input w-auto"><option value="MANUAL">Manual / cash</option><option value="BANK_TRANSFER">Bank transfer</option></select></div>
-						<div class="flex-1"><label class="label" for="description">Note</label><input id="description" name="description" class="input" /></div>
+						<div><label class="label" for="provider">Method</label><select id="provider" name="provider" class="input w-auto"><option value="MANUAL">Cash / mobile money</option><option value="BANK_TRANSFER">Bank transfer</option></select></div>
+						<div class="flex-1"><label class="label" for="description">Reference / note</label><input id="description" name="description" placeholder="M-Pesa TX123… (optional)" class="input" /></div>
 						<button class="btn-primary">Record</button>
 					</form>
 				{/if}

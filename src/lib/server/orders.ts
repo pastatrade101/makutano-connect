@@ -30,6 +30,8 @@ export type OrderItemInput = {
 	variant?: string | null;
 	sku?: string | null;
 	quantity?: number;
+	/** KG, Piece, Pack… free text shown beside the quantity. */
+	unit?: string | null;
 	unitPrice?: string | null;
 	discount?: string | null;
 	externalReference?: string | null;
@@ -48,6 +50,10 @@ export type CreateOrderInput = {
 	deliveryFee?: string;
 	deliveryMethod?: schema.Order['deliveryMethod'];
 	deliveryLocation?: string | null;
+	/** Verified tenant-scoped before use — a batch id is a link, not authorization. */
+	batchId?: string | null;
+	deliveryDate?: Date | null;
+	paymentMethod?: string | null;
 	notes?: string | null;
 	externalReference?: string | null;
 	externalSource?: string | null;
@@ -79,6 +85,7 @@ async function insertItems(tenantId: string, orderId: string, items: OrderItemIn
 			variant: item.variant ?? null,
 			sku: item.sku ?? null,
 			quantity: item.quantity ?? 1,
+			unit: item.unit ?? null,
 			unitPrice: item.unitPrice ?? '0',
 			discount: item.discount ?? '0',
 			total: fixed(Math.max(0, dec(item.unitPrice) * (item.quantity ?? 1) - dec(item.discount))),
@@ -114,6 +121,15 @@ export async function createOrder(tenantId: string, input: CreateOrderInput, act
 			.limit(1);
 		if (!rows[0]) throw new AppError('CUSTOMER_NOT_FOUND', 'Customer could not be found.');
 	}
+	if (input.batchId) {
+		const rows = await db()
+			.select({ id: schema.orderBatches.id, status: schema.orderBatches.status })
+			.from(schema.orderBatches)
+			.where(and(eq(schema.orderBatches.id, input.batchId), eq(schema.orderBatches.tenantId, tenantId)))
+			.limit(1);
+		if (!rows[0]) throw new AppError('NOT_FOUND', 'Batch could not be found.');
+		if (rows[0].status !== 'OPEN') throw new AppError('VALIDATION_ERROR', 'This batch is closed to new orders.');
+	}
 
 	const { subtotal, total } = computeOrderTotals(input.items, input.discount, input.deliveryFee);
 	const orderNumber = await nextReference(db(), tenantId, 'OR', tenant.bookingReferencePrefix);
@@ -137,6 +153,9 @@ export async function createOrder(tenantId: string, input: CreateOrderInput, act
 			total,
 			deliveryMethod: input.deliveryMethod ?? null,
 			deliveryLocation: input.deliveryLocation ?? null,
+			batchId: input.batchId ?? null,
+			deliveryDate: input.deliveryDate ?? null,
+			paymentMethod: input.paymentMethod ?? null,
 			notes: input.notes ?? null,
 			externalReference: input.externalReference ?? null,
 			externalSource: input.externalSource ?? null,
@@ -197,7 +216,7 @@ export async function getOrder(tenantId: string, id: string): Promise<schema.Ord
 
 export async function getOrderDetail(tenantId: string, id: string) {
 	const order = await getOrder(tenantId, id);
-	const [items, history, paymentRows, customer, conversation] = await Promise.all([
+	const [items, history, paymentRows, customer, conversation, batch] = await Promise.all([
 		db().select().from(schema.orderItems).where(eq(schema.orderItems.orderId, id)).orderBy(schema.orderItems.createdAt),
 		db()
 			.select()
@@ -214,12 +233,28 @@ export async function getOrderDetail(tenantId: string, id: string) {
 			: Promise.resolve([]),
 		order.conversationId
 			? db().select().from(schema.conversations).where(eq(schema.conversations.id, order.conversationId)).limit(1)
+			: Promise.resolve([]),
+		order.batchId
+			? db()
+					.select({ id: schema.orderBatches.id, name: schema.orderBatches.name })
+					.from(schema.orderBatches)
+					.where(and(eq(schema.orderBatches.id, order.batchId), eq(schema.orderBatches.tenantId, tenantId)))
+					.limit(1)
 			: Promise.resolve([])
 	]);
-	return { order, items, history, payments: paymentRows, customer: customer[0] ?? null, conversation: conversation[0] ?? null };
+	return {
+		order,
+		items,
+		history,
+		payments: paymentRows,
+		customer: customer[0] ?? null,
+		conversation: conversation[0] ?? null,
+		batch: batch[0] ?? null
+	};
 }
 
 export type OrderFilters = {
+	batchId?: string;
 	status?: schema.Order['status'] | schema.Order['status'][];
 	paymentStatus?: schema.Order['paymentStatus'];
 	source?: schema.Order['source'];
@@ -234,6 +269,7 @@ export async function listOrders(tenantId: string, p: Pagination, filters: Order
 			Array.isArray(filters.status) ? inArray(schema.orders.status, filters.status) : eq(schema.orders.status, filters.status)
 		);
 	}
+	if (filters.batchId) conditions.push(eq(schema.orders.batchId, filters.batchId));
 	if (filters.paymentStatus) conditions.push(eq(schema.orders.paymentStatus, filters.paymentStatus));
 	if (filters.source) conditions.push(eq(schema.orders.source, filters.source));
 	if (filters.customerId) conditions.push(eq(schema.orders.customerId, filters.customerId));

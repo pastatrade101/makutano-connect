@@ -1,6 +1,6 @@
 {
-  "id": "1aba28cf-d9e8-428f-8c2a-c4eb4c953c03",
-  "prevId": "e7727a7d-3497-4480-9de4-7b75291a76d0",
+  "id": "b53a06e4-4052-4fc7-9b0f-df313886b6a2",
+  "prevId": "1aba28cf-d9e8-428f-8c2a-c4eb4c953c03",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3628,6 +3628,166 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.order_batches": {
+      "name": "order_batches",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "order_batch_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'OPEN'"
+        },
+        "fulfilment_date": {
+          "name": "fulfilment_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_item_title": {
+          "name": "default_item_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "default_unit": {
+          "name": "default_unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_unit_price": {
+          "name": "default_unit_price",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "default_delivery_method": {
+          "name": "default_delivery_method",
+          "type": "delivery_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "order_batches_tenant_idx": {
+          "name": "order_batches_tenant_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fulfilment_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "order_batches_tenant_id_tenants_id_fk": {
+          "name": "order_batches_tenant_id_tenants_id_fk",
+          "tableFrom": "order_batches",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "order_batches_created_by_user_id_users_id_fk": {
+          "name": "order_batches_created_by_user_id_users_id_fk",
+          "tableFrom": "order_batches",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.order_items": {
       "name": "order_items",
       "schema": "",
@@ -3681,6 +3841,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": 1
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "unit_price": {
           "name": "unit_price",
@@ -4047,6 +4213,12 @@
           "notNull": true,
           "default": "'0'"
         },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "delivery_method": {
           "name": "delivery_method",
           "type": "delivery_method",
@@ -4056,6 +4228,18 @@
         },
         "delivery_location": {
           "name": "delivery_location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_date": {
+          "name": "delivery_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_method": {
+          "name": "payment_method",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -4229,6 +4413,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "orders_batch_idx": {
+          "name": "orders_batch_idx",
+          "columns": [
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -4277,6 +4476,19 @@
           "tableTo": "leads",
           "columnsFrom": [
             "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "orders_batch_id_order_batches_id_fk": {
+          "name": "orders_batch_id_order_batches_id_fk",
+          "tableFrom": "orders",
+          "tableTo": "order_batches",
+          "columnsFrom": [
+            "batch_id"
           ],
           "columnsTo": [
             "id"
@@ -7890,6 +8102,14 @@
         "READ"
       ]
     },
+    "public.order_batch_status": {
+      "name": "order_batch_status",
+      "schema": "public",
+      "values": [
+        "OPEN",
+        "CLOSED"
+      ]
+    },
     "public.order_payment_status": {
       "name": "order_payment_status",
       "schema": "public",
@@ -7913,6 +8133,8 @@
         "FACEBOOK",
         "MANUAL",
         "API",
+        "PHONE",
+        "WALK_IN",
         "OTHER"
       ]
     },

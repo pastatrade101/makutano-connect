@@ -17,26 +17,26 @@ export const load: PageServerLoad = async ({ url }) => {
 		.select({
 			tenant: schema.tenants,
 			plan: schema.plans,
-			requests: sql<number>`(select count(*) from booking_requests br where br.tenant_id = ${schema.tenants.id})::int`,
+			requests: sql<number>`(select count(*) from booking_requests br where br.tenant_id = tenants.id)::int`,
 			whatsapp: sql<
 				string | null
-			>`(select status::text from whatsapp_connections wc where wc.tenant_id = ${schema.tenants.id} limit 1)`,
+			>`(select status::text from whatsapp_connections wc where wc.tenant_id = tenants.id limit 1)`,
 			// Who owns this tenant, and did they arrive through signup or through us?
 			ownerEmail: sql<string | null>`(
 				select u.email from tenant_memberships tm
 				join users u on u.id = tm.user_id
-				where tm.tenant_id = ${schema.tenants.id} and tm.role = 'OWNER'
+				where tm.tenant_id = tenants.id and tm.role = 'OWNER'
 				order by tm.created_at limit 1
 			)`,
 			ownerVerified: sql<boolean | null>`(
 				select u.email_verified_at is not null from tenant_memberships tm
 				join users u on u.id = tm.user_id
-				where tm.tenant_id = ${schema.tenants.id} and tm.role = 'OWNER'
+				where tm.tenant_id = tenants.id and tm.role = 'OWNER'
 				order by tm.created_at limit 1
 			)`,
 			subscriptionStatus: sql<string | null>`(
 				select s.status::text from subscriptions s
-				where s.tenant_id = ${schema.tenants.id} order by s.created_at desc limit 1
+				where s.tenant_id = tenants.id order by s.created_at desc limit 1
 			)`
 		})
 		.from(schema.tenants)

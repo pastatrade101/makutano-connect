@@ -88,3 +88,25 @@ Your code emits the event; the tenant's mapping decides what the customer receiv
 ## Order webhooks
 
 The webhook catalogue gains `order.created`, `order.confirmed`, `order.processing`, `order.ready`, `order.dispatched`, `order.delivered`, `order.cancelled`, `order.refunded` — same delivery format, signature and retries as every other event, with `externalReference` included for reconciliation.
+
+### Order batches
+
+For businesses that sell around a delivery day — the fish seller who posts *"Fresh fish
+available Saturday, TZS 14,000/KG"* in a WhatsApp group and collects orders in replies —
+a **batch** holds the shared details once: item, unit, price, currency and the delivery
+date. Recording an order inside the batch then takes two fields: the customer and the
+quantity. The total is calculated automatically.
+
+The batch view shows the numbers that used to live in a pinned WhatsApp message —
+customers, total quantity, expected revenue, paid and outstanding — plus a one-tap
+operational list (Confirm, Ready, Dispatch, Delivered, Mark paid, open the linked
+WhatsApp conversation). Bulk entry accepts pasted lines in the form `Name | quantity`.
+
+Two things batches are **not**: inventory (nothing is stocked or reserved) and group
+automation. Connect never reads WhatsApp groups — `WHATSAPP_GROUP` as an order source is
+provenance the staff member records by hand, and transactional updates are only sent
+through approved templates to customers in a supported direct conversation, subject to
+the same compliance checks as every other message.
+
+Portal: **Orders → Batches**. API: batch orders are ordinary orders carrying a
+`batchId`; existing `order.*` webhooks and template events fire unchanged.

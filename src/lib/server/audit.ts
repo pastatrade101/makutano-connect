@@ -50,6 +50,8 @@ export type AuditAction =
 	| 'quotation.converted'
 	| 'order.created'
 	| 'order.status_changed'
+	| 'order_batch.created'
+	| 'order_batch.updated'
 	| 'form.created'
 	| 'form.updated'
 	| 'form.submission'

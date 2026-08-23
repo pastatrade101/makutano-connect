@@ -6,21 +6,37 @@
 	import FormToast from '$components/FormToast.svelte';
 	let { data, form } = $props();
 
-	type Row = { catalogItemId: string | null; title: string; variant: string; quantity: number; unitPrice: string };
-	let rows = $state<Row[]>([{ catalogItemId: null, title: '', variant: '', quantity: 1, unitPrice: '' }]);
+	type Row = { catalogItemId: string | null; title: string; variant: string; quantity: number; unit: string; unitPrice: string };
+	let rows = $state<Row[]>([{ catalogItemId: null, title: '', variant: '', quantity: 1, unit: '', unitPrice: '' }]);
 	let discount = $state('');
 	let deliveryFee = $state('');
+	let batchId = $state('');
+	let deliveryDate = $state('');
+	let newCustomerName = $state('');
+	let newCustomerPhone = $state('');
+
+	/** Selecting a batch fills the first empty row and the delivery details (§27). */
+	function applyBatch(id: string) {
+		batchId = id;
+		const b = data.batches.find((x) => x.id === id);
+		if (!b) return;
+		const target = rows.find((r) => !r.title.trim()) ?? rows[0];
+		target.title = b.itemTitle;
+		target.unit = b.unit ?? '';
+		target.unitPrice = b.unitPrice ?? '';
+		if (b.fulfilmentDate) deliveryDate = new Date(b.fulfilmentDate).toISOString().slice(0, 10);
+	}
 
 	const subtotal = $derived(rows.reduce((s, r) => s + (Number(r.unitPrice) || 0) * (r.quantity || 1), 0));
 	const total = $derived(Math.max(0, subtotal - (Number(discount) || 0) + (Number(deliveryFee) || 0)));
 
 	function addRow() {
-		rows.push({ catalogItemId: null, title: '', variant: '', quantity: 1, unitPrice: '' });
+		rows.push({ catalogItemId: null, title: '', variant: '', quantity: 1, unit: '', unitPrice: '' });
 	}
 	function addFromCatalog(id: string) {
 		const item = data.catalog.find((c) => c.id === id);
 		if (!item) return;
-		rows.push({ catalogItemId: item.id, title: item.name, variant: '', quantity: 1, unitPrice: item.price ?? '' });
+		rows.push({ catalogItemId: item.id, title: item.name, variant: '', quantity: 1, unit: '', unitPrice: item.price ?? '' });
 		if (rows.length > 1 && !rows[0].title) rows.shift();
 	}
 	const validRows = $derived(rows.filter((r) => r.title.trim()));
@@ -57,17 +73,31 @@
 								<option value={c.id}>{[c.firstName, c.lastName].filter(Boolean).join(' ')}{c.whatsappPhone ? ` (+${c.whatsappPhone})` : ''}</option>
 							{/each}
 						</select>
-						<p class="mt-1 text-[11px] text-slate-400">New customer? They're created automatically when the order comes from a conversation or form.</p>
+						<div class="mt-1.5 grid grid-cols-2 gap-2">
+							<input name="newCustomerName" bind:value={newCustomerName} placeholder="…or new customer name" class="input !py-1.5 text-xs" />
+							<input name="newCustomerPhone" bind:value={newCustomerPhone} placeholder="WhatsApp number (optional)" inputmode="tel" class="input !py-1.5 text-xs" />
+						</div>
 					</div>
 				{/if}
 				<div>
 					<label class="label" for="source">Source</label>
 					<select id="source" name="source" class="input">
-						{#each ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'INSTAGRAM', 'FACEBOOK', 'WEBSITE', 'MANUAL', 'OTHER'] as s (s)}
+						{#each ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'PHONE', 'WALK_IN', 'INSTAGRAM', 'FACEBOOK', 'WEBSITE', 'MANUAL', 'OTHER'] as s (s)}
 							<option value={s} selected={data.conversation ? s === 'WHATSAPP_DIRECT' : s === 'MANUAL'}>{s.replace(/_/g, ' ')}</option>
 						{/each}
 					</select>
 				</div>
+				{#if data.batches.length}
+					<div class="sm:col-span-2">
+						<label class="label" for="batchId">Batch <span class="font-normal text-slate-400">(optional — fills item, price and delivery day)</span></label>
+						<select id="batchId" name="batchId" class="input" value={batchId} onchange={(e) => applyBatch(e.currentTarget.value)}>
+							<option value="">— no batch —</option>
+							{#each data.batches as b (b.id)}
+								<option value={b.id}>{b.name} · {b.itemTitle} @ {b.currency} {b.unitPrice}{b.unit ? `/${b.unit}` : ''}</option>
+							{/each}
+						</select>
+					</div>
+				{/if}
 			</div>
 		</section>
 
@@ -84,10 +114,11 @@
 			<div class="space-y-2">
 				{#each rows as row, i (i)}
 					<div class="grid grid-cols-12 gap-2">
-						<input placeholder="Item (e.g. Nike Air Max)" bind:value={row.title} class="input col-span-4" />
-						<input placeholder="Variant (Black / 43)" bind:value={row.variant} class="input col-span-3" />
-						<input type="number" min="1" bind:value={row.quantity} class="input col-span-2" aria-label="Quantity" />
-						<input placeholder="Unit price" bind:value={row.unitPrice} class="input col-span-2" />
+						<input placeholder="Item (e.g. Fresh Fish)" bind:value={row.title} class="input col-span-12 sm:col-span-4" />
+						<input placeholder="Variant (optional)" bind:value={row.variant} class="input col-span-4 sm:col-span-2" />
+						<input type="number" min="1" inputmode="numeric" bind:value={row.quantity} class="input col-span-2 sm:col-span-1" aria-label="Quantity" />
+						<input placeholder="Unit" list="unit-options" bind:value={row.unit} class="input col-span-2 sm:col-span-2" aria-label="Unit" />
+						<input placeholder="Unit price" inputmode="decimal" bind:value={row.unitPrice} class="input col-span-3 sm:col-span-2" />
 						<button type="button" class="col-span-1 text-slate-400 hover:text-danger" onclick={() => rows.splice(i, 1)} aria-label="Remove">✕</button>
 					</div>
 				{/each}
@@ -103,7 +134,16 @@
 				<select id="deliveryMethod" name="deliveryMethod" class="input"><option value="">—</option><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option></select>
 			</div>
 			<div><label class="label" for="deliveryLocation">Location</label><input id="deliveryLocation" name="deliveryLocation" class="input" /></div>
-			<div class="sm:col-span-4"><label class="label" for="notes">Notes</label><textarea id="notes" name="notes" rows="2" class="input"></textarea></div>
+			<div><label class="label" for="deliveryDate">Delivery date</label><input id="deliveryDate" name="deliveryDate" type="date" bind:value={deliveryDate} class="input" /></div>
+			<div>
+				<label class="label" for="paymentMethod">Payment method</label>
+				<select id="paymentMethod" name="paymentMethod" class="input">
+					<option value="">—</option>
+					{#each ['Cash on Delivery', 'Mobile Payment', 'Bank Transfer', 'Other'] as m (m)}<option value={m}>{m}</option>{/each}
+				</select>
+			</div>
+			<div class="sm:col-span-4"><label class="label" for="notes">Notes</label><textarea id="notes" name="notes" rows="2" class="input" placeholder="Call before delivery."></textarea></div>
+			<datalist id="unit-options">{#each data.units as u (u)}<option value={u}></option>{/each}</datalist>
 		</section>
 
 		<div class="card flex flex-wrap items-center justify-between gap-3 p-3">
