@@ -89,8 +89,13 @@ export async function authenticateApiKey(authorizationHeader: string | null): Pr
 		throw new AppError('API_KEY_EXPIRED', 'This API key has expired.');
 	}
 	if (row.tenant.deletedAt) throw new AppError('TENANT_NOT_FOUND', 'Tenant not found.');
-	if (row.tenant.status === 'SUSPENDED' || row.tenant.status === 'CANCELLED') {
-		throw new AppError('FORBIDDEN', 'This account is not active.');
+	// Distinguish suspension from a generic refusal so the caller (and our own UI) can
+	// say what actually happened instead of guessing at a 403.
+	if (row.tenant.status === 'SUSPENDED') {
+		throw new AppError('TENANT_SUSPENDED', 'This account is suspended. Please contact support.');
+	}
+	if (row.tenant.status === 'CANCELLED') {
+		throw new AppError('TENANT_SUSPENDED', 'This account is closed.');
 	}
 
 	// last_used_at is best-effort telemetry; never fail a request because it did not write.
