@@ -14,7 +14,7 @@
 			<tbody class="divide-y divide-slate-100">
 				{#each data.connections as c (c.id)}
 					<tr>
-						<td class="table-cell font-medium text-slate-800">{c.tenantName}</td>
+						<td class="table-cell"><a href="/admin/whatsapp/{c.id}" class="font-medium text-brand-600 hover:underline">{c.tenantName}</a></td>
 						<td class="table-cell">
 							<div>{c.displayPhoneNumber ?? '—'}</div>
 							<div class="font-mono text-[11px] text-slate-400">{c.phoneNumberId}</div>

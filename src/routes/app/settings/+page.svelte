@@ -4,10 +4,6 @@
 	let { data, form } = $props();
 	const canWrite = $derived(data.permissions?.includes('tenant:write'));
 
-	function pct(used: number, limit: number | undefined): number {
-		if (!limit || limit <= 0) return 0;
-		return Math.min(100, Math.round((used / limit) * 100));
-	}
 </script>
 
 <svelte:head><title>Settings · {data.tenant.name}</title></svelte:head>
@@ -47,20 +43,20 @@
 	</form>
 
 	<section class="card">
-		<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-			<h2 class="text-sm font-semibold text-slate-800">Plan &amp; usage</h2>
-			<span class="badge bg-brand-50 text-brand-600 ring-1 ring-brand-200">{data.plan.code}</span>
+		<header class="card-header">
+			<h2 class="card-title">Plan &amp; usage</h2>
+			<span class="badge bg-brand-50 text-brand-600">{data.plan.name}</span>
 		</header>
-		<div class="space-y-3 p-3">
-			{#each [{ label: 'API requests', used: data.usage.apiRequests, limit: data.plan.limits.api_requests_per_minute ? undefined : undefined }, { label: 'Booking requests', used: data.usage.bookingRequests, limit: data.plan.limits.booking_requests_per_month }, { label: 'WhatsApp messages sent', used: data.usage.whatsappOutbound, limit: data.plan.limits.whatsapp_outbound_per_month }] as row (row.label)}
+		<div class="space-y-3 p-4">
+			{#each data.usage as row (row.label)}
 				<div>
 					<div class="flex justify-between text-xs">
 						<span class="text-slate-600">{row.label}</span>
-						<span class="tabular-nums text-slate-500">{row.used}{row.limit ? ` / ${row.limit}` : ''}</span>
+						<span class="tabular-nums text-slate-500">{row.used}{row.limit === null ? '' : ` / ${row.limit}`}</span>
 					</div>
-					{#if row.limit}
+					{#if row.limit !== null}
 						<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-							<div class="h-full rounded-full {pct(row.used, row.limit) > 85 ? 'bg-danger/100' : 'bg-brand-500'}" style="width: {pct(row.used, row.limit)}%"></div>
+							<div class="h-full rounded-full {row.percent >= 100 ? 'bg-danger' : row.percent >= 80 ? 'bg-warning' : 'bg-brand-500'}" style="width: {row.percent}%"></div>
 						</div>
 					{/if}
 				</div>

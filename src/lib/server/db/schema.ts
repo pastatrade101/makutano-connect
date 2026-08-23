@@ -126,6 +126,15 @@ export const plans = pgTable('plans', {
 		.$type<Record<string, boolean>>()
 		.notNull()
 		.default(sql`'{}'::jsonb`),
+	/**
+	 * Canonical entitlements keyed generically: { 'orders.enabled': true,
+	 * 'whatsapp.maxNumbers': 1, … }. For numeric keys 0 means UNLIMITED — the same
+	 * convention the legacy `limits` column already uses, so ENTERPRISE keeps working.
+	 */
+	entitlements: jsonb('entitlements')
+		.$type<Record<string, boolean | number>>()
+		.notNull()
+		.default(sql`'{}'::jsonb`),
 	isActive: boolean('is_active').notNull().default(true),
 	sortOrder: integer('sort_order').notNull().default(0),
 	createdAt: createdAt(),
@@ -154,6 +163,14 @@ export const tenants = pgTable(
 			.default(sql`'{}'::jsonb`),
 		notificationPreferences: jsonb('notification_preferences')
 			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		/**
+		 * Sparse per-tenant overrides — ONLY explicitly set keys live here, so a plan
+		 * change still flows through for every key the tenant has not overridden.
+		 */
+		entitlementOverrides: jsonb('entitlement_overrides')
+			.$type<Record<string, boolean | number>>()
 			.notNull()
 			.default(sql`'{}'::jsonb`),
 		createdAt: createdAt(),
@@ -391,6 +408,11 @@ export const customers = pgTable(
 		source: sourceEnum('source').notNull().default('WEBSITE'),
 		notes: text('notes'),
 		externalReference: text('external_reference'),
+		/** WhatsApp opt-out (STOP). Compliance state — no plan or admin overrides it. */
+		whatsappOptedOut: boolean('whatsapp_opted_out').notNull().default(false),
+		whatsappOptedOutAt: timestamp('whatsapp_opted_out_at', { withTimezone: true }),
+		/** Last inbound WhatsApp message — drives Meta's 24-hour service window. */
+		lastInboundAt: timestamp('last_inbound_at', { withTimezone: true }),
 		createdAt: createdAt(),
 		updatedAt: updatedAt(),
 		deletedAt: timestamp('deleted_at', { withTimezone: true })
@@ -1260,6 +1282,7 @@ export type Booking = typeof bookings.$inferSelect;
 export type Quotation = typeof quotations.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
+export type Subscription = typeof subscriptions.$inferSelect;
 export type WhatsappOnboardingSession = typeof whatsappOnboardingSessions.$inferSelect;
 export type WhatsappTemplate = typeof whatsappTemplates.$inferSelect;
 export type WebhookEndpoint = typeof webhookEndpoints.$inferSelect;

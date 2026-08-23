@@ -12,7 +12,7 @@ import {
 	requireApiScope
 } from '$lib/server/http';
 import { withIdempotency } from '$lib/server/idempotency';
-import { requireFeature } from '$lib/server/billing';
+import { assertFeature } from '$lib/server/entitlements';
 
 const itemSchema = z.object({
 	type: z.enum(['TOUR', 'HOTEL', 'ROOM', 'TRANSFER', 'ACTIVITY', 'PARK_FEE', 'EXTRA', 'CUSTOM']).optional(),
@@ -102,7 +102,7 @@ export const GET: RequestHandler = async (event) =>
 export const POST: RequestHandler = async (event) =>
 	handle(event, async () => {
 		const ctx = requireApiScope(event, 'quotations:write');
-		await requireFeature(ctx.tenantId, 'quotations');
+		await assertFeature(ctx.tenantId, 'quotations.enabled');
 		const body = await parseBody(event, createSchema);
 		const outcome = await withIdempotency(
 			{

@@ -8,7 +8,7 @@ import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { authenticateApiKey } from '$lib/server/api-keys';
 import { permissionsForRole } from '$lib/server/auth/permissions';
 import { resolveSession, SESSION_COOKIE } from '$lib/server/auth/session';
-import { apiRateLimitFor } from '$lib/server/billing';
+import { assertFeature, assertTenantActive, getLimit } from '$lib/server/entitlements';
 import { sha256 } from '$lib/server/encryption';
 import { assertEnv, isProduction } from '$lib/server/env';
 import { errorResponse, toAppError } from '$lib/server/errors';
@@ -56,8 +56,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 				scopes: auth.scopes,
 				environment: auth.apiKey.environment
 			};
+			// The API itself is an entitlement: a plan can switch it off entirely, and a
+			// suspended tenant loses it immediately — both enforced here, before any route.
+			await assertTenantActive(auth.tenant.id);
+			await assertFeature(auth.tenant.id, 'api.enabled');
 			// Per-tenant, per-plan limit — never one global bucket (§28).
-			const limit = await apiRateLimitFor(auth.tenant.id);
+			const limit = (await getLimit(auth.tenant.id, 'api.requestsPerMinute')) || 60;
 			await enforce(`api:${auth.tenant.id}`, limit, 60);
 		} catch (err) {
 			const appError = toAppError(err);

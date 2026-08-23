@@ -11,7 +11,8 @@
 import { and, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { nextReference } from './db/references';
-import { checkLimit, recordUsage } from './billing';
+import { recordUsage } from './billing';
+import { assertAllowed } from './entitlements';
 import { findOrCreateConversation } from './conversations';
 import { findOrCreateCustomer } from './customers';
 import { emit } from './events';
@@ -84,7 +85,7 @@ export type CreateBookingRequestInput = {
 const toDate = (value?: string | null): Date | null => (value ? new Date(value) : null);
 
 export async function createBookingRequest(tenantId: string, input: CreateBookingRequestInput) {
-	await checkLimit(tenantId, 'booking_requests', 'booking_requests_per_month');
+	await assertAllowed(tenantId, { feature: 'bookings.enabled', limit: 'bookings.maxRequestsPerMonth' });
 	const tenant = await getTenantById(tenantId);
 	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant could not be found.');
 

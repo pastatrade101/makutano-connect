@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { encrypt, randomToken } from '../encryption';
 import { AppError } from '../errors';
+import { assertAllowed } from '../entitlements';
 import { isKnownEvent } from '../events';
 
 export type SafeEndpoint = {
@@ -38,6 +39,7 @@ export async function createEndpoint(params: {
 	description?: string | null;
 	events?: string[];
 }): Promise<{ endpoint: SafeEndpoint; secret: string }> {
+	await assertAllowed(params.tenantId, { feature: 'webhooks.enabled' });
 	let parsed: URL;
 	try {
 		parsed = new URL(params.url);

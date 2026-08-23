@@ -13,7 +13,7 @@ import {
 	requireApiScope
 } from '$lib/server/http';
 import { withIdempotency } from '$lib/server/idempotency';
-import { requireFeature } from '$lib/server/billing';
+import { assertFeature } from '$lib/server/entitlements';
 import { requireScope } from '$lib/server/auth/permissions';
 
 const createSchema = z.object({
@@ -58,7 +58,7 @@ export const POST: RequestHandler = async (event) =>
 	handle(event, async () => {
 		const ctx = requireApiScope(event, 'payments:read');
 		requireScope(ctx.scopes, 'bookings:write');
-		await requireFeature(ctx.tenantId, 'payments');
+		await assertFeature(ctx.tenantId, 'payments.enabled');
 		const body = await parseBody(event, createSchema);
 		const outcome = await withIdempotency(
 			{

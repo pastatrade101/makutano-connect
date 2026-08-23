@@ -10,6 +10,7 @@
 import { and, eq } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { recordUsage } from '../billing';
+import { assertAllowed } from '../entitlements';
 import { findOrCreateConversation, touchConversation } from '../conversations';
 import { findOrCreateCustomer } from '../customers';
 import { AppError } from '../errors';
@@ -17,6 +18,7 @@ import { enqueue } from '../jobs/queue';
 import { log } from '../logger';
 import { normalizePhone } from '../phone';
 import { graphRequest, WhatsAppApiError } from './client';
+import { assertSendCompliant } from './compliance';
 import { markError, markSendSuccess, requireCredentials } from './connections';
 
 export type OutboundContent =
@@ -89,9 +91,19 @@ export async function queueMessage(params: SendParams): Promise<schema.Message> 
 	const to = normalizePhone(params.to);
 	if (!to) throw new AppError('VALIDATION_ERROR', 'A valid recipient phone number is required.');
 
+	// Entitlements decide whether the tenant MAY send at all. Compliance (below) then
+	// decides whether this particular message is permitted — and can only ever be
+	// stricter; no plan, override or admin action relaxes it.
+	await assertAllowed(params.tenantId, { feature: 'whatsapp.enabled', limit: 'whatsapp.maxOutboundPerMonth' });
+
 	// Fail fast when the tenant has no live connection, rather than queueing a message
 	// that can never be delivered.
 	await requireCredentials(params.tenantId);
+
+	// Compliance last and strictest: opt-out, the 24-hour window, approved templates.
+	// Entitlements above decided IF the tenant may send; this decides if THIS message is
+	// permitted, and nothing in the plan can relax it.
+	await assertSendCompliant({ tenantId: params.tenantId, to, content: params.content });
 
 	let conversationId = params.conversationId ?? null;
 	let customerId = params.customerId ?? null;

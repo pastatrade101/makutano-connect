@@ -1,7 +1,7 @@
 import { fail, type Actions } from '@sveltejs/kit';
 import { audit } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/auth/permissions';
-import { canUseFeature } from '$lib/server/billing';
+import { can } from '$lib/server/entitlements';
 import { embeddedSignupReady } from '$lib/server/env';
 import { enqueue } from '$lib/server/jobs/queue';
 import { disconnect, getConnectionForTenant, toSafeConnection } from '$lib/server/whatsapp/connections';
@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [connection, templates, enabled] = await Promise.all([
 		getConnectionForTenant(tenantId),
 		listTemplates(tenantId),
-		canUseFeature(tenantId, 'whatsapp')
+		can(tenantId, 'whatsapp.enabled')
 	]);
 	return {
 		connection: connection ? toSafeConnection(connection) : null,

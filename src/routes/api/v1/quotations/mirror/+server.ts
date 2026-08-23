@@ -5,7 +5,7 @@
 // are preserved.
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
-import { requireFeature } from '$lib/server/billing';
+import { assertFeature } from '$lib/server/entitlements';
 import { handle, ok, parseBody, requireApiScope } from '$lib/server/http';
 import { upsertQuotationMirror } from '$lib/server/quotations';
 
@@ -44,7 +44,7 @@ const mirrorSchema = z.object({
 export const PUT: RequestHandler = async (event) =>
 	handle(event, async () => {
 		const ctx = requireApiScope(event, 'quotations:write');
-		await requireFeature(ctx.tenantId, 'quotations');
+		await assertFeature(ctx.tenantId, 'quotations.enabled');
 		const body = await parseBody(event, mirrorSchema);
 		const quotation = await upsertQuotationMirror(ctx.tenantId, body);
 		return ok({ id: quotation.id, reference: quotation.reference, status: quotation.status, externalReference: body.externalReference });

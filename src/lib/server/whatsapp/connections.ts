@@ -8,6 +8,7 @@
 import { and, eq, isNotNull, lt, sql } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { decrypt, encrypt } from '../encryption';
+import { assertAllowed, assertWithinCount } from '../entitlements';
 import { AppError } from '../errors';
 import { log } from '../logger';
 import { metaAppConfig, type WhatsAppCredentials } from './config';
@@ -85,6 +86,16 @@ export type UpsertConnectionInput = {
 };
 
 export async function upsertConnection(input: UpsertConnectionInput): Promise<schema.WhatsappConnection> {
+	await assertAllowed(input.tenantId, { feature: 'whatsapp.enabled' });
+	// Only CONNECTED numbers count toward the allowance, and re-connecting a number the
+	// tenant already holds is always permitted — the cap is on distinct live numbers.
+	const live = await db()
+		.select({ phoneNumberId: schema.whatsappConnections.phoneNumberId })
+		.from(schema.whatsappConnections)
+		.where(and(eq(schema.whatsappConnections.tenantId, input.tenantId), eq(schema.whatsappConnections.status, 'CONNECTED')));
+	if (!live.some((c) => c.phoneNumberId === input.phoneNumberId)) {
+		await assertWithinCount(input.tenantId, 'whatsapp.maxNumbers', live.length);
+	}
 	const sealed = encrypt(input.accessToken);
 	const now = new Date();
 

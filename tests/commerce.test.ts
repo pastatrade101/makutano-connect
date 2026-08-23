@@ -48,6 +48,30 @@ describe('order totals (pure)', () => {
 	});
 });
 
+
+/** Test tenants exercise behaviour, not plan limits — lift the caps explicitly. */
+async function liftLimits(tenantId: string): Promise<void> {
+	const { db, schema } = await import('../src/lib/server/db');
+	const { eq } = await import('drizzle-orm');
+	const { invalidateEntitlements } = await import('../src/lib/server/entitlements');
+	await db()
+		.update(schema.tenants)
+		.set({
+			entitlementOverrides: {
+				'whatsapp.maxNumbers': 0,
+				'forms.maxForms': 0,
+				'orders.maxPerMonth': 0,
+				'bookings.maxRequestsPerMonth': 0,
+				'quotations.maxPerMonth': 0,
+				'whatsapp.maxOutboundPerMonth': 0,
+				'webhooks.enabled': true,
+				'payments.enabled': true
+			}
+		})
+		.where(eq(schema.tenants.id, tenantId));
+	invalidateEntitlements(tenantId);
+}
+
 suite('commerce integration', () => {
 	let ctx: {
 		db: typeof import('../src/lib/server/db');
@@ -74,6 +98,8 @@ suite('commerce integration', () => {
 		};
 		tenantA = await ctx.tenants.provisionTenant({ name: 'Shop A', slug: `shop-a-${stamp}`, bookingReferencePrefix: 'SHA' });
 		tenantB = await ctx.tenants.provisionTenant({ name: 'Shop B', slug: `shop-b-${stamp}`, bookingReferencePrefix: 'SHB' });
+		await liftLimits(tenantA.id);
+		await liftLimits(tenantB.id);
 	}, 60_000);
 
 	afterAll(async () => {

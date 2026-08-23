@@ -8,7 +8,16 @@
 	import Toasts from '$components/Toasts.svelte';
 	let { data, children } = $props();
 
-	type Item = { href: string; label: string; icon: string; permission: string | null; primary?: boolean; capability?: 'BOOKINGS' | 'ORDERS' };
+	type Item = {
+		href: string;
+		label: string;
+		icon: string;
+		permission: string | null;
+		primary?: boolean;
+		capability?: 'BOOKINGS' | 'ORDERS';
+		/** Entitlement that must be on, or the item renders locked. */
+		entitlement?: string;
+	};
 	const GROUPS: Array<{ label: string; items: Item[] }> = [
 		{
 			label: 'General',
@@ -16,14 +25,14 @@
 				{ href: '/app', label: 'Overview', icon: 'M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-4v-5H8v5H4a1 1 0 0 1-1-1v-6.5Z', permission: null, primary: true },
 				{ href: '/app/booking-requests', label: 'Requests', icon: 'M4 3h12v14l-3-2-3 2-3-2-3 2V3Z', permission: 'booking_requests:read', primary: true, capability: 'BOOKINGS' },
 				{ href: '/app/bookings', label: 'Bookings', icon: 'M3 5h14v12H3V5Zm2 3h10v2H5V8Z', permission: 'bookings:read', primary: true, capability: 'BOOKINGS' },
-				{ href: '/app/orders', label: 'Orders', icon: 'M5 4h10l1.5 3v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V7L5 4Zm-1 3h12M8 10a2 2 0 0 0 4 0', permission: 'orders:read', primary: true, capability: 'ORDERS' },
+				{ href: '/app/orders', label: 'Orders', icon: 'M5 4h10l1.5 3v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V7L5 4Zm-1 3h12M8 10a2 2 0 0 0 4 0', permission: 'orders:read', primary: true, capability: 'ORDERS', entitlement: 'orders.enabled' },
 				{ href: '/app/conversations', label: 'Inbox', icon: 'M3 4h14v9H7l-4 3V4Z', permission: 'conversations:read', primary: true }
 			]
 		},
 		{
 			label: 'Sales',
 			items: [
-				{ href: '/app/quotations', label: 'Quotations', icon: 'M5 3h7l3 3v11H5V3Zm7 0v3h3', permission: 'quotations:read' },
+				{ href: '/app/quotations', label: 'Quotations', icon: 'M5 3h7l3 3v11H5V3Zm7 0v3h3', permission: 'quotations:read', entitlement: 'quotations.enabled' },
 				{ href: '/app/catalog', label: 'Catalog', icon: 'M4 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v11l-3-1.8L10 16l-3-1.8L4 16V5Z', permission: 'catalog:read', capability: 'ORDERS' },
 				{ href: '/app/customers', label: 'Customers', icon: 'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 7a6 6 0 0 1 12 0H4Z', permission: 'customers:read' },
 				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read' },
@@ -33,9 +42,9 @@
 		{
 			label: 'Platform',
 			items: [
-				{ href: '/app/whatsapp', label: 'WhatsApp', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read' },
-				{ href: '/app/forms', label: 'Forms & Widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read' },
-				{ href: '/app/developers', label: 'Developers', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5', permission: 'api_keys:read' },
+				{ href: '/app/whatsapp', label: 'WhatsApp', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.enabled' },
+				{ href: '/app/forms', label: 'Forms & Widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read', entitlement: 'forms.hostedEnabled' },
+				{ href: '/app/developers', label: 'Developers', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5', permission: 'api_keys:read', entitlement: 'api.enabled' },
 				{ href: '/app/settings', label: 'Settings', icon: 'M10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', permission: 'tenant:read' }
 			]
 		}
@@ -46,6 +55,8 @@
 		if (item.capability && data.tenant.capabilities !== 'BOTH' && data.tenant.capabilities !== item.capability) return false;
 		return true;
 	};
+	/** Locked = visible but not navigable, so the tenant can see what a plan adds. */
+	const locked = (item: Item) => !!item.entitlement && data.entitlements?.[item.entitlement] !== true;
 	const groups = $derived(GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length));
 	const flat = $derived(groups.flatMap((g) => g.items));
 	const primary = $derived(flat.filter((n) => n.primary).slice(0, 4));
@@ -95,16 +106,29 @@
 				{/if}
 				<div class="space-y-0.5">
 					{#each group.items as item (item.href)}
-						<a
-							href={item.href}
-							title={collapsed ? item.label : undefined}
-							class="flex items-center gap-3 rounded-panel py-2 text-[13.5px] transition {collapsed ? 'justify-center px-0' : 'px-2.5'} {isActive(item.href)
-								? 'bg-brand-50 font-semibold text-brand-600'
-								: 'text-slate-500 hover:bg-[#f3f1fa] hover:text-slate-700'}"
-						>
-							<svg class="size-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
-							{#if !collapsed}{item.label}{/if}
-						</a>
+						{#if locked(item)}
+							<div
+								title="{item.label} is not included in your {data.planName} plan"
+								class="flex cursor-not-allowed items-center gap-3 rounded-panel py-2 text-[13.5px] text-slate-300 {collapsed ? 'justify-center px-0' : 'px-2.5'}"
+							>
+								<svg class="size-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
+								{#if !collapsed}
+									<span class="flex-1">{item.label}</span>
+									<svg class="size-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 0 0-4 4v2H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1V6a4 4 0 0 0-4-4Zm-2 6V6a2 2 0 1 1 4 0v2H8Z" /></svg>
+								{/if}
+							</div>
+						{:else}
+							<a
+								href={item.href}
+								title={collapsed ? item.label : undefined}
+								class="flex items-center gap-3 rounded-panel py-2 text-[13.5px] transition {collapsed ? 'justify-center px-0' : 'px-2.5'} {isActive(item.href)
+									? 'bg-brand-50 font-semibold text-brand-600'
+									: 'text-slate-500 hover:bg-[#f3f1fa] hover:text-slate-700'}"
+							>
+								<svg class="size-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
+								{#if !collapsed}{item.label}{/if}
+							</a>
+						{/if}
 					{/each}
 				</div>
 			{/each}
@@ -171,6 +195,17 @@
 		</header>
 
 		<main class="min-w-0 flex-1 p-4 lg:p-6">
+			{#if data.tenantSuspended}
+				<div class="mb-4 rounded-panel bg-danger/10 px-4 py-3 text-sm text-danger">
+					<b>This account is suspended.</b> You can still view your data, but new orders, bookings, messages and API writes are blocked. Please contact support.
+				</div>
+			{:else if data.nearLimits?.length}
+				<div class="mb-4 rounded-panel bg-warning/10 px-4 py-2.5 text-xs text-[#b58514]">
+					You're approaching your monthly limit —
+					{#each data.nearLimits as l, i (l.label)}{i > 0 ? ', ' : ' '}<b>{l.label.toLowerCase()} {l.used}/{l.limit}</b>{/each}.
+					<a href="/app/settings" class="font-semibold underline">View usage</a>
+				</div>
+			{/if}
 			{@render children()}
 			<footer class="mt-8 text-center text-[11px] text-slate-400">{new Date().getFullYear()} © Makutano Connect</footer>
 		</main>

@@ -2,7 +2,7 @@
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { audit } from '$lib/server/audit';
-import { requireFeature } from '$lib/server/billing';
+import { assertFeature } from '$lib/server/entitlements';
 import { EVENTS } from '$lib/server/events';
 import { handle, ok, parseBody, requireApiScope } from '$lib/server/http';
 import { createEndpoint, listEndpoints } from '$lib/server/webhooks/endpoints';
@@ -22,7 +22,7 @@ export const GET: RequestHandler = async (event) =>
 export const POST: RequestHandler = async (event) =>
 	handle(event, async () => {
 		const ctx = requireApiScope(event, 'whatsapp:send');
-		await requireFeature(ctx.tenantId, 'client_webhooks');
+		await assertFeature(ctx.tenantId, 'webhooks.enabled');
 		const body = await parseBody(event, createSchema);
 		const { endpoint, secret } = await createEndpoint({ tenantId: ctx.tenantId, ...body });
 		await audit(

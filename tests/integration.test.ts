@@ -41,6 +41,30 @@ let keyA: string;
 let keyB: string;
 const stamp = Date.now();
 
+
+/** Test tenants exercise behaviour, not plan limits — lift the caps explicitly. */
+async function liftLimits(tenantId: string): Promise<void> {
+	const { db, schema } = await import('../src/lib/server/db');
+	const { eq } = await import('drizzle-orm');
+	const { invalidateEntitlements } = await import('../src/lib/server/entitlements');
+	await db()
+		.update(schema.tenants)
+		.set({
+			entitlementOverrides: {
+				'whatsapp.maxNumbers': 0,
+				'forms.maxForms': 0,
+				'orders.maxPerMonth': 0,
+				'bookings.maxRequestsPerMonth': 0,
+				'quotations.maxPerMonth': 0,
+				'whatsapp.maxOutboundPerMonth': 0,
+				'webhooks.enabled': true,
+				'payments.enabled': true
+			}
+		})
+		.where(eq(schema.tenants.id, tenantId));
+	invalidateEntitlements(tenantId);
+}
+
 suite('multi-tenant engine', () => {
 	beforeAll(async () => {
 		ctx = {
@@ -66,6 +90,8 @@ suite('multi-tenant engine', () => {
 			slug: `test-b-${stamp}`,
 			bookingReferencePrefix: 'TSTB'
 		});
+		await liftLimits(tenantA.id);
+		await liftLimits(tenantB.id);
 		keyA = (await ctx.apiKeys.createApiKey({ tenantId: tenantA.id, name: 'A' })).secret;
 		keyB = (await ctx.apiKeys.createApiKey({ tenantId: tenantB.id, name: 'B' })).secret;
 	}, 60_000);

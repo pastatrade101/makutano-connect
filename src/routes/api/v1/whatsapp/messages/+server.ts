@@ -2,14 +2,14 @@
 // tenant, connection, phone_number_id and encrypted token.
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
-import { requireFeature } from '$lib/server/billing';
+import { assertFeature } from '$lib/server/entitlements';
 import { handle, idempotencyKeyOf, ok, parseBody, requireApiScope } from '$lib/server/http';
 import { withIdempotency } from '$lib/server/idempotency';
 import { queueMessage, sendQueuedMessage, type OutboundContent } from '$lib/server/whatsapp/messages';
 import { db, schema } from '$lib/server/db';
 import { eq } from 'drizzle-orm';
 import { AppError } from '$lib/server/errors';
-import { checkLimit } from '$lib/server/billing';
+
 
 const contentSchema = z.discriminatedUnion('type', [
 	z.object({ type: z.literal('text'), text: z.string().min(1).max(4096), previewUrl: z.boolean().optional() }),
@@ -46,8 +46,7 @@ const bodySchema = z.object({
 export const POST: RequestHandler = async (event) =>
 	handle(event, async () => {
 		const ctx = requireApiScope(event, 'whatsapp:send');
-		await requireFeature(ctx.tenantId, 'whatsapp');
-		await checkLimit(ctx.tenantId, 'whatsapp_outbound', 'whatsapp_outbound_per_month');
+		await assertFeature(ctx.tenantId, 'whatsapp.enabled');
 		const body = await parseBody(event, bodySchema);
 
 		const outcome = await withIdempotency(

@@ -23,6 +23,30 @@ describe('isAllowedRelayUrl', () => {
 	});
 });
 
+
+/** Test tenants exercise behaviour, not plan limits — lift the caps explicitly. */
+async function liftLimits(tenantId: string): Promise<void> {
+	const { db, schema } = await import('../src/lib/server/db');
+	const { eq } = await import('drizzle-orm');
+	const { invalidateEntitlements } = await import('../src/lib/server/entitlements');
+	await db()
+		.update(schema.tenants)
+		.set({
+			entitlementOverrides: {
+				'whatsapp.maxNumbers': 0,
+				'forms.maxForms': 0,
+				'orders.maxPerMonth': 0,
+				'bookings.maxRequestsPerMonth': 0,
+				'quotations.maxPerMonth': 0,
+				'whatsapp.maxOutboundPerMonth': 0,
+				'webhooks.enabled': true,
+				'payments.enabled': true
+			}
+		})
+		.where(eq(schema.tenants.id, tenantId));
+	invalidateEntitlements(tenantId);
+}
+
 suite('relay end-to-end', () => {
 	let ctx: {
 		relay: typeof import('../src/lib/server/whatsapp/relay');
@@ -66,6 +90,8 @@ suite('relay end-to-end', () => {
 
 		relayTenant = await ctx.tenants.provisionTenant({ name: 'Relay Co', slug: `relay-${stamp}` });
 		plainTenant = await ctx.tenants.provisionTenant({ name: 'Plain Co', slug: `plain-${stamp}` });
+		await liftLimits(relayTenant.id);
+		await liftLimits(plainTenant.id);
 
 		const { db, schema } = ctx.db;
 		const { eq } = await import('drizzle-orm');
@@ -142,6 +168,7 @@ suite('multi-number primary selection', () => {
 			db: await import('../src/lib/server/db')
 		};
 		tenant = await ctx2.tenants.provisionTenant({ name: 'Multi Co', slug: `multi-${stamp2}` });
+		await liftLimits(tenant.id);
 	}, 60_000);
 
 	afterAll(async () => {

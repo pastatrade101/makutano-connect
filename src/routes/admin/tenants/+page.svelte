@@ -60,7 +60,7 @@
 				{#each data.tenants as row (row.tenant.id)}
 					<tr class="hover:bg-slate-50">
 						<td class="table-cell">
-							<div class="font-medium text-slate-800">{row.tenant.name}</div>
+							<a href="/admin/tenants/{row.tenant.id}" class="font-medium text-brand-600 hover:underline">{row.tenant.name}</a>
 							<div class="font-mono text-[11px] text-slate-500">{row.tenant.slug}</div>
 						</td>
 						<td class="table-cell text-slate-600">{row.plan?.name ?? '—'}</td>
@@ -69,6 +69,7 @@
 						<td class="table-cell tabular-nums">{row.requests}</td>
 						<td class="table-cell text-slate-500"><TimeAgo value={row.tenant.createdAt} /></td>
 						<td class="table-cell text-right">
+							<a href="/admin/tenants/{row.tenant.id}" class="mr-2 text-xs font-medium text-brand-600 hover:underline">Control Center</a>
 							<form method="POST" action="?/openPortal" class="mb-1 inline-block">
 								<input type="hidden" name="id" value={row.tenant.id} />
 								<button class="text-xs text-brand-600 hover:underline">Open portal</button>

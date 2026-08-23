@@ -2,7 +2,8 @@ import { fail, type Actions } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { audit } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/auth/permissions';
-import { effectivePlan, invalidatePlanCache, currentPeriod, usageFor } from '$lib/server/billing';
+import { currentPeriod } from '$lib/server/billing';
+import { effectiveEntitlements, invalidateEntitlements, usageSummary } from '$lib/server/entitlements';
 import { db, schema } from '$lib/server/db';
 import type { PageServerLoad } from './$types';
 
@@ -10,16 +11,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 	requirePermission(locals.permissions, 'tenant:read');
 	const tenantId = locals.tenant!.id;
 
-	const [plan, members, apiRequests, waOut, requests] = await Promise.all([
-		effectivePlan(tenantId),
+	const [ent, usage, members] = await Promise.all([
+		effectiveEntitlements(tenantId),
+		usageSummary(tenantId),
 		db()
 			.select({ membership: schema.tenantMemberships, user: schema.users })
 			.from(schema.tenantMemberships)
 			.innerJoin(schema.users, eq(schema.users.id, schema.tenantMemberships.userId))
 			.where(eq(schema.tenantMemberships.tenantId, tenantId)),
-		usageFor(tenantId, 'api_requests'),
-		usageFor(tenantId, 'whatsapp_outbound'),
-		usageFor(tenantId, 'booking_requests')
 	]);
 
 	return {
@@ -35,9 +34,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			bookingReferencePrefix: locals.tenant!.bookingReferencePrefix,
 			quotationPrefix: locals.tenant!.quotationPrefix
 		},
-		plan,
+		plan: { code: ent.planCode, name: ent.planName, status: ent.subscriptionStatus },
 		period: currentPeriod(),
-		usage: { apiRequests, whatsappOutbound: waOut, bookingRequests: requests },
+		// Used / limit for every metered entitlement, so the tenant sees headroom.
+		usage: usage.map((u) => ({ label: u.label, used: u.used, limit: u.unlimited ? null : u.limit, percent: u.percent })),
 		members: members.map((m) => ({
 			id: m.membership.id,
 			role: m.membership.role,
@@ -88,7 +88,7 @@ export const actions: Actions = {
 			})
 			.where(eq(schema.tenants.id, locals.tenant!.id));
 
-		invalidatePlanCache(locals.tenant!.id);
+		invalidateEntitlements(locals.tenant!.id);
 		await audit(
 			locals.tenant!.id,
 			'tenant.updated',

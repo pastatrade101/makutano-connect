@@ -8,6 +8,8 @@
 import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { nextReference } from './db/references';
+import { recordUsage } from './billing';
+import { assertAllowed } from './entitlements';
 import { createBooking } from './bookings';
 import { findOrCreateCustomer } from './customers';
 import { emit } from './events';
@@ -54,6 +56,7 @@ export async function createQuotation(
 	input: CreateQuotationInput,
 	createdByUserId: string | null = null
 ) {
+	await assertAllowed(tenantId, { feature: 'quotations.enabled', limit: 'quotations.maxPerMonth' });
 	const tenant = await getTenantById(tenantId);
 	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant could not be found.');
 	if (!input.items?.length) throw new AppError('VALIDATION_ERROR', 'A quotation needs at least one item.');

@@ -5,7 +5,7 @@
 // browser. The returned launchUrl is what the client redirects its user to.
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
-import { requireFeature } from '$lib/server/billing';
+import { assertFeature } from '$lib/server/entitlements';
 import { publicSignupConfig } from '$lib/server/whatsapp/config';
 import { createConnectSession } from '$lib/server/whatsapp/onboarding';
 import { embeddedSignupReady } from '$lib/server/env';
@@ -17,7 +17,7 @@ const bodySchema = z.object({ redirectUrl: z.string().url().max(500).optional().
 export const POST: RequestHandler = async (event) =>
 	handle(event, async () => {
 		const ctx = requireApiScope(event, 'whatsapp:read');
-		await requireFeature(ctx.tenantId, 'whatsapp');
+		await assertFeature(ctx.tenantId, 'whatsapp.enabled');
 		if (!embeddedSignupReady()) {
 			throw new AppError('NOT_CONFIGURED', 'WhatsApp onboarding is not configured on this deployment.');
 		}

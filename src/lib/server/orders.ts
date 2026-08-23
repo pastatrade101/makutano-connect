@@ -10,6 +10,8 @@
 import { and, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { nextReference } from './db/references';
+import { recordUsage } from './billing';
+import { assertAllowed } from './entitlements';
 import { emit } from './events';
 import { AppError } from './errors';
 import { notify } from './notifications';
@@ -88,6 +90,8 @@ async function insertItems(tenantId: string, orderId: string, items: OrderItemIn
 }
 
 export async function createOrder(tenantId: string, input: CreateOrderInput, actor: OrderActor = {}): Promise<schema.Order> {
+	// Gate first, in the one canonical order: tenant live → feature on → allowance left.
+	await assertAllowed(tenantId, { feature: 'orders.enabled', limit: 'orders.maxPerMonth' });
 	const tenant = await getTenantById(tenantId);
 	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant could not be found.');
 	if (!input.items?.length) throw new AppError('VALIDATION_ERROR', 'An order needs at least one item.');
@@ -152,6 +156,7 @@ export async function createOrder(tenantId: string, input: CreateOrderInput, act
 		changedByApiKeyId: actor.apiKeyId ?? null
 	});
 
+	void recordUsage(tenantId, 'orders');
 	await emit(tenantId, 'order.created', {
 		id: order.id,
 		orderNumber: order.orderNumber,

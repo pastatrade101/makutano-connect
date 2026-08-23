@@ -1,9 +1,9 @@
 // Plan features, limits and usage metering (§27). Every feature gate and quota check
 // funnels through canUseFeature() / checkLimit() / recordUsage() so pricing changes
 // touch one module, not fifty call sites.
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { db, schema } from './db';
-import { AppError } from './errors';
+import { invalidateEntitlements } from './entitlements';
 import { log } from './logger';
 
 export type UsageMetric =
@@ -12,76 +12,24 @@ export type UsageMetric =
 	| 'whatsapp_outbound'
 	| 'booking_requests'
 	| 'bookings'
+	| 'orders'
+	| 'quotations'
 	| 'webhook_deliveries'
 	| 'storage_bytes'
 	| 'ai_tokens';
 
-export type PlanFeature =
-	'whatsapp' | 'quotations' | 'payments' | 'client_webhooks' | 'multiple_numbers' | 'custom_templates';
 
-/** Fallback when a tenant has no plan attached — the free-tier shape. */
-const FALLBACK = {
-	limits: {
-		api_requests_per_minute: 60,
-		booking_requests_per_month: 100,
-		whatsapp_outbound_per_month: 500,
-		api_keys: 2,
-		members: 3
-	} as Record<string, number>,
-	features: {
-		whatsapp: true,
-		quotations: true,
-		payments: false,
-		client_webhooks: false,
-		multiple_numbers: false,
-		custom_templates: false
-	} as Record<string, boolean>
-};
 
-export type EffectivePlan = { code: string; limits: Record<string, number>; features: Record<string, boolean> };
 
-const planCache = new Map<string, { value: EffectivePlan; expires: number }>();
-const PLAN_TTL_MS = 30_000;
 
-export async function effectivePlan(tenantId: string): Promise<EffectivePlan> {
-	const cached = planCache.get(tenantId);
-	if (cached && cached.expires > Date.now()) return cached.value;
 
-	const rows = await db()
-		.select({ plan: schema.plans })
-		.from(schema.tenants)
-		.leftJoin(schema.plans, eq(schema.plans.id, schema.tenants.planId))
-		.where(eq(schema.tenants.id, tenantId))
-		.limit(1);
 
-	const plan = rows[0]?.plan;
-	const value: EffectivePlan = plan
-		? {
-				code: plan.code,
-				limits: { ...FALLBACK.limits, ...(plan.limits ?? {}) },
-				features: { ...FALLBACK.features, ...(plan.features ?? {}) }
-			}
-		: { code: 'NONE', limits: FALLBACK.limits, features: FALLBACK.features };
-
-	planCache.set(tenantId, { value, expires: Date.now() + PLAN_TTL_MS });
-	return value;
-}
-
+/** Kept for existing callers — plan/entitlement caching now lives in entitlements.ts. */
 export function invalidatePlanCache(tenantId?: string): void {
-	if (tenantId) planCache.delete(tenantId);
-	else planCache.clear();
+	invalidateEntitlements(tenantId);
 }
 
-export async function canUseFeature(tenantId: string, feature: PlanFeature): Promise<boolean> {
-	const plan = await effectivePlan(tenantId);
-	return plan.features[feature] === true;
-}
 
-export async function requireFeature(tenantId: string, feature: PlanFeature): Promise<void> {
-	if (!(await canUseFeature(tenantId, feature))) {
-		throw new AppError('FEATURE_NOT_AVAILABLE', `Your plan does not include ${feature.replace(/_/g, ' ')}.`);
-	}
-}
 
 export function currentPeriod(now: Date = new Date()): string {
 	return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -111,29 +59,7 @@ export async function usageFor(tenantId: string, metric: UsageMetric, period = c
 	return Number(rows[0]?.quantity ?? 0);
 }
 
-/**
- * Check a monthly quota before performing the metered action.
- * @param limitKey key inside plan.limits, e.g. `booking_requests_per_month`
- */
-export async function checkLimit(tenantId: string, metric: UsageMetric, limitKey: string): Promise<void> {
-	const plan = await effectivePlan(tenantId);
-	const limit = plan.limits[limitKey];
-	if (!Number.isFinite(limit) || limit <= 0) return; // unset or unlimited
-	const used = await usageFor(tenantId, metric);
-	if (used >= limit) {
-		throw new AppError('PLAN_LIMIT_REACHED', `Your ${plan.code} plan limit for this month has been reached.`, {
-			limit,
-			used,
-			metric
-		});
-	}
-}
 
-/** Requests-per-minute allowance for a tenant's plan (§28). */
-export async function apiRateLimitFor(tenantId: string): Promise<number> {
-	const plan = await effectivePlan(tenantId);
-	return plan.limits.api_requests_per_minute ?? 60;
-}
 
 export const DEFAULT_PLANS = [
 	{

@@ -10,6 +10,7 @@ import { findOrCreateConversation, touchConversation } from '../conversations';
 import { findOrCreateCustomer } from '../customers';
 import { emit } from '../events';
 import { log } from '../logger';
+import { applyInboundCompliance } from './compliance';
 import { markWebhookSeen, resolveTenantForEvent } from './connections';
 import { markMessageStatus } from './messages';
 import type { WebhookEvent } from './webhook';
@@ -102,6 +103,8 @@ export async function processInboundEvent(event: WebhookEvent): Promise<void> {
 		.onConflictDoNothing()
 		.returning();
 	if (!message) return; // lost the race with a concurrent delivery of the same event
+	// Inbound re-opens the 24-hour window and honours STOP/START opt-out keywords.
+	await applyInboundCompliance({ tenantId, customerId: customer.id, text: event.text, receivedAt: new Date() });
 	await touchConversation(conversation.id, { incrementUnread: true });
 	void recordUsage(tenantId, 'whatsapp_inbound');
 	await emit(tenantId, 'message.received', {

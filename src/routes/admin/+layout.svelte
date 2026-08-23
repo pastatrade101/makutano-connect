@@ -11,6 +11,7 @@
 	const NAV = [
 		{ href: '/admin', label: 'System health', icon: 'M3 10h4l2-5 3 10 2-5h3' },
 		{ href: '/admin/tenants', label: 'Tenants', icon: 'M3 17V7l4-3 4 3v10M11 17V9l3-2 3 2v8M3 17h14' },
+		{ href: '/admin/plans', label: 'Plans & entitlements', icon: 'M3 6h14M3 10h14M3 14h9' },
 		{ href: '/admin/usage', label: 'Usage & subscriptions', icon: 'M4 16V9m4 7V5m4 11v-4m4 4V8' },
 		{ href: '/admin/whatsapp', label: 'WhatsApp connections', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z' },
 		{ href: '/admin/errors', label: 'Delivery & payment errors', icon: 'M10 7v4m0 3h.01M4.2 17h11.6a1.5 1.5 0 0 0 1.3-2.2L11.3 4a1.5 1.5 0 0 0-2.6 0L2.9 14.8A1.5 1.5 0 0 0 4.2 17Z' },

@@ -7,11 +7,12 @@
 // The browser only ever sees the form's opaque publicId. Tenant resolution happens
 // server-side from that id; nothing a visitor sends can choose a tenant, and no API
 // key is involved anywhere in the public path.
-import { and, eq, sql } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
 import { db, schema } from './db';
 import { randomToken } from './encryption';
 import { AppError } from './errors';
 import { getCatalogItemsByIds } from './catalog';
+import { assertAllowed, assertWithinCount } from './entitlements';
 
 export type FormType = schema.Form['type'];
 
@@ -73,6 +74,12 @@ const DEFAULT_COPY: Record<FormType, { heading: string; cta: string; success: st
 };
 
 export async function createForm(tenantId: string, input: { type: FormType; name: string }): Promise<schema.Form> {
+	await assertAllowed(tenantId, { feature: 'forms.hostedEnabled' });
+	const [{ value: existing }] = await db()
+		.select({ value: count() })
+		.from(schema.forms)
+		.where(eq(schema.forms.tenantId, tenantId));
+	await assertWithinCount(tenantId, 'forms.maxForms', Number(existing));
 	const copy = DEFAULT_COPY[input.type];
 	const [row] = await db()
 		.insert(schema.forms)
