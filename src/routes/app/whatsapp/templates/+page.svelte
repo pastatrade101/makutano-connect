@@ -35,11 +35,23 @@
 		</div>
 		{#if canWrite}
 			<div class="flex gap-2">
+				{#if !data.templatePack.version}
+					<form method="POST" action="?/setupPack" use:enhance>
+						<button class="btn-primary">Set up recommended templates</button>
+					</form>
+				{/if}
 				<form method="POST" action="?/sync" use:enhance><button class="btn-secondary">Sync from Meta</button></form>
-				<button class="btn-primary" onclick={() => (showCreate = !showCreate)}>New template</button>
+				<button class={data.templatePack.version ? 'btn-primary' : 'btn-secondary'} onclick={() => (showCreate = !showCreate)}>New template</button>
 			</div>
 		{/if}
 	</div>
+
+	{#if form?.pack}
+		<p class="rounded-panel bg-success/10 px-3 py-2 text-xs text-success">
+			{form.pack.submitted} template{form.pack.submitted === 1 ? '' : 's'} sent to WhatsApp for approval{form.pack.skipped ? ` · ${form.pack.skipped} already existed and were left untouched` : ''}{form.pack.failed ? ` · ${form.pack.failed} could not be submitted` : ''}.
+			They activate automatically once Meta approves them.
+		</p>
+	{/if}
 
 	{#if showCreate && canWrite}
 		<form method="POST" action="?/create" use:enhance={() => async ({ update }) => { await update({ reset: false }); }} class="card space-y-3 p-4">

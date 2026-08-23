@@ -12,12 +12,15 @@ import {
 	submitTemplateToMeta,
 	TEMPLATE_VARIABLES
 } from '$lib/server/whatsapp/template-engine';
+import { applyTemplatePack, packState } from '$lib/server/whatsapp/template-packs';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	requireTenantPermission(locals, 'whatsapp:read');
 	const templates = await listTemplates(requireTenant(locals).id);
+	const pack = packState(requireTenant(locals).settings as Record<string, unknown>);
 	return {
+		templatePack: pack,
 		templates,
 		events: NOTIFY_EVENTS,
 		variables: Object.entries(TEMPLATE_VARIABLES).map(([key, v]) => ({ key, label: v.label }))
@@ -25,6 +28,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
+	setupPack: async ({ locals }) => {
+		requirePermission(locals.permissions, 'whatsapp:connect');
+		try {
+			const result = await applyTemplatePack(requireTenant(locals).id, { userId: locals.user!.id });
+			return { pack: { submitted: result.submitted.length, skipped: result.skippedExisting.length, failed: result.failed.length } };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
 	create: async ({ locals, request }) => {
 		requirePermission(locals.permissions, 'whatsapp:connect');
 		const data = await request.formData();

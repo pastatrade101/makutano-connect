@@ -1,0 +1,228 @@
+// Canonical, VERSIONED template packs (§template-pack brief).
+//
+// The kit is central and reusable; Meta approval is not — every tenant's WABA needs
+// its own approved copy. applyTemplatePack() drafts the workspace-relevant set with
+// event mappings and variables pre-wired, submits each to the tenant's WABA, and
+// records the pack version on the tenant. When Meta approves, the sync flips the
+// status and the notification goes live with no further configuration.
+//
+// Rules:
+//  - Workspace decides WHICH templates are submitted (a tour operator's WABA never
+//    receives order templates). Shared templates (payments) are defined once.
+//  - A name that already exists for the tenant is NEVER touched — an approved or
+//    customized template always wins over the pack.
+//  - The pack version lands in tenant settings, so V2 can later target exactly the
+//    tenants still on V1 instead of silently overwriting anyone.
+import { eq } from 'drizzle-orm';
+import { audit } from '../audit';
+import { db, schema } from '../db';
+import { getTenantById } from '../tenants';
+import { moduleRelevant, normalizeWorkspace, type Workspace } from '$lib/workspace';
+import { createTemplateDraft, submitTemplateToMeta, type NotifyEvent } from './template-engine';
+import { resolveCredentials } from './connections';
+import { log } from '../logger';
+
+export const PACK_VERSION = 1;
+
+type PackTemplate = {
+	name: string;
+	eventKey: NotifyEvent;
+	bodyText: string;
+	/** Which workspace module makes this template relevant; 'always' ships to everyone. */
+	module: 'enquiries' | 'bookings' | 'orders' | 'quotations' | 'always';
+};
+
+/**
+ * The proven bodies — the same set live on the first production tenant. Named
+ * variables only; toPositional() turns them into Meta's {{1}}…{{n}} at submit time.
+ * quotation_ready is deliberately link-free in the pack: not every tenant has a
+ * public quote page, and a template that always sends beats one that skips.
+ */
+const PACK: PackTemplate[] = [
+	{
+		name: 'booking_request_received',
+		eventKey: 'BOOKING_REQUEST_RECEIVED',
+		module: 'enquiries',
+		bodyText:
+			"Hello {{customer.first_name}}, thanks for your enquiry with {{business.name}}. We've received it (reference {{booking.reference}}) and will reply here shortly."
+	},
+	{
+		name: 'booking_confirmed',
+		eventKey: 'BOOKING_CONFIRMED',
+		module: 'bookings',
+		bodyText:
+			'Hello {{customer.first_name}}, your booking is confirmed. Reference: {{booking.reference}}. We will follow up with your itinerary and joining instructions.'
+	},
+	{
+		name: 'trip_reminder',
+		eventKey: 'TRIP_REMINDER',
+		module: 'bookings',
+		bodyText:
+			'Hi {{customer.first_name}}, your trip with {{business.name}} starts on {{booking.start_date}}. Reply here if you need anything before then.'
+	},
+	{
+		name: 'quotation_ready',
+		eventKey: 'QUOTATION_READY',
+		module: 'quotations',
+		bodyText:
+			'Hello {{customer.first_name}}, your quotation {{quotation.reference}} is ready — total {{quotation.total}}. Reply here to accept it or ask us anything.'
+	},
+	{
+		name: 'order_received',
+		eventKey: 'ORDER_RECEIVED',
+		module: 'orders',
+		bodyText:
+			"Hi {{customer.first_name}}, we've received your order {{order.number}} ({{order.items_summary}}). We'll confirm shortly."
+	},
+	{
+		name: 'order_confirmed',
+		eventKey: 'ORDER_CONFIRMED',
+		module: 'orders',
+		bodyText:
+			'Hi {{customer.first_name}}, your order {{order.number}} is confirmed. Total: {{order.total}}. Thank you for shopping with {{business.name}}.'
+	},
+	{
+		name: 'order_ready',
+		eventKey: 'ORDER_READY',
+		module: 'orders',
+		bodyText:
+			'Hi {{customer.first_name}}, your order {{order.number}} is ready for collection at {{business.name}}. Please contact us if you need any assistance.'
+	},
+	{
+		name: 'order_dispatched',
+		eventKey: 'ORDER_DISPATCHED',
+		module: 'orders',
+		bodyText:
+			'Hi {{customer.first_name}}, your order {{order.number}} has been dispatched and is on its way to {{delivery.address}}.'
+	},
+	{
+		name: 'order_delivered',
+		eventKey: 'ORDER_DELIVERED',
+		module: 'orders',
+		bodyText:
+			"Hi {{customer.first_name}}, your order {{order.number}} has been delivered. Thank you for choosing {{business.name}} — reply here if anything isn't right."
+	},
+	{
+		name: 'payment_received',
+		eventKey: 'PAYMENT_RECEIVED',
+		module: 'always',
+		bodyText:
+			"Thank you {{customer.first_name}} — we've received your payment of {{payment.amount}}. Your payment reference is {{payment.reference}}."
+	},
+	{
+		name: 'payment_reminder',
+		eventKey: 'PAYMENT_REMINDER',
+		module: 'always',
+		bodyText:
+			'Hi {{customer.first_name}}, a friendly reminder that {{payment.amount_due}} is outstanding with {{business.name}}. Please contact us if you need any assistance.'
+	}
+];
+
+/** The subset of the pack a given workspace should submit — deduped by definition. */
+export function packForWorkspace(workspace: Workspace): PackTemplate[] {
+	return PACK.filter((t) => t.module === 'always' || moduleRelevant(workspace, t.module));
+}
+
+export type PackState = {
+	version: number | null;
+	appliedAt: string | null;
+};
+
+export function packState(settings: Record<string, unknown> | null | undefined): PackState {
+	const raw = (settings?.templatePack ?? null) as { version?: number; appliedAt?: string } | null;
+	return { version: raw?.version ?? null, appliedAt: raw?.appliedAt ?? null };
+}
+
+export type ApplyResult = {
+	submitted: string[];
+	skippedExisting: string[];
+	failed: Array<{ name: string; reason: string }>;
+	packVersion: number;
+};
+
+/**
+ * Draft + submit the workspace-relevant pack to the tenant's WABA. Idempotent and
+ * conservative: any template name the tenant already has (approved, customized,
+ * pending — anything) is left completely alone.
+ */
+export async function applyTemplatePack(
+	tenantId: string,
+	actor: { userId?: string | null } = {},
+	options: { submit?: boolean } = {}
+): Promise<ApplyResult> {
+	const tenant = await getTenantById(tenantId);
+	if (!tenant) throw new Error('Tenant not found.');
+	const workspace = normalizeWorkspace((tenant.settings as Record<string, unknown>)?.capabilities);
+	const wanted = packForWorkspace(workspace);
+	const submit = options.submit ?? true;
+
+	const existing = await db()
+		.select({ name: schema.whatsappTemplates.name })
+		.from(schema.whatsappTemplates)
+		.where(eq(schema.whatsappTemplates.tenantId, tenantId));
+	const existingNames = new Set(existing.map((t) => t.name));
+
+	// Submission needs a WABA; drafting does not. With no connection we still create
+	// the drafts so the Template Center shows what WILL be submitted after connecting.
+	const credentials = submit ? await resolveCredentials(tenantId) : null;
+	const canSubmit = submit && !!credentials?.wabaId;
+
+	const result: ApplyResult = { submitted: [], skippedExisting: [], failed: [], packVersion: PACK_VERSION };
+
+	for (const item of wanted) {
+		if (existingNames.has(item.name)) {
+			result.skippedExisting.push(item.name);
+			continue;
+		}
+		try {
+			const draft = await createTemplateDraft(tenantId, {
+				name: item.name,
+				bodyText: item.bodyText,
+				category: 'UTILITY',
+				eventKey: item.eventKey
+			});
+			if (canSubmit) {
+				await submitTemplateToMeta(tenantId, draft.id);
+				result.submitted.push(item.name);
+			} else {
+				result.failed.push({ name: item.name, reason: 'drafted only — WhatsApp not connected' });
+			}
+		} catch (err) {
+			result.failed.push({ name: item.name, reason: (err as Error).message });
+			log.warn('template_pack_item_failed', { tenantId, name: item.name, error: (err as Error).message });
+		}
+	}
+
+	// Record the version even on partial success: skipped-existing means the tenant
+	// intentionally has their own copy, which counts as covered.
+	await db()
+		.update(schema.tenants)
+		.set({
+			// Merge in JS and let drizzle serialize the jsonb column — a raw
+			// ${...}::jsonb parameter double-encodes (see the workspace incident).
+			settings: {
+				...((tenant.settings as Record<string, unknown>) ?? {}),
+				templatePack: { version: PACK_VERSION, appliedAt: new Date().toISOString(), workspace }
+			},
+			updatedAt: new Date()
+		})
+		.where(eq(schema.tenants.id, tenantId));
+
+	await audit(
+		tenantId,
+		'tenant.updated',
+		{ type: 'user', userId: actor.userId },
+		{ type: 'tenant', id: tenantId },
+		{
+			templatePack: {
+				version: PACK_VERSION,
+				workspace,
+				submitted: result.submitted,
+				skippedExisting: result.skippedExisting,
+				failed: result.failed.map((f) => f.name)
+			}
+		}
+	);
+	log.info('template_pack_applied', { tenantId, workspace, ...{ submitted: result.submitted.length, skipped: result.skippedExisting.length, failed: result.failed.length } });
+	return result;
+}

@@ -6,6 +6,10 @@
 	let { data, form } = $props();
 	const canConnect = $derived(data.permissions?.includes('whatsapp:connect'));
 	const c = $derived(data.connection);
+	let settingUp = $state(false);
+	const packFlavour = $derived(
+		data.tenant.capabilities === 'ORDERS' ? 'order' : data.tenant.capabilities === 'SERVICE' ? 'enquiry' : 'booking'
+	);
 </script>
 
 <svelte:head><title>WhatsApp · {data.tenant.name}</title></svelte:head>
@@ -26,6 +30,25 @@
 		</header>
 
 		{#if c && c.status === 'CONNECTED'}
+			{#if !data.templatePack.version && canConnect}
+				<!-- Finish setup: one tap submits the workspace's notification pack -->
+				<div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-brand-50/50 px-4 py-3">
+					<div class="min-w-0">
+						<p class="text-sm font-semibold text-slate-800">Finish WhatsApp setup</p>
+						<p class="text-xs text-slate-500">
+							We'll prepare the recommended {packFlavour} notifications for your business and send them to WhatsApp for approval — usually done within hours.
+						</p>
+					</div>
+					<form method="POST" action="?/setupTemplates" use:enhance={() => { settingUp = true; return async ({ update }) => { await update(); settingUp = false; }; }}>
+						<button class="btn-primary" disabled={settingUp}>{settingUp ? 'Setting up…' : 'Set up notifications'}</button>
+					</form>
+				</div>
+			{:else if form?.pack}
+				<p class="border-b border-slate-100 bg-success/5 px-4 py-2.5 text-xs text-success">
+					{form.pack.submitted} notification template{form.pack.submitted === 1 ? '' : 's'} sent to WhatsApp for approval{form.pack.skipped ? ` · ${form.pack.skipped} already existed` : ''}.
+					They switch on automatically once approved — track them under Message templates.
+				</p>
+			{/if}
 			<dl class="grid grid-cols-2 gap-x-4 gap-y-2 p-3 text-sm sm:grid-cols-3">
 				<div><dt class="text-[11px] uppercase text-slate-500">Number</dt><dd class="font-medium">{c.displayPhoneNumber ?? '—'}</dd></div>
 				<div><dt class="text-[11px] uppercase text-slate-500">Business</dt><dd>{c.businessName ?? '—'}</dd></div>

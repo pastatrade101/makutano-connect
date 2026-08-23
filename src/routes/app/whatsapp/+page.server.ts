@@ -2,11 +2,13 @@ import { fail, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { audit } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/auth/permissions';
+import { toAppError } from '$lib/server/errors';
 import { can } from '$lib/server/entitlements';
 import { embeddedSignupReady } from '$lib/server/env';
 import { enqueue } from '$lib/server/jobs/queue';
 import { disconnect, getConnectionForTenant, toSafeConnection } from '$lib/server/whatsapp/connections';
 import { listTemplates, setTemplateEvent, TEMPLATE_EVENTS } from '$lib/server/whatsapp/templates';
+import { applyTemplatePack, packState } from '$lib/server/whatsapp/template-packs';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -17,7 +19,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		listTemplates(tenantId),
 		can(tenantId, 'whatsapp.enabled')
 	]);
+	const tenant = requireTenant(locals);
+	const pack = packState(tenant.settings as Record<string, unknown>);
 	return {
+		templatePack: pack,
 		connection: connection ? toSafeConnection(connection) : null,
 		templates: templates.map((t) => ({
 			id: t.id,
@@ -35,6 +40,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
+	/** One tap: draft + submit the workspace-relevant template pack to this WABA. */
+	setupTemplates: async ({ locals }) => {
+		requirePermission(locals.permissions, 'whatsapp:connect');
+		try {
+			const result = await applyTemplatePack(requireTenant(locals).id, { userId: locals.user!.id });
+			return { pack: { submitted: result.submitted.length, skipped: result.skippedExisting.length, failed: result.failed.length } };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
 	disconnect: async ({ locals }) => {
 		requirePermission(locals.permissions, 'whatsapp:connect');
 		const connection = await disconnect(requireTenant(locals).id);

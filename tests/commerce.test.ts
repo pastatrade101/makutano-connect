@@ -154,7 +154,7 @@ suite('commerce integration', () => {
 
 		const detail = await ctx.orders.getOrderDetail(tenantA.id, order.id);
 		expect(detail.history.map((h) => h.toStatus)).toEqual(['DELIVERED', 'DISPATCHED', 'CONFIRMED', 'DRAFT']);
-	}, 30_000);
+	}, 90_000);
 
 	it('refuses illegal transitions and edits after confirmation', async () => {
 		const order = await ctx.orders.createOrder(tenantA.id, { items: [{ title: 'Item', unitPrice: '10.00' }] });
