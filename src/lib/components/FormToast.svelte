@@ -10,7 +10,20 @@
 	$effect(() => {
 		if (!form || form === last) return;
 		last = form;
-		if (typeof form.message === 'string' && form.message) toasts.danger('Something went wrong', form.message);
-		else if (form.success) toasts.success(successTitle);
+		if (typeof form.message === 'string' && form.message) {
+			// Pick a headline the operator can act on; the body is already written in
+			// business language by the server's error layer.
+			const m = form.message.toLowerCase();
+			const title = m.includes('limit')
+				? 'Plan limit reached'
+				: m.includes('not included') || m.includes('not available')
+					? 'Not in your plan'
+					: m.includes('permission') || m.includes('access')
+						? 'No access'
+						: m.includes('template')
+							? 'WhatsApp template issue'
+							: 'Could not save';
+			toasts.danger(title, form.message);
+		} else if (form.success) toasts.success(successTitle);
 	});
 </script>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { sourceLabel, statusLabel } from '$lib/labels';
 	import EmptyState from '$components/EmptyState.svelte';
 	import FilterBar from '$components/FilterBar.svelte';
 	import Money from '$components/Money.svelte';
@@ -8,9 +9,9 @@
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data } = $props();
 
-	const STATUSES = ['DRAFT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'DELIVERED', 'CANCELLED', 'REFUNDED'].map((v) => ({ value: v, label: v.replace(/_/g, ' ') }));
+	const STATUSES = ['DRAFT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'DELIVERED', 'CANCELLED', 'REFUNDED'].map((v) => ({ value: v, label: statusLabel(v) }));
 	const PAYMENTS = [{ value: 'unpaid', label: 'Unpaid only' }, { value: 'PAID', label: 'Paid' }, { value: 'PARTIALLY_PAID', label: 'Partially paid' }];
-	const SOURCES = ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'PHONE', 'WALK_IN', 'WEBSITE', 'INSTAGRAM', 'FACEBOOK', 'MANUAL', 'API', 'OTHER'].map((v) => ({ value: v, label: v.replace(/_/g, ' ') }));
+	const SOURCES = ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'PHONE', 'WALK_IN', 'WEBSITE', 'INSTAGRAM', 'FACEBOOK', 'MANUAL', 'API', 'OTHER'].map((v) => ({ value: v, label: sourceLabel(v) }));
 </script>
 
 <svelte:head><title>Orders · {data.tenant.name}</title></svelte:head>

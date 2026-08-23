@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { sourceLabel, statusLabel } from '$lib/labels';
 	// Record an order the way a WhatsApp seller thinks about it: who, what, how many,
 	// how it reaches them. Catalog quick-pick fills names and prices; free-text rows
 	// cover everything the catalog doesn't. Nothing here is a storefront.
@@ -14,6 +15,7 @@
 	let deliveryDate = $state('');
 	let newCustomerName = $state('');
 	let newCustomerPhone = $state('');
+	let moreOptions = $state(false);
 
 	/** Selecting a batch fills the first empty row and the delivery details (§27). */
 	function applyBatch(id: string) {
@@ -83,7 +85,7 @@
 					<label class="label" for="source">Source</label>
 					<select id="source" name="source" class="input">
 						{#each ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'PHONE', 'WALK_IN', 'INSTAGRAM', 'FACEBOOK', 'WEBSITE', 'MANUAL', 'OTHER'] as s (s)}
-							<option value={s} selected={data.conversation ? s === 'WHATSAPP_DIRECT' : s === 'MANUAL'}>{s.replace(/_/g, ' ')}</option>
+							<option value={s} selected={data.conversation ? s === 'WHATSAPP_DIRECT' : s === 'MANUAL'}>{sourceLabel(s)}</option>
 						{/each}
 					</select>
 				</div>
@@ -127,13 +129,10 @@
 		</section>
 
 		<section class="card grid gap-3 p-3 sm:grid-cols-4">
-			<div><label class="label" for="discount">Discount</label><input id="discount" name="discount" bind:value={discount} placeholder="0.00" class="input" /></div>
-			<div><label class="label" for="deliveryFee">Delivery fee</label><input id="deliveryFee" name="deliveryFee" bind:value={deliveryFee} placeholder="0.00" class="input" /></div>
 			<div>
 				<label class="label" for="deliveryMethod">Delivery / pickup</label>
 				<select id="deliveryMethod" name="deliveryMethod" class="input"><option value="">—</option><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option></select>
 			</div>
-			<div><label class="label" for="deliveryLocation">Location</label><input id="deliveryLocation" name="deliveryLocation" class="input" /></div>
 			<div><label class="label" for="deliveryDate">Delivery date</label><input id="deliveryDate" name="deliveryDate" type="date" bind:value={deliveryDate} class="input" /></div>
 			<div>
 				<label class="label" for="paymentMethod">Payment method</label>
@@ -142,7 +141,17 @@
 					{#each ['Cash on Delivery', 'Mobile Payment', 'Bank Transfer', 'Other'] as m (m)}<option value={m}>{m}</option>{/each}
 				</select>
 			</div>
-			<div class="sm:col-span-4"><label class="label" for="notes">Notes</label><textarea id="notes" name="notes" rows="2" class="input" placeholder="Call before delivery."></textarea></div>
+			<div><label class="label" for="deliveryLocation">Location</label><input id="deliveryLocation" name="deliveryLocation" placeholder="Mikocheni, near…" class="input" /></div>
+
+			{#if !moreOptions}
+				<button type="button" class="text-left text-xs text-brand-600 hover:underline sm:col-span-4" onclick={() => (moreOptions = true)}>
+					More options — discount, delivery fee, notes
+				</button>
+			{:else}
+				<div><label class="label" for="discount">Discount</label><input id="discount" name="discount" bind:value={discount} placeholder="0.00" inputmode="decimal" class="input" /></div>
+				<div><label class="label" for="deliveryFee">Delivery fee</label><input id="deliveryFee" name="deliveryFee" bind:value={deliveryFee} placeholder="0.00" inputmode="decimal" class="input" /></div>
+				<div class="sm:col-span-2"><label class="label" for="notes">Notes</label><textarea id="notes" name="notes" rows="2" class="input" placeholder="Call before delivery."></textarea></div>
+			{/if}
 			<datalist id="unit-options">{#each data.units as u (u)}<option value={u}></option>{/each}</datalist>
 		</section>
 

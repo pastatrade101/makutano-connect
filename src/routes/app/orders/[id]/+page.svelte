@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { sourceLabel, statusLabel } from '$lib/labels';
 	import { enhance } from '$app/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
@@ -42,7 +43,7 @@
 		{#if canWrite && nextStatuses.length}
 			<form method="POST" action="?/status" use:enhance class="flex items-center gap-2">
 				<select name="status" class="input w-auto">
-					{#each nextStatuses as s (s)}<option value={s}>{s.replace(/_/g, ' ')}</option>{/each}
+					{#each nextStatuses as s (s)}<option value={s}>{statusLabel(s)}</option>{/each}
 				</select>
 				<input name="reason" placeholder="Reason (optional)" class="input w-auto" />
 				<button class="btn-primary">Move</button>
@@ -61,7 +62,7 @@
 		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Total</div><div class="text-lg font-bold"><Money amount={data.order.total} currency={data.order.currency} /></div></div>
 		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Paid</div><div class="text-lg font-bold text-success"><Money amount={data.order.amountPaid} currency={data.order.currency} /></div></div>
 		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Delivery</div><div class="text-sm font-semibold">{data.order.deliveryMethod ?? '—'}{#if data.order.deliveryDate} · {new Date(data.order.deliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{/if}</div><div class="truncate text-[11px] text-slate-400">{data.order.deliveryLocation ?? ''}</div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Source</div><div class="text-sm font-semibold">{data.order.source.replace(/_/g, ' ')}</div>{#if data.batch}<a href="/app/orders/batches/{data.batch.id}" class="truncate text-[11px] text-brand-600 hover:underline">{data.batch.name}</a>{:else if data.order.paymentMethod}<div class="truncate text-[11px] text-slate-400">{data.order.paymentMethod}</div>{/if}</div>
+		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Source</div><div class="text-sm font-semibold">{sourceLabel(data.order.source)}</div>{#if data.batch}<a href="/app/orders/batches/{data.batch.id}" class="truncate text-[11px] text-brand-600 hover:underline">{data.batch.name}</a>{:else if data.order.paymentMethod}<div class="truncate text-[11px] text-slate-400">{data.order.paymentMethod}</div>{/if}</div>
 	</div>
 
 	<div class="grid gap-3 lg:grid-cols-3">

@@ -27,32 +27,35 @@
 	};
 	const GROUPS: Array<{ label: string; items: Item[] }> = [
 		{
-			label: 'General',
+			// Daily work — what the business opens every morning.
+			label: '',
 			items: [
-				{ href: '/app', label: 'Overview', icon: 'M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-4v-5H8v5H4a1 1 0 0 1-1-1v-6.5Z', permission: null, primary: true },
-				{ href: '/app/booking-requests', label: 'Requests', icon: 'M4 3h12v14l-3-2-3 2-3-2-3 2V3Z', permission: 'booking_requests:read', primary: true, capability: 'BOOKINGS' },
-				{ href: '/app/bookings', label: 'Bookings', icon: 'M3 5h14v12H3V5Zm2 3h10v2H5V8Z', permission: 'bookings:read', primary: true, capability: 'BOOKINGS' },
-				{ href: '/app/orders', label: 'Orders', icon: 'M5 4h10l1.5 3v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V7L5 4Zm-1 3h12M8 10a2 2 0 0 0 4 0', permission: 'orders:read', primary: true, capability: 'ORDERS', entitlement: 'orders.enabled' },
-				{ href: '/app/conversations', label: 'Inbox', icon: 'M3 4h14v9H7l-4 3V4Z', permission: 'conversations:read', primary: true }
+				{ href: '/app', label: 'Home', icon: 'M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-4v-5H8v5H4a1 1 0 0 1-1-1v-6.5Z', permission: null, primary: true },
+				{ href: '/app/conversations', label: 'Inbox', icon: 'M3 4h14v9H7l-4 3V4Z', permission: 'conversations:read', primary: true },
+				{ href: '/app/customers', label: 'Customers', icon: 'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 7a6 6 0 0 1 12 0H4Z', permission: 'customers:read' }
 			]
 		},
 		{
-			label: 'Sales',
+			// Operational modules — only the ones this business actually runs on.
+			label: 'Work',
 			items: [
+				{ href: '/app/booking-requests', label: 'Enquiries', icon: 'M4 3h12v14l-3-2-3 2-3-2-3 2V3Z', permission: 'booking_requests:read', primary: true, capability: 'BOOKINGS' },
+				{ href: '/app/bookings', label: 'Bookings', icon: 'M3 5h14v12H3V5Zm2 3h10v2H5V8Z', permission: 'bookings:read', capability: 'BOOKINGS' },
+				{ href: '/app/orders', label: 'Orders', icon: 'M5 4h10l1.5 3v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V7L5 4Zm-1 3h12M8 10a2 2 0 0 0 4 0', permission: 'orders:read', primary: true, capability: 'ORDERS', entitlement: 'orders.enabled' },
 				{ href: '/app/quotations', label: 'Quotations', icon: 'M5 3h7l3 3v11H5V3Zm7 0v3h3', permission: 'quotations:read', entitlement: 'quotations.enabled' },
-				{ href: '/app/catalog', label: 'Catalog', icon: 'M4 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v11l-3-1.8L10 16l-3-1.8L4 16V5Z', permission: 'catalog:read', capability: 'ORDERS' },
-				{ href: '/app/customers', label: 'Customers', icon: 'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 7a6 6 0 0 1 12 0H4Z', permission: 'customers:read' },
-				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read' },
 				{ href: '/app/payments', label: 'Payments', icon: 'M2 6h16v8H2V6Zm0 3h16', permission: 'payments:read' }
 			]
 		},
 		{
-			label: 'Platform',
+			// Setup and less-than-daily tools. Configuration lives here, not up top.
+			label: 'More',
 			items: [
 				{ href: '/app/whatsapp', label: 'WhatsApp', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.enabled' },
-				{ href: '/app/whatsapp/templates', label: 'Templates', icon: 'M4 4h12v4H4V4Zm0 6h12v2H4v-2Zm0 4h8v2H4v-2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.templatesEnabled' },
-				{ href: '/app/forms', label: 'Forms & Widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read', entitlement: 'forms.hostedEnabled' },
-				{ href: '/app/developers', label: 'Developers', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5', permission: 'api_keys:read', entitlement: 'api.enabled' },
+				{ href: '/app/whatsapp/templates', label: 'Message templates', icon: 'M4 4h12v4H4V4Zm0 6h12v2H4v-2Zm0 4h8v2H4v-2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.templatesEnabled' },
+				{ href: '/app/forms', label: 'Forms & widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read', entitlement: 'forms.hostedEnabled' },
+				{ href: '/app/catalog', label: 'Catalog', icon: 'M4 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v11l-3-1.8L10 16l-3-1.8L4 16V5Z', permission: 'catalog:read', capability: 'ORDERS' },
+				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read', capability: 'BOOKINGS' },
+				{ href: '/app/developers', label: 'Integrations', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5', permission: 'api_keys:read', entitlement: 'api.enabled' },
 				{ href: '/app/settings', label: 'Settings', icon: 'M10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', permission: 'tenant:read' }
 			]
 		}
@@ -67,8 +70,32 @@
 	const locked = (item: Item) => !!item.entitlement && data.entitlements?.[item.entitlement] !== true;
 	const groups = $derived(GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length));
 	const flat = $derived(groups.flatMap((g) => g.items));
-	const primary = $derived(flat.filter((n) => n.primary).slice(0, 4));
+	const primary = $derived(flat.filter((n) => n.primary).slice(0, 3));
 	const current = $derived(flat.find((n) => isActive(n.href))?.label ?? 'Overview');
+
+	/** Global "+ New" (§6): only what this tenant can create, one tap from anywhere. */
+	type QuickItem = { href: string; label: string; hint: string };
+	const quickCreate = $derived.by(() => {
+		const items: QuickItem[] = [];
+		const can = (perm: string) => data.permissions?.includes(perm as never);
+		const orders = data.tenant.capabilities !== 'BOOKINGS' && data.entitlements?.['orders.enabled'] === true;
+		const bookings = data.tenant.capabilities !== 'ORDERS';
+		if (orders && can('orders:write')) {
+			items.push({ href: '/app/orders/new', label: 'New order', hint: 'Record a customer order' });
+			items.push({ href: '/app/orders/batches', label: 'New batch', hint: 'A selling round with shared price' });
+		}
+		if (bookings && can('booking_requests:write')) {
+			items.push({ href: '/app/booking-requests', label: 'New enquiry', hint: 'Log a booking enquiry' });
+		}
+		if (data.entitlements?.['quotations.enabled'] === true && can('quotations:write') && bookings) {
+			items.push({ href: '/app/quotations', label: 'New quotation', hint: 'Draft a quote to send' });
+		}
+		if (can('customers:write')) {
+			items.push({ href: '/app/customers?new=1', label: 'New customer', hint: 'Add someone manually' });
+		}
+		return items;
+	});
+	let quickOpen = $state(false);
 
 	let collapsed = $state(browser ? localStorage.getItem('mk-nav-collapsed') === '1' : false);
 	let userMenu = $state(false);
@@ -92,7 +119,7 @@
 	function submitSearch(event: SubmitEvent) {
 		event.preventDefault();
 		const q = search.trim();
-		void goto(`/app/booking-requests${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+		void goto(q ? `/app/search?q=${encodeURIComponent(q)}` : '/app/search');
 	}
 </script>
 
@@ -165,13 +192,32 @@
 				<div class="flex size-7 items-center justify-center rounded-panel bg-brand-500 text-xs font-bold text-white lg:hidden">M</div>
 
 				<form onsubmit={submitSearch} class="relative hidden md:block">
-					<input bind:value={search} placeholder="Search requests…" class="w-64 rounded-panel border border-slate-200 bg-slate-50 py-2 pr-3 pl-9 text-[13px] placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-1 focus:ring-brand-500" />
+					<input bind:value={search} placeholder="Search customers, orders, references…" class="w-64 rounded-panel border border-slate-200 bg-slate-50 py-2 pr-3 pl-9 text-[13px] placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-1 focus:ring-brand-500" />
 					<svg class="pointer-events-none absolute top-2.5 left-3 size-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.4 9.84l3.13 3.13a.75.75 0 1 0 1.06-1.06l-3.13-3.13A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" /></svg>
 				</form>
 				<h2 class="truncate text-[15px] font-semibold text-slate-800 md:hidden">{current}</h2>
 			</div>
 
 			<div class="flex items-center gap-1.5">
+				{#if quickCreate.length}
+					<div class="relative">
+						<button class="btn-primary !py-1.5 text-[13px]" onclick={() => (quickOpen = !quickOpen)} aria-label="Create new">
+							<svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12" /></svg>
+							<span class="hidden sm:inline">New</span>
+						</button>
+						{#if quickOpen}
+							<button class="fixed inset-0 z-20 hidden cursor-default lg:block" onclick={() => (quickOpen = false)} aria-label="Close menu" tabindex="-1"></button>
+							<div class="absolute right-0 z-30 mt-1 hidden w-60 rounded-panel border border-slate-200 bg-white py-1 shadow-md lg:block">
+								{#each quickCreate as item (item.href)}
+									<a href={item.href} class="block px-3 py-2 hover:bg-slate-50" onclick={() => (quickOpen = false)}>
+										<div class="text-[13px] font-medium text-slate-700">{item.label}</div>
+										<div class="text-[11px] text-slate-400">{item.hint}</div>
+									</a>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
 				<a href="/app/conversations" class="relative rounded-panel p-2 text-slate-500 hover:bg-slate-100" aria-label="Inbox notifications">
 					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3a4.5 4.5 0 0 0-4.5 4.5c0 3-1 4-1.5 4.8-.2.3 0 .7.4.7h11.2c.4 0 .6-.4.4-.7-.5-.8-1.5-1.8-1.5-4.8A4.5 4.5 0 0 0 10 3Zm-1.7 10.8a1.8 1.8 0 0 0 3.4 0" /></svg>
 					{#if data.unreadCount > 0}
@@ -240,13 +286,46 @@
 		</main>
 	</div>
 
-	<!-- Mobile bottom tabs -->
-	<nav class="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-slate-200 bg-white lg:hidden">
-		{#each primary as item (item.href)}
+	<!-- Mobile bottom tabs: the three most-used destinations + Create in the middle (§22) -->
+	<nav class="fixed inset-x-0 bottom-0 z-20 grid border-t border-slate-200 bg-white lg:hidden" style="grid-template-columns: repeat({quickCreate.length ? primary.length + 1 : primary.length}, 1fr)">
+		{#each primary.slice(0, 2) as item (item.href)}
+			<a href={item.href} class="flex flex-col items-center gap-0.5 py-2 text-[10px] {isActive(item.href) ? 'font-semibold text-brand-500' : 'text-slate-400'}">
+				<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
+				{item.label}
+			</a>
+		{/each}
+		{#if quickCreate.length}
+			<button class="flex flex-col items-center gap-0.5 py-2 text-[10px] text-slate-400" onclick={() => (quickOpen = !quickOpen)} aria-label="Create new">
+				<span class="flex size-6 items-center justify-center rounded-full bg-brand-500 text-white">
+					<svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12" /></svg>
+				</span>
+				New
+			</button>
+		{/if}
+		{#each primary.slice(2) as item (item.href)}
 			<a href={item.href} class="flex flex-col items-center gap-0.5 py-2 text-[10px] {isActive(item.href) ? 'font-semibold text-brand-500' : 'text-slate-400'}">
 				<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
 				{item.label}
 			</a>
 		{/each}
 	</nav>
+
+	<!-- Mobile create sheet -->
+	{#if quickOpen}
+		<div class="fixed inset-0 z-40 flex items-end bg-slate-900/40 lg:hidden">
+			<button class="absolute inset-0 cursor-default" onclick={() => (quickOpen = false)} aria-label="Close" tabindex="-1"></button>
+			<div class="relative z-10 w-full rounded-t-2xl bg-white p-4 pb-8 shadow-lg">
+				<div class="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200"></div>
+				<p class="mb-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">Create</p>
+				<div class="space-y-1">
+					{#each quickCreate as item (item.href)}
+						<a href={item.href} class="block rounded-panel px-3 py-3 hover:bg-slate-50 active:bg-slate-100" onclick={() => (quickOpen = false)}>
+							<div class="text-sm font-medium text-slate-700">{item.label}</div>
+							<div class="text-[11px] text-slate-400">{item.hint}</div>
+						</a>
+					{/each}
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>

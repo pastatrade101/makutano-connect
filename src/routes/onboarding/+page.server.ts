@@ -110,6 +110,7 @@ export const actions: Actions = {
 		const businessPhone = String(data.get('businessPhone') ?? '').trim();
 		const websiteUrl = String(data.get('websiteUrl') ?? '').trim();
 		const planId = String(data.get('planId') ?? '').trim();
+		const mainUse = String(data.get('mainUse') ?? '').trim();
 		const values = { businessName, industry, country, businessPhone, websiteUrl, planId };
 
 		if (!signupEnabled()) return fail(403, { ...values, message: 'Signup is currently closed.' });
@@ -135,6 +136,7 @@ export const actions: Actions = {
 				source: 'SELF_SERVICE',
 				owner: { kind: 'existing', userId: event.locals.user.id },
 				industry,
+				capabilities: (['BOOKINGS', 'ORDERS', 'BOTH'].includes(mainUse) ? mainUse : null) as never,
 				country,
 				currency: defaults.currency,
 				timezone: defaults.timezone,

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { sourceLabel, statusLabel } from '$lib/labels';
 	// The seller's pinned WhatsApp list, replaced. Mobile-first: cards on phones,
 	// a table on wide screens; every routine action is one tap.
 	import { enhance } from '$app/forms';
@@ -69,7 +70,7 @@
 			<a href="/app/orders/batches" class="text-xs text-slate-500 hover:underline">← Batches</a>
 			<h1 class="flex flex-wrap items-center gap-2 text-base font-semibold text-slate-800">
 				{data.batch.name}
-				<span class="badge {open ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-500'}">{data.batch.status}</span>
+				<span class="badge {open ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-500'}">{open ? 'Open' : 'Closed'}</span>
 			</h1>
 			<p class="text-xs text-slate-500">
 				{data.batch.defaultItemTitle} · <Money amount={data.batch.defaultUnitPrice} currency={data.batch.currency} />{data.batch.defaultUnit ? ` / ${data.batch.defaultUnit}` : ''}
@@ -94,7 +95,7 @@
 	{#if Object.keys(data.summary.statusCounts).length}
 		<div class="flex flex-wrap gap-1.5 text-[11px]">
 			{#each Object.entries(data.summary.statusCounts) as [status, n] (status)}
-				<span class="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-slate-600">{status.replace(/_/g, ' ').toLowerCase()}: <b>{n}</b></span>
+				<span class="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-slate-600">{statusLabel(status)}: <b>{n}</b></span>
 			{/each}
 		</div>
 	{/if}
@@ -177,7 +178,7 @@
 				<label class="flex items-center gap-1.5">Source
 					<select name="source" class="input w-auto !py-1 text-[11px]">
 						{#each ['WHATSAPP_GROUP', 'WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'PHONE', 'WALK_IN', 'MANUAL', 'OTHER'] as s (s)}
-							<option value={s}>{s.replace(/_/g, ' ')}</option>
+							<option value={s}>{sourceLabel(s)}</option>
 						{/each}
 					</select>
 				</label>
@@ -213,7 +214,7 @@
 				<div class="mt-2 flex items-center justify-between gap-2">
 					<label class="flex items-center gap-1.5 text-[11px] text-slate-500">Source
 						<select name="source" class="input w-auto !py-1 text-[11px]">
-							{#each ['WHATSAPP_GROUP', 'WHATSAPP_DIRECT', 'PHONE', 'MANUAL'] as s (s)}<option value={s}>{s.replace(/_/g, ' ')}</option>{/each}
+							{#each ['WHATSAPP_GROUP', 'WHATSAPP_DIRECT', 'PHONE', 'MANUAL'] as s (s)}<option value={s}>{sourceLabel(s)}</option>{/each}
 						</select>
 					</label>
 					<button class="btn-primary text-xs">Create orders</button>
@@ -279,7 +280,7 @@
 								<td class="table-cell tabular-nums"><Money amount={o.total} currency={o.currency} /></td>
 								<td class="table-cell"><StatusBadge value={o.payment_status} size="xs" /></td>
 								<td class="table-cell"><StatusBadge value={o.status} size="xs" /></td>
-								<td class="table-cell text-[11px] text-slate-500">{o.source.replace(/_/g, ' ')}</td>
+								<td class="table-cell text-[11px] text-slate-500">{sourceLabel(o.source)}</td>
 								<td class="table-cell">
 									<div class="flex justify-end gap-1.5">
 										{#each NEXT[o.status] ?? [] as nxt (nxt.to)}

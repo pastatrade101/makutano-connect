@@ -3,12 +3,17 @@
 	// (✓ sent, ✓✓ delivered, ✓✓ tinted read), composer pinned at the bottom.
 	import { enhance } from '$app/forms';
 	import FormToast from '$components/FormToast.svelte';
+	import Money from '$components/Money.svelte';
+	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data, form } = $props();
 
 	const canSend = $derived(data.permissions?.includes('whatsapp:send'));
 	const who = $derived([data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || `+${data.conversation.externalId ?? ''}`);
 	const initials = $derived(who.replace(/^\+/, '').split(/\s+/).map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || '#');
+
+	const KIND_HREF: Record<string, string> = { order: '/app/orders', booking: '/app/bookings', quotation: '/app/quotations' };
+	let showContext = $state(false);
 
 	const TICKS: Record<string, { marks: number; tinted: boolean }> = {
 		QUEUED: { marks: 0, tinted: false },
@@ -38,13 +43,48 @@
 	</div>
 	<div class="flex shrink-0 items-center gap-1.5">
 		{#if data.conversation.bookingRequestId}
-			<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary !py-1.5 text-xs">Open request</a>
+			<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary !py-1.5 text-xs">Open enquiry</a>
 		{/if}
 		{#if data.tenant.capabilities !== 'BOOKINGS' && data.permissions?.includes('orders:write')}
 			<a href="/app/orders/new?conversation={data.conversation.id}" class="btn-primary !py-1.5 text-xs">Create order</a>
 		{/if}
+		{#if data.context.length || Number(data.outstanding) > 0}
+			<button class="btn-secondary !px-2 !py-1.5 text-xs" onclick={() => (showContext = !showContext)} aria-label="Customer details">
+				{showContext ? 'Hide details' : 'Details'}
+			</button>
+		{/if}
 	</div>
 </header>
+
+<!-- §7: what this customer already has going on, without leaving the chat -->
+{#if data.context.length}
+	<div class="flex items-center gap-1.5 overflow-x-auto border-b border-slate-100 bg-white px-4 py-2">
+		{#each data.context.slice(0, showContext ? 6 : 3) as t (t.kind + t.id)}
+			<a
+				href="{KIND_HREF[t.kind]}/{t.id}"
+				class="flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition hover:border-brand-300 {t.this_thread ? 'border-brand-200 bg-brand-50/60' : 'border-slate-200 bg-white'}"
+			>
+				<span class="font-semibold text-slate-700">{t.reference}</span>
+				<StatusBadge value={t.status} size="xs" />
+				<span class="tabular-nums text-slate-500"><Money amount={t.total} currency={t.currency} /></span>
+			</a>
+		{/each}
+		{#if Number(data.outstanding) > 0}
+			<span class="ml-auto shrink-0 rounded-full bg-warning/15 px-2.5 py-1 text-[11px] font-semibold text-[#b58514]">
+				Owes <Money amount={data.outstanding} currency={data.context[0]?.currency ?? data.tenant.currency} />
+			</span>
+		{/if}
+	</div>
+{/if}
+
+{#if showContext}
+	<div class="grid gap-x-6 gap-y-1.5 border-b border-slate-100 bg-slate-50/60 px-4 py-3 text-xs sm:grid-cols-3">
+		<div><span class="text-slate-400">Customer</span> <span class="ml-1 font-medium text-slate-700">{who}</span></div>
+		{#if data.customer?.whatsappPhone}<div><span class="text-slate-400">WhatsApp</span> <span class="ml-1 font-medium text-slate-700">+{data.customer.whatsappPhone}</span></div>{/if}
+		{#if data.customer?.email}<div><span class="text-slate-400">Email</span> <span class="ml-1 font-medium text-slate-700">{data.customer.email}</span></div>{/if}
+		{#if data.customer?.notes}<div class="sm:col-span-3"><span class="text-slate-400">Notes</span> <span class="ml-1 text-slate-600">{data.customer.notes}</span></div>{/if}
+	</div>
+{/if}
 
 <div class="flex-1 space-y-2.5 overflow-y-auto bg-canvas/60 p-4">
 	{#each data.messages as m (m.id)}

@@ -4,6 +4,7 @@
 
 	let { data, form } = $props();
 	let submitting = $state(false);
+	let mainUse = $state('BOTH');
 	let selectedPlan = $state(
 		form?.planId || data.plans.find((p) => p.code === data.defaultPlanCode)?.id || data.plans[0]?.id || ''
 	);
@@ -69,6 +70,20 @@
 					<label class="label" for="websiteUrl">Website <span class="font-normal text-slate-400">(optional)</span></label>
 					<input id="websiteUrl" name="websiteUrl" type="url" value={form?.websiteUrl ?? ''} class="input" placeholder="https://yourbusiness.com" />
 				</div>
+			</div>
+		</div>
+
+		<div class="card p-6">
+			<h2 class="mb-1 text-sm font-semibold text-slate-700">What will you mainly use Connect for?</h2>
+			<p class="mb-3 text-[11px] text-slate-400">This shapes your menus and dashboard — you can change it anytime in Settings.</p>
+			<div class="grid gap-2 sm:grid-cols-3">
+				{#each [{ value: 'ORDERS', label: 'Simple orders', hint: 'Customers order what you sell — fish, food, products' }, { value: 'BOOKINGS', label: 'Bookings & enquiries', hint: 'Tours, stays, appointments, quotes' }, { value: 'BOTH', label: 'A combination', hint: 'A bit of everything' }] as opt (opt.value)}
+					<label class="cursor-pointer rounded-panel border p-3 transition {mainUse === opt.value ? 'border-brand-500 bg-brand-50/60 ring-1 ring-brand-500' : 'border-slate-200 hover:border-slate-300'}">
+						<input type="radio" name="mainUse" value={opt.value} bind:group={mainUse} class="sr-only" />
+						<span class="block text-sm font-semibold text-slate-700">{opt.label}</span>
+						<span class="mt-0.5 block text-[11px] text-slate-500">{opt.hint}</span>
+					</label>
+				{/each}
 			</div>
 		</div>
 

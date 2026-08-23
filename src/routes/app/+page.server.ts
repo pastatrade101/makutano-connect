@@ -28,11 +28,36 @@ async function dailySeries(tenantId: string) {
 	};
 }
 
+/** "Needs your attention" + "Today", in one query — the header of the working day. */
+async function actionCentre(tenantId: string) {
+	const rows = (await db().execute(sql`
+		select
+			(select count(*)::int from booking_requests r where r.tenant_id = ${tenantId}::uuid and r.status = 'NEW') as new_enquiries,
+			(select count(*)::int from orders o where o.tenant_id = ${tenantId}::uuid and o.status = 'PENDING_CONFIRMATION') as orders_to_confirm,
+			(select count(*)::int from orders o where o.tenant_id = ${tenantId}::uuid and o.status = 'READY') as orders_ready,
+			(select count(*)::int from bookings b where b.tenant_id = ${tenantId}::uuid and b.status = 'AWAITING_PAYMENT') as bookings_unpaid,
+			(select count(*)::int from quotations q where q.tenant_id = ${tenantId}::uuid and q.status = 'SENT') as quotes_waiting,
+			(select count(*)::int from conversations c where c.tenant_id = ${tenantId}::uuid and c.unread_count > 0) as unread_chats,
+			(select count(*)::int from conversations c where c.tenant_id = ${tenantId}::uuid and c.created_at::date = current_date) as chats_today,
+			(select count(*)::int from orders o where o.tenant_id = ${tenantId}::uuid and o.created_at::date = current_date) as orders_today,
+			(select count(*)::int from booking_requests r where r.tenant_id = ${tenantId}::uuid and r.created_at::date = current_date) as enquiries_today,
+			(select coalesce(sum(p.amount), 0)::numeric(14,2) from payments p
+				where p.tenant_id = ${tenantId}::uuid and p.status = 'SUCCEEDED' and p.created_at::date = current_date) as received_today,
+			(select ob.id::text from order_batches ob
+				where ob.tenant_id = ${tenantId}::uuid and ob.status = 'OPEN'
+				order by ob.fulfilment_date asc nulls last, ob.created_at desc limit 1) as open_batch_id,
+			(select ob.name from order_batches ob
+				where ob.tenant_id = ${tenantId}::uuid and ob.status = 'OPEN'
+				order by ob.fulfilment_date asc nulls last, ob.created_at desc limit 1) as open_batch_name
+	`)) as unknown as Array<Record<string, unknown>>;
+	return rows[0] ?? {};
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
 	const tenantId = requireTenant(locals).id;
 	const pagination = { page: 1, limit: 8, order: 'desc' as const };
 
-	const [requests, bookings, customers, payments, recent, inbox, connection, activity] = await Promise.all([
+	const [requests, bookings, customers, payments, recent, inbox, connection, activity, centre] = await Promise.all([
 		bookingRequestStats(tenantId),
 		bookingStats(tenantId),
 		customerStats(tenantId),
@@ -40,12 +65,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 		listBookingRequests(tenantId, pagination),
 		listConversations(tenantId, pagination, { open: true }),
 		getConnectionForTenant(tenantId),
-		dailySeries(tenantId)
+		dailySeries(tenantId),
+		actionCentre(tenantId)
 	]);
 
 	const onboarding = await onboardingState(tenantId);
 
 	return {
+		centre,
 		stats: { requests, bookings, customers, payments },
 		recentRequests: recent.items,
 		inbox: inbox.items,

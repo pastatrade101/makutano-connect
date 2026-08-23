@@ -84,7 +84,7 @@
 				<a href="/app/orders/batches/{b.id}" class="card block p-4 transition hover:border-brand-300">
 					<div class="flex items-start justify-between gap-2">
 						<h2 class="text-sm font-semibold text-slate-800">{b.name}</h2>
-						<span class="badge {b.status === 'OPEN' ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-500'}">{b.status}</span>
+						<span class="badge {b.status === 'OPEN' ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-500'}">{b.status === 'OPEN' ? 'Open' : 'Closed'}</span>
 					</div>
 					<p class="mt-1 text-xs text-slate-500">
 						{b.defaultItemTitle}{b.defaultUnit ? ` · per ${b.defaultUnit}` : ''} ·

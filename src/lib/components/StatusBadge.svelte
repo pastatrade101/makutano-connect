@@ -1,6 +1,7 @@
 <script lang="ts">
 	// One vocabulary of status colours across every table, so an operator learns the
 	// colour once rather than per screen.
+	import { statusLabel } from '$lib/labels';
 	let { value, size = 'sm' }: { value: string | null | undefined; size?: 'sm' | 'xs' } = $props();
 
 	const TONES: Record<string, string> = {
@@ -48,7 +49,7 @@
 	};
 
 	const tone = $derived(TONES[value ?? ''] ?? 'bg-slate-100 text-slate-600 ring-slate-200');
-	const label = $derived((value ?? '—').replace(/_/g, ' ').toLowerCase());
+	const label = $derived(statusLabel(value));
 </script>
 
-<span class="badge {tone} {size === 'xs' ? 'text-[10px]' : 'text-xs'} capitalize">{label}</span>
+<span class="badge {tone} {size === 'xs' ? 'text-[10px]' : 'text-xs'}">{label}</span>

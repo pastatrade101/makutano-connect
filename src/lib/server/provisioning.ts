@@ -70,6 +70,8 @@ export type ProvisionTenantInput = {
 	source: schema.ProvisioningSource;
 	owner?: ProvisionOwner;
 	industry?: string | null;
+	/** UI preference only — which modules lead the portal. Never an authorization input. */
+	capabilities?: 'BOOKINGS' | 'ORDERS' | 'BOTH' | null;
 	country?: string | null;
 	currency?: string | null;
 	timezone?: string | null;
@@ -263,7 +265,7 @@ export async function provisionTenant(input: ProvisionTenantInput): Promise<Prov
 				quotationPrefix: input.quotationPrefix ?? 'QT',
 				// Safe defaults. Nothing here grants a capability — every module is still
 				// gated by the plan's entitlements at the point of use.
-				settings: { capabilities: capabilitiesFor(input.industry) },
+				settings: { capabilities: input.capabilities ?? capabilitiesFor(input.industry) },
 				notificationPreferences: { inApp: true, email: true }
 			})
 			.returning();

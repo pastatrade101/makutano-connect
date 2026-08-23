@@ -1,6 +1,6 @@
 import { error, fail, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { getConversation, listMessages, markConversationRead } from '$lib/server/conversations';
 import { db, schema } from '$lib/server/db';
@@ -21,8 +21,48 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		const customer = conversation.customerId
 			? (await db().select().from(schema.customers).where(eq(schema.customers.id, conversation.customerId)).limit(1))[0]
 			: null;
+
+		// §7-§8: everything this thread (and this customer) already has going on, so the
+		// operator never leaves the chat to answer "what did they order, have they paid?"
+		const context = (await db().execute(sql`
+			select * from (
+				select 'order' as kind, o.id::text, o.order_number as reference, o.status::text, o.total::text,
+					o.amount_paid::text, o.currency, o.created_at,
+					(o.conversation_id = ${id}::uuid) as this_thread
+				from orders o
+				where o.tenant_id = ${tenantId}::uuid
+					and (o.conversation_id = ${id}::uuid or (o.customer_id is not null and o.customer_id = ${conversation.customerId ?? null}::uuid))
+				union all
+				select 'booking', b.id::text, b.booking_reference, b.status::text, b.total::text, b.amount_paid::text, b.currency, b.created_at,
+					false
+				from bookings b
+				where b.tenant_id = ${tenantId}::uuid and b.customer_id is not null and b.customer_id = ${conversation.customerId ?? null}::uuid
+				union all
+				select 'quotation', q.id::text, q.reference, q.status::text, q.total::text, '0', q.currency, q.created_at,
+					(q.conversation_id = ${id}::uuid)
+				from quotations q
+				where q.tenant_id = ${tenantId}::uuid
+					and (q.conversation_id = ${id}::uuid or (q.customer_id is not null and q.customer_id = ${conversation.customerId ?? null}::uuid))
+			) t
+			order by this_thread desc, created_at desc
+			limit 6
+		`)) as unknown as Array<{
+			kind: 'order' | 'booking' | 'quotation';
+			id: string;
+			reference: string;
+			status: string;
+			total: string;
+			amount_paid: string;
+			currency: string;
+			this_thread: boolean;
+		}>;
+
+		const outstanding = context
+			.filter((t) => t.kind !== 'quotation' && !['CANCELLED', 'REFUNDED', 'DECLINED', 'EXPIRED'].includes(t.status))
+			.reduce((sum, t) => sum + Math.max(0, Number(t.total) - Number(t.amount_paid)), 0);
+
 		await markConversationRead(tenantId, id);
-		return { conversation, messages: items, customer };
+		return { conversation, messages: items, customer, context, outstanding: outstanding.toFixed(2) };
 	} catch {
 		error(404, 'Conversation not found');
 	}
