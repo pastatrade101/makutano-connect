@@ -1,11 +1,13 @@
 import { error, fail, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { getConversation, listMessages, markConversationRead } from '$lib/server/conversations';
 import { db, schema } from '$lib/server/db';
 import { toAppError } from '$lib/server/errors';
 import { parseUuid } from '$lib/server/http';
+import { log } from '$lib/server/logger';
+import { createBatchOrder } from '$lib/server/order-batches';
 import { queueMessage } from '$lib/server/whatsapp/messages';
 import type { PageServerLoad } from './$types';
 
@@ -61,14 +63,63 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.filter((t) => t.kind !== 'quotation' && !['CANCELLED', 'REFUNDED', 'DECLINED', 'EXPIRED'].includes(t.status))
 			.reduce((sum, t) => sum + Math.max(0, Number(t.total) - Number(t.amount_paid)), 0);
 
+		// The seller's most common move: a customer writes "nataka kilo 4" and the
+		// operator records it against today's batch without leaving the chat.
+		const openBatch = (
+			await db()
+				.select({
+					id: schema.orderBatches.id,
+					name: schema.orderBatches.name,
+					unit: schema.orderBatches.defaultUnit,
+					unitPrice: schema.orderBatches.defaultUnitPrice,
+					currency: schema.orderBatches.currency
+				})
+				.from(schema.orderBatches)
+				.where(and(eq(schema.orderBatches.tenantId, tenantId), eq(schema.orderBatches.status, 'OPEN')))
+				.orderBy(sql`fulfilment_date asc nulls last, created_at desc`)
+				.limit(1)
+		)[0] ?? null;
+
 		await markConversationRead(tenantId, id);
-		return { conversation, messages: items, customer, context, outstanding: outstanding.toFixed(2) };
+		return { conversation, messages: items, customer, context, outstanding: outstanding.toFixed(2), openBatch };
 	} catch {
 		error(404, 'Conversation not found');
 	}
 };
 
 export const actions: Actions = {
+	/** One-tap order from the chat: quantity only; batch + customer supply the rest. */
+	addToBatch: async ({ locals, params, request }) => {
+		requirePermission(locals.permissions, 'orders:write');
+		const tenantId = requireTenant(locals).id;
+		const data = await request.formData();
+		const quantity = Number(data.get('quantity'));
+		const batchId = parseUuid(String(data.get('batchId') ?? ''), 'batch id');
+		if (!Number.isFinite(quantity) || quantity < 1) return fail(400, { message: 'Enter a quantity of at least 1.' });
+
+		const conversation = await getConversation(tenantId, idOf(params));
+		if (!conversation.customerId) {
+			return fail(400, { message: 'This conversation has no customer yet — create the order from the full form instead.' });
+		}
+		try {
+			const order = await createBatchOrder(
+				tenantId,
+				batchId,
+				{
+					customerId: conversation.customerId,
+					quantity,
+					source: 'WHATSAPP_DIRECT',
+					conversationId: conversation.id
+				},
+				{ userId: locals.user!.id }
+			);
+			return { added: { orderNumber: order.orderNumber, total: order.total, currency: order.currency } };
+		} catch (err) {
+			log.error('add_to_batch_failed', { message: (err as Error)?.message, stack: (err as Error)?.stack?.split('\n')[1] });
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
 	send: async ({ locals, params, request }) => {
 		requirePermission(locals.permissions, 'whatsapp:send');
 		const data = await request.formData();

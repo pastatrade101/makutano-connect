@@ -11,18 +11,35 @@
 	const canWrite = $derived(data.permissions?.includes('orders:write'));
 	const canPay = $derived(data.permissions?.includes('payments:write'));
 
-	const NEXT: Record<string, string[]> = {
-		DRAFT: ['PENDING_CONFIRMATION', 'CONFIRMED', 'CANCELLED'],
-		PENDING_CONFIRMATION: ['CONFIRMED', 'CANCELLED'],
-		CONFIRMED: ['PROCESSING', 'READY', 'DISPATCHED', 'CANCELLED'],
-		PROCESSING: ['READY', 'DISPATCHED', 'CANCELLED'],
-		READY: ['DISPATCHED', 'DELIVERED', 'CANCELLED'],
-		DISPATCHED: ['DELIVERED', 'CANCELLED'],
-		DELIVERED: ['REFUNDED'],
-		CANCELLED: ['REFUNDED'],
-		REFUNDED: []
+	/** The happy path as buttons; destructive moves live in quiet links below. */
+	const FORWARD: Record<string, Array<{ to: string; label: string }>> = {
+		DRAFT: [{ to: 'CONFIRMED', label: 'Confirm order' }],
+		PENDING_CONFIRMATION: [{ to: 'CONFIRMED', label: 'Confirm order' }],
+		CONFIRMED: [
+			{ to: 'READY', label: 'Mark ready' },
+			{ to: 'DISPATCHED', label: 'Dispatch' }
+		],
+		PROCESSING: [{ to: 'READY', label: 'Mark ready' }],
+		READY: [
+			{ to: 'DISPATCHED', label: 'Dispatch' },
+			{ to: 'DELIVERED', label: 'Delivered' }
+		],
+		DISPATCHED: [{ to: 'DELIVERED', label: 'Delivered' }]
 	};
-	const nextStatuses = $derived(NEXT[data.order.status] ?? []);
+	const DESTRUCTIVE: Record<string, Array<{ to: string; label: string }>> = {
+		DRAFT: [{ to: 'CANCELLED', label: 'Cancel order' }],
+		PENDING_CONFIRMATION: [{ to: 'CANCELLED', label: 'Cancel order' }],
+		CONFIRMED: [{ to: 'CANCELLED', label: 'Cancel order' }],
+		PROCESSING: [{ to: 'CANCELLED', label: 'Cancel order' }],
+		READY: [{ to: 'CANCELLED', label: 'Cancel order' }],
+		DISPATCHED: [{ to: 'CANCELLED', label: 'Cancel order' }],
+		DELIVERED: [{ to: 'REFUNDED', label: 'Refund' }],
+		CANCELLED: [{ to: 'REFUNDED', label: 'Refund' }]
+	};
+	const forward = $derived(FORWARD[data.order.status] ?? []);
+	const destructive = $derived(DESTRUCTIVE[data.order.status] ?? []);
+	const outstanding = $derived(Math.max(0, Number(data.order.total) - Number(data.order.amountPaid)));
+	let confirmDestructive = $state<string | null>(null);
 	const customerName = $derived([data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || '—');
 </script>
 
@@ -40,16 +57,42 @@
 				<StatusBadge value={data.order.paymentStatus} size="xs" />
 			</h1>
 		</div>
-		{#if canWrite && nextStatuses.length}
-			<form method="POST" action="?/status" use:enhance class="flex items-center gap-2">
-				<select name="status" class="input w-auto">
-					{#each nextStatuses as s (s)}<option value={s}>{statusLabel(s)}</option>{/each}
-				</select>
-				<input name="reason" placeholder="Reason (optional)" class="input w-auto" />
-				<button class="btn-primary">Move</button>
-			</form>
-		{/if}
+		<div class="flex flex-wrap items-center gap-1.5">
+			{#if canWrite}
+				{#each forward as move, i (move.to)}
+					<form method="POST" action="?/status" use:enhance>
+						<input type="hidden" name="status" value={move.to} />
+						<button class={i === 0 ? 'btn-primary' : 'btn-secondary'}>{move.label}</button>
+					</form>
+				{/each}
+			{/if}
+			{#if canPay && outstanding > 0 && !['CANCELLED', 'REFUNDED'].includes(data.order.status)}
+				<form method="POST" action="?/payment" use:enhance>
+					<input type="hidden" name="amount" value={outstanding.toFixed(2)} />
+					<input type="hidden" name="provider" value="MANUAL" />
+					<input type="hidden" name="description" value="Marked paid" />
+					<button class="btn-secondary text-success">Mark paid</button>
+				</form>
+			{/if}
+		</div>
 	</div>
+
+	{#if canWrite && destructive.length}
+		<div class="flex justify-end gap-3 text-[11px]">
+			{#each destructive as move (move.to)}
+				{#if confirmDestructive === move.to}
+					<form method="POST" action="?/status" use:enhance={() => async ({ update }) => { await update(); confirmDestructive = null; }} class="flex items-center gap-2">
+						<input type="hidden" name="status" value={move.to} />
+						<input name="reason" placeholder="Reason (optional)" class="input !py-1 w-40 text-[11px]" />
+						<button class="font-semibold text-danger hover:underline">Yes, {move.label.toLowerCase()}</button>
+						<button type="button" class="text-slate-400 hover:underline" onclick={() => (confirmDestructive = null)}>Keep it</button>
+					</form>
+				{:else}
+					<button class="text-slate-400 hover:text-danger hover:underline" onclick={() => (confirmDestructive = move.to)}>{move.label}</button>
+				{/if}
+			{/each}
+		</div>
+	{/if}
 
 	{#if data.order.status === 'DRAFT' || data.order.status === 'PENDING_CONFIRMATION'}
 		<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">

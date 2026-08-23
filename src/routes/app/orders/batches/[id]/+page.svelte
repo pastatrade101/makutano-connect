@@ -16,6 +16,9 @@
 	let showBulk = $state(false);
 	let adding = $state(false);
 	let quantityInput = $state<HTMLInputElement | null>(null);
+	let customerInput = $state<HTMLInputElement | null>(null);
+	let lastAdded = $state<{ orderNumber: string; total: string; currency: string } | null>(null);
+	let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const open = $derived(data.batch.status === 'OPEN');
 	const price = $derived(Number(data.batch.defaultUnitPrice) || 0);
@@ -111,18 +114,31 @@
 				return async ({ result, update }) => {
 					adding = false;
 					if (result.type === 'success') {
+						// Flash the confirmation, clear, and put the cursor back where the
+						// next customer's name goes — 30 entries should feel like one.
+						lastAdded = (result.data as { added?: typeof lastAdded })?.added ?? null;
+						if (flashTimer) clearTimeout(flashTimer);
+						flashTimer = setTimeout(() => (lastAdded = null), 4000);
 						customerId = '';
 						customerQuery = '';
 						quantity = '';
 						newCustomerPhone = '';
 						await invalidateAll();
+						customerInput?.focus();
 					} else {
 						await update();
 					}
 				};
 			}}
 		>
-			<h2 class="card-title mb-2">Add order</h2>
+			<div class="mb-2 flex items-center justify-between gap-2">
+				<h2 class="card-title">Add order</h2>
+				{#if lastAdded}
+					<span class="truncate text-[11px] font-medium text-success">
+						✓ {lastAdded.orderNumber} · {lastAdded.currency} {Number(lastAdded.total).toLocaleString()}
+					</span>
+				{/if}
+			</div>
 			{#if form?.message}
 				<p class="mb-2 rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>
 			{/if}
@@ -136,6 +152,7 @@
 						}}
 						class="input h-11"
 						autocomplete="off"
+						bind:this={customerInput}
 					/>
 					<input type="hidden" name="customerId" value={customerId} />
 					<input type="hidden" name="newCustomerName" value={customerId ? '' : customerQuery} />

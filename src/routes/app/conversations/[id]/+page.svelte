@@ -14,6 +14,10 @@
 
 	const KIND_HREF: Record<string, string> = { order: '/app/orders', booking: '/app/bookings', quotation: '/app/quotations' };
 	let showContext = $state(false);
+	let batchQty = $state('');
+	const canOrder = $derived(
+		data.tenant.capabilities !== 'BOOKINGS' && data.permissions?.includes('orders:write') && !!data.customer
+	);
 
 	const TICKS: Record<string, { marks: number; tinted: boolean }> = {
 		QUEUED: { marks: 0, tinted: false },
@@ -55,6 +59,37 @@
 		{/if}
 	</div>
 </header>
+
+<!-- One-tap batch order: the fish-seller move, straight from the chat -->
+{#if canOrder && data.openBatch}
+	<form
+		method="POST"
+		action="?/addToBatch"
+		class="flex items-center gap-2 border-b border-slate-100 bg-brand-50/40 px-4 py-2"
+		use:enhance={() => async ({ result, update }) => {
+			if (result.type === 'success') batchQty = '';
+			await update({ reset: false });
+		}}
+	>
+		<input type="hidden" name="batchId" value={data.openBatch.id} />
+		<span class="hidden text-[11px] text-slate-500 sm:block">Add to <b class="text-slate-700">{data.openBatch.name}</b></span>
+		<span class="text-[11px] text-slate-500 sm:hidden">Add to batch</span>
+		<input
+			type="number" min="1" inputmode="numeric" name="quantity" bind:value={batchQty}
+			placeholder={data.openBatch.unit ? `Qty (${data.openBatch.unit})` : 'Qty'}
+			class="input h-9 w-24 text-center text-sm font-semibold"
+		/>
+		{#if Number(batchQty) > 0}
+			<span class="text-[11px] font-semibold tabular-nums text-slate-600">
+				= {data.openBatch.currency} {(Number(batchQty) * Number(data.openBatch.unitPrice)).toLocaleString()}
+			</span>
+		{/if}
+		<button class="btn-primary !py-1.5 text-xs" disabled={!batchQty}>Add order</button>
+		{#if form?.added}
+			<span class="ml-auto truncate text-[11px] text-success">✓ {form.added.orderNumber} added</span>
+		{/if}
+	</form>
+{/if}
 
 <!-- §7: what this customer already has going on, without leaving the chat -->
 {#if data.context.length}

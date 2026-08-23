@@ -1,8 +1,9 @@
-import { error, fail, type Actions } from '@sveltejs/kit';
+import { error, fail, redirect, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { eq } from 'drizzle-orm';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { addBookingRequestNote, getBookingRequestDetail, updateBookingRequest } from '$lib/server/booking-requests';
+import { createQuotation } from '$lib/server/quotations';
 import { db, schema } from '$lib/server/db';
 import { listMessages } from '$lib/server/conversations';
 import { queueMessage } from '$lib/server/whatsapp/messages';
@@ -40,6 +41,48 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 };
 
 export const actions: Actions = {
+	/**
+	 * One tap from enquiry to a draft quotation: items are copied across, the request
+	 * moves to QUOTED, and the operator lands on the quote ready to price and send.
+	 */
+	createQuote: async ({ locals, params }) => {
+		requirePermission(locals.permissions, 'quotations:write');
+		const tenantId = requireTenant(locals).id;
+		const id = idOf(params);
+		let quotationId: string;
+		try {
+			const detail = await getBookingRequestDetail(tenantId, id);
+			const items = detail.items.length
+				? detail.items.map((i) => ({
+						type: i.type,
+						title: i.title,
+						description: i.description,
+						quantity: i.quantity,
+						unitPrice: i.unitPrice,
+						startDate: i.startDate ? String(i.startDate).slice(0, 10) : null,
+						endDate: i.endDate ? String(i.endDate).slice(0, 10) : null
+					}))
+				: [{ title: 'Package', quantity: 1, unitPrice: detail.request.estimatedTotal ?? '0' }];
+			const quotation = await createQuotation(
+				tenantId,
+				{
+					bookingRequestId: id,
+					conversationId: detail.request.conversationId,
+					currency: detail.request.currency ?? undefined,
+					adults: detail.request.adults ?? undefined,
+					children: detail.request.children ?? undefined,
+					items
+				},
+				locals.user!.id
+			);
+			await updateBookingRequest(tenantId, id, { status: 'QUOTED' });
+			quotationId = quotation.id;
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+		redirect(303, `/app/quotations/${quotationId}`);
+	},
+
 	status: async ({ locals, params, request }) => {
 		requirePermission(locals.permissions, 'booking_requests:write');
 		const data = await request.formData();

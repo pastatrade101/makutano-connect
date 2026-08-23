@@ -9,7 +9,35 @@
 	const tz = $derived(data.tenant.timezone);
 	const canWrite = $derived(data.permissions?.includes('bookings:write'));
 	const canPay = $derived(data.permissions?.includes('payments:write'));
-	const NEXT = ['PENDING', 'AWAITING_PAYMENT', 'PARTIALLY_PAID', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'REFUNDED'];
+	/** The booking journey as buttons (§20); destructive moves demoted to quiet links. */
+	const FORWARD: Record<string, Array<{ to: string; label: string }>> = {
+		DRAFT: [{ to: 'PENDING', label: 'Mark pending' }],
+		PENDING: [
+			{ to: 'AWAITING_PAYMENT', label: 'Request payment' },
+			{ to: 'CONFIRMED', label: 'Confirm booking' }
+		],
+		AWAITING_PAYMENT: [{ to: 'CONFIRMED', label: 'Confirm booking' }],
+		PARTIALLY_PAID: [{ to: 'CONFIRMED', label: 'Confirm booking' }],
+		CONFIRMED: [
+			{ to: 'IN_PROGRESS', label: 'Start trip' },
+			{ to: 'COMPLETED', label: 'Complete' }
+		],
+		IN_PROGRESS: [{ to: 'COMPLETED', label: 'Complete' }]
+	};
+	const DESTRUCTIVE: Record<string, Array<{ to: string; label: string }>> = {
+		DRAFT: [{ to: 'CANCELLED', label: 'Cancel booking' }],
+		PENDING: [{ to: 'CANCELLED', label: 'Cancel booking' }],
+		AWAITING_PAYMENT: [{ to: 'CANCELLED', label: 'Cancel booking' }],
+		PARTIALLY_PAID: [{ to: 'CANCELLED', label: 'Cancel booking' }],
+		CONFIRMED: [{ to: 'CANCELLED', label: 'Cancel booking' }],
+		IN_PROGRESS: [{ to: 'CANCELLED', label: 'Cancel booking' }],
+		COMPLETED: [{ to: 'REFUNDED', label: 'Refund' }],
+		CANCELLED: [{ to: 'REFUNDED', label: 'Refund' }]
+	};
+	const forward = $derived(FORWARD[data.booking.status] ?? []);
+	const destructive = $derived(DESTRUCTIVE[data.booking.status] ?? []);
+	const balance = $derived(Math.max(0, Number(data.booking.balanceDue ?? 0)));
+	let confirmDestructive = $state<string | null>(null);
 </script>
 
 <svelte:head><title>{data.booking.bookingReference} · {data.tenant.name}</title></svelte:head>
@@ -22,16 +50,42 @@
 			<a href="/app/bookings" class="text-xs text-slate-500 hover:underline">← Bookings</a>
 			<h1 class="flex items-center gap-2 text-base font-semibold text-slate-900">{data.booking.bookingReference} <StatusBadge value={data.booking.status} /></h1>
 		</div>
-		{#if canWrite}
-			<form method="POST" action="?/status" use:enhance class="flex items-center gap-2">
-				<select name="status" class="input w-auto">
-					{#each NEXT as s (s)}<option value={s} selected={data.booking.status === s}>{s.replace(/_/g, ' ')}</option>{/each}
-				</select>
-				<input name="reason" placeholder="Reason (optional)" class="input w-auto" />
-				<button class="btn-primary">Update</button>
-			</form>
-		{/if}
+		<div class="flex flex-wrap items-center gap-1.5">
+			{#if canWrite}
+				{#each forward as move, i (move.to)}
+					<form method="POST" action="?/status" use:enhance>
+						<input type="hidden" name="status" value={move.to} />
+						<button class={i === 0 ? 'btn-primary' : 'btn-secondary'}>{move.label}</button>
+					</form>
+				{/each}
+			{/if}
+			{#if canPay && balance > 0 && !['CANCELLED', 'REFUNDED', 'COMPLETED'].includes(data.booking.status)}
+				<form method="POST" action="?/payment" use:enhance>
+					<input type="hidden" name="amount" value={balance.toFixed(2)} />
+					<input type="hidden" name="provider" value="MANUAL" />
+					<input type="hidden" name="description" value="Marked paid" />
+					<button class="btn-secondary text-success">Mark paid</button>
+				</form>
+			{/if}
+		</div>
 	</div>
+
+	{#if canWrite && destructive.length}
+		<div class="flex justify-end gap-3 text-[11px]">
+			{#each destructive as move (move.to)}
+				{#if confirmDestructive === move.to}
+					<form method="POST" action="?/status" use:enhance={() => async ({ update }) => { await update(); confirmDestructive = null; }} class="flex items-center gap-2">
+						<input type="hidden" name="status" value={move.to} />
+						<input name="reason" placeholder="Reason (optional)" class="input !py-1 w-40 text-[11px]" />
+						<button class="font-semibold text-danger hover:underline">Yes, {move.label.toLowerCase()}</button>
+						<button type="button" class="text-slate-400 hover:underline" onclick={() => (confirmDestructive = null)}>Keep it</button>
+					</form>
+				{:else}
+					<button class="text-slate-400 hover:text-danger hover:underline" onclick={() => (confirmDestructive = move.to)}>{move.label}</button>
+				{/if}
+			{/each}
+		</div>
+	{/if}
 
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">

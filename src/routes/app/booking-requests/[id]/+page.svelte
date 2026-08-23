@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { statusLabel } from '$lib/labels';
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$app/forms';
 	import Money from '$components/Money.svelte';
@@ -6,6 +7,20 @@
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data, form } = $props();
 
+	/** The enquiry journey as buttons; the select survives only as a quiet fallback. */
+	const FORWARD: Record<string, Array<{ to: string; label: string }>> = {
+		NEW: [{ to: 'CONTACTED', label: 'Mark contacted' }],
+		UNDER_REVIEW: [{ to: 'CONTACTED', label: 'Mark contacted' }],
+		QUOTED: [{ to: 'ACCEPTED', label: 'Mark accepted' }],
+		ACCEPTED: []
+	};
+	const forward = $derived(FORWARD[data.request.status] ?? []);
+	const canQuote = $derived(
+		data.permissions?.includes('quotations:write') &&
+			data.entitlements?.['quotations.enabled'] === true &&
+			['NEW', 'UNDER_REVIEW', 'CONTACTED'].includes(data.request.status)
+	);
+	let moreStatus = $state(false);
 	const STATUSES = ['NEW', 'UNDER_REVIEW', 'CONTACTED', 'QUOTED', 'ACCEPTED', 'DECLINED', 'CANCELLED'];
 	const tz = $derived(data.tenant.timezone);
 	const canWrite = $derived(data.permissions?.includes('booking_requests:write'));
@@ -26,17 +41,34 @@
 				<StatusBadge value={data.request.status} />
 			</h1>
 		</div>
-		{#if canWrite}
-			<form method="POST" action="?/status" use:enhance class="flex items-center gap-2">
-				<select name="status" class="input w-auto">
-					{#each STATUSES as s (s)}
-						<option value={s} selected={data.request.status === s}>{s.replace(/_/g, ' ')}</option>
-					{/each}
-				</select>
-				<button class="btn-primary">Update</button>
-			</form>
-		{/if}
+		<div class="flex flex-wrap items-center gap-1.5">
+			{#if canQuote}
+				<form method="POST" action="?/createQuote" use:enhance>
+					<button class="btn-primary">Create quotation</button>
+				</form>
+			{/if}
+			{#if canWrite}
+				{#each forward as move (move.to)}
+					<form method="POST" action="?/status" use:enhance>
+						<input type="hidden" name="status" value={move.to} />
+						<button class="btn-secondary">{move.label}</button>
+					</form>
+				{/each}
+				<button class="text-[11px] text-slate-400 hover:underline" onclick={() => (moreStatus = !moreStatus)}>More…</button>
+			{/if}
+		</div>
 	</div>
+
+	{#if canWrite && moreStatus}
+		<form method="POST" action="?/status" use:enhance class="flex justify-end gap-2">
+			<select name="status" class="input w-auto !py-1.5 text-xs">
+				{#each STATUSES as s (s)}
+					<option value={s} selected={data.request.status === s}>{statusLabel(s)}</option>
+				{/each}
+			</select>
+			<button class="btn-secondary !py-1.5 text-xs">Update</button>
+		</form>
+	{/if}
 
 	{#if form?.message}
 		<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>
