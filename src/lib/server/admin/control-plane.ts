@@ -1,6 +1,6 @@
 // Platform Admin operations. Every mutation here is a privileged act, so each one
 // writes an audit row carrying before/after state — and never a secret.
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { audit } from '../audit';
 import { db, schema } from '../db';
 import {
@@ -177,6 +177,47 @@ export async function tenantControlCenter(tenantId: string) {
 		owner: members.find((m) => m.role === 'OWNER') ?? null,
 		industryLabel: row.tenant.industry ? industryLabel(row.tenant.industry) : null
 	};
+}
+
+/**
+ * Soft-delete a tenant. The row survives for audit, but every resolution path
+ * (getTenant, slug lookup, memberships) filters deleted_at — the portal, API keys
+ * and admin lists all stop seeing it immediately. Two rails: the admin must type
+ * the slug back, and a tenant with a live WhatsApp number cannot be deleted at all.
+ */
+export async function deleteTenant(tenantId: string, confirmSlug: string, actor: AdminActor) {
+	const tenant = (await db().select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)).limit(1))[0];
+	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant not found.');
+	if (tenant.deletedAt) return tenant;
+	if (confirmSlug.trim() !== tenant.slug) {
+		throw new AppError('VALIDATION_ERROR', `Type the tenant's slug (${tenant.slug}) to confirm deletion.`);
+	}
+	const connected = (
+		await db()
+			.select({ id: schema.whatsappConnections.id })
+			.from(schema.whatsappConnections)
+			.where(and(eq(schema.whatsappConnections.tenantId, tenantId), eq(schema.whatsappConnections.status, 'CONNECTED')))
+			.limit(1)
+	)[0];
+	if (connected) {
+		throw new AppError(
+			'CONFLICT',
+			'This tenant has a live WhatsApp number. Disconnect it first — deleting a business mid-conversation is never right.'
+		);
+	}
+	const [after] = await db()
+		.update(schema.tenants)
+		.set({ deletedAt: new Date(), status: 'CANCELLED', updatedAt: new Date() })
+		.where(eq(schema.tenants.id, tenantId))
+		.returning();
+	await audit(
+		tenantId,
+		'tenant.deleted',
+		{ type: 'user', userId: actor.userId, requestId: actor.requestId },
+		{ type: 'tenant', id: tenantId },
+		{ name: tenant.name, slug: tenant.slug, previousStatus: tenant.status }
+	);
+	return after;
 }
 
 export async function setTenantStatus(

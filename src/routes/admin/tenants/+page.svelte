@@ -4,6 +4,7 @@
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data, form } = $props();
+	let deleting = $state<string | null>(null);
 	let showForm = $state(false);
 </script>
 
@@ -125,6 +126,25 @@
 								</select>
 								<button class="text-xs text-brand-600 hover:underline">Set</button>
 							</form>
+							<button class="ml-2 text-xs text-slate-400 hover:text-danger hover:underline" onclick={() => (deleting = deleting === row.tenant.id ? null : row.tenant.id)}>
+								Delete
+							</button>
+							{#if deleting === row.tenant.id}
+								<form
+									method="POST"
+									action="?/delete"
+									use:enhance={() => async ({ update }) => { await update(); deleting = null; }}
+									class="mt-2 flex flex-wrap items-center gap-1.5 rounded-panel border border-danger/30 bg-danger/5 p-2"
+								>
+									<input type="hidden" name="id" value={row.tenant.id} />
+									<span class="w-full text-[11px] text-slate-500">
+										Removes <b>{row.tenant.name}</b> from the platform and signs its team out. Type
+										<b class="font-mono">{row.tenant.slug}</b> to confirm.
+									</span>
+									<input name="confirmSlug" placeholder={row.tenant.slug} autocomplete="off" class="input w-48 py-1 font-mono text-xs" />
+									<button class="btn-danger !px-2.5 !py-1 text-xs">Delete tenant</button>
+								</form>
+							{/if}
 						</td>
 					</tr>
 				{/each}

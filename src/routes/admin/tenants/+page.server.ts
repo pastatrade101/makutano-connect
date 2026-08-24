@@ -1,7 +1,7 @@
 // §4 invisible provisioning: an admin creates the tenant, assigns a plan and generates
 // credentials. The client never registers.
 import { fail, redirect, type Actions } from '@sveltejs/kit';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, isNull, sql } from 'drizzle-orm';
 import { audit } from '$lib/server/audit';
 import { createApiKey } from '$lib/server/api-keys';
 import { DEFAULT_PLANS } from '$lib/server/billing';
@@ -41,18 +41,44 @@ export const load: PageServerLoad = async ({ url }) => {
 		})
 		.from(schema.tenants)
 		.leftJoin(schema.plans, eq(schema.plans.id, schema.tenants.planId))
+		.where(isNull(schema.tenants.deletedAt))
 		.orderBy(desc(schema.tenants.createdAt));
 
 	const source = url.searchParams.get('source')?.trim().toUpperCase() ?? '';
 	const filtered = tenants
-		.filter((t) => !q || t.tenant.name.toLowerCase().includes(q) || t.tenant.slug.toLowerCase().includes(q) || (t.ownerEmail ?? '').toLowerCase().includes(q))
+		.filter(
+			(t) =>
+				!q ||
+				t.tenant.name.toLowerCase().includes(q) ||
+				t.tenant.slug.toLowerCase().includes(q) ||
+				(t.ownerEmail ?? '').toLowerCase().includes(q)
+		)
 		.filter((t) => !source || t.tenant.provisioningSource === source);
 
 	const plans = await db().select().from(schema.plans).orderBy(schema.plans.sortOrder);
-	return { tenants: filtered, q, source, plans: plans.length ? plans : DEFAULT_PLANS.map((p) => ({ ...p, id: p.code })) };
+	return {
+		tenants: filtered,
+		q,
+		source,
+		plans: plans.length ? plans : DEFAULT_PLANS.map((p) => ({ ...p, id: p.code }))
+	};
 };
 
 export const actions: Actions = {
+	delete: async ({ locals, request }) => {
+		const data = await request.formData();
+		try {
+			const { deleteTenant } = await import('$lib/server/admin/control-plane');
+			const tenant = await deleteTenant(String(data.get('id') ?? ''), String(data.get('confirmSlug') ?? ''), {
+				userId: locals.user!.id,
+				requestId: locals.requestId
+			});
+			return { deleted: tenant.name };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
 	create: async ({ locals, request }) => {
 		const data = await request.formData();
 		const name = String(data.get('name') ?? '').trim();
