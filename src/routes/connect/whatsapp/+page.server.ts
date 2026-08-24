@@ -101,6 +101,8 @@ function friendlyError(code: string): string {
 			return 'No WhatsApp number was found on that business account.';
 		case 'embedded_signup_not_configured':
 			return 'WhatsApp onboarding is not configured on this deployment.';
+		case 'missing_code':
+			return 'The connection response from Meta was incomplete — please try again.';
 		default:
 			return 'We could not complete the WhatsApp connection. Please try again.';
 	}

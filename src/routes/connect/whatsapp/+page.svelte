@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The browser's only job: run Meta's popup and post back the authorization code.
 	// It never sees an access token, an app secret, or a tenant id.
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { page } from '$app/state';
 	let { data, form } = $props();
 
@@ -17,6 +17,15 @@
 
 	onMount(() => {
 		if (!data.ready || !data.meta.appId) return;
+
+		// Mobile browsers sometimes run Meta's dialog as a full-page redirect instead of
+		// a popup; the code then comes back in the URL rather than the FB.login callback.
+		const urlCode = page.url.searchParams.get('code');
+		if (urlCode && !form?.success) {
+			code = urlCode;
+			busy = true;
+			void tick().then(() => formEl.requestSubmit());
+		}
 
 		// Meta's WA_EMBEDDED_SIGNUP event carries waba_id / phone_number_id on a fresh
 		// signup. The reconnect flow sends only the code — the server discovers the rest.
@@ -59,7 +68,9 @@
 					return;
 				}
 				code = authCode;
-				formEl.requestSubmit();
+				// Svelte batches DOM updates: submitting synchronously would post the
+				// hidden input's OLD (empty) value — the exact "missing_code" failure.
+				void tick().then(() => formEl.requestSubmit());
 			},
 			{
 				config_id: data.meta.configId,
