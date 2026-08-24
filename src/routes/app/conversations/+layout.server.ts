@@ -7,7 +7,7 @@ import type { LayoutServerLoad } from './$types';
 export const load: LayoutServerLoad = async ({ locals, url }) => {
 	const tenant = requireTenantPermission(locals, 'conversations:read');
 	const q = url.searchParams.get('cq')?.trim().toLowerCase() ?? '';
-	const { items } = await listConversations(tenant.id, { page: 1, limit: 50, order: 'desc' });
+	const { items } = await listConversations(tenant.id, { page: 1, limit: 50, order: 'desc' }, {}, { userId: locals.user!.id, permissions: locals.permissions });
 	const threads = items
 		.map(({ conversation, customer }) => ({
 			id: conversation.id,

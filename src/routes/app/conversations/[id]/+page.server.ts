@@ -2,7 +2,7 @@ import { error, fail, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { and, eq, sql } from 'drizzle-orm';
 import { requirePermission } from '$lib/server/auth/permissions';
-import { getConversation, listMessages, markConversationRead } from '$lib/server/conversations';
+import { getConversation, listMessages, markConversationRead, updateConversationAccess } from '$lib/server/conversations';
 import { db, schema } from '$lib/server/db';
 import { toAppError } from '$lib/server/errors';
 import { parseUuid } from '$lib/server/http';
@@ -19,7 +19,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const tenantId = requireTenant(locals).id;
 	try {
 		const id = idOf(params);
-		const conversation = await getConversation(tenantId, id);
+		const viewer = { userId: locals.user!.id, permissions: locals.permissions };
+		const conversation = await getConversation(tenantId, id, viewer);
 		const { items } = await listMessages(tenantId, id, { page: 1, limit: 100, order: 'desc' });
 		const customer = conversation.customerId
 			? (await db().select().from(schema.customers).where(eq(schema.customers.id, conversation.customerId)).limit(1))[0]
@@ -83,14 +84,43 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 		const paymentRequest = await requestForConversationCustomer(tenantId, conversation.customerId);
 
+		// Assignment picker — only loaded for people who can actually assign.
+		const canAssign = locals.permissions.includes('conversations:assign');
+		const teamMembers = canAssign
+			? await db()
+					.select({ userId: schema.users.id, fullName: schema.users.fullName, email: schema.users.email })
+					.from(schema.tenantMemberships)
+					.innerJoin(schema.users, eq(schema.users.id, schema.tenantMemberships.userId))
+					.where(and(eq(schema.tenantMemberships.tenantId, tenantId), sql`${schema.tenantMemberships.disabledAt} is null`))
+			: [];
+
 		await markConversationRead(tenantId, id);
-		return { conversation, messages: items, customer, context, outstanding: outstanding.toFixed(2), openBatch, paymentRequest };
+		return { conversation, messages: items, customer, context, outstanding: outstanding.toFixed(2), openBatch, paymentRequest, teamMembers };
 	} catch {
 		error(404, 'Conversation not found');
 	}
 };
 
 export const actions: Actions = {
+	/** Assign / change visibility — conversations:assign holders only (§8). */
+	access: async ({ locals, params, request }) => {
+		requirePermission(locals.permissions, 'conversations:assign');
+		const data = await request.formData();
+		try {
+			const patch: Parameters<typeof updateConversationAccess>[2] = {};
+			if (data.has('assignedToUserId')) patch.assignedToUserId = String(data.get('assignedToUserId') ?? '') || null;
+			if (data.has('visibility')) {
+				const v = String(data.get('visibility'));
+				if (!['TEAM', 'ASSIGNED', 'PRIVATE'].includes(v)) return fail(400, { message: 'Invalid visibility.' });
+				patch.visibility = v as never;
+			}
+			await updateConversationAccess(requireTenant(locals).id, idOf(params), patch, { userId: locals.user!.id });
+			return { success: true };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
 	/** One-tap order from the chat: quantity only; batch + customer supply the rest. */
 	addToBatch: async ({ locals, params, request }) => {
 		requirePermission(locals.permissions, 'orders:write');
@@ -100,7 +130,7 @@ export const actions: Actions = {
 		const batchId = parseUuid(String(data.get('batchId') ?? ''), 'batch id');
 		if (!Number.isFinite(quantity) || quantity < 1) return fail(400, { message: 'Enter a quantity of at least 1.' });
 
-		const conversation = await getConversation(tenantId, idOf(params));
+		const conversation = await getConversation(tenantId, idOf(params), { userId: locals.user!.id, permissions: locals.permissions });
 		if (!conversation.customerId) {
 			return fail(400, { message: 'This conversation has no customer yet — create the order from the full form instead.' });
 		}
@@ -129,7 +159,7 @@ export const actions: Actions = {
 		const text = String(data.get('text') ?? '').trim();
 		if (!text) return fail(400, { message: 'Write a message first.' });
 
-		const conversation = await getConversation(requireTenant(locals).id, idOf(params));
+		const conversation = await getConversation(requireTenant(locals).id, idOf(params), { userId: locals.user!.id, permissions: locals.permissions });
 		if (!conversation.externalId) return fail(400, { message: 'This conversation has no WhatsApp number.' });
 
 		try {

@@ -38,7 +38,18 @@ export const PERMISSIONS = [
 	'webhooks:write',
 	'billing:read',
 	'billing:write',
-	'audit:read'
+	'audit:read',
+	// Inbox visibility & control (§team-access): base conversations:read grants TEAM
+	// threads + own assignments; these widen or manage that scope.
+	'conversations:view_all',
+	'conversations:view_private',
+	'conversations:assign',
+	// High-risk payment capabilities, deliberately separate from payments:write.
+	'payments:request',
+	'payments:verify',
+	'payments:refund',
+	// Authoring templates is not the same as sending with them.
+	'whatsapp:templates'
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -75,7 +86,17 @@ const SALES: Permission[] = [
 	'whatsapp:send'
 ];
 
-const BOOKING_AGENT: Permission[] = [...SALES, 'bookings:write', 'payments:write', 'travelers:read_sensitive'];
+// Presented in the UI as "Manager": runs the office day-to-day.
+const BOOKING_AGENT: Permission[] = [
+	...SALES,
+	'bookings:write',
+	'payments:write',
+	'travelers:read_sensitive',
+	'conversations:view_all',
+	'conversations:assign',
+	'payments:request',
+	'payments:verify'
+];
 
 const ADMIN: Permission[] = [
 	...BOOKING_AGENT,
@@ -85,8 +106,11 @@ const ADMIN: Permission[] = [
 	'api_keys:read',
 	'api_keys:write',
 	'whatsapp:connect',
+	'whatsapp:templates',
 	'webhooks:write',
-	'audit:read'
+	'audit:read',
+	'conversations:view_private',
+	'payments:refund'
 ];
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -100,6 +124,35 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 
 export function permissionsForRole(role: Role): Permission[] {
 	return [...new Set(ROLE_PERMISSIONS[role] ?? READ_ONLY)];
+}
+
+/**
+ * Role defaults + the member's sparse overrides (§4-§5). Overrides are IGNORED for
+ * owners: an owner can never lock themselves out of their own tenant (§12). Plan
+ * entitlements are checked separately at every point of use and always win (§6).
+ */
+export function effectivePermissions(
+	role: Role,
+	overrides: Record<string, boolean> | null | undefined
+): Permission[] {
+	const base = new Set(permissionsForRole(role));
+	if (role === 'OWNER' || role === 'SUPER_ADMIN' || !overrides) return [...base];
+	for (const [key, granted] of Object.entries(overrides)) {
+		if (!(PERMISSIONS as readonly string[]).includes(key)) continue; // unknown keys never grant anything
+		if (granted) base.add(key as Permission);
+		else base.delete(key as Permission);
+	}
+	return [...base];
+}
+
+/** True when the member's permissions differ from their role defaults. */
+export function isCustomized(role: Role, overrides: Record<string, boolean> | null | undefined): boolean {
+	if (!overrides || role === 'OWNER' || role === 'SUPER_ADMIN') return false;
+	const defaults = new Set(permissionsForRole(role));
+	return Object.entries(overrides).some(([key, granted]) => {
+		if (!(PERMISSIONS as readonly string[]).includes(key)) return false;
+		return granted !== defaults.has(key as Permission);
+	});
 }
 
 export function can(permissions: readonly Permission[] | undefined, permission: Permission): boolean {

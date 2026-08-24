@@ -18,7 +18,7 @@
 		}
 	});
 	let receivedAmount = $state('');
-	const canVerify = $derived(data.permissions?.includes('payments:write') && data.entitlements?.['payments.enabled'] === true);
+	const canVerify = $derived(data.permissions?.includes('payments:verify') && data.entitlements?.['payments.enabled'] === true);
 	const who = (c: { firstName?: string | null; lastName?: string | null } | null) =>
 		[c?.firstName, c?.lastName].filter(Boolean).join(' ') || 'Customer';
 	const remaining = (request: { amountRequested: string; amountReceived: string }) =>

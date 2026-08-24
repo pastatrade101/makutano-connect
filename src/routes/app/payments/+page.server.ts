@@ -35,7 +35,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 export const actions: Actions = {
 	/** §12: staff confirms money actually arrived — the only path to PAID. */
 	confirmRequest: async ({ locals, request }) => {
-		requirePermission(locals.permissions, 'payments:write');
+		requirePermission(locals.permissions, 'payments:verify');
 		const data = await request.formData();
 		try {
 			const updated = await verifyPaymentRequest(
@@ -56,7 +56,7 @@ export const actions: Actions = {
 
 	/** §13: not found — back to outstanding, never punitive. */
 	requestNotFound: async ({ locals, request }) => {
-		requirePermission(locals.permissions, 'payments:write');
+		requirePermission(locals.permissions, 'payments:verify');
 		const data = await request.formData();
 		try {
 			await paymentNotFound(requireTenant(locals).id, parseUuid(String(data.get('requestId') ?? ''), 'request id'), {

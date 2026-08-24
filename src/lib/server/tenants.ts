@@ -6,7 +6,7 @@
 // by that resolved id.
 import { and, eq, isNull } from 'drizzle-orm';
 import { db, schema } from './db';
-import { permissionsForRole, type Permission } from './auth/permissions';
+import { effectivePermissions, permissionsForRole, type Permission } from './auth/permissions';
 import type { Role } from './db/schema';
 
 export type TenantContext = {
@@ -50,7 +50,8 @@ export async function resolveTenantForUser(
 	user: schema.User,
 	requestedTenantId: string | null
 ): Promise<TenantContext | null> {
-	const rows = await membershipsForUser(user.id);
+	// A per-tenant deactivation removes ACCESS while history stays intact (§24).
+	const rows = (await membershipsForUser(user.id)).filter((r) => !r.membership.disabledAt);
 	if (rows.length === 0) {
 		// A super admin has no membership rows but may still operate on any tenant.
 		if (user.isSuperAdmin && requestedTenantId) {
@@ -66,7 +67,11 @@ export async function resolveTenantForUser(
 		if (tenant) return { tenant, role: 'SUPER_ADMIN', permissions: permissionsForRole('SUPER_ADMIN') };
 	}
 	const role: Role = user.isSuperAdmin ? 'SUPER_ADMIN' : chosen.membership.role;
-	return { tenant: chosen.tenant, role, permissions: permissionsForRole(role) };
+	return {
+		tenant: chosen.tenant,
+		role,
+		permissions: effectivePermissions(role, chosen.membership.permissionOverrides)
+	};
 }
 
 // Tenant provisioning lives in ./provisioning.ts — a single transactional service

@@ -29,7 +29,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	setupPack: async ({ locals }) => {
-		requirePermission(locals.permissions, 'whatsapp:connect');
+		requirePermission(locals.permissions, 'whatsapp:templates');
 		try {
 			const result = await applyTemplatePack(requireTenant(locals).id, { userId: locals.user!.id });
 			return { pack: { submitted: result.submitted.length, skipped: result.skippedExisting.length, failed: result.failed.length } };
@@ -39,7 +39,7 @@ export const actions: Actions = {
 	},
 
 	create: async ({ locals, request }) => {
-		requirePermission(locals.permissions, 'whatsapp:connect');
+		requirePermission(locals.permissions, 'whatsapp:templates');
 		const data = await request.formData();
 		try {
 			let buttons: Array<{ type: 'QUICK_REPLY' | 'URL'; text: string; url?: string }> = [];
@@ -73,7 +73,7 @@ export const actions: Actions = {
 	},
 
 	submit: async ({ locals, request }) => {
-		requirePermission(locals.permissions, 'whatsapp:connect');
+		requirePermission(locals.permissions, 'whatsapp:templates');
 		const data = await request.formData();
 		try {
 			await submitTemplateToMeta(requireTenant(locals).id, String(data.get('id') ?? ''));
@@ -84,7 +84,7 @@ export const actions: Actions = {
 	},
 
 	map: async ({ locals, request }) => {
-		requirePermission(locals.permissions, 'whatsapp:connect');
+		requirePermission(locals.permissions, 'whatsapp:templates');
 		const data = await request.formData();
 		await db()
 			.update(schema.whatsappTemplates)
@@ -94,7 +94,7 @@ export const actions: Actions = {
 	},
 
 	toggle: async ({ locals, request }) => {
-		requirePermission(locals.permissions, 'whatsapp:connect');
+		requirePermission(locals.permissions, 'whatsapp:templates');
 		const data = await request.formData();
 		await db()
 			.update(schema.whatsappTemplates)
@@ -104,7 +104,7 @@ export const actions: Actions = {
 	},
 
 	sync: async ({ locals }) => {
-		requirePermission(locals.permissions, 'whatsapp:connect');
+		requirePermission(locals.permissions, 'whatsapp:templates');
 		await enqueue('whatsapp.templates.sync', { tenantId: requireTenant(locals).id }, { tenantId: requireTenant(locals).id });
 		return { success: true };
 	}

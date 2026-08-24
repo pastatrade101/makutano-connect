@@ -64,7 +64,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		customerStats(tenantId),
 		paymentStats(tenantId),
 		listBookingRequests(tenantId, pagination),
-		listConversations(tenantId, pagination, { open: true }),
+		listConversations(tenantId, pagination, { open: true }, { userId: locals.user!.id, permissions: locals.permissions }),
 		getConnectionForTenant(tenantId),
 		dailySeries(tenantId),
 		actionCentre(tenantId)

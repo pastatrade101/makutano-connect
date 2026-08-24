@@ -31,7 +31,7 @@ export const tenantStatusEnum = pgEnum('tenant_status', [
 export const provisioningSourceEnum = pgEnum('provisioning_source', ['ADMIN', 'SELF_SERVICE', 'IMPORT']);
 export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'VIEWER']);
 export const apiKeyEnvEnum = pgEnum('api_key_environment', ['live', 'test']);
-export const verificationPurposeEnum = pgEnum('verification_purpose', ['EMAIL_VERIFICATION', 'PASSWORD_RESET']);
+export const verificationPurposeEnum = pgEnum('verification_purpose', ['EMAIL_VERIFICATION', 'PASSWORD_RESET', 'TEAM_INVITE']);
 export const apiKeyStatusEnum = pgEnum('api_key_status', ['ACTIVE', 'REVOKED']);
 export const waConnectionStatusEnum = pgEnum('whatsapp_connection_status', [
 	'CONNECTED',
@@ -40,6 +40,15 @@ export const waConnectionStatusEnum = pgEnum('whatsapp_connection_status', [
 	'REAUTH_REQUIRED'
 ]);
 export const channelEnum = pgEnum('channel', ['WHATSAPP', 'WEB', 'EMAIL', 'MANUAL']);
+/** Who inside the tenant may see a conversation (§team-access brief). */
+export const conversationVisibilityEnum = pgEnum('conversation_visibility', [
+	// Anyone on the team with inbox access — the default, matching prior behaviour.
+	'TEAM',
+	// Only the assigned member (plus view_all/owners).
+	'ASSIGNED',
+	// Only owners, holders of view_private, and explicitly shared members.
+	'PRIVATE'
+]);
 export const messageDirectionEnum = pgEnum('message_direction', ['INBOUND', 'OUTBOUND']);
 export const messageStatusEnum = pgEnum('message_status', ['QUEUED', 'SENT', 'DELIVERED', 'READ', 'FAILED']);
 export const leadStageEnum = pgEnum('lead_stage', [
@@ -242,6 +251,18 @@ export const tenantMemberships = pgTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		role: roleEnum('role').notNull().default('VIEWER'),
+		/**
+		 * Sparse per-user permission overrides: ONLY explicitly toggled keys live here
+		 * ({'payments:verify': true, 'conversations:view_private': false}), so a role
+		 * change still flows through for everything the admin has not customised.
+		 * Ignored entirely for OWNER — owners can never lock themselves out (§12).
+		 */
+		permissionOverrides: jsonb('permission_overrides')
+			.$type<Record<string, boolean>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		/** Per-TENANT deactivation — the user may still belong to other tenants. */
+		disabledAt: timestamp('disabled_at', { withTimezone: true }),
 		invitedByUserId: uuid('invited_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 		acceptedAt: timestamp('accepted_at', { withTimezone: true }),
 		createdAt: createdAt(),
@@ -284,6 +305,8 @@ export const verificationTokens = pgTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		purpose: verificationPurposeEnum('purpose').notNull(),
+		/** TEAM_INVITE only: which tenant the acceptance activates. */
+		tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
 		tokenHash: text('token_hash').notNull(),
 		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 		consumedAt: timestamp('consumed_at', { withTimezone: true }),
@@ -535,6 +558,13 @@ export const conversations = pgTable(
 		externalId: text('external_id'), // WhatsApp: the customer's wa phone
 		subject: text('subject'),
 		isOpen: boolean('is_open').notNull().default(true),
+		visibility: conversationVisibilityEnum('visibility').notNull().default('TEAM'),
+		assignedToUserId: uuid('assigned_to_user_id').references(() => users.id, { onDelete: 'set null' }),
+		/** Explicit per-user shares for PRIVATE threads ("selected staff"). */
+		sharedWithUserIds: jsonb('shared_with_user_ids')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
 		unreadCount: integer('unread_count').notNull().default(0),
 		createdAt: createdAt(),

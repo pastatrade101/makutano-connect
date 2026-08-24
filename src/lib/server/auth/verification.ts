@@ -13,7 +13,8 @@ import { log } from '../logger';
 
 const TTL_MS: Record<schema.VerificationPurpose, number> = {
 	EMAIL_VERIFICATION: 1000 * 60 * 60 * 24, // 24 hours
-	PASSWORD_RESET: 1000 * 60 * 60 // 1 hour
+	PASSWORD_RESET: 1000 * 60 * 60, // 1 hour
+	TEAM_INVITE: 1000 * 60 * 60 * 24 * 7 // 7 days — office invites get read slowly
 };
 
 export function ttlHours(purpose: schema.VerificationPurpose): number {
@@ -27,7 +28,8 @@ export function ttlHours(purpose: schema.VerificationPurpose): number {
 export async function issueToken(
 	userId: string,
 	purpose: schema.VerificationPurpose,
-	ipHash?: string | null
+	ipHash?: string | null,
+	tenantId?: string | null
 ): Promise<{ token: string; expiresAt: Date }> {
 	const token = randomToken(32);
 	const expiresAt = new Date(Date.now() + TTL_MS[purpose]);
@@ -46,6 +48,7 @@ export async function issueToken(
 	await db().insert(schema.verificationTokens).values({
 		userId,
 		purpose,
+		tenantId: tenantId ?? null,
 		tokenHash: sha256(token),
 		expiresAt,
 		ipHash: ipHash ?? null
@@ -78,6 +81,26 @@ export async function consumeToken(
 
 	const users = await db().select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
 	return users[0] ?? null;
+}
+
+/** Like consumeToken, but also returns the tenant an invite is bound to. */
+export async function consumeInviteToken(
+	token: string
+): Promise<{ user: schema.User; tenantId: string } | null> {
+	if (!token) return null;
+	const rows = (await db().execute<{ user_id: string; tenant_id: string | null }>(sql`
+		update verification_tokens
+		set consumed_at = now()
+		where token_hash = ${sha256(token)}
+			and purpose = 'TEAM_INVITE'
+			and consumed_at is null
+			and expires_at > now()
+		returning user_id, tenant_id
+	`)) as unknown as Array<{ user_id: string; tenant_id: string | null }>;
+	const row = rows[0];
+	if (!row?.tenant_id) return null;
+	const users = await db().select().from(schema.users).where(eq(schema.users.id, row.user_id)).limit(1);
+	return users[0] ? { user: users[0], tenantId: row.tenant_id } : null;
 }
 
 function appUrl(): string {

@@ -61,6 +61,35 @@
 	</div>
 </header>
 
+<!-- Assignment + visibility — only rendered for conversations:assign holders (§8) -->
+{#if data.teamMembers.length}
+	<div class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-1.5 text-[11px] text-slate-500">
+		<form method="POST" action="?/access" use:enhance class="flex items-center gap-1.5">
+			<label for="c-assignee">Assigned to</label>
+			<select
+				id="c-assignee" name="assignedToUserId" class="input w-auto !py-0.5 text-[11px]"
+				onchange={(e) => e.currentTarget.form?.requestSubmit()}
+			>
+				<option value="" selected={!data.conversation.assignedToUserId}>— nobody —</option>
+				{#each data.teamMembers as m (m.userId)}
+					<option value={m.userId} selected={m.userId === data.conversation.assignedToUserId}>{m.fullName || m.email}</option>
+				{/each}
+			</select>
+		</form>
+		<form method="POST" action="?/access" use:enhance class="flex items-center gap-1.5">
+			<label for="c-visibility">Visible to</label>
+			<select
+				id="c-visibility" name="visibility" class="input w-auto !py-0.5 text-[11px]"
+				onchange={(e) => e.currentTarget.form?.requestSubmit()}
+			>
+				<option value="TEAM" selected={data.conversation.visibility === 'TEAM'}>Whole team</option>
+				<option value="ASSIGNED" selected={data.conversation.visibility === 'ASSIGNED'}>Assigned person only</option>
+				<option value="PRIVATE" selected={data.conversation.visibility === 'PRIVATE'}>Private</option>
+			</select>
+		</form>
+	</div>
+{/if}
+
 <!-- One-tap batch order: the fish-seller move, straight from the chat -->
 {#if canOrder && data.openBatch}
 	<form

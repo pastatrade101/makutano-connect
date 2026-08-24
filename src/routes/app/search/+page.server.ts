@@ -28,10 +28,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Relevance filter (§14): a tour operator's search never surfaces orders, a
 	// seller's never surfaces bookings. sql`false` collapses that branch of the union.
 	const ws = normalizeWorkspace((requireTenant(locals).settings as Record<string, unknown>)?.capabilities);
-	const wantOrders = moduleRelevant(ws, 'orders');
-	const wantBookings = moduleRelevant(ws, 'bookings');
-	const wantEnquiries = moduleRelevant(ws, 'enquiries');
-	const wantQuotes = moduleRelevant(ws, 'quotations');
+	const has = (perm: string) => locals.permissions.includes(perm as never);
+	// Workspace relevance AND the user's own permissions (§17) — counts leak nothing.
+	const wantOrders = moduleRelevant(ws, 'orders') && has('orders:read');
+	const wantBookings = moduleRelevant(ws, 'bookings') && has('bookings:read');
+	const wantEnquiries = moduleRelevant(ws, 'enquiries') && has('booking_requests:read');
+	const wantQuotes = moduleRelevant(ws, 'quotations') && has('quotations:read');
 
 	const rows = (await db().execute(sql`
 		select * from (
@@ -39,7 +41,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				coalesce(nullif(trim(c.first_name || ' ' || c.last_name), ''), c.whatsapp_phone, 'Customer') as title,
 				coalesce('+' || c.whatsapp_phone, c.email) as subtitle, null as status, c.updated_at as at
 			from customers c
-			where c.tenant_id = ${tenantId}::uuid and c.deleted_at is null and (
+			where ${has('customers:read')} and c.tenant_id = ${tenantId}::uuid and c.deleted_at is null and (
 				(c.first_name || ' ' || c.last_name) ilike ${term}
 				or c.email ilike ${term}
 				or (${phoneTerm}::text is not null and (c.whatsapp_phone like ${phoneTerm} or c.phone like ${phoneTerm}))

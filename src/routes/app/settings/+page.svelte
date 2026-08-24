@@ -146,14 +146,12 @@
 	</section>
 
 	<section class="card">
-		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Team</header>
-		<table class="min-w-full divide-y divide-slate-100">
-			<thead class="bg-slate-50"><tr><th class="table-head">Name</th><th class="table-head">Email</th><th class="table-head">Role</th></tr></thead>
-			<tbody class="divide-y divide-slate-100">
-				{#each data.members as m (m.id)}
-					<tr><td class="table-cell">{m.fullName || '—'}</td><td class="table-cell text-slate-600">{m.email}</td><td class="table-cell text-[11px] uppercase text-slate-500">{m.role.replace(/_/g, ' ')}</td></tr>
-				{/each}
-			</tbody>
-		</table>
+		<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+			<h2 class="text-sm font-semibold text-slate-800">Team</h2>
+			<a href="/app/settings/team" class="btn-primary !py-1.5 text-xs">Manage team</a>
+		</header>
+		<p class="px-3 py-3 text-xs text-slate-500">
+			{data.members.length} member{data.members.length === 1 ? '' : 's'} — invite staff, set roles and control exactly what each person can see and do.
+		</p>
 	</section>
 </div>

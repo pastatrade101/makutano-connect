@@ -53,7 +53,7 @@ export const actions: Actions = {
 	/** The confirm-step "Request payment": creates the request (which messages the
 	 *  customer with instructions) and moves the booking to AWAITING_PAYMENT. */
 	requestPayment: async ({ locals, params, request }) => {
-		requirePermission(locals.permissions, 'payments:write');
+		requirePermission(locals.permissions, 'payments:request');
 		const tenantId = requireTenant(locals).id;
 		const data = await request.formData();
 		try {
@@ -99,7 +99,7 @@ export const actions: Actions = {
 	},
 
 	remindPayment: async ({ locals, request }) => {
-		requirePermission(locals.permissions, 'payments:write');
+		requirePermission(locals.permissions, 'payments:request');
 		const data = await request.formData();
 		try {
 			const queued = await remindPaymentRequest(

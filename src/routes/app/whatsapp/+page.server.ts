@@ -42,7 +42,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
 	/** One tap: draft + submit the workspace-relevant template pack to this WABA. */
 	setupTemplates: async ({ locals }) => {
-		requirePermission(locals.permissions, 'whatsapp:connect');
+		requirePermission(locals.permissions, 'whatsapp:templates');
 		try {
 			const result = await applyTemplatePack(requireTenant(locals).id, { userId: locals.user!.id });
 			return { pack: { submitted: result.submitted.length, skipped: result.skippedExisting.length, failed: result.failed.length } };
