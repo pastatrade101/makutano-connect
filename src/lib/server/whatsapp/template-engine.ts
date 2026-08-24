@@ -179,6 +179,16 @@ export async function submitTemplateToMeta(tenantId: string, templateId: string)
 		throw new AppError('CONFLICT', `A ${template.status} template cannot be submitted.`);
 	}
 	if (!template.bodyText) throw new AppError('VALIDATION_ERROR', 'The template has no body.');
+	// Meta rejects bodies that start or end with a variable (error 2388299) — even a
+	// trailing "{{var}}." counts. Fail fast with an explanation instead of Meta's
+	// opaque "Invalid parameter".
+	const body = template.bodyText.trim();
+	if (/^\{\{/.test(body) || /\}\}[\s.,;:!?—-]*$/.test(body)) {
+		throw new AppError(
+			'VALIDATION_ERROR',
+			'WhatsApp requires the message to start and end with words, not a variable — add a short opening or closing sentence.'
+		);
+	}
 
 	const credentials = await resolveCredentials(tenantId);
 	if (!credentials?.wabaId) throw new AppError('WHATSAPP_NOT_CONNECTED', 'Connect a WhatsApp number first.');

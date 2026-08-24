@@ -22,7 +22,7 @@ import { createTemplateDraft, submitTemplateToMeta, type NotifyEvent } from './t
 import { resolveCredentials } from './connections';
 import { log } from '../logger';
 
-export const PACK_VERSION = 3;
+export const PACK_VERSION = 4;
 
 type PackTemplate = {
 	name: string;
@@ -80,7 +80,7 @@ const PACK: PackTemplate[] = [
 		eventKey: 'ORDER_CONFIRMED',
 		module: 'orders',
 		bodyText:
-			'Hi {{customer.first_name}}, your order {{order.number}} is confirmed. Total: {{order.total}}. Thank you for shopping with {{business.name}}.'
+			"Hi {{customer.first_name}}, your order {{order.number}} is confirmed. Total: {{order.total}}. Thank you for shopping with {{business.name}} — we'll keep you updated."
 	},
 	{
 		name: 'order_ready',
@@ -94,7 +94,7 @@ const PACK: PackTemplate[] = [
 		eventKey: 'ORDER_DISPATCHED',
 		module: 'orders',
 		bodyText:
-			'Hi {{customer.first_name}}, your order {{order.number}} has been dispatched and is on its way to {{delivery.address}}.'
+			'Hi {{customer.first_name}}, your order {{order.number}} has been dispatched and is on its way to {{delivery.address}}. Reply here if you need anything.'
 	},
 	{
 		name: 'order_delivered',
@@ -110,7 +110,7 @@ const PACK: PackTemplate[] = [
 		eventKey: 'PAYMENT_REQUESTED',
 		module: 'always',
 		bodyText:
-			'Hi {{customer.first_name}}, {{payment.amount_due}} is due for your {{transaction.type_label}} {{transaction.reference}}. Method: {{payment.method}}. {{payment.instructions}}. Reference: {{payment.reference}}. Tap I have paid after paying.',
+			'Hi {{customer.first_name}}, {{payment.amount_due}} is due for your {{transaction.type_label}} with reference {{transaction.reference}}. Pay by {{payment.method}} using these details: {{payment.instructions}}. Quote reference {{payment.reference}} and tap I have paid once done.',
 		buttons: [
 			{ type: 'QUICK_REPLY', text: 'I have paid' },
 			{ type: 'QUICK_REPLY', text: 'Need help' }
@@ -121,14 +121,14 @@ const PACK: PackTemplate[] = [
 		eventKey: 'PAYMENT_RECEIVED',
 		module: 'always',
 		bodyText:
-			"Thank you {{customer.first_name}} — we've received your payment of {{payment.amount}}. Your payment reference is {{payment.reference}}."
+			"Thank you {{customer.first_name}} — we've received your payment of {{payment.amount}}. Your payment reference is {{payment.reference}}. We appreciate your business."
 	},
 	{
 		name: 'payment_reminder',
 		eventKey: 'PAYMENT_REMINDER',
 		module: 'always',
 		bodyText:
-			'Hi {{customer.first_name}}, {{payment.amount_due}} is still due for your {{transaction.type_label}} {{transaction.reference}}. Method: {{payment.method}}. {{payment.instructions}}. Reference: {{payment.reference}}.',
+			'Hi {{customer.first_name}}, a balance of {{payment.amount_due}} is still due for your {{transaction.type_label}} with reference {{transaction.reference}}. Pay by {{payment.method}} using these details: {{payment.instructions}}. Quote reference {{payment.reference}} when paying.',
 		buttons: [
 			{ type: 'QUICK_REPLY', text: 'I have paid' },
 			{ type: 'QUICK_REPLY', text: 'Need help' }
