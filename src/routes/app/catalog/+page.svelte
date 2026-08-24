@@ -5,31 +5,44 @@
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import Pagination from '$components/Pagination.svelte';
+	import { catalogCopy, catalogRecommended } from '$lib/workspace';
 	let { data, form } = $props();
 	const canWrite = $derived(data.permissions?.includes('catalog:write'));
 	let showForm = $state(false);
+	const copy = $derived(catalogCopy(data.tenant.capabilities));
+	// Item types ordered by what this kind of business actually adds; first = default.
+	const TYPE_ORDER: Record<string, string[]> = {
+		BOOKINGS: ['TOUR', 'ACCOMMODATION', 'EXPERIENCE', 'SERVICE', 'PRODUCT', 'OTHER'],
+		SERVICE: ['SERVICE', 'PRODUCT', 'OTHER', 'TOUR', 'ACCOMMODATION', 'EXPERIENCE'],
+		ORDERS: ['PRODUCT', 'SERVICE', 'OTHER', 'TOUR', 'ACCOMMODATION', 'EXPERIENCE'],
+		HYBRID: ['PRODUCT', 'SERVICE', 'TOUR', 'ACCOMMODATION', 'EXPERIENCE', 'OTHER']
+	};
+	const types = $derived(TYPE_ORDER[data.tenant.capabilities] ?? TYPE_ORDER.HYBRID);
+	const namePlaceholder = $derived(
+		data.tenant.capabilities === 'BOOKINGS' ? 'Serengeti Day Trip' : data.tenant.capabilities === 'SERVICE' ? 'Website Development' : 'Nike Air Max'
+	);
 </script>
 
-<svelte:head><title>Catalog · {data.tenant.name}</title></svelte:head>
+<svelte:head><title>{copy.label} · {data.tenant.name}</title></svelte:head>
 
 <FormToast {form} successTitle="Catalog updated" />
 
 <div class="space-y-3">
 	<div class="flex items-center justify-between">
 		<div>
-			<h1 class="text-base font-semibold text-slate-800">Catalog</h1>
-			<p class="text-xs text-slate-400">A quick-pick list for orders, quotes and forms — not inventory management.</p>
+			<h1 class="text-base font-semibold text-slate-800">{copy.label}</h1>
+			<p class="text-xs text-slate-400">{copy.hint}</p>
 		</div>
 		{#if canWrite}<button class="btn-primary" onclick={() => (showForm = !showForm)}>Add item</button>{/if}
 	</div>
 
 	{#if showForm && canWrite}
 		<form method="POST" action="?/create" use:enhance={() => async ({ update }) => { await update({ reset: true }); showForm = false; }} class="card grid gap-3 p-3 sm:grid-cols-5">
-			<div class="sm:col-span-2"><label class="label" for="ci-name">Name</label><input id="ci-name" name="name" placeholder="Nike Air Max" class="input" /></div>
+			<div class="sm:col-span-2"><label class="label" for="ci-name">Name</label><input id="ci-name" name="name" placeholder={namePlaceholder} class="input" /></div>
 			<div>
 				<label class="label" for="ci-type">Type</label>
 				<select id="ci-type" name="type" class="input">
-					{#each ['PRODUCT', 'SERVICE', 'TOUR', 'ACCOMMODATION', 'EXPERIENCE', 'OTHER'] as t (t)}<option value={t}>{t}</option>{/each}
+					{#each types as t (t)}<option value={t}>{t}</option>{/each}
 				</select>
 			</div>
 			<div><label class="label" for="ci-price">Price ({data.tenant.currency})</label><input id="ci-price" name="price" placeholder="230.00" class="input" /></div>
@@ -64,7 +77,7 @@
 						</td>
 					</tr>
 				{:else}
-					<tr><td colspan="6" class="px-3 py-8 text-center text-xs text-slate-400">Nothing yet — add the products or services you sell most.</td></tr>
+					<tr><td colspan="6" class="px-3 py-8 text-center text-xs text-slate-400">{catalogRecommended(data.tenant.capabilities) ? 'Nothing yet — add the products or services you sell most.' : 'Nothing here, and that is fine — bookings, quotes and payments work without this list. Add an item only if it saves you retyping.'}</td></tr>
 				{/each}
 			</tbody>
 		</table>

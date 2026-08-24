@@ -2,6 +2,8 @@
 // acceptance matrix for all four business types.
 import { describe, expect, it } from 'vitest';
 import {
+	catalogCopy,
+	catalogRecommended,
 	moduleRelevant,
 	normalizeWorkspace,
 	showModule,
@@ -21,12 +23,30 @@ describe('workspace resolver', () => {
 		expect(normalizeWorkspace('SERVICE')).toBe('SERVICE');
 	});
 
-	it('tour operator: orders and catalog are simply not part of the world', () => {
+	it('tour operator: orders are not part of the world; catalog is an optional tool', () => {
 		expect(moduleRelevant('BOOKINGS', 'orders')).toBe(false);
-		expect(moduleRelevant('BOOKINGS', 'catalog')).toBe(false);
+		// Reachable (manual bookings/quotes may want reusable items) but never pushed:
+		// the website stays the source of truth — see catalogRecommended below.
+		expect(moduleRelevant('BOOKINGS', 'catalog')).toBe(true);
 		expect(moduleRelevant('BOOKINGS', 'enquiries')).toBe(true);
 		expect(moduleRelevant('BOOKINGS', 'bookings')).toBe(true);
 		expect(moduleRelevant('BOOKINGS', 'quotations')).toBe(true);
+	});
+
+	it('catalog is only ever RECOMMENDED where it speeds up order entry', () => {
+		expect(catalogRecommended('ORDERS')).toBe(true);
+		expect(catalogRecommended('HYBRID')).toBe(true);
+		// Tour operators and service businesses are never nagged to fill a catalog.
+		expect(catalogRecommended('BOOKINGS')).toBe(false);
+		expect(catalogRecommended('SERVICE')).toBe(false);
+	});
+
+	it('catalog presents itself honestly per business type', () => {
+		expect(catalogCopy('BOOKINGS').label).toBe('Services & Packages');
+		expect(catalogCopy('BOOKINGS').hint).toContain('source of truth');
+		expect(catalogCopy('SERVICE').label).toBe('Services & Packages');
+		expect(catalogCopy('ORDERS').label).toBe('Catalog');
+		expect(catalogCopy('HYBRID').label).toBe('Catalog');
 	});
 
 	it('WhatsApp seller: booking flows are simply not part of the world', () => {
@@ -40,6 +60,7 @@ describe('workspace resolver', () => {
 	it('service business: enquiry → quote, neither orders nor bookings', () => {
 		expect(moduleRelevant('SERVICE', 'enquiries')).toBe(true);
 		expect(moduleRelevant('SERVICE', 'quotations')).toBe(true);
+		expect(moduleRelevant('SERVICE', 'catalog')).toBe(true); // optional reusable services
 		expect(moduleRelevant('SERVICE', 'orders')).toBe(false);
 		expect(moduleRelevant('SERVICE', 'bookings')).toBe(false);
 	});

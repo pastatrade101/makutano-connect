@@ -8,7 +8,7 @@ import { audit } from './audit';
 import { db, schema } from './db';
 import { effectiveEntitlements } from './entitlements';
 import { log } from './logger';
-import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
+import { catalogRecommended, moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 
 export type ChecklistItem = {
 	key: string;
@@ -55,25 +55,21 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 	const entitlements = await effectiveEntitlements(tenantId);
 	const can = (key: string) => entitlements.resolved[key]?.effective !== false;
 
-	const [connections, members, keys, forms, catalog, activity] = await Promise.all([
+	const [connections, members, templates, catalog, activity] = await Promise.all([
 		db()
 			.select({ id: schema.whatsappConnections.id })
 			.from(schema.whatsappConnections)
 			.where(and(eq(schema.whatsappConnections.tenantId, tenantId), eq(schema.whatsappConnections.status, 'CONNECTED')))
 			.limit(1),
 		db().select({ id: schema.tenantMemberships.id }).from(schema.tenantMemberships).where(eq(schema.tenantMemberships.tenantId, tenantId)),
-		db()
-			.select({ id: schema.apiKeys.id })
-			.from(schema.apiKeys)
-			.where(and(eq(schema.apiKeys.tenantId, tenantId), eq(schema.apiKeys.status, 'ACTIVE')))
-			.limit(1),
-		count('forms', tenantId),
+		count('whatsapp_templates', tenantId),
 		count('catalog_items', tenantId),
 		count('booking_requests', tenantId).then(async (n) => n + (await count('orders', tenantId)))
 	]);
 
-	const workspace = normalizeWorkspace((tenant.settings as Record<string, unknown>)?.capabilities);
-	const sellsProducts = moduleRelevant(workspace, 'orders');
+	const settings = (tenant.settings ?? {}) as Record<string, unknown>;
+	const workspace = normalizeWorkspace(settings.capabilities);
+	const paymentMethods = Array.isArray(settings.paymentMethods) ? settings.paymentMethods : [];
 
 	const items: ChecklistItem[] = [
 		{
@@ -95,33 +91,35 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 		});
 	}
 
-	if (sellsProducts && can('orders.enabled')) {
+	if (can('whatsapp.enabled') && can('whatsapp.templatesEnabled')) {
+		items.push({
+			key: 'templates',
+			label: 'Set up WhatsApp notifications',
+			description: 'One tap creates the recommended message templates for your kind of business.',
+			href: '/app/whatsapp/templates',
+			done: settings.templatePack != null || templates > 0
+		});
+	}
+
+	if (can('payments.enabled')) {
+		items.push({
+			key: 'payment_methods',
+			label: 'Add how customers pay you',
+			description: 'Bank, mobile money or Lipa Namba — shown on every payment request.',
+			href: '/app/settings',
+			done: paymentMethods.length > 0
+		});
+	}
+
+	// Only where reusable items speed up order entry. A tour operator's website stays
+	// the source of truth for tours — Connect never asks them to recreate packages here.
+	if (catalogRecommended(workspace) && can('orders.enabled')) {
 		items.push({
 			key: 'catalog',
 			label: 'Add what you sell',
-			description: 'Products, packages or services customers can order.',
+			description: 'Products or services customers order often — speeds up order entry.',
 			href: '/app/catalog',
 			done: catalog > 0
-		});
-	}
-
-	if (can('forms.hostedEnabled') || can('forms.embeddedEnabled')) {
-		items.push({
-			key: 'form',
-			label: 'Publish an enquiry form',
-			description: 'Share a link or embed it — no website changes needed.',
-			href: '/app/forms',
-			done: forms > 0
-		});
-	}
-
-	if (can('api.enabled')) {
-		items.push({
-			key: 'api_key',
-			label: 'Create an API key',
-			description: 'Only needed if you are wiring up your own website.',
-			href: '/app/developers',
-			done: keys.length > 0
 		});
 	}
 
@@ -130,14 +128,14 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 			key: 'team',
 			label: 'Invite a colleague',
 			description: 'Share the inbox so nothing waits on one person.',
-			href: '/app/settings',
+			href: '/app/settings/team',
 			done: members.length > 1
 		},
 		{
 			key: 'first_activity',
 			label: 'Receive your first enquiry or order',
 			description: 'This ticks itself the moment a customer gets in touch.',
-			href: '/app/booking-requests',
+			href: moduleRelevant(workspace, 'enquiries') ? '/app/booking-requests' : '/app/orders',
 			done: activity > 0
 		}
 	);

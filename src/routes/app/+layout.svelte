@@ -6,7 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Toasts from '$components/Toasts.svelte';
-	import { moduleRelevant, type Module } from '$lib/workspace';
+	import { catalogCopy, moduleRelevant, type Module } from '$lib/workspace';
 	let { data, children } = $props();
 
 	/** Whole days left on the trial, or null when the end date is unknown. */
@@ -72,7 +72,11 @@
 	};
 	/** Locked = visible but not navigable, so the tenant can see what a plan adds. */
 	const locked = (item: Item) => !!item.entitlement && data.entitlements?.[item.entitlement] !== true;
-	const groups = $derived(GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length));
+	// The catalog presents itself honestly per business type: "Services & Packages"
+	// for bookings/service tenants (optional tool), "Catalog" for order-takers.
+	const withCopy = (item: Item) =>
+		item.href === '/app/catalog' ? { ...item, label: catalogCopy(data.tenant.capabilities).label } : item;
+	const groups = $derived(GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed).map(withCopy) })).filter((g) => g.items.length));
 	const flat = $derived(groups.flatMap((g) => g.items));
 	const primary = $derived(flat.filter((n) => n.primary).slice(0, 3));
 	const current = $derived(flat.find((n) => isActive(n.href))?.label ?? 'Overview');
