@@ -81,20 +81,25 @@ export async function succeed(jobId: string): Promise<void> {
 /** Reschedule with exponential backoff, or bury the job once attempts are exhausted. */
 export async function reschedule(job: schema.Job, error: unknown): Promise<void> {
 	const message = String((error as Error)?.message ?? error).slice(0, 1000);
-	if (job.attempts >= job.maxAttempts) {
+	// claim() returns raw rows with snake_case keys, so job.maxAttempts is undefined
+	// there — and `n >= undefined` is always false, which retried dead jobs forever.
+	const raw = job as unknown as Record<string, unknown>;
+	const attempts = Number(raw.attempts ?? 0);
+	const maxAttempts = Number(raw.maxAttempts ?? raw.max_attempts ?? 5);
+	if (attempts >= maxAttempts) {
 		await db()
 			.update(schema.jobs)
 			.set({ status: 'DEAD', lastError: message, completedAt: new Date() })
 			.where(eq(schema.jobs.id, job.id));
-		log.error('job_dead', { kind: job.kind, jobId: job.id, attempts: job.attempts, error: message });
+		log.error('job_dead', { kind: job.kind, jobId: job.id, attempts, error: message });
 		return;
 	}
-	const delayMs = Math.min(15 * 60_000, 2 ** job.attempts * 1000) + Math.floor(Math.random() * 500);
+	const delayMs = Math.min(15 * 60_000, 2 ** attempts * 1000) + Math.floor(Math.random() * 500);
 	await db()
 		.update(schema.jobs)
 		.set({ status: 'PENDING', runAt: new Date(Date.now() + delayMs), lastError: message })
 		.where(eq(schema.jobs.id, job.id));
-	log.warn('job_retry', { kind: job.kind, jobId: job.id, attempt: job.attempts, delayMs });
+	log.warn('job_retry', { kind: job.kind, jobId: job.id, attempt: attempts, delayMs });
 }
 
 /** Release jobs stuck in RUNNING after a crash or redeploy. */
