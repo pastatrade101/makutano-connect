@@ -7,6 +7,7 @@ import { toAppError } from '$lib/server/errors';
 import { parseUuid } from '$lib/server/http';
 import {
 	changeRole,
+	teamWorkload,
 	inviteMember,
 	listTeam,
 	PERMISSION_GROUPS,
@@ -20,8 +21,10 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	requireTenantPermission(locals, 'members:read');
-	const team = await listTeam(requireTenant(locals).id);
+	const tenantId = requireTenant(locals).id;
+	const [team, workload] = await Promise.all([listTeam(tenantId), teamWorkload(tenantId)]);
 	return {
+		workload,
 		team,
 		roleOptions: ROLE_OPTIONS,
 		permissionGroups: PERMISSION_GROUPS,

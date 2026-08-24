@@ -171,11 +171,16 @@ export async function updateConversationAccess(
 export async function listConversations(
 	tenantId: string,
 	p: Pagination,
-	filters: { open?: boolean } = {},
+	filters: { open?: boolean; assigned?: 'me' | 'none' } = {},
 	viewer?: ConversationViewer
 ) {
 	const conditions: SQL[] = [eq(schema.conversations.tenantId, tenantId)];
 	if (filters.open !== undefined) conditions.push(eq(schema.conversations.isOpen, filters.open));
+	if (filters.assigned === 'me' && viewer) {
+		conditions.push(eq(schema.conversations.assignedToUserId, viewer.userId));
+	} else if (filters.assigned === 'none') {
+		conditions.push(isNull(schema.conversations.assignedToUserId));
+	}
 	const scope = conversationScope(viewer);
 	if (scope) conditions.push(scope);
 	const where = and(...conditions);

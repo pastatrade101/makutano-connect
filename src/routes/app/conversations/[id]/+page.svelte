@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { moduleRelevant } from '$lib/workspace';
+	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 	// Reback chat thread: header with avatar + context, bubbles with delivery ticks
 	// (✓ sent, ✓✓ delivered, ✓✓ tinted read), composer pinned at the bottom.
 	import { enhance } from '$app/forms';
@@ -16,6 +18,36 @@
 	const KIND_HREF: Record<string, string> = { order: '/app/orders', booking: '/app/bookings', quotation: '/app/quotations' };
 	let showContext = $state(false);
 	let batchQty = $state('');
+	let others = $state<Array<{ name: string; typing: boolean }>>([]);
+	let composerText = $state('');
+	let typingUntil = 0;
+
+	async function beat() {
+		try {
+			const res = await fetch(`/app/conversations/${page.params.id}/presence`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ typing: Date.now() < typingUntil })
+			});
+			if (res.ok) others = (await res.json()).others ?? [];
+		} catch {
+			/* presence is best-effort */
+		}
+	}
+	onMount(() => {
+		void beat();
+		const interval = setInterval(beat, 8000);
+		return () => clearInterval(interval);
+	});
+	const presenceLine = $derived.by(() => {
+		if (!others.length) return null;
+		const typing = others.filter((o) => o.typing).map((o) => o.name);
+		const viewing = others.filter((o) => !o.typing).map((o) => o.name);
+		const parts: string[] = [];
+		if (typing.length) parts.push(`${typing.join(', ')} ${typing.length === 1 ? 'is' : 'are'} typing…`);
+		if (viewing.length) parts.push(`${viewing.join(', ')} ${viewing.length === 1 ? 'is' : 'are'} viewing`);
+		return parts.join(' · ');
+	});
 	const canOrder = $derived(
 		moduleRelevant(data.tenant.capabilities, 'orders') && data.permissions?.includes('orders:write') && !!data.customer
 	);
@@ -42,7 +74,11 @@
 		<div class="min-w-0">
 			<h1 class="truncate text-[14px] font-semibold text-slate-700">{who}</h1>
 			<p class="truncate text-[11px] text-slate-400">
-				{#if data.customer?.whatsappPhone}+{data.customer.whatsappPhone} · {/if}{data.conversation.channel.toLowerCase()}
+				{#if presenceLine}
+					<span class="font-medium text-brand-600">{presenceLine}</span>
+				{:else}
+					{#if data.customer?.whatsappPhone}+{data.customer.whatsappPhone} · {/if}{data.conversation.channel.toLowerCase()}
+				{/if}
 			</p>
 		</div>
 	</div>
@@ -64,10 +100,17 @@
 <!-- Assignment + visibility — only rendered for conversations:assign holders (§8) -->
 {#if data.teamMembers.length}
 	<div class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-1.5 text-[11px] text-slate-500">
+		{#if data.conversation.assignedToUserId !== data.user.id}
+			<!-- The most common assignment action, one thumb-tap on mobile -->
+			<form method="POST" action="?/access" use:enhance>
+				<input type="hidden" name="assignedToUserId" value={data.user.id} />
+				<button class="btn-primary !px-3 !py-1 text-[11px]">Take</button>
+			</form>
+		{/if}
 		<form method="POST" action="?/access" use:enhance class="flex items-center gap-1.5">
 			<label for="c-assignee">Assigned to</label>
 			<select
-				id="c-assignee" name="assignedToUserId" class="input w-auto !py-0.5 text-[11px]"
+				id="c-assignee" name="assignedToUserId" class="input w-auto !py-1 text-[11px]"
 				onchange={(e) => e.currentTarget.form?.requestSubmit()}
 			>
 				<option value="" selected={!data.conversation.assignedToUserId}>— nobody —</option>
@@ -79,7 +122,7 @@
 		<form method="POST" action="?/access" use:enhance class="flex items-center gap-1.5">
 			<label for="c-visibility">Visible to</label>
 			<select
-				id="c-visibility" name="visibility" class="input w-auto !py-0.5 text-[11px]"
+				id="c-visibility" name="visibility" class="input w-auto !py-1 text-[11px]"
 				onchange={(e) => e.currentTarget.form?.requestSubmit()}
 			>
 				<option value="TEAM" selected={data.conversation.visibility === 'TEAM'}>Whole team</option>
@@ -196,7 +239,18 @@
 
 {#if canSend}
 	<form method="POST" action="?/send" use:enhance class="flex items-center gap-2 border-t border-slate-200 p-3">
-		<input name="text" placeholder="Enter your message…" autocomplete="off" class="input bg-slate-50 focus:bg-white" />
+		<input
+			name="text"
+			placeholder="Enter your message…"
+			autocomplete="off"
+			class="input bg-slate-50 focus:bg-white"
+			bind:value={composerText}
+			oninput={() => {
+				const wasTyping = Date.now() < typingUntil;
+				typingUntil = Date.now() + 6000;
+				if (!wasTyping) void beat();
+			}}
+		/>
 		<button class="btn-primary shrink-0 !px-3" aria-label="Send">
 			<svg class="size-4.5" viewBox="0 0 20 20" fill="currentColor"><path d="M2.5 3.4c-.3-.9.6-1.7 1.4-1.3l13.6 6.6c.8.4.8 1.5 0 1.9L3.9 17.2c-.8.4-1.7-.4-1.4-1.3l1.9-5.4c.1-.2.1-.5 0-.7L2.5 3.4Zm2.1 6.1h5.9a.5.5 0 0 1 0 1H4.6l-1.5 4.4 12.4-6-12.4-6 1.5 4.4Z" /></svg>
 		</button>

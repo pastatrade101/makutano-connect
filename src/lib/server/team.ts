@@ -123,6 +123,17 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
 
 /* ----------------------------------------------------------------- queries ---- */
 
+/** The numbers an admin glances at before lunch: is anyone drowning? (§23 — light.) */
+export async function teamWorkload(tenantId: string) {
+	const rows = (await db().execute(sql`
+		select
+			(select count(*)::int from conversations c where c.tenant_id = ${tenantId}::uuid and c.is_open = true) as open_total,
+			(select count(*)::int from conversations c where c.tenant_id = ${tenantId}::uuid and c.is_open = true and c.assigned_to_user_id is null) as open_unassigned,
+			(select count(*)::int from messages m where m.tenant_id = ${tenantId}::uuid and m.direction = 'OUTBOUND' and m.sent_by_user_id is not null and m.created_at::date = current_date) as replies_today
+	`)) as unknown as Array<{ open_total: number; open_unassigned: number; replies_today: number }>;
+	return rows[0] ?? { open_total: 0, open_unassigned: 0, replies_today: 0 };
+}
+
 export async function listTeam(tenantId: string) {
 	const rows = await db()
 		.select({
@@ -133,6 +144,13 @@ export async function listTeam(tenantId: string) {
 				where c.tenant_id = ${tenantId}::uuid
 					and c.assigned_to_user_id = ${schema.tenantMemberships.userId}
 					and c.is_open = true
+			)`,
+			repliesToday: sql<number>`(
+				select count(*)::int from messages m
+				where m.tenant_id = ${tenantId}::uuid
+					and m.sent_by_user_id = ${schema.tenantMemberships.userId}
+					and m.direction = 'OUTBOUND'
+					and m.created_at::date = current_date
 			)`
 		})
 		.from(schema.tenantMemberships)
@@ -152,7 +170,8 @@ export async function listTeam(tenantId: string) {
 		overrides: r.membership.permissionOverrides ?? {},
 		effective: effectivePermissions(r.membership.role, r.membership.permissionOverrides),
 		lastActiveAt: r.user.lastLoginAt,
-		assignedOpen: r.assignedOpen
+		assignedOpen: r.assignedOpen,
+		repliesToday: r.repliesToday
 	}));
 }
 

@@ -67,6 +67,13 @@
 		</form>
 	{/if}
 
+	<!-- Workload at a glance (§23): open threads, unassigned, per-person today -->
+	<div class="grid grid-cols-3 gap-2">
+		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Open conversations</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.workload.open_total}</div></div>
+		<a href="/app/conversations?filter=unassigned" class="card px-3 py-2 transition hover:border-brand-300"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Unassigned</div><div class="text-lg font-bold tabular-nums {data.workload.open_unassigned > 0 ? 'text-warning' : 'text-slate-800'}">{data.workload.open_unassigned}</div></a>
+		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Replies today</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.workload.replies_today}</div></div>
+	</div>
+
 	<div class="card overflow-hidden">
 		<!-- Phones: cards -->
 		<ul class="divide-y divide-slate-100 sm:hidden">
@@ -81,7 +88,7 @@
 					</div>
 					<div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
 						<span class="badge bg-brand-50 text-brand-600">{m.roleLabel}{m.customized ? ' · Customized' : ''}</span>
-						<span>{m.assignedOpen} open assigned</span>
+						<span>{m.assignedOpen} open · {m.repliesToday} replies today</span>
 						<span class="ml-auto">{#if m.lastActiveAt}<TimeAgo value={m.lastActiveAt} timezone={data.tenant.timezone} />{:else}Never active{/if}</span>
 					</div>
 					{#if data.canManage && m.role !== 'OWNER'}
@@ -121,7 +128,7 @@
 								{#if m.customized}<span class="ml-1 text-[10px] text-slate-400">Customized</span>{/if}
 							</td>
 							<td class="table-cell"><span class="badge {STATUS_TONE[m.status]}">{m.status}</span></td>
-							<td class="table-cell tabular-nums">{m.assignedOpen}</td>
+							<td class="table-cell tabular-nums">{m.assignedOpen} <span class="text-[10px] text-slate-400">open</span> · {m.repliesToday} <span class="text-[10px] text-slate-400">today</span></td>
 							<td class="table-cell text-slate-500">{#if m.lastActiveAt}<TimeAgo value={m.lastActiveAt} timezone={data.tenant.timezone} />{:else}—{/if}</td>
 							{#if data.canManage}
 								<td class="table-cell">
