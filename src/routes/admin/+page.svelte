@@ -4,6 +4,9 @@
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data } = $props();
 	const c = $derived(data.counts);
+	const money = (currency: string, amount: number) => `${currency} ${amount.toLocaleString()}`;
+	// Literal class strings — Tailwind's scanner cannot see computed names.
+	const revenueCols = $derived(data.revenue.totals.length >= 2 ? 'lg:grid-cols-6' : 'lg:grid-cols-3');
 
 	const chartOptions = $derived({
 		chart: { type: 'bar' as const, height: 230, toolbar: { show: false }, fontFamily: 'inherit' },
@@ -37,6 +40,25 @@
 			<StatTile label="Active forms" value={c.active_forms} hint="{c.form_submissions} submissions" />
 			<StatTile label="Approved templates" value={c.approved_templates} />
 		</div>
+	</div>
+
+	<!-- Revenue — live subscriptions × current plan prices; currencies never mixed -->
+	<div>
+		<div class="flex items-baseline justify-between pb-1.5">
+			<p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Revenue</p>
+			<a href="/admin/plans" class="text-[11px] font-medium text-brand-600 hover:underline">Edit pricing →</a>
+		</div>
+		{#if data.revenue.totals.length}
+			<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 {revenueCols}">
+				{#each data.revenue.totals as t (t.currency)}
+					<StatTile label="MRR ({t.currency})" value={money(t.currency, t.mrr)} hint="{t.paying} paying · ≈ {money(t.currency, t.mrr * 12)} / yr" tone={t.mrr > 0 ? 'good' : 'default'} href="/admin/plans" />
+					<StatTile label="Trial pipeline ({t.currency})" value={money(t.currency, t.trialValue)} hint="{t.trialing} on trial" />
+					<StatTile label="Past due ({t.currency})" value={money(t.currency, t.pastDueValue)} tone={t.pastDueValue ? 'bad' : 'default'} />
+				{/each}
+			</div>
+		{:else}
+			<p class="card px-4 py-3 text-xs text-slate-400">No plans defined yet — create plans to start tracking revenue.</p>
+		{/if}
 	</div>
 
 	<!-- Commerce + conversations -->
@@ -104,6 +126,39 @@
 			</section>
 		</div>
 	</div>
+
+	<section class="card">
+		<header class="card-header">
+			<h2 class="card-title">Revenue by plan</h2>
+			<a href="/admin/plans" class="text-[11px] font-medium text-brand-600 hover:underline">Edit pricing →</a>
+		</header>
+		<div class="overflow-x-auto">
+			<table class="min-w-full divide-y divide-slate-100">
+				<thead class="bg-slate-50"><tr>
+					<th class="table-head">Plan</th><th class="table-head">Price / mo</th><th class="table-head">Paying</th>
+					<th class="table-head">On trial</th><th class="table-head">Past due</th><th class="table-head text-right">MRR</th>
+				</tr></thead>
+				<tbody class="divide-y divide-slate-100">
+					{#each data.revenue.plans as p (p.id)}
+						<tr class={p.isActive ? '' : 'opacity-50'}>
+							<td class="table-cell">
+								<span class="font-medium text-slate-700">{p.name}</span>
+								<span class="ml-1.5 font-mono text-[10px] text-slate-400">{p.code}</span>
+								{#if !p.isActive}<span class="ml-1.5 text-[10px] text-slate-400">inactive</span>{/if}
+							</td>
+							<td class="table-cell tabular-nums">{money(p.currency, p.price)}</td>
+							<td class="table-cell tabular-nums">{p.paying}</td>
+							<td class="table-cell tabular-nums text-slate-500">{p.trialing}</td>
+							<td class="table-cell tabular-nums {p.pastDue ? 'text-danger' : 'text-slate-500'}">{p.pastDue}</td>
+							<td class="table-cell text-right font-semibold tabular-nums text-slate-800">{money(p.currency, p.mrr)}</td>
+						</tr>
+					{:else}
+						<tr><td colspan="6" class="px-3 py-6 text-center text-xs text-slate-400">No plans defined.</td></tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+	</section>
 
 	<section class="card">
 		<header class="card-header"><h2 class="card-title">Failed background jobs</h2></header>

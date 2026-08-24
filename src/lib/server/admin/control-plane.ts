@@ -24,11 +24,24 @@ export async function listPlans() {
 
 export async function updatePlan(
 	planId: string,
-	patch: { name?: string; isActive?: boolean; priceMonthly?: string; entitlements?: Record<string, EntitlementValue> },
+	patch: {
+		name?: string;
+		isActive?: boolean;
+		priceMonthly?: string;
+		currency?: string;
+		entitlements?: Record<string, EntitlementValue>;
+	},
 	actor: AdminActor
 ) {
 	const before = (await db().select().from(schema.plans).where(eq(schema.plans.id, planId)).limit(1))[0];
 	if (!before) throw new AppError('NOT_FOUND', 'Plan not found.');
+
+	if (patch.priceMonthly !== undefined && !/^\d+(\.\d{1,2})?$/.test(patch.priceMonthly)) {
+		throw new AppError('VALIDATION_ERROR', 'Price must be a plain amount like 29 or 29.99.');
+	}
+	if (patch.currency !== undefined && !/^[A-Z]{3}$/.test(patch.currency)) {
+		throw new AppError('VALIDATION_ERROR', 'Currency must be a 3-letter code like USD or TZS.');
+	}
 
 	// Only keys in the registry survive — an unknown key would silently never be read.
 	let entitlements = before.entitlements as Record<string, EntitlementValue>;
@@ -47,6 +60,7 @@ export async function updatePlan(
 			...(patch.name !== undefined ? { name: patch.name } : {}),
 			...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
 			...(patch.priceMonthly !== undefined ? { priceMonthly: patch.priceMonthly } : {}),
+			...(patch.currency !== undefined ? { currency: patch.currency } : {}),
 			entitlements,
 			updatedAt: new Date()
 		})
@@ -55,11 +69,17 @@ export async function updatePlan(
 
 	// A plan change moves every tenant on it — drop the whole cache, not one tenant's.
 	invalidateEntitlements();
-	await audit(null, 'plan.updated', { type: 'user', userId: actor.userId, requestId: actor.requestId }, { type: 'plan', id: planId }, {
-		code: before.code,
-		before: { name: before.name, isActive: before.isActive, entitlements: before.entitlements },
-		after: { name: after.name, isActive: after.isActive, entitlements: after.entitlements }
-	});
+	await audit(
+		null,
+		'plan.updated',
+		{ type: 'user', userId: actor.userId, requestId: actor.requestId },
+		{ type: 'plan', id: planId },
+		{
+			code: before.code,
+			before: { name: before.name, isActive: before.isActive, entitlements: before.entitlements },
+			after: { name: after.name, isActive: after.isActive, entitlements: after.entitlements }
+		}
+	);
 	return after;
 }
 
@@ -116,7 +136,7 @@ export async function tenantControlCenter(tenantId: string) {
 			.leftJoin(schema.users, eq(schema.users.id, schema.auditLogs.actorUserId))
 			.where(eq(schema.auditLogs.tenantId, tenantId))
 			.orderBy(desc(schema.auditLogs.createdAt))
-			.limit(15),
+			.limit(15)
 	]);
 
 	// Sequential, not part of the fan-out above: the pool is a shared, finite resource
@@ -211,7 +231,10 @@ export async function changeTenantPlan(tenantId: string, planId: string, actor: 
 			.limit(1)
 	)[0];
 	if (existing) {
-		await db().update(schema.subscriptions).set({ planId, updatedAt: new Date() }).where(eq(schema.subscriptions.id, existing.id));
+		await db()
+			.update(schema.subscriptions)
+			.set({ planId, updatedAt: new Date() })
+			.where(eq(schema.subscriptions.id, existing.id));
 	} else {
 		const periodEnd = new Date();
 		periodEnd.setMonth(periodEnd.getMonth() + 1);
@@ -219,10 +242,16 @@ export async function changeTenantPlan(tenantId: string, planId: string, actor: 
 	}
 
 	invalidateEntitlements(tenantId);
-	await audit(tenantId, 'plan.changed', { type: 'user', userId: actor.userId, requestId: actor.requestId }, { type: 'tenant', id: tenantId }, {
-		before: before.plan?.code ?? null,
-		after: plan.code
-	});
+	await audit(
+		tenantId,
+		'plan.changed',
+		{ type: 'user', userId: actor.userId, requestId: actor.requestId },
+		{ type: 'tenant', id: tenantId },
+		{
+			before: before.plan?.code ?? null,
+			after: plan.code
+		}
+	);
 	return plan;
 }
 
@@ -256,16 +285,27 @@ export async function updateSubscription(
 		.returning();
 
 	invalidateEntitlements(tenantId);
-	await audit(tenantId, 'subscription.modified', { type: 'user', userId: actor.userId, requestId: actor.requestId }, { type: 'subscription', id: existing.id }, {
-		before: { status: existing.status, periodEnd: existing.currentPeriodEnd },
-		after: { status: after.status, periodEnd: after.currentPeriodEnd }
-	});
+	await audit(
+		tenantId,
+		'subscription.modified',
+		{ type: 'user', userId: actor.userId, requestId: actor.requestId },
+		{ type: 'subscription', id: existing.id },
+		{
+			before: { status: existing.status, periodEnd: existing.currentPeriodEnd },
+			after: { status: after.status, periodEnd: after.currentPeriodEnd }
+		}
+	);
 	return after;
 }
 
 /* ------------------------------------------------------- overrides ------- */
 
-export async function setEntitlementOverride(tenantId: string, key: string, value: EntitlementValue, actor: AdminActor) {
+export async function setEntitlementOverride(
+	tenantId: string,
+	key: string,
+	value: EntitlementValue,
+	actor: AdminActor
+) {
 	const definition = entitlementDefinition(key);
 	if (!definition) throw new AppError('VALIDATION_ERROR', `Unknown entitlement: ${key}`);
 	const tenant = (await db().select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)).limit(1))[0];
@@ -275,13 +315,22 @@ export async function setEntitlementOverride(tenantId: string, key: string, valu
 	const before = (tenant.entitlementOverrides ?? {}) as Record<string, EntitlementValue>;
 	const overrides = { ...before, [key]: normalised };
 
-	await db().update(schema.tenants).set({ entitlementOverrides: overrides, updatedAt: new Date() }).where(eq(schema.tenants.id, tenantId));
+	await db()
+		.update(schema.tenants)
+		.set({ entitlementOverrides: overrides, updatedAt: new Date() })
+		.where(eq(schema.tenants.id, tenantId));
 	invalidateEntitlements(tenantId);
-	await audit(tenantId, 'entitlement.overridden', { type: 'user', userId: actor.userId, requestId: actor.requestId }, { type: 'tenant', id: tenantId }, {
-		key,
-		before: before[key] ?? null,
-		after: normalised
-	});
+	await audit(
+		tenantId,
+		'entitlement.overridden',
+		{ type: 'user', userId: actor.userId, requestId: actor.requestId },
+		{ type: 'tenant', id: tenantId },
+		{
+			key,
+			before: before[key] ?? null,
+			after: normalised
+		}
+	);
 }
 
 /** Remove an override so the key inherits from the plan again. */
@@ -293,12 +342,21 @@ export async function clearEntitlementOverride(tenantId: string, key: string, ac
 	const overrides = { ...before };
 	delete overrides[key];
 
-	await db().update(schema.tenants).set({ entitlementOverrides: overrides, updatedAt: new Date() }).where(eq(schema.tenants.id, tenantId));
+	await db()
+		.update(schema.tenants)
+		.set({ entitlementOverrides: overrides, updatedAt: new Date() })
+		.where(eq(schema.tenants.id, tenantId));
 	invalidateEntitlements(tenantId);
-	await audit(tenantId, 'entitlement.override_removed', { type: 'user', userId: actor.userId, requestId: actor.requestId }, { type: 'tenant', id: tenantId }, {
-		key,
-		before: before[key] ?? null
-	});
+	await audit(
+		tenantId,
+		'entitlement.override_removed',
+		{ type: 'user', userId: actor.userId, requestId: actor.requestId },
+		{ type: 'tenant', id: tenantId },
+		{
+			key,
+			before: before[key] ?? null
+		}
+	);
 }
 
 /* ------------------------------------------------- whatsapp operations --- */
@@ -315,10 +373,16 @@ export async function disableConnection(connectionId: string, actor: AdminActor,
 		.set({ status: 'DISCONNECTED', disconnectedAt: new Date(), updatedAt: new Date() })
 		.where(eq(schema.whatsappConnections.id, connectionId));
 
-	await audit(connection.tenantId, 'whatsapp.disconnected', { type: 'user', userId: actor.userId, requestId: actor.requestId }, { type: 'whatsapp_connection', id: connectionId }, {
-		phoneNumberId: connection.phoneNumberId,
-		reason: reason ?? 'Disabled by platform admin'
-	});
+	await audit(
+		connection.tenantId,
+		'whatsapp.disconnected',
+		{ type: 'user', userId: actor.userId, requestId: actor.requestId },
+		{ type: 'whatsapp_connection', id: connectionId },
+		{
+			phoneNumberId: connection.phoneNumberId,
+			reason: reason ?? 'Disabled by platform admin'
+		}
+	);
 }
 
 /** Connection health for the admin view — status and timestamps only, never tokens. */

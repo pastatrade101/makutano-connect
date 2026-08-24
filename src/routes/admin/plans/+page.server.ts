@@ -35,7 +35,10 @@ export const actions: Actions = {
 				{
 					name: String(data.get('name') ?? ''),
 					isActive: data.get('isActive') === 'on',
-					priceMonthly: String(data.get('priceMonthly') ?? '0'),
+					priceMonthly: String(data.get('priceMonthly') ?? '0').trim(),
+					currency: String(data.get('currency') ?? 'USD')
+						.trim()
+						.toUpperCase(),
 					entitlements
 				},
 				{ userId: locals.user!.id, requestId: locals.requestId }

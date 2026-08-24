@@ -35,19 +35,21 @@
 					<h2 class="text-sm font-semibold text-slate-700">{plan.name}</h2>
 					<span class="badge bg-slate-100 font-mono text-[10px] text-slate-500">{plan.code}</span>
 					<span class="badge {plan.isActive ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-400'} text-xs">{plan.isActive ? 'active' : 'inactive'}</span>
+					<span class="text-[11px] font-semibold text-slate-600">{plan.currency} {Number(plan.priceMonthly).toLocaleString()} / mo</span>
 					<span class="text-[11px] text-slate-400">{data.tenantsByPlan[plan.id] ?? 0} tenant(s)</span>
 				</div>
 				<button class="btn-secondary !py-1 text-xs" onclick={() => (editing = editing === plan.id ? null : plan.id)}>
-					{editing === plan.id ? 'Close' : 'Edit entitlements'}
+					{editing === plan.id ? 'Close' : 'Edit plan'}
 				</button>
 			</header>
 
 			{#if editing === plan.id}
 				<form method="POST" action="?/save" use:enhance={() => async ({ update }) => { await update(); editing = null; }} class="space-y-4 border-t border-slate-100 bg-slate-50/60 p-4">
 					<input type="hidden" name="planId" value={plan.id} />
-					<div class="grid gap-3 sm:grid-cols-3">
+					<div class="grid gap-3 sm:grid-cols-4">
 						<div><label class="label" for="n-{plan.id}">Name</label><input id="n-{plan.id}" name="name" value={plan.name} class="input" /></div>
-						<div><label class="label" for="p-{plan.id}">Price / month</label><input id="p-{plan.id}" name="priceMonthly" value={plan.priceMonthly} class="input" /></div>
+						<div><label class="label" for="p-{plan.id}">Price / month</label><input id="p-{plan.id}" name="priceMonthly" inputmode="decimal" value={plan.priceMonthly} class="input" /></div>
+						<div><label class="label" for="c-{plan.id}">Currency</label><input id="c-{plan.id}" name="currency" maxlength="3" value={plan.currency} placeholder="USD" class="input font-mono uppercase" /></div>
 						<label class="flex items-end gap-2 pb-2 text-sm text-slate-600">
 							<input type="checkbox" name="isActive" checked={plan.isActive} class="rounded border-slate-300" /> Active
 						</label>

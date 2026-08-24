@@ -51,6 +51,74 @@ export const load: PageServerLoad = async () => {
 		where t.deleted_at is null group by 1 order by 2 desc
 	`)) as unknown as Array<{ code: string; tenants: number }>;
 
+	// Revenue = live subscriptions × the plan's current price. Honest numbers only:
+	// paying (ACTIVE) is MRR, TRIALING is pipeline, PAST_DUE is revenue at risk —
+	// never summed together, and currencies are never converted into each other.
+	const revenueRows = (await db().execute(sql`
+		select p.id, p.code, p.name, p.currency, p.price_monthly as price, p.is_active,
+			count(s.id) filter (where s.status = 'ACTIVE')::int as paying,
+			count(s.id) filter (where s.status = 'TRIALING')::int as trialing,
+			count(s.id) filter (where s.status = 'PAST_DUE')::int as past_due
+		from plans p
+		left join subscriptions s on s.plan_id = p.id
+		left join tenants t on t.id = s.tenant_id
+		where s.id is null or t.deleted_at is null
+		group by p.id, p.code, p.name, p.currency, p.price_monthly, p.is_active
+		order by p.price_monthly::numeric desc
+	`)) as unknown as Array<{
+		id: string;
+		code: string;
+		name: string;
+		currency: string;
+		price: string;
+		is_active: boolean;
+		paying: number;
+		trialing: number;
+		past_due: number;
+	}>;
+
+	const revenuePlans = revenueRows.map((r) => {
+		const price = Number(r.price);
+		return {
+			id: r.id,
+			code: r.code,
+			name: r.name,
+			currency: r.currency,
+			price,
+			isActive: r.is_active,
+			paying: Number(r.paying),
+			trialing: Number(r.trialing),
+			pastDue: Number(r.past_due),
+			mrr: Number(r.paying) * price,
+			trialValue: Number(r.trialing) * price,
+			pastDueValue: Number(r.past_due) * price
+		};
+	});
+	const byCurrency = new Map<
+		string,
+		{ currency: string; mrr: number; trialValue: number; pastDueValue: number; paying: number; trialing: number }
+	>();
+	for (const r of revenuePlans) {
+		const t = byCurrency.get(r.currency) ?? {
+			currency: r.currency,
+			mrr: 0,
+			trialValue: 0,
+			pastDueValue: 0,
+			paying: 0,
+			trialing: 0
+		};
+		t.mrr += r.mrr;
+		t.trialValue += r.trialValue;
+		t.pastDueValue += r.pastDueValue;
+		t.paying += r.paying;
+		t.trialing += r.trialing;
+		byCurrency.set(r.currency, t);
+	}
+	const revenue = {
+		plans: revenuePlans,
+		totals: [...byCurrency.values()].sort((a, b) => b.mrr - a.mrr)
+	};
+
 	// Which tenants are running out — the actionable list, computed from effective
 	// entitlements so an override is reflected exactly as the tenant experiences it.
 	const tenants = await db()
@@ -73,6 +141,7 @@ export const load: PageServerLoad = async () => {
 		counts,
 		recentJobs,
 		planMix,
+		revenue,
 		nearLimit,
 		activity: {
 			labels: activity.map((r) => r.label),

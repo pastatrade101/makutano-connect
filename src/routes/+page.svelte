@@ -7,13 +7,14 @@
 	const getStartedHref = $derived(data.signupEnabled ? '/signup' : '/login');
 	let menuOpen = $state(false);
 
-	const NAV = [
+	// Pricing only renders when plans exist, so its nav link must follow the section.
+	const NAV = $derived([
 		{ href: '/#product', label: 'Product' },
 		{ href: '/#how-it-works', label: 'How it Works' },
 		{ href: '/#developers', label: 'Developers' },
 		{ href: '/#use-cases', label: 'Use Cases' },
-		{ href: '/#pricing', label: 'Pricing' }
-	];
+		...(data.plans.length ? [{ href: '/#pricing', label: 'Pricing' }] : [])
+	]);
 
 	const price = (p: { priceMonthly: number; currency: string }) =>
 		p.priceMonthly === 0 ? 'Free' : `${p.currency} ${p.priceMonthly.toLocaleString()}`;
