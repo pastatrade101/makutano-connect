@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Toasts from '$components/Toasts.svelte';
+	import { adminTheme, toggleAdminDark } from '$lib/stores/admin-theme.svelte';
 	let { data, children } = $props();
 
 	const NAV = [
@@ -22,11 +23,7 @@
 	const isActive = (href: string) => (href === '/admin' ? page.url.pathname === '/admin' : page.url.pathname.startsWith(href));
 
 	let collapsed = $state(browser ? localStorage.getItem('mk-admin-nav-collapsed') === '1' : false);
-	let dark = $state(browser ? localStorage.getItem('mk-admin-dark') === '1' : false);
-	function toggleDark() {
-		dark = !dark;
-		if (browser) localStorage.setItem('mk-admin-dark', dark ? '1' : '0');
-	}
+	const dark = $derived(adminTheme.dark);
 	let mobileOpen = $state(false);
 	let userMenu = $state(false);
 	let search = $state('');
@@ -119,7 +116,7 @@
 			</div>
 
 			<div class="flex items-center gap-1.5">
-				<button class="rounded-panel p-2 text-slate-500 hover:bg-slate-100" onclick={toggleDark} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} title={dark ? 'Light mode' : 'Dark mode'}>
+				<button class="rounded-panel p-2 text-slate-500 hover:bg-slate-100" onclick={toggleAdminDark} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} title={dark ? 'Light mode' : 'Dark mode'}>
 					{#if dark}
 						<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="3.5" /><path d="M10 2.5v2m0 11v2m7.5-7.5h-2m-11 0h-2m12.8-5.3-1.4 1.4M6.1 13.9l-1.4 1.4m10.6 0-1.4-1.4M6.1 6.1 4.7 4.7" /></svg>
 					{:else}

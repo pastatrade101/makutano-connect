@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Chart from '$components/Chart.svelte';
+	import { adminTheme, chartPalette } from '$lib/stores/admin-theme.svelte';
 	import StatTile from '$components/StatTile.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data } = $props();
@@ -8,20 +9,22 @@
 	// Literal class strings — Tailwind's scanner cannot see computed names.
 	const revenueCols = $derived(data.revenue.totals.length >= 2 ? 'lg:grid-cols-6' : 'lg:grid-cols-3');
 
+	const pal = $derived(chartPalette(adminTheme.dark));
 	const chartOptions = $derived({
-		chart: { type: 'bar' as const, height: 230, toolbar: { show: false }, fontFamily: 'inherit' },
+		chart: { type: 'bar' as const, height: 230, toolbar: { show: false }, fontFamily: 'inherit', background: 'transparent' },
 		series: [
 			{ name: 'Messages', data: data.activity.messages },
 			{ name: 'Enquiries', data: data.activity.requests },
 			{ name: 'Orders', data: data.activity.orders }
 		],
-		xaxis: { categories: data.activity.labels, labels: { style: { colors: '#8486a7', fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
-		yaxis: { labels: { style: { colors: '#8486a7', fontSize: '11px' } } },
+		xaxis: { categories: data.activity.labels, labels: { style: { colors: pal.label, fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+		yaxis: { labels: { style: { colors: pal.label, fontSize: '11px' } } },
 		colors: ['#1c84ee', '#7f56da', '#22c55e'],
 		plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
 		dataLabels: { enabled: false },
-		grid: { borderColor: '#eaedf1', strokeDashArray: 4 },
-		legend: { labels: { colors: '#5d7186' } }
+		grid: { borderColor: pal.grid, strokeDashArray: 4 },
+		legend: { labels: { colors: pal.legend } },
+		tooltip: { theme: pal.tooltip }
 	});
 </script>
 
