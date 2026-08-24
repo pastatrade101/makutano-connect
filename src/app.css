@@ -46,6 +46,27 @@
 	--shadow-panel: 0px 3px 4px 0px rgb(0 0 0 / 0.03);
 }
 
+/* Dark mode as a token flip: apply .mk-dark on a wrapper and every utility that
+   reads the palette (bg-white, text-slate-*, borders, brand tints) re-resolves to
+   the dark ramp. No per-page dark: variants, no markup changes. */
+.mk-dark {
+	--color-white: #1e242b;
+	--color-canvas: #14181d;
+	--color-slate-50: #232931;
+	--color-slate-100: #2a313a;
+	--color-slate-200: #343d47;
+	--color-slate-300: #414b57;
+	--color-slate-400: #7e8898;
+	--color-slate-500: #98a1b0;
+	--color-slate-600: #b0b8c4;
+	--color-slate-700: #ccd2db;
+	--color-slate-800: #e4e8ee;
+	--color-slate-900: #f2f4f7;
+	--color-brand-50: #16283e;
+	--color-brand-100: #1b3350;
+	color-scheme: dark;
+}
+
 @layer base {
 	html {
 		-webkit-text-size-adjust: 100%;
@@ -55,7 +76,12 @@
 		font-size: 14px;
 		background-color: var(--color-canvas);
 	}
-	h1, h2, h3, h4, h5, h6 {
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
 		color: var(--color-slate-700);
 	}
 	:focus-visible {

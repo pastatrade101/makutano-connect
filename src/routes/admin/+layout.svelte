@@ -1,7 +1,7 @@
 <script lang="ts">
-	// Admin shell at full parity with the portal: Reback dark-menu sidenav with a
-	// persisted collapse toggle (overlay on mobile), topbar with tenant search, an
-	// alerts bell fed by live error counts, and the avatar menu.
+	// Admin shell at full parity with the portal: white sidenav with a persisted
+	// collapse toggle (overlay on mobile), topbar with tenant search, a dark-mode
+	// toggle (token flip via .mk-dark), an alerts bell, and the avatar menu.
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -22,6 +22,11 @@
 	const isActive = (href: string) => (href === '/admin' ? page.url.pathname === '/admin' : page.url.pathname.startsWith(href));
 
 	let collapsed = $state(browser ? localStorage.getItem('mk-admin-nav-collapsed') === '1' : false);
+	let dark = $state(browser ? localStorage.getItem('mk-admin-dark') === '1' : false);
+	function toggleDark() {
+		dark = !dark;
+		if (browser) localStorage.setItem('mk-admin-dark', dark ? '1' : '0');
+	}
 	let mobileOpen = $state(false);
 	let userMenu = $state(false);
 	let search = $state('');
@@ -54,26 +59,26 @@
 	<button class="fixed inset-0 z-30 bg-slate-900/40 lg:hidden" onclick={() => (mobileOpen = false)} aria-label="Close navigation"></button>
 {/if}
 
-<div class="flex min-h-screen">
+<div class="flex min-h-screen bg-canvas {dark ? 'mk-dark' : ''}">
 	<!-- Sidenav: fixed on desktop (collapsible), slide-over on mobile -->
 	<aside
-		class="fixed inset-y-0 left-0 z-40 flex-col bg-sidenav-dark transition-[width] duration-200
+		class="fixed inset-y-0 left-0 z-40 flex-col border-r border-slate-200 bg-white transition-[width] duration-200
 			{mobileOpen ? 'flex w-64' : 'hidden'}
 			lg:flex {collapsed ? 'lg:w-[70px]' : 'lg:w-64'}"
 	>
-		<div class="flex h-[70px] items-center gap-2.5 border-b border-white/10 {collapsed && !mobileOpen ? 'lg:justify-center lg:px-2' : 'px-5'}">
+		<div class="flex h-[70px] items-center gap-2.5 border-b border-slate-200 {collapsed && !mobileOpen ? 'lg:justify-center lg:px-2' : 'px-5'}">
 			<div class="flex size-8 shrink-0 items-center justify-center rounded-panel bg-brand-500 text-sm font-bold text-white">M</div>
 			{#if !collapsed || mobileOpen}
 				<div class="min-w-0">
-					<div class="truncate text-[15px] font-bold tracking-tight text-white">Makutano</div>
-					<div class="-mt-0.5 text-[10px] font-semibold tracking-widest text-[#9097a7] uppercase">Platform admin</div>
+					<div class="truncate text-[15px] font-bold tracking-tight text-slate-800">Makutano</div>
+					<div class="-mt-0.5 text-[10px] font-semibold tracking-widest text-brand-500 uppercase">Platform admin</div>
 				</div>
 			{/if}
 		</div>
 
 		<nav class="flex-1 overflow-y-auto px-3 py-4">
 			{#if !collapsed || mobileOpen}
-				<p class="px-2.5 pb-2 text-[10px] font-bold tracking-widest text-[#5d6675] uppercase">Operations</p>
+				<p class="px-2.5 pb-2 text-[10px] font-bold tracking-widest text-slate-400 uppercase">Operations</p>
 			{/if}
 			<div class="space-y-0.5">
 				{#each NAV as item (item.href)}
@@ -81,8 +86,8 @@
 						href={item.href}
 						title={collapsed && !mobileOpen ? item.label : undefined}
 						class="flex items-center gap-3 rounded-panel py-2 text-[13.5px] transition {collapsed && !mobileOpen ? 'lg:justify-center lg:px-0 px-2.5' : 'px-2.5'} {isActive(item.href)
-							? 'bg-white/10 font-semibold text-white'
-							: 'text-[#9097a7] hover:bg-white/5 hover:text-white'}"
+							? 'bg-brand-50 font-semibold text-brand-600'
+							: 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}"
 					>
 						<svg class="size-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
 						{#if !collapsed || mobileOpen}{item.label}{/if}
@@ -92,8 +97,8 @@
 		</nav>
 
 		{#if !collapsed || mobileOpen}
-			<div class="border-t border-white/10 p-3 text-[11px]">
-				<a href="/app" class="block rounded-panel px-2.5 py-1.5 text-[#9097a7] hover:bg-white/5 hover:text-white">← Tenant portal</a>
+			<div class="border-t border-slate-200 p-3 text-[11px]">
+				<a href="/app" class="block rounded-panel px-2.5 py-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700">← Tenant portal</a>
 			</div>
 		{/if}
 	</aside>
@@ -114,6 +119,13 @@
 			</div>
 
 			<div class="flex items-center gap-1.5">
+				<button class="rounded-panel p-2 text-slate-500 hover:bg-slate-100" onclick={toggleDark} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} title={dark ? 'Light mode' : 'Dark mode'}>
+					{#if dark}
+						<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="3.5" /><path d="M10 2.5v2m0 11v2m7.5-7.5h-2m-11 0h-2m12.8-5.3-1.4 1.4M6.1 13.9l-1.4 1.4m10.6 0-1.4-1.4M6.1 6.1 4.7 4.7" /></svg>
+					{:else}
+						<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M16.5 11.5A6.5 6.5 0 0 1 8.5 3.5a6.5 6.5 0 1 0 8 8Z" /></svg>
+					{/if}
+				</button>
 				<a href="/admin/errors" class="relative rounded-panel p-2 text-slate-500 hover:bg-slate-100" aria-label="Operational alerts">
 					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3a4.5 4.5 0 0 0-4.5 4.5c0 3-1 4-1.5 4.8-.2.3 0 .7.4.7h11.2c.4 0 .6-.4.4-.7-.5-.8-1.5-1.8-1.5-4.8A4.5 4.5 0 0 0 10 3Zm-1.7 10.8a1.8 1.8 0 0 0 3.4 0" /></svg>
 					{#if data.attention > 0}
@@ -123,7 +135,7 @@
 
 				<div class="relative">
 					<button class="flex items-center gap-2 rounded-panel p-1.5 hover:bg-slate-100" onclick={() => (userMenu = !userMenu)} aria-label="Account menu">
-						<div class="flex size-8 items-center justify-center rounded-full bg-sidenav-dark text-sm font-bold text-white">
+						<div class="flex size-8 items-center justify-center rounded-full bg-brand-500 text-sm font-bold text-white">
 							{(data.user.fullName || data.user.email).slice(0, 1).toUpperCase()}
 						</div>
 						<div class="hidden text-left lg:block">
