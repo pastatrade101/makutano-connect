@@ -138,7 +138,7 @@
 	<!-- Sidenav (desktop) -->
 	<aside class="fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-slate-200 bg-white lg:flex {collapsed ? 'w-[70px]' : 'w-60'} transition-[width] duration-200">
 		<div class="flex h-[70px] items-center gap-2.5 border-b border-slate-200 {collapsed ? 'justify-center px-2' : 'px-5'}">
-			<div class="flex size-8 shrink-0 items-center justify-center rounded-panel bg-brand-500 text-sm font-bold text-white">M</div>
+			<img src="/2.png" alt="" class="size-8 shrink-0 object-contain" />
 			{#if !collapsed}
 				<div class="min-w-0">
 					<div class="truncate text-[15px] font-bold tracking-tight text-slate-800">Makutano</div>
@@ -198,7 +198,7 @@
 				<button class="hidden rounded-panel p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 lg:block" onclick={toggleNav} aria-label="Toggle navigation">
 					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h14M3 10h14M3 15h14" /></svg>
 				</button>
-				<div class="flex size-7 items-center justify-center rounded-panel bg-brand-500 text-xs font-bold text-white lg:hidden">M</div>
+				<img src="/2.png" alt="" class="size-7 object-contain lg:hidden" />
 
 				<form onsubmit={submitSearch} class="relative hidden md:block">
 					<input bind:value={search} placeholder="Search customers, orders, references…" class="w-64 rounded-panel border border-slate-200 bg-slate-50 py-2 pr-3 pl-9 text-[13px] placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-1 focus:ring-brand-500" />

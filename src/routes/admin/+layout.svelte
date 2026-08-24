@@ -64,7 +64,7 @@
 			lg:flex {collapsed ? 'lg:w-[70px]' : 'lg:w-64'}"
 	>
 		<div class="flex h-[70px] items-center gap-2.5 border-b border-slate-200 {collapsed && !mobileOpen ? 'lg:justify-center lg:px-2' : 'px-5'}">
-			<div class="flex size-8 shrink-0 items-center justify-center rounded-panel bg-brand-500 text-sm font-bold text-white">M</div>
+			<img src="/2.png" alt="" class="size-8 shrink-0 object-contain" />
 			{#if !collapsed || mobileOpen}
 				<div class="min-w-0">
 					<div class="truncate text-[15px] font-bold tracking-tight text-slate-800">Makutano</div>

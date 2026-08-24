@@ -11,7 +11,7 @@
 <div class="min-h-screen">
 	<header class="sticky top-0 z-20 flex h-[64px] items-center justify-between border-b border-slate-200 bg-white px-4 lg:px-8">
 		<a href="/documentation" class="flex items-center gap-2.5">
-			<div class="flex size-8 items-center justify-center rounded-panel bg-brand-500 text-sm font-bold text-white">M</div>
+			<img src="/2.png" alt="" class="size-8 object-contain" />
 			<div>
 				<span class="text-[15px] font-bold tracking-tight text-slate-800">Makutano <span class="text-brand-500">Connect</span></span>
 				<span class="ml-2 hidden rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tracking-widest text-slate-500 uppercase sm:inline">Docs</span>
