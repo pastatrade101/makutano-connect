@@ -8,6 +8,7 @@ import { log } from '$lib/server/logger';
 import {
 	INDUSTRIES,
 	defaultSignupPlanCode,
+	planHighlights,
 	provisionTenant,
 	selectablePlans,
 	signupEnabled,
@@ -77,23 +78,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 	};
 };
 
-function planHighlights(entitlements: Record<string, boolean | number>): string[] {
-	const out: string[] = [];
-	const numbers = Number(entitlements['whatsapp.maxNumbers'] ?? 0);
-	out.push(numbers === 0 ? 'Unlimited WhatsApp numbers' : `${numbers} WhatsApp number${numbers === 1 ? '' : 's'}`);
-	const orders = Number(entitlements['orders.maxPerMonth'] ?? 0);
-	if (entitlements['orders.enabled'] !== false) {
-		out.push(orders === 0 ? 'Unlimited orders' : `${orders.toLocaleString()} orders / month`);
-	}
-	const requests = Number(entitlements['bookings.maxRequestsPerMonth'] ?? 0);
-	if (entitlements['bookings.enabled'] !== false) {
-		out.push(requests === 0 ? 'Unlimited enquiries' : `${requests.toLocaleString()} enquiries / month`);
-	}
-	if (entitlements['webhooks.enabled']) out.push('Webhooks');
-	if (entitlements['payments.enabled']) out.push('Payments');
-	return out.slice(0, 4);
-}
-
 export const actions: Actions = {
 	default: async (event) => {
 		if (!event.locals.user) redirect(303, '/login');
@@ -106,7 +90,10 @@ export const actions: Actions = {
 		const data = await event.request.formData();
 		const businessName = String(data.get('businessName') ?? '').trim();
 		const industry = String(data.get('industry') ?? '').trim();
-		const country = String(data.get('country') ?? '').trim().toUpperCase().slice(0, 2);
+		const country = String(data.get('country') ?? '')
+			.trim()
+			.toUpperCase()
+			.slice(0, 2);
 		const businessPhone = String(data.get('businessPhone') ?? '').trim();
 		const websiteUrl = String(data.get('websiteUrl') ?? '').trim();
 		const planId = String(data.get('planId') ?? '').trim();
@@ -115,7 +102,8 @@ export const actions: Actions = {
 
 		if (!signupEnabled()) return fail(403, { ...values, message: 'Signup is currently closed.' });
 		if (!businessName) return fail(400, { ...values, message: 'What is your business called?' });
-		if (!INDUSTRIES.some((i) => i.value === industry)) return fail(400, { ...values, message: 'Choose the closest industry.' });
+		if (!INDUSTRIES.some((i) => i.value === industry))
+			return fail(400, { ...values, message: 'Choose the closest industry.' });
 		if (!COUNTRIES.some((c) => c.code === country)) return fail(400, { ...values, message: 'Choose your country.' });
 		if (!/^\+?[0-9 ()-]{7,20}$/.test(businessPhone)) {
 			return fail(400, { ...values, message: 'Enter a valid business phone number.' });
@@ -154,7 +142,11 @@ export const actions: Actions = {
 			log.info('signup_completed', { tenantId: tenant.id, reused });
 		} catch (err) {
 			const appError = toAppError(err);
-			log.error('signup_provision_failed', { requestId: event.locals.requestId, code: appError.code, message: appError.message });
+			log.error('signup_provision_failed', {
+				requestId: event.locals.requestId,
+				code: appError.code,
+				message: appError.message
+			});
 			return fail(400, { ...values, message: appError.message });
 		}
 

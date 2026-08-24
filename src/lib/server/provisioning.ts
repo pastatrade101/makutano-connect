@@ -37,6 +37,24 @@ export const INDUSTRIES = [
 
 export type Industry = (typeof INDUSTRIES)[number]['value'];
 
+/** Short, honest bullet points for a plan card — derived from real entitlements. */
+export function planHighlights(entitlements: Record<string, boolean | number>): string[] {
+	const out: string[] = [];
+	const numbers = Number(entitlements['whatsapp.maxNumbers'] ?? 0);
+	out.push(numbers === 0 ? 'Unlimited WhatsApp numbers' : `${numbers} WhatsApp number${numbers === 1 ? '' : 's'}`);
+	const orders = Number(entitlements['orders.maxPerMonth'] ?? 0);
+	if (entitlements['orders.enabled'] !== false) {
+		out.push(orders === 0 ? 'Unlimited orders' : `${orders.toLocaleString()} orders / month`);
+	}
+	const requests = Number(entitlements['bookings.maxRequestsPerMonth'] ?? 0);
+	if (entitlements['bookings.enabled'] !== false) {
+		out.push(requests === 0 ? 'Unlimited enquiries' : `${requests.toLocaleString()} enquiries / month`);
+	}
+	if (entitlements['webhooks.enabled']) out.push('Webhooks');
+	if (entitlements['payments.enabled']) out.push('Payments');
+	return out.slice(0, 4);
+}
+
 export function industryLabel(value: string | null): string {
 	return INDUSTRIES.find((i) => i.value === value)?.label ?? 'Other';
 }
@@ -138,7 +156,11 @@ async function availableSlug(tx: Tx, desired: string): Promise<string> {
 	const base = slugify(desired) || 'tenant';
 	for (let attempt = 0; attempt < 25; attempt++) {
 		const candidate = attempt === 0 ? base : `${base.slice(0, 55)}-${attempt + 1}`;
-		const taken = await tx.select({ id: schema.tenants.id }).from(schema.tenants).where(eq(schema.tenants.slug, candidate)).limit(1);
+		const taken = await tx
+			.select({ id: schema.tenants.id })
+			.from(schema.tenants)
+			.where(eq(schema.tenants.slug, candidate))
+			.limit(1);
 		if (taken.length === 0) return candidate;
 	}
 	return `${base.slice(0, 46)}-${crypto.randomUUID().slice(0, 8)}`;
@@ -192,7 +214,13 @@ export async function provisionTenant(input: ProvisionTenantInput): Promise<Prov
 		if (input.owner?.kind === 'existing') {
 			const existing = await ownedTenant(tx, input.owner.userId);
 			if (existing) {
-				return { tenant: existing, ownerUserId: input.owner.userId, temporaryPassword: null, subscriptionId: null, reused: true };
+				return {
+					tenant: existing,
+					ownerUserId: input.owner.userId,
+					temporaryPassword: null,
+					subscriptionId: null,
+					reused: true
+				};
 			}
 		}
 
@@ -231,7 +259,11 @@ export async function provisionTenant(input: ProvisionTenantInput): Promise<Prov
 		let slug: string;
 		if (input.slug && input.source !== 'SELF_SERVICE') {
 			slug = slugify(input.slug);
-			const clash = await tx.select({ id: schema.tenants.id }).from(schema.tenants).where(eq(schema.tenants.slug, slug)).limit(1);
+			const clash = await tx
+				.select({ id: schema.tenants.id })
+				.from(schema.tenants)
+				.where(eq(schema.tenants.slug, slug))
+				.limit(1);
 			if (clash.length) throw new AppError('CONFLICT', `A tenant with the slug "${slug}" already exists.`);
 		} else {
 			slug = await availableSlug(tx, input.slug || name);
@@ -246,7 +278,10 @@ export async function provisionTenant(input: ProvisionTenantInput): Promise<Prov
 			input.source === 'SELF_SERVICE' ? (trialing ? 'TRIAL' : 'PENDING') : 'ACTIVE';
 
 		const prefix =
-			(input.bookingReferencePrefix || slug.slice(0, 3)).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'MKT';
+			(input.bookingReferencePrefix || slug.slice(0, 3))
+				.toUpperCase()
+				.replace(/[^A-Z0-9]/g, '')
+				.slice(0, 6) || 'MKT';
 
 		const [tenant] = await tx
 			.insert(schema.tenants)
