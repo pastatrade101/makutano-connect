@@ -16,3 +16,28 @@ export async function provisionTestTenant(input: TenantInput) {
 	const result = await provisionTenant({ ...input, source: 'ADMIN', actor: { type: 'system' } });
 	return result.tenant;
 }
+
+/** Test tenants exercise behaviour, not commercial plan caps. */
+export async function liftLimits(tenantId: string): Promise<void> {
+	const { db, schema } = await import('../src/lib/server/db');
+	const { eq } = await import('drizzle-orm');
+	const { invalidateEntitlements } = await import('../src/lib/server/entitlements');
+	const [tenant] = await db()
+		.select({ overrides: schema.tenants.entitlementOverrides })
+		.from(schema.tenants)
+		.where(eq(schema.tenants.id, tenantId))
+		.limit(1);
+	await db()
+		.update(schema.tenants)
+		.set({
+			entitlementOverrides: {
+				...(tenant?.overrides ?? {}),
+				'orders.enabled': true,
+				'orders.maxPerMonth': 0,
+				'orderLinks.enabled': true,
+				'orderLinks.maxActive': 0
+			}
+		})
+		.where(eq(schema.tenants.id, tenantId));
+	invalidateEntitlements(tenantId);
+}

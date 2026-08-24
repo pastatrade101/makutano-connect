@@ -21,10 +21,12 @@
 		"db:seed": "node --experimental-strip-types scripts/seed.ts"
 	},
 	"dependencies": {
+		"@types/qrcode": "^1.5.6",
 		"apexcharts": "^6.6.1",
 		"drizzle-orm": "^0.38.4",
 		"marked": "^18.0.10",
 		"postgres": "^3.4.5",
+		"qrcode": "^1.5.4",
 		"zod": "^3.24.1"
 	},
 	"devDependencies": {

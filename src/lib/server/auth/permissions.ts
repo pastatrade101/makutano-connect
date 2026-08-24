@@ -29,6 +29,10 @@ export const PERMISSIONS = [
 	'payments:write',
 	'orders:read',
 	'orders:write',
+	// Publishing a public order entry point is not the same as processing orders.
+	'order_links:read',
+	'order_links:write',
+	'order_links:archive',
 	'catalog:read',
 	'catalog:write',
 	'forms:read',
@@ -58,6 +62,7 @@ const ALL: Permission[] = [...PERMISSIONS];
 
 const READ_ONLY: Permission[] = [
 	'orders:read',
+	'order_links:read',
 	'catalog:read',
 	'forms:read',
 	'tenant:read',
@@ -89,6 +94,8 @@ const SALES: Permission[] = [
 // Presented in the UI as "Manager": runs the office day-to-day.
 const BOOKING_AGENT: Permission[] = [
 	...SALES,
+	// Publishing a public order entry point stays a Manager+ decision (§28).
+	'order_links:write',
 	'bookings:write',
 	'payments:write',
 	'travelers:read_sensitive',
@@ -110,7 +117,8 @@ const ADMIN: Permission[] = [
 	'webhooks:write',
 	'audit:read',
 	'conversations:view_private',
-	'payments:refund'
+	'payments:refund',
+	'order_links:archive'
 ];
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {

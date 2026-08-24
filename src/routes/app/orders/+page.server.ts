@@ -15,11 +15,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const status = url.searchParams.get('status');
 	const payment = url.searchParams.get('payment');
 	const source = url.searchParams.get('source');
+	const orderLinkId = url.searchParams.get('orderLinkId');
 	const [{ items, total }, stats] = await Promise.all([
 		listOrders(requireTenant(locals).id, pagination, {
 			status: (status || undefined) as never,
 			paymentStatus: payment === 'unpaid' ? undefined : ((payment || undefined) as never),
-			source: (source || undefined) as never
+			source: (source || undefined) as never,
+			orderLinkId: orderLinkId || undefined
 		}),
 		orderStats(requireTenant(locals).id)
 	]);

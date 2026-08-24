@@ -59,6 +59,7 @@ const SOURCE: Record<string, string> = {
 	WHATSAPP_GROUP: 'WhatsApp group',
 	WHATSAPP: 'WhatsApp',
 	WALK_IN: 'Walk-in',
+	ORDER_LINK: 'Order link',
 	PHONE: 'Phone call',
 	WEBSITE: 'Website',
 	INSTAGRAM: 'Instagram',

@@ -1502,6 +1502,8 @@ export const orderSourceEnum = pgEnum('order_source', [
 	'API',
 	'PHONE',
 	'WALK_IN',
+	// A public Connect-hosted Order Link (/o/<publicId>) — one offer, one form.
+	'ORDER_LINK',
 	'OTHER'
 ]);
 
@@ -1583,6 +1585,64 @@ export const orderBatches = pgTable(
 	(t) => [index('order_batches_tenant_idx').on(t.tenantId, t.status, t.fulfilmentDate)]
 );
 
+export const orderLinkStatusEnum = pgEnum('order_link_status', ['DRAFT', 'ACTIVE', 'PAUSED', 'ARCHIVED']);
+
+/**
+ * Order Link — ONE offer behind ONE public link (§order-links). A WhatsApp-group
+ * seller posts /o/<publicId>; customers submit a tiny form; the submission flows
+ * through the canonical createOrder(). Deliberately NOT ecommerce: no cart, no
+ * browsing, no inventory. "Expired" is computed from `deadline`, never stored.
+ */
+export const orderLinks = pgTable(
+	'order_links',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		/** The ONLY identifier the public ever sees. */
+		publicId: text('public_id').notNull(),
+		status: orderLinkStatusEnum('status').notNull().default('DRAFT'),
+		title: text('title').notNull(),
+		description: text('description'),
+		imageUrl: text('image_url'),
+		/** KG, Piece, Pack… free text — presets are a UI convenience, never an enum. */
+		unit: text('unit').notNull().default('Piece'),
+		unitPrice: money('unit_price').notNull().default('0'),
+		currency: text('currency').notNull().default('TZS'),
+		minQuantity: integer('min_quantity').notNull().default(1),
+		maxQuantity: integer('max_quantity'),
+		/** Optional total capacity across all orders (e.g. 200 KG). Not inventory. */
+		capacityTotal: integer('capacity_total'),
+		/** Orders close automatically after this moment. */
+		deadline: timestamp('deadline', { withTimezone: true }),
+		deliveryDate: timestamp('delivery_date', { withTimezone: true }),
+		pickupEnabled: boolean('pickup_enabled').notNull().default(true),
+		deliveryEnabled: boolean('delivery_enabled').notNull().default(true),
+		deliveryFee: money('delivery_fee').notNull().default('0'),
+		/** Predefined field visibility: { email|deliveryLocation|note: HIDDEN|OPTIONAL|REQUIRED } */
+		fieldConfig: jsonb('field_config')
+			.$type<Record<string, 'HIDDEN' | 'OPTIONAL' | 'REQUIRED'>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		/** AFTER_CONFIRMATION (default — safest for informal sellers) or IMMEDIATE. */
+		paymentTiming: text('payment_timing').notNull().default('AFTER_CONFIRMATION'),
+		/** [{ key: 'wa-group-a', label: 'WhatsApp Group A' }] — ?s=<key> provenance tags. */
+		shareTags: jsonb('share_tags').$type<Array<{ key: string; label: string }>>().notNull().default(sql`'[]'::jsonb`),
+		batchId: uuid('batch_id').references(() => orderBatches.id, { onDelete: 'set null' }),
+		catalogItemId: uuid('catalog_item_id').references(() => catalogItems.id, { onDelete: 'set null' }),
+		viewCount: integer('view_count').notNull().default(0),
+		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('order_links_public_id_key').on(t.publicId),
+		index('order_links_tenant_idx').on(t.tenantId, t.status)
+	]
+);
+
 export const orders = pgTable(
 	'orders',
 	{
@@ -1605,6 +1665,9 @@ export const orders = pgTable(
 		total: money('total').notNull().default('0'),
 		amountPaid: money('amount_paid').notNull().default('0'),
 		batchId: uuid('batch_id').references(() => orderBatches.id, { onDelete: 'set null' }),
+		orderLinkId: uuid('order_link_id').references(() => orderLinks.id, { onDelete: 'set null' }),
+		/** Public-form idempotency token. Unique per link so concurrent retries create one order. */
+		orderLinkSubmissionToken: text('order_link_submission_token'),
 		deliveryMethod: deliveryMethodEnum('delivery_method'),
 		deliveryLocation: text('delivery_location'),
 		/** When the customer gets it — a promise, not a shipping engine. */
@@ -1629,7 +1692,9 @@ export const orders = pgTable(
 		index('orders_tenant_payment_idx').on(t.tenantId, t.paymentStatus),
 		index('orders_customer_idx').on(t.customerId),
 		index('orders_conversation_idx').on(t.conversationId),
-		index('orders_batch_idx').on(t.batchId)
+		index('orders_batch_idx').on(t.batchId),
+		index('orders_order_link_idx').on(t.orderLinkId),
+		uniqueIndex('orders_order_link_submission_key').on(t.tenantId, t.orderLinkId, t.orderLinkSubmissionToken)
 	]
 );
 
@@ -1714,6 +1779,7 @@ export const forms = pgTable(
 
 export type Order = typeof orders.$inferSelect;
 export type OrderBatch = typeof orderBatches.$inferSelect;
+export type OrderLink = typeof orderLinks.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type CatalogItem = typeof catalogItems.$inferSelect;
 export type Form = typeof forms.$inferSelect;

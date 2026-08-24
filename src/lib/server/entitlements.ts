@@ -94,6 +94,8 @@ export const ENTITLEMENTS: EntitlementDefinition[] = [
 	// --- Orders -------------------------------------------------------------
 	{ key: 'orders.enabled', label: 'Orders', group: 'Orders', kind: 'boolean', fallback: true },
 	{ key: 'orders.maxPerMonth', label: 'Orders / month', group: 'Orders', kind: 'number', metric: 'orders', fallback: 0 },
+	{ key: 'orderLinks.enabled', label: 'Order links', group: 'Orders', kind: 'boolean', fallback: true },
+	{ key: 'orderLinks.maxActive', label: 'Active order links', group: 'Orders', kind: 'number', fallback: 0 },
 
 	// --- Quotations ---------------------------------------------------------
 	{ key: 'quotations.enabled', label: 'Quotations', group: 'Quotations', kind: 'boolean', fallback: true },

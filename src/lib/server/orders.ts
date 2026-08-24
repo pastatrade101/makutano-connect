@@ -52,6 +52,10 @@ export type CreateOrderInput = {
 	deliveryLocation?: string | null;
 	/** Verified tenant-scoped before use — a batch id is a link, not authorization. */
 	batchId?: string | null;
+	/** Verified tenant-scoped before use — set when the order arrived via a public Order Link. */
+	orderLinkId?: string | null;
+	/** Server-validated public-form token; the database makes it unique per Order Link. */
+	orderLinkSubmissionToken?: string | null;
 	deliveryDate?: Date | null;
 	paymentMethod?: string | null;
 	notes?: string | null;
@@ -130,6 +134,17 @@ export async function createOrder(tenantId: string, input: CreateOrderInput, act
 		if (!rows[0]) throw new AppError('NOT_FOUND', 'Batch could not be found.');
 		if (rows[0].status !== 'OPEN') throw new AppError('VALIDATION_ERROR', 'This batch is closed to new orders.');
 	}
+	if (input.orderLinkId) {
+		const rows = await db()
+			.select({ id: schema.orderLinks.id })
+			.from(schema.orderLinks)
+			.where(and(eq(schema.orderLinks.id, input.orderLinkId), eq(schema.orderLinks.tenantId, tenantId)))
+			.limit(1);
+		if (!rows[0]) throw new AppError('NOT_FOUND', 'Order link could not be found.');
+	}
+	if (input.orderLinkSubmissionToken && !input.orderLinkId) {
+		throw new AppError('VALIDATION_ERROR', 'An order-link submission token requires an order link.');
+	}
 
 	const { subtotal, total } = computeOrderTotals(input.items, input.discount, input.deliveryFee);
 	const orderNumber = await nextReference(db(), tenantId, 'OR', tenant.bookingReferencePrefix);
@@ -154,6 +169,8 @@ export async function createOrder(tenantId: string, input: CreateOrderInput, act
 			deliveryMethod: input.deliveryMethod ?? null,
 			deliveryLocation: input.deliveryLocation ?? null,
 			batchId: input.batchId ?? null,
+			orderLinkId: input.orderLinkId ?? null,
+			orderLinkSubmissionToken: input.orderLinkSubmissionToken ?? null,
 			deliveryDate: input.deliveryDate ?? null,
 			paymentMethod: input.paymentMethod ?? null,
 			notes: input.notes ?? null,
@@ -255,6 +272,7 @@ export async function getOrderDetail(tenantId: string, id: string) {
 
 export type OrderFilters = {
 	batchId?: string;
+	orderLinkId?: string;
 	status?: schema.Order['status'] | schema.Order['status'][];
 	paymentStatus?: schema.Order['paymentStatus'];
 	source?: schema.Order['source'];
@@ -270,6 +288,7 @@ export async function listOrders(tenantId: string, p: Pagination, filters: Order
 		);
 	}
 	if (filters.batchId) conditions.push(eq(schema.orders.batchId, filters.batchId));
+	if (filters.orderLinkId) conditions.push(eq(schema.orders.orderLinkId, filters.orderLinkId));
 	if (filters.paymentStatus) conditions.push(eq(schema.orders.paymentStatus, filters.paymentStatus));
 	if (filters.source) conditions.push(eq(schema.orders.source, filters.source));
 	if (filters.customerId) conditions.push(eq(schema.orders.customerId, filters.customerId));

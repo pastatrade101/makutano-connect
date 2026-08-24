@@ -12,7 +12,7 @@
 
 	const STATUSES = ['DRAFT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'DELIVERED', 'CANCELLED', 'REFUNDED'].map((v) => ({ value: v, label: statusLabel(v) }));
 	const PAYMENTS = [{ value: 'unpaid', label: 'Unpaid only' }, { value: 'PAID', label: 'Paid' }, { value: 'PARTIALLY_PAID', label: 'Partially paid' }];
-	const SOURCES = ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'PHONE', 'WALK_IN', 'WEBSITE', 'INSTAGRAM', 'FACEBOOK', 'MANUAL', 'API', 'OTHER'].map((v) => ({ value: v, label: sourceLabel(v) }));
+	const SOURCES = ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'PHONE', 'WALK_IN', 'WEBSITE', 'ORDER_LINK', 'INSTAGRAM', 'FACEBOOK', 'MANUAL', 'API', 'OTHER'].map((v) => ({ value: v, label: sourceLabel(v) }));
 </script>
 
 <svelte:head><title>Orders · {data.tenant.name}</title></svelte:head>
@@ -25,6 +25,7 @@
 		<h1 class="text-base font-semibold text-slate-800">Orders</h1>
 		<div class="flex gap-2">
 			<a href="/app/orders/batches" class="btn-secondary">Batches</a>
+			<a href="/app/orders/links" class="btn-secondary">Order Links</a>
 			<a href="/app/orders/new" class="btn-primary">New order</a>
 		</div>
 	</div>
