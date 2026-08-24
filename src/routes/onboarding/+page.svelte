@@ -1,36 +1,80 @@
 <script lang="ts">
-	import { WORKSPACE_OPTIONS, workspaceForIndustry } from '$lib/workspace';
 	import { enhance } from '$app/forms';
+	import { untrack } from 'svelte';
 	import AuthShell from '$lib/components/AuthShell.svelte';
 
 	let { data, form } = $props();
+	const initial = untrack(() => ({
+		step: form?.message && form?.primaryGoal ? 2 : 1,
+		primaryGoal: form?.primaryGoal ?? '',
+		industry: form?.industry ?? '',
+		systemSource: form?.systemSource ?? '',
+		businessName: form?.businessName ?? '',
+		country: form?.country ?? 'TZ',
+		businessPhone: form?.businessPhone ?? '',
+		websiteUrl: form?.websiteUrl ?? '',
+		planId: form?.planId || data.plans.find((p) => p.code === data.defaultPlanCode)?.id || data.plans[0]?.id || ''
+	}));
 	let submitting = $state(false);
-	let industry = $state(form?.industry ?? '');
-	let mainUse = $state('HYBRID');
-	// Picking an industry suggests the workspace that fits it — the user still chooses.
-	const recommended = $derived(workspaceForIndustry(industry || null));
-	let mainUseTouched = $state(false);
-	$effect(() => {
-		if (!mainUseTouched) mainUse = recommended;
-	});
-	let selectedPlan = $state(
-		form?.planId || data.plans.find((p) => p.code === data.defaultPlanCode)?.id || data.plans[0]?.id || ''
+	let step = $state(initial.step);
+	let primaryGoal = $state(initial.primaryGoal);
+	let industry = $state(initial.industry);
+	let systemSource = $state(initial.systemSource);
+	let businessName = $state(initial.businessName);
+	let country = $state(initial.country);
+	let businessPhone = $state(initial.businessPhone);
+	let websiteUrl = $state(initial.websiteUrl);
+	let selectedPlan = $state(initial.planId);
+
+	const goals = [
+		{ value: 'BOOKINGS', label: 'Bookings & enquiries', hint: 'Reservations, trips, stays and appointments', icon: 'M4 5h12v11H4V5Zm3-2v4m6-4v4M7 10h6' },
+		{ value: 'ORDERS', label: 'Orders & sales', hint: 'Products, food and customer orders', icon: 'M5 5h10l1 3v8H4V8l1-3Zm-1 3h12M8 11a2 2 0 0 0 4 0' },
+		{ value: 'SERVICE', label: 'Customer service', hint: 'Enquiries, quotations and client follow-up', icon: 'M3 4h14v9H7l-4 3V4Zm4 4h6m-6 3h4' },
+		{ value: 'PAYMENTS', label: 'Payments & follow-up', hint: 'Payment requests, verification and notifications', icon: 'M3 6h14v9H3V6Zm0 3h14m-11 3h3' },
+		{ value: 'HYBRID', label: 'Multiple workflows', hint: 'A genuine mix of bookings and customer orders', icon: 'M4 4h5v5H4V4Zm7 7h5v5h-5v-5M9 6h4a2 2 0 0 1 2 2v3M11 14H7a2 2 0 0 1-2-2V9' }
+	] as const;
+
+	const systemOptions = [
+		{ value: 'WEBSITE_CMS', label: 'My website / CMS', hint: 'Keep it as the source of truth' },
+		{ value: 'BOOKING_SYSTEM', label: 'Booking or order system', hint: 'Connect through APIs or webhooks' },
+		{ value: 'OTHER_SYSTEM', label: 'Another business system', hint: 'Connect the tools you already operate' },
+		{ value: 'CONNECT_MANUAL', label: 'I want to manage it manually', hint: 'Start directly inside Connect' }
+	] as const;
+
+	const selectedGoal = $derived(goals.find((goal) => goal.value === primaryGoal));
+	const selectedIndustry = $derived(data.industries.find((item) => item.value === industry));
+	const selectedSource = $derived(systemOptions.find((item) => item.value === systemSource));
+	const recommendedPlanCode = $derived(data.plans.find((plan) => plan.code === 'BUSINESS')?.code ?? data.defaultPlanCode);
+	const needsSystemSource = $derived(['TRAVEL_TOURISM', 'RETAIL', 'RESTAURANT_FOOD'].includes(industry));
+	const sourceQuestion = $derived(
+		industry === 'TRAVEL_TOURISM'
+			? 'Where do you currently manage your tours?'
+			: 'Where do you currently manage products and orders?'
+	);
+	const stepOneReady = $derived(Boolean(primaryGoal && industry));
+	const stepTwoReady = $derived(
+		Boolean(businessName.trim() && country && businessPhone.trim() && (!needsSystemSource || systemSource))
 	);
 
 	const money = (amount: number, currency: string) =>
 		amount === 0 ? 'Free' : new Intl.NumberFormat('en', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
+
+	function go(next: number) {
+		step = Math.min(3, Math.max(1, next));
+		window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+	}
 </script>
 
-<svelte:head><title>Set up your business · Makutano Connect</title></svelte:head>
+<svelte:head><title>Set up your workspace · Makutano Connect</title></svelte:head>
 
 <AuthShell
-	title="Tell us about your business"
-	subtitle="This shapes your workspace. Everything here can be changed later in Settings."
-	width="lg"
+	title="Set up your operation."
+	subtitle="A few focused choices shape what your team sees. They never replace plan permissions, and you can change them later."
+	width="xl"
 >
 	<form
 		method="POST"
-		class="space-y-4"
+		class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_70px_rgba(50,58,70,0.10)] lg:grid lg:grid-cols-[220px_minmax(0,1fr)]"
 		use:enhance={() => {
 			submitting = true;
 			return async ({ update }) => {
@@ -39,119 +83,113 @@
 			};
 		}}
 	>
-		{#if form?.message}
-			<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>
-		{/if}
-
-		<div class="card p-6">
-			<div class="grid gap-4 sm:grid-cols-2">
-				<div class="sm:col-span-2">
-					<label class="label" for="businessName">Business name</label>
-					<input id="businessName" name="businessName" required value={form?.businessName ?? ''} class="input" placeholder="Goldfinch Safaris" />
-				</div>
-
-				<div>
-					<label class="label" for="industry">Industry</label>
-					<select id="industry" name="industry" required class="input" bind:value={industry}>
-						<option value="" disabled>Choose one…</option>
-						{#each data.industries as industry (industry.value)}
-							<option value={industry.value}>{industry.label}</option>
-						{/each}
-					</select>
-				</div>
-
-				<div>
-					<label class="label" for="country">Country</label>
-					<select id="country" name="country" required class="input" value={form?.country ?? 'TZ'}>
-						{#each data.countries as country (country.code)}
-							<option value={country.code}>{country.name}</option>
-						{/each}
-					</select>
-				</div>
-
-				<div>
-					<label class="label" for="businessPhone">Business phone</label>
-					<input id="businessPhone" name="businessPhone" required value={form?.businessPhone ?? ''} class="input" placeholder="+255 712 345 678" />
-				</div>
-
-				<div>
-					<label class="label" for="websiteUrl">Website <span class="font-normal text-slate-400">(optional)</span></label>
-					<input id="websiteUrl" name="websiteUrl" type="url" value={form?.websiteUrl ?? ''} class="input" placeholder="https://yourbusiness.com" />
-				</div>
-			</div>
-		</div>
-
-		<div class="card p-6">
-			<h2 class="mb-1 text-sm font-semibold text-slate-700">What will you mainly use Connect for?</h2>
-			<p class="mb-3 text-[11px] text-slate-400">This shapes your menus and dashboard — you can change it anytime in Settings.</p>
-			<div class="grid gap-2 sm:grid-cols-2">
-				{#each WORKSPACE_OPTIONS as opt (opt.value)}
-					<label class="cursor-pointer rounded-panel border p-3 transition {mainUse === opt.value ? 'border-brand-500 bg-brand-50/60 ring-1 ring-brand-500' : 'border-slate-200 hover:border-slate-300'}">
-						<input type="radio" name="mainUse" value={opt.value} bind:group={mainUse} onchange={() => (mainUseTouched = true)} class="sr-only" />
-						<span class="flex items-center gap-2 text-sm font-semibold text-slate-700">
-							{opt.label}
-							{#if recommended === opt.value}<span class="badge bg-brand-50 text-brand-600">Suggested</span>{/if}
-						</span>
-						<span class="mt-0.5 block text-[11px] text-slate-500">{opt.hint}</span>
-					</label>
+		<aside class="border-b border-slate-200 bg-[#f8faff] p-5 lg:border-r lg:border-b-0 lg:p-6">
+			<p class="text-[10px] font-bold tracking-[0.16em] text-brand-600 uppercase">Workspace setup</p>
+			<div class="mt-4 grid grid-cols-3 gap-2 lg:block lg:space-y-2">
+				{#each [{ n: 1, title: 'Shape', detail: 'Goals & business' }, { n: 2, title: 'Profile', detail: 'Details & systems' }, { n: 3, title: 'Plan', detail: 'Trial & review' }] as item (item.n)}
+					<button
+						type="button"
+						class="flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition {step === item.n ? 'bg-white shadow-sm ring-1 ring-slate-200' : item.n < step ? 'text-slate-600 hover:bg-white/70' : 'text-slate-400'}"
+						onclick={() => item.n < step && go(item.n)}
+						disabled={item.n > step}
+					>
+						<span class="flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold {step === item.n ? 'bg-brand-500 text-white' : item.n < step ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-400'}">{item.n < step ? '✓' : item.n}</span>
+						<span class="hidden lg:block"><span class="block text-xs font-semibold text-slate-700">{item.title}</span><span class="mt-0.5 block text-[10px] text-slate-400">{item.detail}</span></span>
+					</button>
 				{/each}
 			</div>
-		</div>
 
-		{#if data.plans.length}
-			<div class="card p-6">
-				<div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-					<h2 class="text-sm font-semibold text-slate-700">Choose a plan</h2>
-					{#if data.trialDays > 0}
-						<span class="badge bg-success/10 text-success">{data.trialDays}-day free trial · no card needed</span>
-					{/if}
-				</div>
+			<div class="mt-8 hidden rounded-xl border border-brand-100 bg-brand-50/70 p-3 lg:block">
+				<p class="text-[11px] font-semibold text-brand-800">Keep your systems.</p>
+				<p class="mt-1 text-[10px] leading-4 text-brand-700/75">Connect will adapt around the tools and workflows you already use.</p>
+			</div>
+		</aside>
 
-				<div class="grid gap-3 sm:grid-cols-3">
-					{#each data.plans as plan (plan.id)}
-						<label
-							class="cursor-pointer rounded-panel border p-4 transition {selectedPlan === plan.id
-								? 'border-brand-500 bg-brand-50/60 ring-1 ring-brand-500'
-								: 'border-slate-200 hover:border-slate-300'}"
-						>
-							<input type="radio" name="planId" value={plan.id} bind:group={selectedPlan} class="sr-only" />
-							<div class="flex items-baseline justify-between">
-								<span class="text-sm font-semibold text-slate-700">{plan.name}</span>
-								{#if selectedPlan === plan.id}
-									<span class="badge bg-brand-500 text-white">Selected</span>
-								{/if}
-							</div>
-							<p class="mt-1 text-lg font-bold text-slate-800">
-								{money(plan.priceMonthly, plan.currency)}
-								{#if plan.priceMonthly > 0}<span class="text-xs font-normal text-slate-400">/month</span>{/if}
-							</p>
-							<ul class="mt-2 space-y-1">
-								{#each plan.highlights as highlight (highlight)}
-									<li class="flex items-start gap-1.5 text-[11px] text-slate-500">
-										<span class="mt-0.5 text-success">✓</span>{highlight}
-									</li>
-								{/each}
-							</ul>
+		<div class="min-w-0 p-5 sm:p-7 lg:p-9">
+			{#if form?.message}
+				<p class="mb-5 rounded-lg border border-danger/15 bg-danger/5 px-3 py-2.5 text-xs text-danger" role="alert">{form.message}</p>
+			{/if}
+
+			<section class:hidden={step !== 1} aria-labelledby="shape-title">
+				<div class="mb-7"><p class="text-[10px] font-bold tracking-[0.16em] text-brand-600 uppercase">Step 1 of 3</p><h2 id="shape-title" class="mt-2 text-xl font-bold tracking-tight text-slate-900">What will you mainly use Connect for?</h2><p class="mt-1.5 text-xs leading-5 text-slate-500">This controls the everyday navigation and dashboard—not what your plan allows.</p></div>
+
+				<div class="grid gap-2.5 sm:grid-cols-2">
+					{#each goals as goal (goal.value)}
+						<label class="group cursor-pointer rounded-xl border p-4 transition {primaryGoal === goal.value ? 'border-brand-400 bg-brand-50/70 ring-1 ring-brand-300' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/70'} {goal.value === 'HYBRID' ? 'sm:col-span-2' : ''}">
+							<input type="radio" name="primaryGoal" value={goal.value} bind:group={primaryGoal} required class="sr-only" />
+							<span class="flex items-start gap-3"><span class="flex size-9 shrink-0 items-center justify-center rounded-lg {primaryGoal === goal.value ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-white'}"><svg class="size-4.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={goal.icon} /></svg></span><span><span class="block text-sm font-semibold text-slate-800">{goal.label}</span><span class="mt-1 block text-[11px] leading-4 text-slate-500">{goal.hint}</span></span></span>
 						</label>
 					{/each}
 				</div>
 
-				<p class="mt-3 text-[11px] text-slate-400">
-					{#if data.trialDays > 0}
-						You will not be charged during the trial, and we will ask before anything changes.
-					{:else}
-						Your workspace is created straight away and activated once billing is confirmed.
-					{/if}
-				</p>
-			</div>
-		{/if}
+				<div class="mt-8 border-t border-slate-100 pt-7">
+					<h3 class="text-sm font-semibold text-slate-800">What best describes your business?</h3>
+					<div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+						{#each data.industries as item (item.value)}
+							<label class="cursor-pointer rounded-lg border px-3 py-2.5 text-xs font-medium transition {industry === item.value ? 'border-brand-400 bg-brand-50 text-brand-700 ring-1 ring-brand-300' : 'border-slate-200 text-slate-600 hover:border-slate-300'}">
+								<input type="radio" name="industry" value={item.value} bind:group={industry} required class="sr-only" />
+								{item.label}
+							</label>
+						{/each}
+					</div>
+				</div>
 
-		<button type="submit" class="btn-primary w-full" disabled={submitting}>
-			{submitting ? 'Creating your workspace…' : 'Create my workspace'}
-		</button>
+				<div class="mt-8 flex justify-end"><button type="button" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={!stepOneReady} onclick={() => go(2)}>Continue →</button></div>
+			</section>
+
+			<section class:hidden={step !== 2} aria-labelledby="profile-title">
+				<div class="mb-7"><p class="text-[10px] font-bold tracking-[0.16em] text-brand-600 uppercase">Step 2 of 3</p><h2 id="profile-title" class="mt-2 text-xl font-bold tracking-tight text-slate-900">Tell us about the operation.</h2><p class="mt-1.5 text-xs leading-5 text-slate-500">Only the details Connect needs to create a credible workspace.</p></div>
+
+				<div class="grid gap-4 sm:grid-cols-2">
+					<div class="sm:col-span-2"><label class="label" for="businessName">Business name</label><input id="businessName" name="businessName" required bind:value={businessName} class="input min-h-11 !rounded-lg" placeholder="Goldfinch Adventures" /></div>
+					<div><label class="label" for="country">Country</label><select id="country" name="country" required class="input min-h-11 !rounded-lg" bind:value={country}>{#each data.countries as item (item.code)}<option value={item.code}>{item.name}</option>{/each}</select></div>
+					<div><label class="label" for="businessPhone">Business phone</label><input id="businessPhone" name="businessPhone" required bind:value={businessPhone} class="input min-h-11 !rounded-lg" placeholder="+255 712 345 678" /></div>
+					<div class="sm:col-span-2"><label class="label" for="websiteUrl">Website <span class="font-normal text-slate-400">(optional)</span></label><input id="websiteUrl" name="websiteUrl" type="url" bind:value={websiteUrl} class="input min-h-11 !rounded-lg" placeholder="https://yourbusiness.com" /></div>
+				</div>
+
+				{#if needsSystemSource}
+					<div class="mt-8 rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+						<h3 class="text-sm font-semibold text-slate-800">{sourceQuestion}</h3>
+						<p class="mt-1 text-[11px] leading-4 text-slate-500">We will guide you toward integration when your existing system should remain the source of truth.</p>
+						<div class="mt-3 grid gap-2 sm:grid-cols-2">
+							{#each systemOptions as option (option.value)}
+								<label class="cursor-pointer rounded-lg border bg-white p-3 transition {systemSource === option.value ? 'border-brand-400 ring-1 ring-brand-300' : 'border-slate-200 hover:border-slate-300'}"><input type="radio" name="systemSource" value={option.value} bind:group={systemSource} required={needsSystemSource} class="sr-only" /><span class="block text-xs font-semibold text-slate-700">{option.label}</span><span class="mt-0.5 block text-[10px] text-slate-400">{option.hint}</span></label>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<div class="mt-8 flex items-center justify-between gap-3"><button type="button" class="btn-secondary min-h-11 !rounded-lg" onclick={() => go(1)}>← Back</button><button type="button" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={!stepTwoReady} onclick={() => go(3)}>Continue →</button></div>
+			</section>
+
+			<section class:hidden={step !== 3} aria-labelledby="plan-title">
+				<div class="mb-7"><p class="text-[10px] font-bold tracking-[0.16em] text-brand-600 uppercase">Step 3 of 3</p><h2 id="plan-title" class="mt-2 text-xl font-bold tracking-tight text-slate-900">Choose how you want to start.</h2><p class="mt-1.5 text-xs leading-5 text-slate-500">Plans remain authoritative. Your workspace choices only simplify the experience.</p></div>
+
+				{#if data.plans.length}
+					<div class="grid gap-3 md:grid-cols-3">
+						{#each data.plans as plan (plan.id)}
+							<label class="relative cursor-pointer rounded-xl border p-4 transition {selectedPlan === plan.id ? 'border-brand-400 bg-brand-50/60 ring-1 ring-brand-300' : 'border-slate-200 hover:border-slate-300'}">
+								<input type="radio" name="planId" value={plan.id} bind:group={selectedPlan} class="sr-only" />
+								<div class="flex items-start justify-between gap-2"><span class="text-sm font-semibold text-slate-800">{plan.name}</span>{#if plan.code === recommendedPlanCode}<span class="rounded-full bg-brand-500 px-2 py-0.5 text-[9px] font-bold text-white">Recommended</span>{/if}</div>
+								<p class="mt-2 text-xl font-bold tracking-tight text-slate-900">{money(plan.priceMonthly, plan.currency)}{#if plan.priceMonthly > 0}<span class="text-[10px] font-normal text-slate-400"> / month</span>{/if}</p>
+								<ul class="mt-4 space-y-1.5">{#each plan.highlights as highlight (highlight)}<li class="flex gap-1.5 text-[10px] leading-4 text-slate-500"><span class="text-success">✓</span>{highlight}</li>{/each}</ul>
+							</label>
+						{/each}
+					</div>
+				{/if}
+
+				<div class="mt-6 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+					<p class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Your starting workspace</p>
+					<div class="mt-3 grid gap-3 text-xs sm:grid-cols-3"><div><span class="block text-slate-400">Main use</span><span class="mt-0.5 block font-semibold text-slate-700">{selectedGoal?.label}</span></div><div><span class="block text-slate-400">Business</span><span class="mt-0.5 block font-semibold text-slate-700">{selectedIndustry?.label}</span></div><div><span class="block text-slate-400">Existing system</span><span class="mt-0.5 block font-semibold text-slate-700">{selectedSource?.label ?? 'Not specified'}</span></div></div>
+				</div>
+
+				{#if data.trialDays > 0}<p class="mt-5 text-center text-[11px] font-medium text-success">{data.trialDays}-day free trial · No card required · Upgrade when Connect becomes part of your operation</p>{/if}
+				<div class="mt-7 flex items-center justify-between gap-3"><button type="button" class="btn-secondary min-h-11 !rounded-lg" onclick={() => go(2)}>← Back</button><button type="submit" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={submitting || !selectedPlan}>{submitting ? 'Creating your workspace…' : 'Create my workspace'}</button></div>
+			</section>
+		</div>
 	</form>
 
 	{#snippet footer()}
-		Signed in as {data.fullName || 'you'} · <a href="/logout" class="text-brand-600 hover:underline">Sign out</a>
+		Signed in as {data.fullName || 'you'} · <a href="/logout" class="font-medium text-brand-600 hover:underline">Sign out</a>
 	{/snippet}
 </AuthShell>

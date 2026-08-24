@@ -37,21 +37,61 @@ export const INDUSTRIES = [
 
 export type Industry = (typeof INDUSTRIES)[number]['value'];
 
-/** Short, honest bullet points for a plan card — derived from real entitlements. */
-export function planHighlights(entitlements: Record<string, boolean | number>): string[] {
+/**
+ * Short, honest plan-card bullets derived from the plan row itself.
+ *
+ * Older plan rows still use `limits`/`features`; newer rows can override them with
+ * dotted entitlements. Absence is not the same as numeric zero (unlimited), so only
+ * make an unlimited claim when a plan explicitly stores zero.
+ */
+export function planHighlights(
+	entitlements: Record<string, boolean | number>,
+	limits: Record<string, number> = {},
+	features: Record<string, boolean> = {}
+): string[] {
+	const owns = (key: string) => Object.prototype.hasOwnProperty.call(entitlements, key);
 	const out: string[] = [];
-	const numbers = Number(entitlements['whatsapp.maxNumbers'] ?? 0);
-	out.push(numbers === 0 ? 'Unlimited WhatsApp numbers' : `${numbers} WhatsApp number${numbers === 1 ? '' : 's'}`);
-	const orders = Number(entitlements['orders.maxPerMonth'] ?? 0);
-	if (entitlements['orders.enabled'] !== false) {
-		out.push(orders === 0 ? 'Unlimited orders' : `${orders.toLocaleString()} orders / month`);
+
+	let numberLabel = 'WhatsApp team workspace';
+	if (owns('whatsapp.maxNumbers')) {
+		const count = Number(entitlements['whatsapp.maxNumbers']);
+		numberLabel = count === 0 ? 'Unlimited WhatsApp numbers' : `${count} WhatsApp number${count === 1 ? '' : 's'}`;
+	} else if (features.multiple_numbers === true) {
+		numberLabel = 'Multiple WhatsApp numbers';
+	} else if (features.whatsapp === true) {
+		numberLabel = '1 WhatsApp number';
 	}
-	const requests = Number(entitlements['bookings.maxRequestsPerMonth'] ?? 0);
+
+	const outbound = owns('whatsapp.maxOutboundPerMonth')
+		? Number(entitlements['whatsapp.maxOutboundPerMonth'])
+		: limits.whatsapp_outbound_per_month;
+	if (Number.isFinite(outbound) && outbound > 0) {
+		numberLabel += ` · ${outbound.toLocaleString()} outbound / month`;
+	} else if (owns('whatsapp.maxOutboundPerMonth') && outbound === 0) {
+		numberLabel += ' · unlimited outbound';
+	}
+	out.push(numberLabel);
+
+	const members = owns('platform.maxUsers') ? Number(entitlements['platform.maxUsers']) : limits.members;
+	if (Number.isFinite(members)) {
+		out.push(members === 0 ? 'Unlimited team members' : `Up to ${members.toLocaleString()} team member${members === 1 ? '' : 's'}`);
+	}
+
 	if (entitlements['bookings.enabled'] !== false) {
-		out.push(requests === 0 ? 'Unlimited enquiries' : `${requests.toLocaleString()} enquiries / month`);
+		const requests = owns('bookings.maxRequestsPerMonth')
+			? Number(entitlements['bookings.maxRequestsPerMonth'])
+			: limits.booking_requests_per_month;
+		if (Number.isFinite(requests)) {
+			out.push(requests === 0 ? 'Unlimited enquiries' : `${requests.toLocaleString()} enquiries / month`);
+		}
 	}
-	if (entitlements['webhooks.enabled']) out.push('Webhooks');
-	if (entitlements['payments.enabled']) out.push('Payments');
+
+	const payments = owns('payments.enabled') ? entitlements['payments.enabled'] === true : features.payments === true;
+	const webhooks = owns('webhooks.enabled') ? entitlements['webhooks.enabled'] === true : features.client_webhooks === true;
+	const quotations = owns('quotations.enabled') ? entitlements['quotations.enabled'] !== false : features.quotations !== false;
+	const capabilities = [payments && 'Payments', webhooks && 'Webhooks', quotations && 'Quotations'].filter(Boolean);
+	if (capabilities.length) out.push(capabilities.join(', '));
+
 	return out.slice(0, 4);
 }
 
@@ -96,6 +136,11 @@ export type ProvisionTenantInput = {
 	timezone?: string | null;
 	businessPhone?: string | null;
 	websiteUrl?: string | null;
+	/** Presentation-only onboarding context. Never used to grant entitlements. */
+	onboardingProfile?: {
+		primaryGoal?: 'BOOKINGS' | 'ORDERS' | 'SERVICE' | 'PAYMENTS' | 'HYBRID';
+		systemSource?: 'WEBSITE_CMS' | 'BOOKING_SYSTEM' | 'OTHER_SYSTEM' | 'CONNECT_MANUAL';
+	};
 	bookingReferencePrefix?: string;
 	quotationPrefix?: string;
 	actor: AuditActor;
@@ -142,6 +187,7 @@ export async function selectablePlans() {
 			priceMonthly: schema.plans.priceMonthly,
 			currency: schema.plans.currency,
 			entitlements: schema.plans.entitlements,
+			limits: schema.plans.limits,
 			features: schema.plans.features,
 			sortOrder: schema.plans.sortOrder
 		})
@@ -301,7 +347,15 @@ export async function provisionTenant(input: ProvisionTenantInput): Promise<Prov
 				quotationPrefix: input.quotationPrefix ?? 'QT',
 				// Safe defaults. Nothing here grants a capability — every module is still
 				// gated by the plan's entitlements at the point of use.
-				settings: { capabilities: input.capabilities ?? capabilitiesFor(input.industry) },
+				settings: {
+					capabilities: input.capabilities ?? capabilitiesFor(input.industry),
+					...(input.onboardingProfile?.primaryGoal
+						? { onboardingGoal: input.onboardingProfile.primaryGoal }
+						: {}),
+					...(input.onboardingProfile?.systemSource
+						? { systemSource: input.onboardingProfile.systemSource }
+						: {})
+				},
 				notificationPreferences: { inApp: true, email: true }
 			})
 			.returning();

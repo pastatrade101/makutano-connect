@@ -22,7 +22,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 			name: p.name,
 			priceMonthly: Number(p.priceMonthly),
 			currency: p.currency,
-			highlights: planHighlights(p.entitlements ?? {})
+			highlights: planHighlights(
+				(p.entitlements ?? {}) as Record<string, boolean | number>,
+				(p.limits ?? {}) as Record<string, number>,
+				(p.features ?? {}) as Record<string, boolean>
+			)
 		}))
 	};
 };

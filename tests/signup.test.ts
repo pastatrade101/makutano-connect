@@ -141,6 +141,8 @@ suite('self-signup', () => {
 			source: 'SELF_SERVICE',
 			owner: { kind: 'existing', userId: user.id },
 			industry: 'RETAIL',
+			capabilities: 'ORDERS',
+			onboardingProfile: { primaryGoal: 'ORDERS', systemSource: 'CONNECT_MANUAL' },
 			country: 'TZ',
 			actor: { type: 'user', userId: user.id }
 		});
@@ -149,6 +151,11 @@ suite('self-signup', () => {
 		expect(reused).toBe(false);
 		expect(tenant.provisioningSource).toBe('SELF_SERVICE');
 		expect(tenant.planId).toBeTruthy();
+		expect(tenant.settings).toMatchObject({
+			capabilities: 'ORDERS',
+			onboardingGoal: 'ORDERS',
+			systemSource: 'CONNECT_MANUAL'
+		});
 		// Trials are real: a trial tenant is TRIAL, never silently ACTIVE-as-if-paid.
 		expect(['TRIAL', 'PENDING']).toContain(tenant.status);
 
@@ -165,6 +172,22 @@ suite('self-signup', () => {
 		const actions = audits.map((a) => a.action);
 		expect(actions).toContain('tenant.provisioned');
 		expect(actions).toContain('plan.selected');
+	});
+
+	it('describes legacy plans from their stored limits without inventing unlimited access', () => {
+		const highlights = ctx.provisioning.planHighlights(
+			{},
+			{ whatsapp_outbound_per_month: 1000, booking_requests_per_month: 200, members: 3 },
+			{ whatsapp: true, multiple_numbers: false, quotations: true, payments: false, client_webhooks: false }
+		);
+
+		expect(highlights).toEqual([
+			'1 WhatsApp number · 1,000 outbound / month',
+			'Up to 3 team members',
+			'200 enquiries / month',
+			'Quotations'
+		]);
+		expect(highlights.join(' ')).not.toContain('Unlimited');
 	});
 
 	it('is idempotent — a resubmitted signup resumes the same tenant', async () => {

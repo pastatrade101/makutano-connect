@@ -33,10 +33,18 @@
 	{/if}
 </svelte:head>
 
-<AuthShell title="Create your account" subtitle="Start with your details — your business comes next.">
+<AuthShell
+	title="Create your Connect workspace."
+	subtitle="Connect your customer operations without rebuilding your business systems. Start with your account — business configuration comes next."
+>
+	<div class="mb-4 grid grid-cols-3 gap-2 text-center text-[11px]">
+		<div class="rounded-lg border border-brand-200 bg-brand-50 px-2 py-2 font-semibold text-brand-700">1 · Account</div>
+		<div class="rounded-lg border border-slate-200 bg-white/70 px-2 py-2 text-slate-500">2 · Business</div>
+		<div class="rounded-lg border border-slate-200 bg-white/70 px-2 py-2 text-slate-500">3 · Connect</div>
+	</div>
 	<form
 		method="POST"
-		class="card space-y-4 p-6"
+		class="space-y-5 rounded-xl border border-slate-200/90 bg-white p-6 shadow-[0_20px_55px_rgba(50,58,70,0.09)] sm:p-7"
 		use:enhance={() => {
 			submitting = true;
 			return async ({ update }) => {
@@ -92,9 +100,10 @@
 			<div class="cf-turnstile" data-sitekey={data.turnstileSiteKey}></div>
 		{/if}
 
-		<button type="submit" class="btn-primary w-full" disabled={submitting || mismatch}>
+		<button type="submit" class="btn-primary min-h-11 w-full !rounded-lg" disabled={submitting || mismatch}>
 			{submitting ? 'Creating your account…' : 'Create account'}
 		</button>
+		<p class="text-center text-[11px] leading-5 text-slate-400">14-day free trial · No card required · Keep your existing systems</p>
 	</form>
 
 	{#snippet footer()}

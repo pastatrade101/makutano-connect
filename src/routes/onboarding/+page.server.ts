@@ -52,6 +52,16 @@ const LOCALE_DEFAULTS: Record<string, { currency: string; timezone: string }> = 
 	US: { currency: 'USD', timezone: 'America/New_York' }
 };
 
+const GOAL_WORKSPACE = {
+	BOOKINGS: 'BOOKINGS',
+	ORDERS: 'ORDERS',
+	SERVICE: 'SERVICE',
+	PAYMENTS: 'SERVICE',
+	HYBRID: 'HYBRID'
+} as const;
+
+const SYSTEM_SOURCES = new Set(['WEBSITE_CMS', 'BOOKING_SYSTEM', 'OTHER_SYSTEM', 'CONNECT_MANUAL']);
+
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) redirect(303, '/login');
 	const stage = await stageForUser(locals.user);
@@ -70,7 +80,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 			currency: p.currency,
 			// Presentation only. What the tenant may actually do is resolved server-side
 			// from this plan's row on every request.
-			highlights: planHighlights(p.entitlements ?? {})
+			highlights: planHighlights(
+				(p.entitlements ?? {}) as Record<string, boolean | number>,
+				(p.limits ?? {}) as Record<string, number>,
+				(p.features ?? {}) as Record<string, boolean>
+			)
 		})),
 		defaultPlanCode: defaultSignupPlanCode(),
 		trialDays: trialDays(),
@@ -97,10 +111,13 @@ export const actions: Actions = {
 		const businessPhone = String(data.get('businessPhone') ?? '').trim();
 		const websiteUrl = String(data.get('websiteUrl') ?? '').trim();
 		const planId = String(data.get('planId') ?? '').trim();
-		const mainUse = String(data.get('mainUse') ?? '').trim();
-		const values = { businessName, industry, country, businessPhone, websiteUrl, planId };
+		const primaryGoal = String(data.get('primaryGoal') ?? '').trim() as keyof typeof GOAL_WORKSPACE;
+		const mainUse = GOAL_WORKSPACE[primaryGoal];
+		const systemSource = String(data.get('systemSource') ?? '').trim();
+		const values = { businessName, industry, country, businessPhone, websiteUrl, planId, primaryGoal, systemSource };
 
 		if (!signupEnabled()) return fail(403, { ...values, message: 'Signup is currently closed.' });
+		if (!mainUse) return fail(400, { ...values, message: 'Choose what you will mainly use Connect for.' });
 		if (!businessName) return fail(400, { ...values, message: 'What is your business called?' });
 		if (!INDUSTRIES.some((i) => i.value === industry))
 			return fail(400, { ...values, message: 'Choose the closest industry.' });
@@ -110,6 +127,11 @@ export const actions: Actions = {
 		}
 		if (websiteUrl && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(websiteUrl)) {
 			return fail(400, { ...values, message: 'Enter the website as a full URL, e.g. https://example.com' });
+		}
+		const needsSystemSource =
+			industry === 'TRAVEL_TOURISM' || industry === 'RETAIL' || industry === 'RESTAURANT_FOOD';
+		if (needsSystemSource && !SYSTEM_SOURCES.has(systemSource)) {
+			return fail(400, { ...values, message: 'Tell us where you currently manage what you sell.' });
 		}
 
 		const defaults = LOCALE_DEFAULTS[country] ?? { currency: 'USD', timezone: 'Africa/Dar_es_Salaam' };
@@ -124,12 +146,16 @@ export const actions: Actions = {
 				source: 'SELF_SERVICE',
 				owner: { kind: 'existing', userId: event.locals.user.id },
 				industry,
-				capabilities: (['BOOKINGS', 'ORDERS', 'SERVICE', 'HYBRID'].includes(mainUse) ? mainUse : null) as never,
+				capabilities: mainUse,
 				country,
 				currency: defaults.currency,
 				timezone: defaults.timezone,
 				businessPhone,
 				websiteUrl: websiteUrl || null,
+				onboardingProfile: {
+					primaryGoal,
+					systemSource: SYSTEM_SOURCES.has(systemSource) ? (systemSource as never) : undefined
+				},
 				actor: {
 					type: 'user',
 					userId: event.locals.user.id,
