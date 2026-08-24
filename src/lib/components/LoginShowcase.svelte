@@ -44,6 +44,9 @@
 
 	$effect(() => {
 		if (paused || reducedMotion) return;
+		// Reading `slide` on purpose: any manual navigation restarts the interval, so a
+		// tap is never followed a moment later by a surprise auto-advance.
+		void slide;
 		const timer = setInterval(() => (slide = (slide + 1) % stories.length), 6500);
 		return () => clearInterval(timer);
 	});
@@ -63,8 +66,10 @@
 >
 	<div class="pointer-events-none absolute inset-0" aria-hidden="true"></div>
 	<div class="relative z-10 w-full max-w-2xl px-8 py-10 lg:px-12 xl:px-16">
+		<div class="grid">
 		{#key slide}
 			<div
+				class="col-start-1 row-start-1 min-w-0"
 				in:fly={{ y: reducedMotion ? 0 : 10, duration: reducedMotion ? 0 : 280 }}
 				out:fade={{ duration: reducedMotion ? 0 : 160 }}
 			>
@@ -149,6 +154,7 @@
 				<p class="mt-5 max-w-xl text-[13px] leading-6 text-blue-100/80">{stories[slide].caption}</p>
 			</div>
 		{/key}
+		</div>
 
 		<div class="mt-7 flex items-center justify-between">
 			<div class="flex items-center gap-2" role="tablist" aria-label="Product stories">
