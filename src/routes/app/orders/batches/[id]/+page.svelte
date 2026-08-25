@@ -18,6 +18,25 @@
 	let quantityInput = $state<HTMLInputElement | null>(null);
 	let customerInput = $state<HTMLInputElement | null>(null);
 	let lastAdded = $state<{ orderNumber: string; total: string; currency: string } | null>(null);
+
+	// The shareable order link for this batch — copy it, send it, print it.
+	let copied = $state(false);
+	let qrDataUrl = $state<string | null>(null);
+	const shareUrl = $derived(data.orderLink ? `${data.origin}/o/${data.orderLink.publicId}` : '');
+	const shareText = $derived(
+		data.orderLink
+			? `${data.orderLink.title}\n${data.orderLink.currency} ${Number(data.orderLink.unitPrice).toLocaleString()} / ${data.orderLink.unit}\n\nPlace your order:\n${shareUrl}`
+			: ''
+	);
+	async function copyShareUrl() {
+		await navigator.clipboard.writeText(shareUrl);
+		copied = true;
+		setTimeout(() => (copied = false), 1500);
+	}
+	async function buildQr() {
+		const QRCode = (await import('qrcode')).default;
+		qrDataUrl = await QRCode.toDataURL(shareUrl, { width: 480, margin: 2 });
+	}
 	let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const open = $derived(data.batch.status === 'OPEN');
@@ -85,6 +104,28 @@
 			<button class="btn-secondary text-xs">{open ? 'Close batch' : 'Reopen batch'}</button>
 		</form>
 	</div>
+
+	<!-- The link the seller pastes into the WhatsApp group -->
+	{#if data.orderLink}
+		<div class="card flex flex-wrap items-center gap-2 p-3">
+			<div class="min-w-0 flex-1">
+				<div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Order link {data.orderLink.status !== 'ACTIVE' ? `· ${data.orderLink.status.toLowerCase()}` : ''}</div>
+				<code class="block truncate text-[12.5px] text-slate-600">{shareUrl}</code>
+			</div>
+			<button class="btn-secondary !px-2.5 !py-1.5 text-xs" onclick={copyShareUrl}>{copied ? '✓ Copied' : 'Copy link'}</button>
+			<a class="btn-secondary !px-2.5 !py-1.5 text-xs" href="https://wa.me/?text={encodeURIComponent(shareText)}" target="_blank" rel="noopener">Share to WhatsApp</a>
+			<button class="btn-secondary !px-2.5 !py-1.5 text-xs" onclick={buildQr}>QR</button>
+			<a class="btn-secondary !px-2.5 !py-1.5 text-xs" href="/app/orders/links">Manage</a>
+		</div>
+	{:else if data.canCreateLink && open}
+		<form method="POST" action="?/createLink" use:enhance class="card flex flex-wrap items-center gap-2 p-3">
+			<div class="min-w-0 flex-1">
+				<div class="text-sm font-medium text-slate-700">Let customers order this batch themselves</div>
+				<p class="text-xs text-slate-400">Creates a public link for {data.batch.defaultItemTitle} — share it in your WhatsApp group and orders land straight in this batch.</p>
+			</div>
+			<button class="btn-primary !py-1.5 text-xs">Create order link</button>
+		</form>
+	{/if}
 
 	<!-- Batch summary: the numbers the seller used to keep in a pinned message -->
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -325,3 +366,15 @@
 		{/if}
 	</div>
 </div>
+
+{#if qrDataUrl}
+	<div class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
+		<button class="absolute inset-0 cursor-default" onclick={() => (qrDataUrl = null)} aria-label="Close" tabindex="-1"></button>
+		<div class="relative z-10 w-full max-w-xs rounded-panel bg-white p-5 text-center shadow-lg">
+			<h3 class="text-sm font-semibold text-slate-800">{data.batch.name}</h3>
+			<img src={qrDataUrl} alt="QR code for the order link" class="mx-auto mt-3 w-56" />
+			<a href={qrDataUrl} download="{data.batch.name}-qr.png" class="btn-primary mt-3 w-full">Download QR</a>
+			<button class="mt-2 w-full text-xs text-slate-400 hover:underline" onclick={() => (qrDataUrl = null)}>Close</button>
+		</div>
+	</div>
+{/if}
