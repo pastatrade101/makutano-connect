@@ -32,7 +32,6 @@ CREATE TABLE "order_links" (
 );
 --> statement-breakpoint
 ALTER TABLE "orders" ADD COLUMN "order_link_id" uuid;--> statement-breakpoint
-ALTER TABLE "orders" ADD COLUMN "order_link_submission_token" text;--> statement-breakpoint
 ALTER TABLE "order_links" ADD CONSTRAINT "order_links_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "order_links" ADD CONSTRAINT "order_links_batch_id_order_batches_id_fk" FOREIGN KEY ("batch_id") REFERENCES "public"."order_batches"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "order_links" ADD CONSTRAINT "order_links_catalog_item_id_catalog_items_id_fk" FOREIGN KEY ("catalog_item_id") REFERENCES "public"."catalog_items"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -40,5 +39,4 @@ ALTER TABLE "order_links" ADD CONSTRAINT "order_links_created_by_user_id_users_i
 CREATE UNIQUE INDEX "order_links_public_id_key" ON "order_links" USING btree ("public_id");--> statement-breakpoint
 CREATE INDEX "order_links_tenant_idx" ON "order_links" USING btree ("tenant_id","status");--> statement-breakpoint
 ALTER TABLE "orders" ADD CONSTRAINT "orders_order_link_id_order_links_id_fk" FOREIGN KEY ("order_link_id") REFERENCES "public"."order_links"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "orders_order_link_idx" ON "orders" USING btree ("order_link_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "orders_order_link_submission_key" ON "orders" USING btree ("tenant_id","order_link_id","order_link_submission_token");
+CREATE INDEX "orders_order_link_idx" ON "orders" USING btree ("order_link_id");

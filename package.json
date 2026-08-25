@@ -3,7 +3,7 @@
 	"version": "1.0.0",
 	"private": true,
 	"type": "module",
-	"description": "Makutano Connect — multi-tenant SaaS engine for WhatsApp, bookings, leads, quotations and payments.",
+	"description": "Makutano Connect \u2014 multi-tenant SaaS engine for WhatsApp, bookings, leads, quotations and payments.",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
@@ -18,7 +18,8 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "node --experimental-strip-types scripts/migrate.ts",
 		"db:studio": "drizzle-kit studio",
-		"db:seed": "node --experimental-strip-types scripts/seed.ts"
+		"db:seed": "node --experimental-strip-types scripts/seed.ts",
+		"db:check": "node --experimental-strip-types scripts/check-migrations.ts"
 	},
 	"dependencies": {
 		"@types/qrcode": "^1.5.6",

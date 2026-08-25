@@ -8,6 +8,8 @@
 //   META_APP_SECRET=... GOLDFINCH_TENANT_SLUG=goldfinch \
 //   node --experimental-strip-types scripts/preflight.ts
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import { auditMigrations } from '../src/lib/server/db/migration-integrity.ts';
 import postgres from 'postgres';
 
 const BASE = (process.env.CONNECT_BASE_URL ?? 'http://localhost:5188').replace(/\/+$/, '');
@@ -146,6 +148,37 @@ async function main() {
 
 			const [dead] = await sql`select count(*)::int as n from jobs where status = 'DEAD'`;
 			record('No dead background jobs', dead.n === 0, `${dead.n} dead`, false);
+
+			// Migration drift is invisible until something 500s at runtime: Drizzle
+			// replays by timestamp, so an edited migration never reaches this database.
+			const journal = JSON.parse(fs.readFileSync('./drizzle/meta/_journal.json', 'utf8')) as {
+				entries: Array<{ when: number; tag: string }>;
+			};
+			const files = journal.entries.map((entry) => ({
+				tag: entry.tag,
+				when: entry.when,
+				hash: crypto
+					.createHash('sha256')
+					.update(fs.readFileSync(`./drizzle/${entry.tag}.sql`, 'utf8'))
+					.digest('hex')
+			}));
+			const appliedRows = (await sql`select hash, created_at from drizzle.__drizzle_migrations`.catch(
+				() => []
+			)) as Array<{
+				hash: string;
+				created_at: string | number;
+			}>;
+			const drift = auditMigrations(
+				files,
+				appliedRows.map((r) => ({ hash: String(r.hash), createdAt: Number(r.created_at) }))
+			);
+			record(
+				'Migrations match this database',
+				drift.length === 0,
+				drift.length
+					? drift.map((d) => `${d.tag}: ${d.problem}`).join(' | ')
+					: `${files.length} migrations, ${appliedRows.length} applied`
+			);
 		} finally {
 			await sql.end({ timeout: 5 });
 		}
