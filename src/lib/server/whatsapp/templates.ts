@@ -46,6 +46,67 @@ export async function setTemplateEvent(tenantId: string, templateId: string, eve
 	return row ?? null;
 }
 
+/** Meta's review verdicts → our stored status. Anything unrecognised is ignored
+ *  rather than guessed at, so a new Meta event can never mislabel a template. */
+const REVIEW_STATUS: Record<string, 'APPROVED' | 'REJECTED' | 'PAUSED' | 'DISABLED' | 'PENDING'> = {
+	APPROVED: 'APPROVED',
+	REJECTED: 'REJECTED',
+	PAUSED: 'PAUSED',
+	DISABLED: 'DISABLED',
+	PENDING: 'PENDING',
+	PENDING_DELETION: 'DISABLED',
+	FLAGGED: 'PAUSED'
+};
+
+/**
+ * Apply a `message_template_status_update` webhook to our copy of the template.
+ * Without this a tenant sees "Awaiting approval" until someone presses Sync.
+ */
+export async function applyTemplateStatusUpdate(
+	tenantId: string,
+	event: {
+		templateName: string;
+		language: string | null;
+		metaTemplateId: string | null;
+		status: string;
+		reason: string | null;
+	}
+): Promise<boolean> {
+	const status = REVIEW_STATUS[event.status?.toUpperCase() ?? ''];
+	if (!status) {
+		log.info('template_status_ignored', { tenantId, name: event.templateName, event: event.status });
+		return false;
+	}
+	const conditions = [
+		eq(schema.whatsappTemplates.tenantId, tenantId),
+		eq(schema.whatsappTemplates.name, event.templateName)
+	];
+	// Language distinguishes translations of the same template name.
+	if (event.language) conditions.push(eq(schema.whatsappTemplates.language, event.language));
+
+	const rows = await db()
+		.update(schema.whatsappTemplates)
+		.set({
+			status,
+			...(event.metaTemplateId ? { metaTemplateId: event.metaTemplateId } : {}),
+			lastSyncedAt: new Date(),
+			updatedAt: new Date()
+		})
+		.where(and(...conditions))
+		.returning({ id: schema.whatsappTemplates.id });
+
+	// The rejection reason stays in the log and in the stored webhook_events payload —
+	// there is no column for it, and this fix does not need a migration.
+	log.info('template_status_updated', {
+		tenantId,
+		name: event.templateName,
+		status,
+		matched: rows.length,
+		...(event.reason ? { reason: event.reason } : {})
+	});
+	return rows.length > 0;
+}
+
 /** Pull the tenant's approved templates from Meta into whatsapp_templates. */
 export async function syncTemplates(tenantId: string): Promise<number> {
 	const credentials = await resolveCredentials(tenantId);

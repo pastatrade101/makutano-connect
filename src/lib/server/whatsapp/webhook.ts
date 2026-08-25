@@ -66,6 +66,19 @@ export type InboundStatusEvent = {
 	errors: unknown[] | null;
 };
 
+/** Meta's `message_template_status_update`: approvals/rejections arriving on their
+ *  own, so a tenant never has to press "Sync from Meta" to learn the outcome. */
+export type TemplateStatusEvent = {
+	kind: 'template_status';
+	phoneNumberId: null;
+	wabaId: string | null;
+	templateName: string;
+	language: string | null;
+	metaTemplateId: string | null;
+	status: string;
+	reason: string | null;
+};
+
 export type InboundErrorEvent = {
 	kind: 'error';
 	phoneNumberId: string | null;
@@ -73,7 +86,7 @@ export type InboundErrorEvent = {
 	error: Record<string, unknown>;
 };
 
-export type WebhookEvent = InboundMessageEvent | InboundStatusEvent | InboundErrorEvent;
+export type WebhookEvent = InboundMessageEvent | InboundStatusEvent | InboundErrorEvent | TemplateStatusEvent;
 
 /** Flatten Meta's nested envelope into a list of normalized events. */
 export function parseWebhook(body: any): WebhookEvent[] {
@@ -121,6 +134,20 @@ export function parseWebhook(body: any): WebhookEvent[] {
 			}
 			for (const e of v.errors ?? []) {
 				events.push({ kind: 'error', phoneNumberId, wabaId, error: e });
+			}
+			// Template review outcomes ride an account-scoped field: no messages array,
+			// no phone number — only the WABA id on the entry identifies the tenant.
+			if (change?.field === 'message_template_status_update' && v?.message_template_name) {
+				events.push({
+					kind: 'template_status',
+					phoneNumberId: null,
+					wabaId,
+					templateName: String(v.message_template_name),
+					language: v.message_template_language ? String(v.message_template_language) : null,
+					metaTemplateId: v.message_template_id != null ? String(v.message_template_id) : null,
+					status: String(v.event ?? ''),
+					reason: v.reason ? String(v.reason) : null
+				});
 			}
 		}
 	}

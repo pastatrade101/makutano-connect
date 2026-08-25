@@ -132,3 +132,59 @@ describe('payload parsing', () => {
 		});
 	});
 });
+
+describe('template review outcomes', () => {
+	// Meta announces approvals on an account-scoped field: no messages, no phone
+	// number — only entry.id (the WABA) identifies the tenant.
+	const envelope = (event: string, extra: Record<string, unknown> = {}) => ({
+		object: 'whatsapp_business_account',
+		entry: [
+			{
+				id: '1338598725019880',
+				changes: [
+					{
+						field: 'message_template_status_update',
+						value: {
+							event,
+							message_template_id: 9876543210,
+							message_template_name: 'payment_request',
+							message_template_language: 'en',
+							...extra
+						}
+					}
+				]
+			}
+		]
+	});
+
+	it('parses an approval into a routable template_status event', async () => {
+		const { parseWebhook } = await import('../src/lib/server/whatsapp/webhook');
+		const [event] = parseWebhook(envelope('APPROVED'));
+		expect(event).toMatchObject({
+			kind: 'template_status',
+			wabaId: '1338598725019880',
+			templateName: 'payment_request',
+			language: 'en',
+			metaTemplateId: '9876543210',
+			status: 'APPROVED'
+		});
+		// No phone number on this field — routing must fall back to the WABA id.
+		expect((event as { phoneNumberId: string | null }).phoneNumberId).toBeNull();
+	});
+
+	it('carries the rejection reason so staff learn why', async () => {
+		const { parseWebhook } = await import('../src/lib/server/whatsapp/webhook');
+		const [event] = parseWebhook(envelope('REJECTED', { reason: 'INVALID_FORMAT' }));
+		expect(event).toMatchObject({ status: 'REJECTED', reason: 'INVALID_FORMAT' });
+	});
+
+	it('ignores an envelope without a template name rather than inventing an event', async () => {
+		const { parseWebhook } = await import('../src/lib/server/whatsapp/webhook');
+		expect(
+			parseWebhook({
+				object: 'whatsapp_business_account',
+				entry: [{ id: 'w', changes: [{ field: 'message_template_status_update', value: { event: 'APPROVED' } }] }]
+			})
+		).toEqual([]);
+	});
+});

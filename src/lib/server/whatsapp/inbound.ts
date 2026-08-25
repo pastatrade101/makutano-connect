@@ -10,6 +10,7 @@ import { findOrCreateConversation, touchConversation } from '../conversations';
 import { findOrCreateCustomer } from '../customers';
 import { emit } from '../events';
 import { log } from '../logger';
+import { applyTemplateStatusUpdate } from './templates';
 import { applyInboundCompliance } from './compliance';
 import { paymentRequestIdFromPayload, reportPayment, unambiguousRequestForCustomer } from '../payment-requests';
 import { markWebhookSeen, resolveTenantForEvent } from './connections';
@@ -50,6 +51,17 @@ export async function processInboundEvent(event: WebhookEvent): Promise<void> {
 	}
 	const { tenantId, connection } = routed;
 	await markWebhookSeen(connection.id);
+	if (event.kind === 'template_status') {
+		const fresh = await claimEvent(
+			`template:${event.templateName}:${event.language ?? ''}:${event.status}`,
+			'template_status',
+			tenantId,
+			event as never
+		);
+		if (!fresh) return;
+		await applyTemplateStatusUpdate(tenantId, event);
+		return;
+	}
 	if (event.kind === 'status') {
 		const fresh = await claimEvent(`${event.messageId}:${event.status}`, 'status', tenantId, event as never);
 		if (!fresh) return;
