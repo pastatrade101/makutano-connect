@@ -31,7 +31,11 @@ export const tenantStatusEnum = pgEnum('tenant_status', [
 export const provisioningSourceEnum = pgEnum('provisioning_source', ['ADMIN', 'SELF_SERVICE', 'IMPORT']);
 export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'VIEWER']);
 export const apiKeyEnvEnum = pgEnum('api_key_environment', ['live', 'test']);
-export const verificationPurposeEnum = pgEnum('verification_purpose', ['EMAIL_VERIFICATION', 'PASSWORD_RESET', 'TEAM_INVITE']);
+export const verificationPurposeEnum = pgEnum('verification_purpose', [
+	'EMAIL_VERIFICATION',
+	'PASSWORD_RESET',
+	'TEAM_INVITE'
+]);
 export const apiKeyStatusEnum = pgEnum('api_key_status', ['ACTIVE', 'REVOKED']);
 export const waConnectionStatusEnum = pgEnum('whatsapp_connection_status', [
 	'CONNECTED',
@@ -135,7 +139,15 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
 	'CANCELLED',
 	'EXPIRED'
 ]);
-export const templateStatusEnum = pgEnum('template_status', ['APPROVED', 'PENDING', 'REJECTED', 'PAUSED', 'DISABLED', 'DRAFT', 'SUBMITTED']);
+export const templateStatusEnum = pgEnum('template_status', [
+	'APPROVED',
+	'PENDING',
+	'REJECTED',
+	'PAUSED',
+	'DISABLED',
+	'DRAFT',
+	'SUBMITTED'
+]);
 
 /* ------------------------------------------------------------- helpers ---- */
 
@@ -461,9 +473,15 @@ export const whatsappTemplates = pgTable(
 		bodyText: text('body_text'),
 		footerText: text('footer_text'),
 		/** [{ type: 'QUICK_REPLY'|'URL', text: string, url?: string }] */
-		buttons: jsonb('buttons').$type<Array<Record<string, unknown>>>().notNull().default(sql`'[]'::jsonb`),
+		buttons: jsonb('buttons')
+			.$type<Array<Record<string, unknown>>>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/** Ordered named variables as they appear in the body → positional index. */
-		variables: jsonb('variables').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		variables: jsonb('variables')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		enabled: boolean('enabled').notNull().default(true),
 		lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
 		createdAt: createdAt(),
@@ -1541,15 +1559,23 @@ export const catalogItems = pgTable(
 		currency: text('currency'),
 		imageUrl: text('image_url'),
 		/** [{ label: "Black / 43", price?: "230.00", sku?: "NIKE-AM-43-BLK" }] */
-		variants: jsonb('variants').$type<Array<Record<string, unknown>>>().notNull().default(sql`'[]'::jsonb`),
+		variants: jsonb('variants')
+			.$type<Array<Record<string, unknown>>>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		isActive: boolean('is_active').notNull().default(true),
-		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		metadata: jsonb('metadata')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
 	},
 	(t) => [
 		index('catalog_items_tenant_idx').on(t.tenantId, t.isActive),
-		uniqueIndex('catalog_items_tenant_sku_key').on(t.tenantId, t.sku).where(sql`${t.sku} is not null`)
+		uniqueIndex('catalog_items_tenant_sku_key')
+			.on(t.tenantId, t.sku)
+			.where(sql`${t.sku} is not null`)
 	]
 );
 
@@ -1584,6 +1610,45 @@ export const orderBatches = pgTable(
 	},
 	(t) => [index('order_batches_tenant_idx').on(t.tenantId, t.status, t.fulfilmentDate)]
 );
+
+/**
+ * Every AI call, metered. Written AFTER the call with real token counts so spend is
+ * visible per tenant and per feature, and so the monthly ceiling has something honest
+ * to count. Deliberately append-only: this is a ledger, not a cache.
+ */
+export const aiUsage = pgTable(
+	'ai_usage',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		/** Which surface spent it — 'order_extraction' today, more later. */
+		feature: text('feature').notNull(),
+		model: text('model').notNull(),
+		inputTokens: integer('input_tokens').notNull().default(0),
+		outputTokens: integer('output_tokens').notNull().default(0),
+		cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
+		cacheWriteTokens: integer('cache_write_tokens').notNull().default(0),
+		/** Estimated USD at first-party list prices — for visibility, not billing.
+		 *  6dp, not money()'s 2dp: one extraction costs a fraction of a cent and
+		 *  would otherwise round to zero, making the whole ledger read 0.00. */
+		costUsd: numeric('cost_usd', { precision: 14, scale: 6 }).notNull().default('0'),
+		ok: boolean('ok').notNull().default(true),
+		/** ACCEPTED | EDITED | DISCARDED once a human acts on the suggestion. Null
+		 *  means "not yet decided" — the honest state, not a silent success. */
+		outcome: text('outcome'),
+		userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+		metadata: jsonb('metadata')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		createdAt: createdAt()
+	},
+	(t) => [index('ai_usage_tenant_idx').on(t.tenantId, t.createdAt)]
+);
+
+export type AiUsage = typeof aiUsage.$inferSelect;
 
 export const orderLinkStatusEnum = pgEnum('order_link_status', ['DRAFT', 'ACTIVE', 'PAUSED', 'ARCHIVED']);
 
@@ -1628,11 +1693,17 @@ export const orderLinks = pgTable(
 		/** AFTER_CONFIRMATION (default — safest for informal sellers) or IMMEDIATE. */
 		paymentTiming: text('payment_timing').notNull().default('AFTER_CONFIRMATION'),
 		/** [{ key: 'wa-group-a', label: 'WhatsApp Group A' }] — ?s=<key> provenance tags. */
-		shareTags: jsonb('share_tags').$type<Array<{ key: string; label: string }>>().notNull().default(sql`'[]'::jsonb`),
+		shareTags: jsonb('share_tags')
+			.$type<Array<{ key: string; label: string }>>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		batchId: uuid('batch_id').references(() => orderBatches.id, { onDelete: 'set null' }),
 		catalogItemId: uuid('catalog_item_id').references(() => catalogItems.id, { onDelete: 'set null' }),
 		viewCount: integer('view_count').notNull().default(0),
-		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		metadata: jsonb('metadata')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
@@ -1677,7 +1748,10 @@ export const orders = pgTable(
 		notes: text('notes'),
 		externalReference: text('external_reference'),
 		externalSource: text('external_source'),
-		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		metadata: jsonb('metadata')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 		confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
 		dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
@@ -1720,7 +1794,10 @@ export const orderItems = pgTable(
 		total: money('total').notNull().default('0'),
 		externalReference: text('external_reference'),
 		externalSource: text('external_source'),
-		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		metadata: jsonb('metadata')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		createdAt: createdAt()
 	},
 	(t) => [index('order_items_order_idx').on(t.orderId)]
@@ -1763,12 +1840,24 @@ export const forms = pgTable(
 		ctaText: text('cta_text'),
 		successMessage: text('success_message'),
 		/** { fieldKey: { enabled: boolean, required: boolean } } */
-		fields: jsonb('fields').$type<Record<string, { enabled: boolean; required: boolean }>>().notNull().default(sql`'{}'::jsonb`),
+		fields: jsonb('fields')
+			.$type<Record<string, { enabled: boolean; required: boolean }>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		/** Catalog items offered on ORDER/BOOKING forms; empty = free-text item entry. */
-		catalogItemIds: jsonb('catalog_item_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		catalogItemIds: jsonb('catalog_item_ids')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/** Allowed embedding origins; empty = any origin. */
-		allowedOrigins: jsonb('allowed_origins').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-		branding: jsonb('branding').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		allowedOrigins: jsonb('allowed_origins')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		branding: jsonb('branding')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		isActive: boolean('is_active').notNull().default(true),
 		submissionCount: integer('submission_count').notNull().default(0),
 		createdAt: createdAt(),

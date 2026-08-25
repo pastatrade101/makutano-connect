@@ -130,6 +130,23 @@
 		</div>
 	</div>
 
+	{#if data.ai.totalRequests > 0}
+		<section class="card">
+			<header class="card-header">
+				<h2 class="card-title">AI assist — this month</h2>
+				<span class="text-[11px] text-slate-400">{data.ai.totalRequests} requests · est. USD {data.ai.totalCost.toFixed(2)}</span>
+			</header>
+			<ul class="divide-y divide-slate-100">
+				{#each data.ai.tenants as row (row.tenantId)}
+					<li class="flex items-center justify-between px-4 py-2 text-sm">
+						<a href="/admin/tenants/{row.tenantId}" class="font-medium text-brand-600 hover:underline">{row.tenant}</a>
+						<span class="tabular-nums text-slate-600">{row.requests} req · USD {row.cost.toFixed(4)}</span>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
 	<section class="card">
 		<header class="card-header">
 			<h2 class="card-title">Revenue by plan</h2>

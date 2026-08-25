@@ -12,6 +12,47 @@
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data, form } = $props();
 
+	// AI assist: every suggestion is a DRAFT held in the page until a human commits.
+	let suggestingFor = $state<string | null>(null);
+	let busyAction = $state<string | null>(null);
+	const primaryAiAction = $derived((data.aiActions ?? []).find((a) => a.primary) ?? null);
+	const enquiry = $derived(form?.enquiry ?? null);
+	const replyDraft = $derived(form?.replyDraft ?? null);
+	const summary = $derived(form?.summary ?? null);
+	// Edits are tracked so the acceptance metric can tell "took it as-is" from
+	// "fixed it first" — the difference between a useful draft and a nuisance.
+	let enquiryEdited = $state(false);
+	let replyEdited = $state(false);
+	let replyText = $state('');
+	$effect(() => {
+		if (replyDraft) { replyText = replyDraft.reply; replyEdited = false; }
+	});
+	const INTENT_LABEL: Record<string, string> = {
+		NEW_TRIP_ENQUIRY: 'a new trip enquiry',
+		EXISTING_BOOKING_QUESTION: 'a question about an existing booking',
+		PRICE_QUESTION: 'a price question',
+		AVAILABILITY_QUESTION: 'an availability question',
+		ITINERARY_QUESTION: 'an itinerary question',
+		PAYMENT_CLAIM: 'a payment claim — verify it before marking anything paid',
+		PAYMENT_QUESTION: 'a payment question',
+		CHANGE_REQUEST: 'a booking change request',
+		CANCELLATION_REQUEST: 'a cancellation request',
+		COMPLAINT: 'a complaint',
+		GENERAL_QUESTION: 'a general question',
+		OTHER: 'something else'
+	};
+	const enquiryNotesText = $derived(enquiry?.notes ?? '');
+	const suggestion = $derived(form?.suggestion ?? null);
+	let draftLines = $state<Array<{ title: string; quantity: number; unit: string | null; unitPrice: string | null }>>([]);
+	let draftMethod = $state('');
+	let draftLocation = $state('');
+	$effect(() => {
+		if (!suggestion) return;
+		draftLines = suggestion.lines.map((l) => ({ ...l }));
+		draftMethod = suggestion.draft.deliveryMethod ?? '';
+		draftLocation = suggestion.draft.deliveryLocation ?? '';
+	});
+
 	const canSend = $derived(data.permissions?.includes('whatsapp:send'));
 	const who = $derived([data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || `+${data.conversation.externalId ?? ''}`);
 	const initials = $derived(who.replace(/^\+/, '').split(/\s+/).map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || '#');
@@ -232,11 +273,222 @@
 					{#if m.errorMessage}<span>· {m.errorMessage}</span>{/if}
 				</p>
 			</div>
+			{#if primaryAiAction && m.direction === 'INBOUND' && (m.body ?? '').trim().length > 6}
+				<form
+					method="POST"
+					action={primaryAiAction.key === 'enquiry' ? '?/suggestEnquiry' : '?/suggestOrder'}
+					use:enhance={() => { suggestingFor = m.id; return async ({ update }) => { await update({ reset: false }); suggestingFor = null; }; }}
+				>
+					<input type="hidden" name="messageId" value={m.id} />
+					<button class="mt-1 text-[11px] font-medium text-brand-600 hover:underline disabled:opacity-50" disabled={suggestingFor === m.id}>
+						{suggestingFor === m.id ? 'Reading…' : `✦ ${primaryAiAction.label}`}
+					</button>
+				</form>
+			{/if}
 		</div>
 	{:else}
 		<p class="py-10 text-center text-xs text-slate-400">No messages yet.</p>
 	{/each}
 </div>
+
+<!-- Enquiry draft (tour/booking businesses). Nothing exists until Create enquiry. -->
+{#if enquiry}
+	{@const x = enquiry.extraction}
+	<div class="border-t border-brand-200 bg-brand-50/50 p-3">
+		{#if !enquiry.shouldCreateEnquiry}
+			<div class="flex flex-wrap items-center justify-between gap-2">
+				<p class="text-[13px] text-slate-600">
+					Read as <b>{INTENT_LABEL[x.intent] ?? x.intent.toLowerCase().replace(/_/g, ' ')}</b> — not a new trip enquiry, so nothing was prefilled.
+					{#if x.urgent}<span class="badge bg-danger/10 text-danger ml-1">needs attention</span>{/if}
+				</p>
+				<form method="POST" action="?/discardSuggestion" use:enhance>
+					<input type="hidden" name="usageId" value={enquiry.usageId ?? ''} />
+					<button class="text-[11px] text-slate-400 hover:underline">Dismiss</button>
+				</form>
+			</div>
+		{:else}
+			<form method="POST" action="?/createEnquiry" use:enhance oninput={() => (enquiryEdited = true)} class="space-y-2.5">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="text-[11px] font-bold tracking-wide text-brand-700 uppercase">✦ Trip enquiry detected</span>
+					<span class="badge {x.confidence === 'HIGH' ? 'bg-success/10 text-success' : x.confidence === 'MEDIUM' ? 'bg-warning/10 text-warning' : 'bg-slate-100 text-slate-500'} text-[10px]">{x.confidence.toLowerCase()} confidence</span>
+					{#if enquiry.externalTour?.name}<span class="badge bg-purple/10 text-purple text-[10px]">from website: {enquiry.externalTour.name}</span>{/if}
+					{#if enquiry.suggestedMatch}<span class="badge bg-slate-100 text-slate-500 text-[10px]">suggested match: {enquiry.suggestedMatch.title}</span>{/if}
+				</div>
+
+				<input type="hidden" name="usageId" value={enquiry.usageId ?? ''} />
+				<input type="hidden" name="edited" value={enquiryEdited ? '1' : '0'} />
+				<input type="hidden" name="externalReference" value={enquiry.externalTour?.reference ?? ''} />
+				<input type="hidden" name="externalSource" value={enquiry.externalTour?.name ? 'website' : ''} />
+				<input type="hidden" name="whenText" value={x.travel.whenText ?? ''} />
+				<input type="hidden" name="budgetAmount" value={x.budget.amount ?? ''} />
+				<input type="hidden" name="budgetCurrency" value={x.budget.currency ?? ''} />
+				<input type="hidden" name="budgetBasis" value={x.budget.basis ?? ''} />
+				<input type="hidden" name="accommodation" value={x.accommodation ?? ''} />
+				<input type="hidden" name="destinations" value={x.travel.destinations.join(', ')} />
+
+				<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+					<label class="block"><span class="text-[10px] text-slate-500">Adults</span><input name="adults" value={x.travellers.adults ?? x.travellers.total ?? ''} inputmode="numeric" class="input py-1.5 text-[13px]" /></label>
+					<label class="block"><span class="text-[10px] text-slate-500">Children</span><input name="children" value={x.travellers.children ?? 0} inputmode="numeric" class="input py-1.5 text-[13px]" /></label>
+					<label class="block"><span class="text-[10px] text-slate-500">Start date</span><input name="startDate" type="date" value={x.travel.resolvedStartDate ?? ''} class="input py-1.5 text-[13px]" /></label>
+					<label class="block"><span class="text-[10px] text-slate-500">Days</span><input value={x.travel.durationDays ?? ''} disabled class="input py-1.5 text-[13px] opacity-70" /></label>
+				</div>
+
+				<label class="block"><span class="text-[10px] text-slate-500">Trip notes (goes on the enquiry)</span>
+					<textarea name="notes" rows="4" class="input text-[13px]">{enquiryNotesText}</textarea>
+				</label>
+
+				<p class="text-[11px] leading-relaxed text-slate-500">
+					{#if x.travel.whenText}Customer said <b>"{x.travel.whenText}"</b>{#if !x.travel.resolvedStartDate} — no exact date set, confirm it with them{/if}. {/if}
+					{#if x.budget.amount}Budget noted as {x.budget.currency} {x.budget.amount.toLocaleString()}{x.budget.basis === 'PER_PERSON' ? '/person' : ''} — recorded as their budget, not a price. {/if}
+				</p>
+
+				{#if x.missing.length}
+					<p class="text-[11px] text-slate-500"><b>Useful details to ask next:</b> {x.missing.join(' · ')}</p>
+				{/if}
+
+				<div class="flex flex-wrap items-center gap-2">
+					<button class="btn-primary !py-1.5 text-xs">Create enquiry</button>
+					<button formaction="?/discardSuggestion" class="text-[11px] text-slate-400 hover:underline">Discard</button>
+					<span class="text-[11px] text-slate-400">{enquiry.customer?.name ?? 'This customer'} · nothing is saved until you press create</span>
+				</div>
+			</form>
+		{/if}
+	</div>
+{/if}
+
+<!-- Reply draft: text in a box. Sending still goes through the normal composer. -->
+{#if replyDraft}
+	<div class="border-t border-slate-200 bg-slate-50 p-3">
+		<div class="mb-1.5 flex flex-wrap items-center gap-2">
+			<span class="text-[11px] font-bold tracking-wide text-slate-600 uppercase">✦ Suggested reply</span>
+			<span class="text-[11px] text-slate-400">Edit it, then send — or discard.</span>
+		</div>
+		<textarea bind:value={replyText} oninput={() => (replyEdited = true)} rows="3" class="input text-[13px]"></textarea>
+		{#if replyDraft.caveats.length}
+			<p class="mt-1 text-[11px] text-warning">Check before sending: {replyDraft.caveats.join(' · ')}</p>
+		{/if}
+		<div class="mt-2 flex flex-wrap items-center gap-2">
+			<form method="POST" action="?/send" use:enhance={() => async ({ update }) => { await update({ reset: true }); }}>
+				<input type="hidden" name="body" value={replyText} />
+				<input type="hidden" name="aiUsageId" value={replyDraft.usageId ?? ''} />
+				<input type="hidden" name="aiEdited" value={replyEdited ? '1' : '0'} />
+				<button class="btn-primary !py-1.5 text-xs">Send reply</button>
+			</form>
+			<form method="POST" action="?/discardSuggestion" use:enhance>
+				<input type="hidden" name="usageId" value={replyDraft.usageId ?? ''} />
+				<button class="text-[11px] text-slate-400 hover:underline">Discard</button>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Catch-up summary, with Connect's verified records shown separately. -->
+{#if summary}
+	<div class="border-t border-slate-200 bg-white p-3">
+		<div class="mb-1 flex items-center justify-between gap-2">
+			<span class="text-[13px] font-semibold text-slate-800">{summary.headline}</span>
+			<form method="POST" action="?/discardSuggestion" use:enhance>
+				<input type="hidden" name="usageId" value={summary.usageId ?? ''} />
+				<button class="text-[11px] text-slate-400 hover:underline">Close</button>
+			</form>
+		</div>
+		<ul class="space-y-0.5 text-[12.5px] text-slate-600">
+			{#each summary.points as point (point)}<li>• {point}</li>{/each}
+		</ul>
+		{#if summary.nextStep}<p class="mt-1.5 text-[12px] text-slate-500"><b>Waiting on:</b> {summary.nextStep}</p>{/if}
+		{#if summary.state.length}
+			<p class="mt-1.5 border-t border-slate-100 pt-1.5 text-[11px] text-slate-400">From your records: {summary.state.join(' ')}</p>
+		{/if}
+	</div>
+{/if}
+
+<!-- AI suggestion: a draft the seller edits and commits. Nothing is saved until
+     they press Create order — the assistant never writes to the ledger itself. -->
+{#if suggestion}
+	<div class="border-t border-brand-200 bg-brand-50/50 p-3">
+		{#if !suggestion.draft.isOrder}
+			<div class="flex items-center justify-between gap-2">
+				<p class="text-[13px] text-slate-600">This message doesn't look like an order — nothing to prefill.</p>
+				<a href="/app/orders/new" class="text-[12px] font-medium text-brand-600 hover:underline">Create manually →</a>
+			</div>
+		{:else}
+			<form method="POST" action="?/createSuggested" use:enhance class="space-y-2.5">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="text-[11px] font-bold tracking-wide text-brand-700 uppercase">Suggested order</span>
+					<span class="badge {suggestion.draft.confidence === 'high' ? 'bg-success/10 text-success' : suggestion.draft.confidence === 'medium' ? 'bg-warning/10 text-warning' : 'bg-slate-100 text-slate-500'} text-[10px]">
+						{suggestion.draft.confidence} confidence
+					</span>
+					<span class="text-[11px] text-slate-500">Check it before creating — you can edit every field.</span>
+				</div>
+
+				<input type="hidden" name="currency" value={suggestion.currency} />
+				{#if suggestion.batch}<input type="hidden" name="batchId" value={suggestion.batch.id} />{/if}
+
+				{#each draftLines as line, i (i)}
+					<div class="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1.2fr]">
+						<input name="itemTitle" bind:value={line.title} placeholder="Item" class="input py-1.5 text-[13px]" />
+						<input name="itemQuantity" bind:value={line.quantity} inputmode="numeric" placeholder="Qty" class="input py-1.5 text-[13px]" />
+						<input name="itemUnit" value={line.unit ?? ''} placeholder="Unit" class="input py-1.5 text-[13px]" />
+						<input
+							name="itemPrice"
+							value={line.unitPrice ?? ''}
+							inputmode="decimal"
+							placeholder="Price / unit"
+							class="input py-1.5 text-[13px] {line.unitPrice ? '' : 'border-warning'}"
+						/>
+					</div>
+				{/each}
+
+				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+					<select name="deliveryMethod" bind:value={draftMethod} class="input py-1.5 text-[13px]">
+						<option value="">Method —</option>
+						<option value="PICKUP">Pickup</option>
+						<option value="DELIVERY">Delivery</option>
+					</select>
+					<input name="deliveryLocation" bind:value={draftLocation} placeholder="Delivery location" class="input py-1.5 text-[13px]" />
+					<input name="notes" value={suggestion.draft.notes ?? ''} placeholder="Notes" class="input py-1.5 text-[13px]" />
+				</div>
+
+				{#if suggestion.draft.whenText || suggestion.draft.missing.length || draftLines.some((l) => !l.unitPrice)}
+					<p class="text-[11px] text-slate-500">
+						{#if suggestion.draft.whenText}Customer said <b>"{suggestion.draft.whenText}"</b> — set the date on the order after creating. {/if}
+						{#if draftLines.some((l) => !l.unitPrice)}<span class="text-warning">Add a price for the highlighted line.</span> {/if}
+						{#if suggestion.draft.missing.length}Unclear: {suggestion.draft.missing.join(', ')}.{/if}
+					</p>
+				{/if}
+
+				<div class="flex items-center gap-2">
+					<button class="btn-primary !py-1.5 text-xs">Create order</button>
+					<span class="text-[11px] text-slate-400">Awaiting confirmation · {suggestion.customer?.name ?? 'this customer'}</span>
+				</div>
+			</form>
+		{/if}
+	</div>
+{/if}
+
+{#if data.aiReady}
+	<div class="flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-3 pt-2">
+		{#each (data.aiActions ?? []).filter((a) => a.key === 'reply' || a.key === 'summary') as action (action.key)}
+			<form
+				method="POST"
+				action={action.key === 'reply' ? '?/suggestReply' : '?/summarize'}
+				use:enhance={() => { busyAction = action.key; return async ({ update }) => { await update({ reset: false }); busyAction = null; }; }}
+			>
+				<button class="rounded-panel border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50" disabled={busyAction === action.key} title={action.hint}>
+					{busyAction === action.key ? 'Thinking…' : `✦ ${action.label}`}
+				</button>
+			</form>
+		{/each}
+		{#if primaryAiAction?.key === 'enquiry'}
+			<form method="POST" action="?/suggestEnquiry" use:enhance={() => { busyAction = 'conv'; return async ({ update }) => { await update({ reset: false }); busyAction = null; }; }}>
+				<input type="hidden" name="scope" value="conversation" />
+				<button class="rounded-panel border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50" disabled={busyAction === 'conv'} title="Read the whole recent thread, not just one message">
+					{busyAction === 'conv' ? 'Reading…' : '✦ Create enquiry from conversation'}
+				</button>
+			</form>
+		{/if}
+	</div>
+{/if}
 
 {#if canSend}
 	<form method="POST" action="?/send" use:enhance class="flex items-center gap-2 border-t border-slate-200 p-3">

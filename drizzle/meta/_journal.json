@@ -85,6 +85,20 @@
       "when": 1787640000000,
       "tag": "0011_order_link_submission_token",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787680000000,
+      "tag": "0012_ai_usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787700000000,
+      "tag": "0013_ai_outcome",
+      "breakpoints": true
     }
   ]
 }

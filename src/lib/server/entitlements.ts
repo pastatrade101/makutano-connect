@@ -22,7 +22,7 @@ export type EntitlementKind = 'boolean' | 'number';
 export type EntitlementDefinition = {
 	key: string;
 	label: string;
-	group: 'Platform' | 'WhatsApp' | 'Bookings' | 'Orders' | 'Quotations' | 'Forms' | 'Payments';
+	group: 'Platform' | 'WhatsApp' | 'Bookings' | 'Orders' | 'Quotations' | 'Forms' | 'Payments' | 'AI';
 	kind: EntitlementKind;
 	/** Usage metric this limit is measured against, when it is a monthly allowance. */
 	metric?: UsageMetric;
@@ -93,8 +93,21 @@ export const ENTITLEMENTS: EntitlementDefinition[] = [
 
 	// --- Orders -------------------------------------------------------------
 	{ key: 'orders.enabled', label: 'Orders', group: 'Orders', kind: 'boolean', fallback: true },
-	{ key: 'orders.maxPerMonth', label: 'Orders / month', group: 'Orders', kind: 'number', metric: 'orders', fallback: 0 },
+	{
+		key: 'orders.maxPerMonth',
+		label: 'Orders / month',
+		group: 'Orders',
+		kind: 'number',
+		metric: 'orders',
+		fallback: 0
+	},
 	{ key: 'orderLinks.enabled', label: 'Order links', group: 'Orders', kind: 'boolean', fallback: true },
+	// AI assist is OFF unless a plan grants it — nobody is opted in by surprise.
+	{ key: 'ai.enabled', label: 'AI assist', group: 'AI', kind: 'boolean', fallback: false },
+	{ key: 'ai.maxMonthlyRequests', label: 'AI requests / month', group: 'AI', kind: 'number', fallback: 200 },
+	// AI assist is OFF unless a plan grants it — nobody is opted in by surprise.
+	{ key: 'ai.enabled', label: 'AI assist', group: 'AI', kind: 'boolean', fallback: false },
+	{ key: 'ai.maxMonthlyRequests', label: 'AI requests / month', group: 'AI', kind: 'number', fallback: 200 },
 	{ key: 'orderLinks.maxActive', label: 'Active order links', group: 'Orders', kind: 'number', fallback: 0 },
 
 	// --- Quotations ---------------------------------------------------------
@@ -199,7 +212,7 @@ export async function effectiveEntitlements(tenantId: string): Promise<TenantEnt
 		planName: row.plan?.name ?? 'No plan',
 		subscriptionStatus: subs[0]?.status ?? null,
 		resolved,
-		value: (key: string) => resolved[key]?.effective ?? (BY_KEY.get(key)?.fallback ?? false)
+		value: (key: string) => resolved[key]?.effective ?? BY_KEY.get(key)?.fallback ?? false
 	};
 	cache.set(tenantId, { value, expires: Date.now() + CACHE_TTL_MS });
 	return value;
@@ -275,13 +288,17 @@ export async function assertWithinLimit(tenantId: string, key: string): Promise<
 	if (isUnlimited(limit)) return;
 	const used = await usageFor(tenantId, definition.metric);
 	if (used >= limit) {
-		throw new AppError('ENTITLEMENT_LIMIT_REACHED', `You have reached your monthly limit for ${definition.label.toLowerCase()}.`, {
-			feature: key,
-			metric: definition.metric,
-			usage: used,
-			limit,
-			period: currentPeriod()
-		});
+		throw new AppError(
+			'ENTITLEMENT_LIMIT_REACHED',
+			`You have reached your monthly limit for ${definition.label.toLowerCase()}.`,
+			{
+				feature: key,
+				metric: definition.metric,
+				usage: used,
+				limit,
+				period: currentPeriod()
+			}
+		);
 	}
 }
 
@@ -291,11 +308,15 @@ export async function assertWithinCount(tenantId: string, key: string, currentCo
 	if (isUnlimited(limit)) return;
 	if (currentCount >= limit) {
 		const definition = BY_KEY.get(key);
-		throw new AppError('ENTITLEMENT_LIMIT_REACHED', `Your plan allows ${limit} ${(definition?.label ?? key).toLowerCase()}.`, {
-			feature: key,
-			usage: currentCount,
-			limit
-		});
+		throw new AppError(
+			'ENTITLEMENT_LIMIT_REACHED',
+			`Your plan allows ${limit} ${(definition?.label ?? key).toLowerCase()}.`,
+			{
+				feature: key,
+				usage: currentCount,
+				limit
+			}
+		);
 	}
 }
 

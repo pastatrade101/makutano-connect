@@ -25,6 +25,15 @@ const schema = z.object({
 	WHATSAPP_CONFIG_ID: z.string().default(''),
 	WHATSAPP_VERIFY_TOKEN: z.string().default(''),
 
+	// --- AI assist (§ai) — optional; every AI surface is off without a key ---
+	ANTHROPIC_API_KEY: z.string().default(''),
+	// Model is configurable so the platform can trade cost for capability without a
+	// deploy-time code change. Extraction runs at low effort, which is where most of
+	// the saving comes from.
+	AI_MODEL: z.string().default('claude-opus-5'),
+	// Emergency stop for every AI call, platform-wide. No deploy, no plan edits.
+	AI_ENABLED: z.enum(['on', 'off']).default('on'),
+
 	// --- Infrastructure ---
 	REDIS_URL: z.string().default(''),
 	EMAIL_FROM: z.string().default(''),
@@ -83,6 +92,15 @@ function raw(): Record<string, string | undefined> {
 }
 
 /** Parsed environment. Throws a single aggregated error listing every problem. */
+/**
+ * The unparsed environment as it is RIGHT NOW. Almost everything should use env(),
+ * which validates once and caches — this exists for the few switches that must take
+ * effect the moment they change, such as the AI emergency stop.
+ */
+export function liveEnv(): Record<string, string | undefined> {
+	return raw();
+}
+
 export function env(): Env {
 	if (cached) return cached;
 	const parsed = schema.safeParse(raw());

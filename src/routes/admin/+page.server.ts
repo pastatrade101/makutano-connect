@@ -77,6 +77,33 @@ export const load: PageServerLoad = async () => {
 		past_due: number;
 	}>;
 
+	// AI spend this month. Shown next to revenue because that is the only honest place
+	// for it: assist is a cost of serving a tenant, not a feature that pays for itself.
+	const aiRows = (await db()
+		.execute(
+			sql`
+		select coalesce(t.name, 'unknown') as tenant, t.id as tenant_id,
+			count(*)::int as requests,
+			coalesce(sum(a.cost_usd), 0)::numeric(14,6) as cost
+		from ai_usage a join tenants t on t.id = a.tenant_id
+		where a.created_at >= date_trunc('month', now() at time zone 'utc')
+		group by t.id, t.name
+		order by cost desc
+		limit 8
+	`
+		)
+		.catch(() => [])) as unknown as Array<{ tenant: string; tenant_id: string; requests: number; cost: string }>;
+	const ai = {
+		tenants: aiRows.map((r) => ({
+			tenant: r.tenant,
+			tenantId: r.tenant_id,
+			requests: Number(r.requests),
+			cost: Number(r.cost)
+		})),
+		totalRequests: aiRows.reduce((sum, r) => sum + Number(r.requests), 0),
+		totalCost: aiRows.reduce((sum, r) => sum + Number(r.cost), 0)
+	};
+
 	const revenuePlans = revenueRows.map((r) => {
 		const price = Number(r.price);
 		return {
@@ -142,6 +169,7 @@ export const load: PageServerLoad = async () => {
 		recentJobs,
 		planMix,
 		revenue,
+		ai,
 		nearLimit,
 		activity: {
 			labels: activity.map((r) => r.label),
