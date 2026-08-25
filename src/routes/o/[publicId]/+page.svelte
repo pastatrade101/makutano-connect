@@ -5,15 +5,17 @@
 	let { data, form } = $props();
 
 	const link = $derived(data.link);
-	let quantity = $state(1);
-	let method = $state<'DELIVERY' | 'PICKUP'>('PICKUP');
+	let quantity = $state(data.link.minQuantity);
+	let method = $state<'DELIVERY' | 'PICKUP'>(data.link.deliveryEnabled && !data.link.pickupEnabled ? 'DELIVERY' : 'PICKUP');
 	let submitting = $state(false);
+	let errorBanner = $state<HTMLElement | null>(null);
 	// Idempotency token per page visit — resubmitting returns the same order.
 	const submissionToken = crypto.randomUUID().replace(/-/g, '');
 
-	$effect.pre(() => {
-		quantity = link.minQuantity;
-		method = link.deliveryEnabled && !link.pickupEnabled ? 'DELIVERY' : 'PICKUP';
+	// FIX: the submit button sits below the fold on a phone, so a validation error
+	// at the top of the card looked like "nothing happened". Bring it into view.
+	$effect(() => {
+		if (form?.message && errorBanner) errorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	});
 
 	const money = (amount: number) => `${link.currency} ${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -58,12 +60,14 @@
 				</span>
 				<div>
 					<h1 class="text-lg font-bold text-slate-900">Order received</h1>
-					<p class="mt-1 font-mono text-xs text-slate-500">{receipt.orderNumber}</p>
+					{#if receipt.unit}<p class="mt-1 font-mono text-xs text-slate-500">{receipt.orderNumber}</p>{/if}
 				</div>
-				<div class="rounded-panel bg-slate-50 p-4 text-sm">
-					<div class="flex justify-between"><span class="text-slate-500">{receipt.title}</span><span class="font-semibold text-slate-800">{receipt.quantity} {receipt.unit}</span></div>
-					<div class="mt-2 flex justify-between border-t border-slate-200 pt-2"><span class="text-slate-500">Total</span><span class="font-bold text-slate-900">{link.currency} {Number(receipt.total).toLocaleString()}</span></div>
-				</div>
+				{#if receipt.unit}
+					<div class="rounded-panel bg-slate-50 p-4 text-sm">
+						<div class="flex justify-between"><span class="text-slate-500">{receipt.title}</span><span class="font-semibold text-slate-800">{receipt.quantity} {receipt.unit}</span></div>
+						<div class="mt-2 flex justify-between border-t border-slate-200 pt-2"><span class="text-slate-500">Total</span><span class="font-bold text-slate-900">{money(Number(receipt.total))}</span></div>
+					</div>
+				{/if}
 				<p class="text-[13px] leading-relaxed text-slate-500">
 					Status: <b class="text-slate-700">Awaiting confirmation</b><br />
 					We'll contact you on WhatsApp after reviewing your order.
@@ -96,7 +100,7 @@
 					</div>
 
 					{#if form?.message}
-						<p class="rounded-panel bg-danger/10 px-3 py-2.5 text-[13px] text-danger" role="alert">{form.message}</p>
+						<p bind:this={errorBanner} class="rounded-panel bg-danger/10 px-3 py-2.5 text-[13px] text-danger" role="alert">{form.message}</p>
 					{/if}
 
 					<form
@@ -129,7 +133,21 @@
 									disabled={quantity <= link.minQuantity}
 									aria-label="Decrease quantity"
 								>−</button>
-								<span class="min-w-16 text-center text-lg font-bold tabular-nums text-slate-900">{quantity} {link.unit}</span>
+								<label class="sr-only" for="ol-qty">Quantity in {link.unit}</label>
+								<input
+									id="ol-qty"
+									type="number"
+									inputmode="numeric"
+									bind:value={quantity}
+									min={link.minQuantity}
+									max={link.maxOrderable ?? undefined}
+									onblur={() => {
+										const n = Math.floor(Number(quantity));
+										quantity = !Number.isFinite(n) || n < link.minQuantity ? link.minQuantity : link.maxOrderable != null && n > link.maxOrderable ? link.maxOrderable : n;
+									}}
+									class="w-20 rounded-panel border border-slate-200 bg-white py-1.5 text-center text-lg font-bold tabular-nums text-slate-900 focus:border-brand-500 focus:outline-none"
+								/>
+								<span class="text-sm font-medium text-slate-500">{link.unit}</span>
 								<button
 									type="button"
 									class="flex size-11 items-center justify-center rounded-panel border border-slate-300 bg-white text-xl font-bold text-slate-600 active:bg-slate-100 disabled:opacity-40"

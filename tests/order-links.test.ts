@@ -298,6 +298,60 @@ suite('order links', () => {
 		).rejects.toMatchObject({ message: 'Ordering for this offer has closed.' });
 	}, 60_000);
 
+	it('review fixes: refunded orders free capacity, replay echoes the stored order, tags count orders', async () => {
+		const { db, schema } = ctx.db;
+		const { eq } = await import('drizzle-orm');
+		const link = await ctx.links.createOrderLink(tenantId, {
+			title: 'Review Fixes',
+			unit: 'KG',
+			unitPrice: '1000',
+			capacityTotal: 4,
+			shareTags: [{ key: 'status', label: 'Status' }]
+		});
+		await ctx.links.setOrderLinkStatus(tenantId, link.id, 'ACTIVE');
+
+		const tok = nextToken();
+		const first = await ctx.links.submitOrderLink(
+			link.publicId,
+			{
+				name: 'Rita',
+				whatsappPhone: '+255700113001',
+				quantity: 4,
+				deliveryMethod: 'PICKUP',
+				submissionToken: tok,
+				sourceTag: 'status'
+			},
+			{ ipHash: 'test-ip-fix-1' }
+		);
+		// A replay describes the order that EXISTS, not the numbers the caller resent.
+		const replay = await ctx.links.submitOrderLink(
+			link.publicId,
+			{ name: 'Rita', whatsappPhone: '+255700113001', quantity: 99, deliveryMethod: 'PICKUP', submissionToken: tok },
+			{ ipHash: 'test-ip-fix-1' }
+		);
+		expect(replay.orderNumber).toBe(first.orderNumber);
+		expect(replay.quantity).toBe(4);
+		expect(replay.total).toBe(first.total);
+
+		// One order with one line counts as ONE order per share tag, not one per line.
+		expect(await ctx.links.orderLinkSourceBreakdown(tenantId, link.id)).toEqual([
+			{ tag: 'status', orders: 1, quantity: 4 }
+		]);
+
+		// Capacity is full…
+		expect((await ctx.links.getPublicOrderLink(link.publicId))?.state).toBe('SOLD_OUT');
+		// …until the order is refunded, which is not a live sale.
+		const { items } = await ctx.orders.listOrders(
+			tenantId,
+			{ page: 1, limit: 5, order: 'desc' },
+			{ orderLinkId: link.id }
+		);
+		await db().update(schema.orders).set({ status: 'REFUNDED' }).where(eq(schema.orders.id, items[0].order.id));
+		expect((await ctx.links.getPublicOrderLink(link.publicId))?.state).toBe('OPEN');
+		const stats = (await ctx.links.listOrderLinks(tenantId)).find((r) => r.link.id === link.id);
+		expect(stats?.stats).toMatchObject({ orders: 0, quantity: 0, expected: 0 });
+	}, 120_000);
+
 	it('§27 tenant isolation: links, stats and management never cross tenants', async () => {
 		const link = await ctx.links.createOrderLink(tenantId, { title: 'Isolated', unit: 'Piece', unitPrice: '100' });
 		// Tenant B cannot see, edit, or read stats for tenant A's link.

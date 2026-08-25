@@ -8,7 +8,13 @@
 //  - seat limits come from the plan (platform.maxUsers); the plan always wins
 import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { audit } from './audit';
-import { effectivePermissions, isCustomized, PERMISSIONS, permissionsForRole, type Permission } from './auth/permissions';
+import {
+	effectivePermissions,
+	isCustomized,
+	PERMISSIONS,
+	permissionsForRole,
+	type Permission
+} from './auth/permissions';
 import { issueToken } from './auth/verification';
 import { db, schema } from './db';
 import { getLimit } from './entitlements';
@@ -74,6 +80,9 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
 		items: [
 			{ key: 'orders:read', label: 'View orders and batches' },
 			{ key: 'orders:write', label: 'Create, update and confirm orders' },
+			{ key: 'order_links:read', label: 'View order links' },
+			{ key: 'order_links:write', label: 'Create and edit public order links' },
+			{ key: 'order_links:archive', label: 'Archive order links' },
 			{ key: 'catalog:read', label: 'View catalog' },
 			{ key: 'catalog:write', label: 'Manage catalog' }
 		]
@@ -222,9 +231,11 @@ export type InviteInput = {
  */
 export async function inviteMember(tenantId: string, input: InviteInput) {
 	const email = input.email.trim().toLowerCase();
-	if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new AppError('VALIDATION_ERROR', 'Enter a valid email address.');
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
+		throw new AppError('VALIDATION_ERROR', 'Enter a valid email address.');
 	// Owner/platform roles are never grantable through an invitation (§12, §27).
-	if (!INVITABLE_ROLES.includes(input.role)) throw new AppError('VALIDATION_ERROR', 'That role cannot be assigned by invitation.');
+	if (!INVITABLE_ROLES.includes(input.role))
+		throw new AppError('VALIDATION_ERROR', 'That role cannot be assigned by invitation.');
 
 	// Plan seat limit: count every non-disabled seat, invited ones included.
 	const seatLimit = await getLimit(tenantId, 'platform.maxUsers');
@@ -262,7 +273,14 @@ export async function inviteMember(tenantId: string, input: InviteInput) {
 		// Re-inviting a deactivated member reactivates the seat with the new role.
 		await db()
 			.update(schema.tenantMemberships)
-			.set({ role: input.role, disabledAt: null, acceptedAt: null, invitedByUserId: input.invitedByUserId, permissionOverrides: {}, updatedAt: new Date() })
+			.set({
+				role: input.role,
+				disabledAt: null,
+				acceptedAt: null,
+				invitedByUserId: input.invitedByUserId,
+				permissionOverrides: {},
+				updatedAt: new Date()
+			})
 			.where(eq(schema.tenantMemberships.id, existing.id));
 	} else {
 		await db().insert(schema.tenantMemberships).values({
@@ -286,22 +304,23 @@ export async function inviteMember(tenantId: string, input: InviteInput) {
 		html: `<p><b>${tenant?.name ?? 'A business'}</b> invited you to join their team on Makutano Connect as <b>${roleLabel(input.role)}</b>.</p><p><a href="${link}">Accept the invitation</a></p><p style="color:#94a3b8;font-size:12px">This link expires in 7 days and can only be used once.</p>`
 	});
 
-	await audit(tenantId, 'user.invited', { type: 'user', userId: input.invitedByUserId }, { type: 'user', id: user.id }, {
-		email,
-		role: input.role
-	});
+	await audit(
+		tenantId,
+		'user.invited',
+		{ type: 'user', userId: input.invitedByUserId },
+		{ type: 'user', id: user.id },
+		{
+			email,
+			role: input.role
+		}
+	);
 	log.info('team_member_invited', { tenantId, role: input.role });
 	return { userId: user.id };
 }
 
 /* --------------------------------------------------------------- mutations ---- */
 
-export async function changeRole(
-	tenantId: string,
-	membershipId: string,
-	role: schema.Role,
-	actor: { userId: string }
-) {
+export async function changeRole(tenantId: string, membershipId: string, role: schema.Role, actor: { userId: string }) {
 	if (!INVITABLE_ROLES.includes(role)) throw new AppError('VALIDATION_ERROR', 'That role cannot be assigned here.');
 	const target = await membershipOf(tenantId, membershipId);
 	if (target.membership.role === 'OWNER' && (await isLastActiveOwner(tenantId, membershipId))) {
@@ -311,10 +330,16 @@ export async function changeRole(
 		.update(schema.tenantMemberships)
 		.set({ role, permissionOverrides: {}, updatedAt: new Date() })
 		.where(eq(schema.tenantMemberships.id, membershipId));
-	await audit(tenantId, 'role.changed', { type: 'user', userId: actor.userId }, { type: 'user', id: target.user.id }, {
-		from: target.membership.role,
-		to: role
-	});
+	await audit(
+		tenantId,
+		'role.changed',
+		{ type: 'user', userId: actor.userId },
+		{ type: 'user', id: target.user.id },
+		{
+			from: target.membership.role,
+			to: role
+		}
+	);
 }
 
 export async function setPermissionOverrides(
@@ -340,11 +365,17 @@ export async function setPermissionOverrides(
 		.update(schema.tenantMemberships)
 		.set({ permissionOverrides: clean, updatedAt: new Date() })
 		.where(eq(schema.tenantMemberships.id, membershipId));
-	await audit(tenantId, 'permission.changed', { type: 'user', userId: actor.userId }, { type: 'user', id: target.user.id }, {
-		role: target.membership.role,
-		before: target.membership.permissionOverrides ?? {},
-		after: clean
-	});
+	await audit(
+		tenantId,
+		'permission.changed',
+		{ type: 'user', userId: actor.userId },
+		{ type: 'user', id: target.user.id },
+		{
+			role: target.membership.role,
+			before: target.membership.permissionOverrides ?? {},
+			after: clean
+		}
+	);
 }
 
 export async function resetPermissions(tenantId: string, membershipId: string, actor: { userId: string }) {
@@ -410,8 +441,14 @@ export async function removeMember(tenantId: string, membershipId: string, actor
 		.set({ assignedToUserId: null, updatedAt: new Date() })
 		.where(and(eq(schema.conversations.tenantId, tenantId), eq(schema.conversations.assignedToUserId, target.user.id)));
 	await db().delete(schema.tenantMemberships).where(eq(schema.tenantMemberships.id, membershipId));
-	await audit(tenantId, 'user.removed', { type: 'user', userId: actor.userId }, { type: 'user', id: target.user.id }, {
-		email: target.user.email,
-		role: target.membership.role
-	});
+	await audit(
+		tenantId,
+		'user.removed',
+		{ type: 'user', userId: actor.userId },
+		{ type: 'user', id: target.user.id },
+		{
+			email: target.user.email,
+			role: target.membership.role
+		}
+	);
 }

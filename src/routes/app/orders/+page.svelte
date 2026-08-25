@@ -62,7 +62,7 @@
 								<td class="table-cell"><Money amount={row.order.total} currency={row.order.currency} /></td>
 								<td class="table-cell"><StatusBadge value={row.order.paymentStatus} size="xs" /></td>
 								<td class="table-cell"><StatusBadge value={row.order.status} /></td>
-								<td class="table-cell text-[11px] uppercase text-slate-400">{row.order.source.replace(/_/g, ' ')}</td>
+								<td class="table-cell text-[11px] text-slate-400">{sourceLabel(row.order.source)}</td>
 								<td class="table-cell text-slate-500"><TimeAgo value={row.order.createdAt} timezone={data.tenant.timezone} /></td>
 							</tr>
 						{/each}

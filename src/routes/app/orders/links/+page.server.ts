@@ -16,9 +16,14 @@ import {
 } from '$lib/server/order-links';
 import { toAppError } from '$lib/server/errors';
 import { env } from '$lib/server/env';
+import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
+	const workspaceRelevant = moduleRelevant(
+		normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities),
+		'orders'
+	);
 	requireTenantPermission(locals, 'order_links:read');
 	const tenant = requireTenant(locals);
 	const includeArchived = url.searchParams.get('archived') === '1';
@@ -29,6 +34,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const detailId = url.searchParams.get('detail');
 	const breakdown = detailId ? await orderLinkSourceBreakdown(tenant.id, detailId).catch(() => []) : [];
 	return {
+		workspaceRelevant,
 		links: links.map(({ link, stats }) => ({ ...link, stats })),
 		batches: ('items' in batches ? batches.items : []).map((b: { batch: { id: string; name: string } }) => ({
 			id: b.batch.id,
@@ -44,7 +50,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	};
 };
 
-function parseInput(data: FormData): OrderLinkInput {
+/** "2026-08-29T20:00" understood in `timeZone` → the correct UTC instant. */
+function zonedLocalToUtc(local: string, timeZone: string): Date | null {
+	if (!local) return null;
+	const naive = new Date(`${local}:00Z`);
+	if (Number.isNaN(naive.getTime())) return null;
+	// Offset of that zone at (approximately) that moment, including DST.
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone,
+		hour12: false,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit'
+	}).formatToParts(naive);
+	const get = (type: string) => Number(parts.find((x) => x.type === type)?.value ?? 0);
+	const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
+	return new Date(naive.getTime() - (asUtc - naive.getTime()));
+}
+
+function parseInput(data: FormData, timeZone: string): OrderLinkInput {
 	const opt = (v: FormDataEntryValue | null) => String(v ?? '').trim() || undefined;
 	const int = (v: FormDataEntryValue | null) => {
 		const s = String(v ?? '').trim();
@@ -52,12 +79,9 @@ function parseInput(data: FormData): OrderLinkInput {
 		const n = Number(s);
 		return Number.isFinite(n) ? Math.floor(n) : NaN;
 	};
-	const date = (v: FormDataEntryValue | null) => {
-		const s = String(v ?? '').trim();
-		if (!s) return null;
-		const d = new Date(s);
-		return Number.isNaN(d.getTime()) ? null : d;
-	};
+	// A datetime-local value carries no zone. Interpret it in the TENANT's timezone,
+	// not the server's, or "Friday 8 PM" silently becomes 11 PM in Dar es Salaam.
+	const date = (v: FormDataEntryValue | null) => zonedLocalToUtc(String(v ?? '').trim(), timeZone);
 	const mode = (v: FormDataEntryValue | null): FieldMode => {
 		const s = String(v ?? 'OPTIONAL');
 		return s === 'HIDDEN' || s === 'REQUIRED' ? s : 'OPTIONAL';
@@ -103,7 +127,8 @@ function parseInput(data: FormData): OrderLinkInput {
 		},
 		paymentTiming: String(data.get('paymentTiming')) === 'IMMEDIATE' ? 'IMMEDIATE' : 'AFTER_CONFIRMATION',
 		shareTags,
-		batchId: opt(data.get('batchId')) ?? null
+		batchId: opt(data.get('batchId')) ?? null,
+		catalogItemId: opt(data.get('catalogItemId')) ?? null
 	};
 }
 
@@ -113,10 +138,17 @@ export const actions: Actions = {
 		const tenant = requireTenant(locals);
 		const data = await request.formData();
 		try {
-			const link = await createOrderLink(tenant.id, parseInput(data), { userId: locals.user!.id });
+			const link = await createOrderLink(tenant.id, parseInput(data, tenant.timezone), { userId: locals.user!.id });
 			// A new link goes live immediately — creating then hunting for "activate" is friction.
-			if (data.get('activate') === 'on')
-				await setOrderLinkStatus(tenant.id, link.id, 'ACTIVE', { userId: locals.user!.id });
+			if (data.get('activate') === 'on') {
+				try {
+					await setOrderLinkStatus(tenant.id, link.id, 'ACTIVE', { userId: locals.user!.id });
+				} catch (err) {
+					// The link exists; only going live failed. Reporting a plain failure here
+					// would invite a retry that creates a second copy.
+					return { success: true, createdId: link.id, warning: toAppError(err).message };
+				}
+			}
 			return { success: true, createdId: link.id };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -128,7 +160,9 @@ export const actions: Actions = {
 		const tenant = requireTenant(locals);
 		const data = await request.formData();
 		try {
-			await updateOrderLink(tenant.id, String(data.get('id') ?? ''), parseInput(data), { userId: locals.user!.id });
+			await updateOrderLink(tenant.id, String(data.get('id') ?? ''), parseInput(data, tenant.timezone), {
+				userId: locals.user!.id
+			});
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });

@@ -3,6 +3,7 @@
 	// One offer → one link → simple form → one order. Deliberately not a store.
 	import { enhance } from '$app/forms';
 	import FormToast from '$components/FormToast.svelte';
+	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import Money from '$components/Money.svelte';
 	let { data, form } = $props();
 
@@ -56,6 +57,9 @@
 
 <FormToast {form} successTitle="Saved" />
 
+{#if !data.workspaceRelevant}
+	<WorkspaceNotice module="Order Links" />
+{:else}
 <div class="space-y-3">
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div>
@@ -79,7 +83,7 @@
 			use:enhance={() => async ({ update, result }) => { await update({ reset: !l }); if (result.type === 'success') { showForm = false; editing = null; } }}
 			class="card grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
 		>
-			{#if l}<input type="hidden" name="id" value={l.id} />{/if}
+			{#if l}<input type="hidden" name="id" value={l.id} /><input type="hidden" name="catalogItemId" value={l.catalogItemId ?? ''} />{/if}
 			<div class="sm:col-span-2"><label class="label" for="ol-title">What are you selling?</label><input id="ol-title" name="title" required value={l?.title ?? ''} placeholder="Fresh Fish" class="input" /></div>
 			<div>
 				<label class="label" for="ol-unit">Unit</label>
@@ -221,6 +225,8 @@
 		</div>
 	{/each}
 </div>
+
+{/if}
 
 <!-- QR overlay -->
 {#if qrFor && qrDataUrl}

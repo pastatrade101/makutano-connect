@@ -321,10 +321,10 @@ export async function listOrderLinks(
 ): Promise<Array<{ link: schema.OrderLink; stats: OrderLinkStats }>> {
 	const rows = (await db().execute(sql`
 		select ol.*,
-			(select count(*)::int from orders o where o.order_link_id = ol.id and o.status <> 'CANCELLED') as stat_orders,
+			(select count(*)::int from orders o where o.order_link_id = ol.id and o.status not in ('CANCELLED','REFUNDED')) as stat_orders,
 			(select coalesce(sum(i.quantity), 0)::int from orders o join order_items i on i.order_id = o.id
-				where o.order_link_id = ol.id and o.status <> 'CANCELLED') as stat_quantity,
-			(select coalesce(sum(o.total), 0) from orders o where o.order_link_id = ol.id and o.status <> 'CANCELLED') as stat_expected
+				where o.order_link_id = ol.id and o.status not in ('CANCELLED','REFUNDED')) as stat_quantity,
+			(select coalesce(sum(o.total), 0) from orders o where o.order_link_id = ol.id and o.status not in ('CANCELLED','REFUNDED')) as stat_expected
 		from order_links ol
 		where ol.tenant_id = ${tenantId}::uuid
 			${options.includeArchived ? sql`` : sql`and ol.status <> 'ARCHIVED'`}
@@ -378,10 +378,10 @@ export async function orderLinkSourceBreakdown(
 	await getOwnedLink(tenantId, id);
 	const rows = (await db().execute(sql`
 		select coalesce(o.metadata->'orderLink'->>'tag', '') as tag,
-			count(*)::int as orders,
+			count(distinct o.id)::int as orders,
 			coalesce(sum(i.quantity), 0)::int as quantity
 		from orders o join order_items i on i.order_id = o.id
-		where o.order_link_id = ${id}::uuid and o.tenant_id = ${tenantId}::uuid and o.status <> 'CANCELLED'
+		where o.order_link_id = ${id}::uuid and o.tenant_id = ${tenantId}::uuid and o.status not in ('CANCELLED','REFUNDED')
 		group by 1 order by 2 desc
 	`)) as unknown as Array<{ tag: string; orders: number; quantity: number }>;
 	return rows.map((r) => ({ tag: r.tag || 'direct', orders: Number(r.orders), quantity: Number(r.quantity) }));
@@ -415,7 +415,7 @@ async function acceptedQuantity(linkId: string): Promise<number> {
 	const rows = (await db().execute(sql`
 		select coalesce(sum(i.quantity), 0)::int as n
 		from orders o join order_items i on i.order_id = o.id
-		where o.order_link_id = ${linkId}::uuid and o.status <> 'CANCELLED'
+		where o.order_link_id = ${linkId}::uuid and o.status not in ('CANCELLED','REFUNDED')
 	`)) as unknown as Array<{ n: number }>;
 	return Number(rows[0]?.n ?? 0);
 }
@@ -500,17 +500,21 @@ async function replaySubmission(
 	submissionToken: string,
 	quantity: number
 ): Promise<OrderLinkReceipt | null> {
-	const existing = await db()
-		.select({ orderNumber: schema.orders.orderNumber, total: schema.orders.total, currency: schema.orders.currency })
-		.from(schema.orders)
-		.where(and(eq(schema.orders.orderLinkId, link.id), eq(schema.orders.orderLinkSubmissionToken, submissionToken)))
-		.limit(1);
+	const existing = (await db().execute(sql`
+		select o.order_number, o.total, o.currency,
+			coalesce((select sum(i.quantity)::int from order_items i where i.order_id = o.id), ${quantity}) as quantity
+		from orders o
+		where o.order_link_id = ${link.id}::uuid and o.order_link_submission_token = ${submissionToken}
+		limit 1
+	`)) as unknown as Array<{ order_number: string; total: string; currency: string; quantity: number }>;
 	if (!existing[0]) return null;
+	// Echo the STORED order, never the caller's numbers — a replay must describe the
+	// order that actually exists.
 	return {
-		orderNumber: existing[0].orderNumber,
+		orderNumber: existing[0].order_number,
 		total: String(existing[0].total),
 		currency: existing[0].currency,
-		quantity,
+		quantity: Number(existing[0].quantity),
 		unit: link.unit,
 		title: link.title
 	};

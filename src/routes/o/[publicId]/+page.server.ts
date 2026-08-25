@@ -5,11 +5,12 @@ import { getPublicOrderLink, registerOrderLinkView, submitOrderLink } from '$lib
 import { toAppError } from '$lib/server/errors';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params, url }) => {
-	const link = await getPublicOrderLink(params.publicId);
+export const load: PageServerLoad = async ({ params, url, isDataRequest }) => {
+	const link = await getPublicOrderLink(params.publicId!);
 	if (!link) error(404, 'This order link is not available.');
-	// Best-effort view count for conversion stats — only states a customer can act on.
-	if (link.state === 'OPEN') void registerOrderLinkView(params.publicId);
+	// Best-effort view count for conversion stats — only states a customer can act
+	// on, and never on the re-run that follows a submission (that is not a new view).
+	if (link.state === 'OPEN' && !isDataRequest) void registerOrderLinkView(params.publicId!);
 	const tag = url.searchParams.get('s')?.slice(0, 40) ?? null;
 	return { link, tag };
 };
@@ -19,7 +20,12 @@ export const actions: Actions = {
 		const data = await request.formData();
 		// Honeypot: humans never see the field; bots that fill it get a quiet fake success.
 		if (String(data.get('hp_company') ?? '')) {
-			return { success: true, receipt: null };
+			// Indistinguishable from the real thing: a plausible receipt, no order.
+			return {
+				success: true,
+				receipt: { orderNumber: 'OR-PENDING', total: '0', currency: '', quantity: 0, unit: '', title: '' },
+				decoy: true
+			};
 		}
 		const values = {
 			name: String(data.get('name') ?? ''),
@@ -49,7 +55,16 @@ export const actions: Actions = {
 			return { success: true, receipt };
 		} catch (err) {
 			const appError = toAppError(err);
-			return fail(appError.code === 'RATE_LIMITED' ? 429 : 400, { ...values, message: appError.message });
+			// Never leak tenant/billing state to the public. Anything that is not a
+			// plain customer-input problem becomes the same neutral closed message.
+			const CUSTOMER_FACING = new Set(['VALIDATION_ERROR', 'CONFLICT']);
+			const message =
+				appError.code === 'RATE_LIMITED'
+					? 'Too many attempts. Please wait a moment and try again.'
+					: CUSTOMER_FACING.has(appError.code)
+						? appError.message
+						: 'Ordering for this offer has closed.';
+			return fail(appError.code === 'RATE_LIMITED' ? 429 : 400, { ...values, message });
 		}
 	}
 };
