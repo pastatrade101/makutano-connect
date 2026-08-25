@@ -49,7 +49,6 @@ describe('order totals (pure)', () => {
 	});
 });
 
-
 /** Test tenants exercise behaviour, not plan limits — lift the caps explicitly. */
 async function liftLimits(tenantId: string): Promise<void> {
 	const { db, schema } = await import('../src/lib/server/db');
@@ -106,7 +105,9 @@ suite('commerce integration', () => {
 	afterAll(async () => {
 		const { db, schema } = ctx.db;
 		const { inArray } = await import('drizzle-orm');
-		await db().delete(schema.tenants).where(inArray(schema.tenants.id, [tenantA.id, tenantB.id]));
+		await db()
+			.delete(schema.tenants)
+			.where(inArray(schema.tenants.id, [tenantA.id, tenantB.id]));
 		await ctx.db.closeDb();
 	});
 
@@ -158,17 +159,25 @@ suite('commerce integration', () => {
 
 	it('refuses illegal transitions and edits after confirmation', async () => {
 		const order = await ctx.orders.createOrder(tenantA.id, { items: [{ title: 'Item', unitPrice: '10.00' }] });
-		await expect(ctx.orders.changeOrderStatus(tenantA.id, order.id, 'DELIVERED')).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+		await expect(ctx.orders.changeOrderStatus(tenantA.id, order.id, 'DELIVERED')).rejects.toMatchObject({
+			code: 'VALIDATION_ERROR'
+		});
 		await ctx.orders.changeOrderStatus(tenantA.id, order.id, 'CONFIRMED');
-		await expect(ctx.orders.updateDraftOrder(tenantA.id, order.id, { notes: 'nope' })).rejects.toMatchObject({ code: 'CONFLICT' });
+		await expect(ctx.orders.updateDraftOrder(tenantA.id, order.id, { notes: 'nope' })).rejects.toMatchObject({
+			code: 'CONFLICT'
+		});
 	});
 
 	it('keeps orders tenant-isolated', async () => {
 		const order = await ctx.orders.createOrder(tenantA.id, { items: [{ title: 'Private', unitPrice: '9.99' }] });
 		await expect(ctx.orders.getOrder(tenantB.id, order.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-		await expect(ctx.orders.changeOrderStatus(tenantB.id, order.id, 'CONFIRMED')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(ctx.orders.changeOrderStatus(tenantB.id, order.id, 'CONFIRMED')).rejects.toMatchObject({
+			code: 'NOT_FOUND'
+		});
 		// B cannot attach a payment to A's order either.
-		await expect(ctx.payments.createPayment(tenantB.id, { orderId: order.id, amount: '1.00' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(ctx.payments.createPayment(tenantB.id, { orderId: order.id, amount: '1.00' })).rejects.toMatchObject({
+			code: 'NOT_FOUND'
+		});
 	});
 
 	it('refuses a cross-tenant customer on the order UPDATE path (BOLA regression)', async () => {
@@ -195,8 +204,14 @@ suite('commerce integration', () => {
 	});
 
 	it('clearing the customer with null still works', async () => {
-		const mine = await ctx.customers.findOrCreateCustomer(tenantA.id, { firstName: 'Mine', email: `mine-${stamp}@example.com` });
-		const draft = await ctx.orders.createOrder(tenantA.id, { customerId: mine.id, items: [{ title: 'Thing', unitPrice: '5.00' }] });
+		const mine = await ctx.customers.findOrCreateCustomer(tenantA.id, {
+			firstName: 'Mine',
+			email: `mine-${stamp}@example.com`
+		});
+		const draft = await ctx.orders.createOrder(tenantA.id, {
+			customerId: mine.id,
+			items: [{ title: 'Thing', unitPrice: '5.00' }]
+		});
 		const cleared = await ctx.orders.updateDraftOrder(tenantA.id, draft.id, { customerId: null });
 		expect(cleared.customerId).toBeNull();
 	});
@@ -258,7 +273,10 @@ suite('commerce integration', () => {
 	it('strips unknown field keys from form configuration', async () => {
 		const form = await ctx.forms.createForm(tenantA.id, { type: 'LEAD', name: 'Strict' });
 		const updated = await ctx.forms.updateForm(tenantA.id, form.id, {
-			fields: { firstName: { enabled: true, required: true }, evil_injected: { enabled: true, required: true } } as never
+			fields: {
+				firstName: { enabled: true, required: true },
+				evil_injected: { enabled: true, required: true }
+			} as never
 		});
 		expect(Object.keys(updated.fields)).not.toContain('evil_injected');
 	});
@@ -267,5 +285,29 @@ suite('commerce integration', () => {
 		const form = await ctx.forms.createForm(tenantA.id, { type: 'LEAD', name: 'Mine' });
 		await expect(ctx.forms.getForm(tenantB.id, form.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
 		await expect(ctx.forms.regeneratePublicId(tenantB.id, form.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+	});
+});
+
+describe('order notifications never go silently missing', () => {
+	// Regression: a PICKUP order has no delivery address, so an approved template
+	// asking for {{delivery.address}} resolved to an empty parameter and the whole
+	// send was skipped — staff pressed Dispatch and the customer heard nothing.
+	it('resolves a delivery address for pickup and address-less orders', async () => {
+		const { resolveVariables } = await import('../src/lib/server/whatsapp/template-engine');
+
+		const pickup = resolveVariables(['customer.first_name', 'order.number', 'delivery.address'], {
+			customer: { firstName: 'Asha' },
+			order: { number: 'FIS-OR-2026-00002', deliveryLocation: 'Fish Hook Ltd' }
+		});
+		expect(pickup.every((v) => v && v.trim())).toBe(true);
+		expect(pickup[2]).toBe('Fish Hook Ltd');
+
+		// A recorded address still wins over any fallback.
+		const delivery = resolveVariables(['delivery.address'], { order: { deliveryLocation: 'Moshono' } });
+		expect(delivery[0]).toBe('Moshono');
+
+		// And a genuinely empty value is still refused rather than sent as blank —
+		// Meta rejects empty parameters outright.
+		expect(resolveVariables(['delivery.address'], { order: {} })[0]).toBe('');
 	});
 });

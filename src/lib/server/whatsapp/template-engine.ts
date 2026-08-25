@@ -290,11 +290,20 @@ export async function sendEventTemplate(
 		const template = rows[0];
 		if (!template) return null;
 
-		const values = resolveVariables((template.variables ?? []) as string[], ctx);
+		const names = (template.variables ?? []) as string[];
+		const values = resolveVariables(names, ctx);
 		// Meta rejects empty body parameters outright; a skipped send that shows up in
-		// the log beats a guaranteed FAILED message in the customer's thread.
-		if (values.some((v) => !v || !v.trim())) {
-			log.info('template_send_skipped', { tenantId, event, reason: 'missing_variable_value' });
+		// the log beats a guaranteed FAILED message in the customer's thread. Name the
+		// empty variables: "no message went out" is otherwise invisible to everyone.
+		const missing = names.filter((_, i) => !values[i] || !values[i].trim());
+		if (missing.length) {
+			log.warn('template_send_skipped', {
+				tenantId,
+				event,
+				template: template.name,
+				reason: 'missing_variable_value',
+				missing
+			});
 			return null;
 		}
 		const components: Array<Record<string, unknown>> = values.length

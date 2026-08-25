@@ -80,27 +80,33 @@ export function computeOrderTotals(
 }
 
 async function insertItems(tenantId: string, orderId: string, items: OrderItemInput[]) {
-	await db().insert(schema.orderItems).values(
-		items.map((item) => ({
-			tenantId,
-			orderId,
-			catalogItemId: item.catalogItemId ?? null,
-			title: item.title,
-			variant: item.variant ?? null,
-			sku: item.sku ?? null,
-			quantity: item.quantity ?? 1,
-			unit: item.unit ?? null,
-			unitPrice: item.unitPrice ?? '0',
-			discount: item.discount ?? '0',
-			total: fixed(Math.max(0, dec(item.unitPrice) * (item.quantity ?? 1) - dec(item.discount))),
-			externalReference: item.externalReference ?? null,
-			externalSource: item.externalSource ?? null,
-			metadata: item.metadata ?? {}
-		}))
-	);
+	await db()
+		.insert(schema.orderItems)
+		.values(
+			items.map((item) => ({
+				tenantId,
+				orderId,
+				catalogItemId: item.catalogItemId ?? null,
+				title: item.title,
+				variant: item.variant ?? null,
+				sku: item.sku ?? null,
+				quantity: item.quantity ?? 1,
+				unit: item.unit ?? null,
+				unitPrice: item.unitPrice ?? '0',
+				discount: item.discount ?? '0',
+				total: fixed(Math.max(0, dec(item.unitPrice) * (item.quantity ?? 1) - dec(item.discount))),
+				externalReference: item.externalReference ?? null,
+				externalSource: item.externalSource ?? null,
+				metadata: item.metadata ?? {}
+			}))
+		);
 }
 
-export async function createOrder(tenantId: string, input: CreateOrderInput, actor: OrderActor = {}): Promise<schema.Order> {
+export async function createOrder(
+	tenantId: string,
+	input: CreateOrderInput,
+	actor: OrderActor = {}
+): Promise<schema.Order> {
 	// Gate first, in the one canonical order: tenant live → feature on → allowance left.
 	await assertAllowed(tenantId, { feature: 'orders.enabled', limit: 'orders.maxPerMonth' });
 	const tenant = await getTenantById(tenantId);
@@ -182,15 +188,17 @@ export async function createOrder(tenantId: string, input: CreateOrderInput, act
 		.returning();
 
 	await insertItems(tenantId, order.id, input.items);
-	await db().insert(schema.orderStatusHistory).values({
-		tenantId,
-		orderId: order.id,
-		fromStatus: null,
-		toStatus: status,
-		reason: 'Order created',
-		changedByUserId: actor.userId ?? null,
-		changedByApiKeyId: actor.apiKeyId ?? null
-	});
+	await db()
+		.insert(schema.orderStatusHistory)
+		.values({
+			tenantId,
+			orderId: order.id,
+			fromStatus: null,
+			toStatus: status,
+			reason: 'Order created',
+			changedByUserId: actor.userId ?? null,
+			changedByApiKeyId: actor.apiKeyId ?? null
+		});
 
 	void recordUsage(tenantId, 'orders');
 	await emit(tenantId, 'order.created', {
@@ -284,7 +292,9 @@ export async function listOrders(tenantId: string, p: Pagination, filters: Order
 	const conditions: SQL[] = [eq(schema.orders.tenantId, tenantId)];
 	if (filters.status) {
 		conditions.push(
-			Array.isArray(filters.status) ? inArray(schema.orders.status, filters.status) : eq(schema.orders.status, filters.status)
+			Array.isArray(filters.status)
+				? inArray(schema.orders.status, filters.status)
+				: eq(schema.orders.status, filters.status)
 		);
 	}
 	if (filters.batchId) conditions.push(eq(schema.orders.batchId, filters.batchId));
@@ -387,7 +397,9 @@ export async function updateDraftOrder(
 		.returning();
 
 	if (items?.length) {
-		await db().delete(schema.orderItems).where(and(eq(schema.orderItems.orderId, id), eq(schema.orderItems.tenantId, tenantId)));
+		await db()
+			.delete(schema.orderItems)
+			.where(and(eq(schema.orderItems.orderId, id), eq(schema.orderItems.tenantId, tenantId)));
 		await insertItems(tenantId, id, items);
 	}
 	return updated;
@@ -434,7 +446,14 @@ async function orderTemplateContext(tenantId: string, order: schema.Order) {
 				total: order.total,
 				currency: order.currency,
 				itemsSummary: items.map((i) => `${i.quantity}× ${i.title}`).join(', '),
-				deliveryLocation: order.deliveryLocation
+				// Meta rejects empty parameters, so a template asking for the delivery
+				// address would silently never send for a pickup order or one taken down
+				// without an address. Both fallbacks stay true: a pickup customer really
+				// is collecting from the business, and the neutral phrase claims nothing
+				// about an address we were never given.
+				deliveryLocation:
+					order.deliveryLocation ||
+					(order.deliveryMethod === 'PICKUP' ? (tenant?.name ?? 'our collection point') : 'your delivery address')
 			}
 		}
 	};
@@ -477,15 +496,17 @@ export async function changeOrderStatus(
 		.where(and(eq(schema.orders.id, id), eq(schema.orders.tenantId, tenantId)))
 		.returning();
 
-	await db().insert(schema.orderStatusHistory).values({
-		tenantId,
-		orderId: id,
-		fromStatus: order.status,
-		toStatus,
-		reason: reason ?? null,
-		changedByUserId: actor.userId ?? null,
-		changedByApiKeyId: actor.apiKeyId ?? null
-	});
+	await db()
+		.insert(schema.orderStatusHistory)
+		.values({
+			tenantId,
+			orderId: id,
+			fromStatus: order.status,
+			toStatus,
+			reason: reason ?? null,
+			changedByUserId: actor.userId ?? null,
+			changedByApiKeyId: actor.apiKeyId ?? null
+		});
 
 	const event = STATUS_EVENT[toStatus];
 	if (event) {

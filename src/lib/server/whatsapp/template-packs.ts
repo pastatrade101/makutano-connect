@@ -22,7 +22,7 @@ import { createTemplateDraft, submitTemplateToMeta, type NotifyEvent } from './t
 import { resolveCredentials } from './connections';
 import { log } from '../logger';
 
-export const PACK_VERSION = 4;
+export const PACK_VERSION = 5;
 
 type PackTemplate = {
 	name: string;
@@ -94,7 +94,7 @@ const PACK: PackTemplate[] = [
 		eventKey: 'ORDER_DISPATCHED',
 		module: 'orders',
 		bodyText:
-			'Hi {{customer.first_name}}, your order {{order.number}} has been dispatched and is on its way to {{delivery.address}}. Reply here if you need anything.'
+			'Hi {{customer.first_name}}, your order {{order.number}} has been dispatched and is on its way. We will let you know as soon as it reaches {{delivery.address}}.'
 	},
 	{
 		name: 'order_delivered',
