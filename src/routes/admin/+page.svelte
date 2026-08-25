@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Chart from '$components/Chart.svelte';
-	import { adminTheme, chartPalette } from '$lib/stores/admin-theme.svelte';
+	import { chartPalette, theme } from '$lib/stores/theme.svelte';
 	import StatTile from '$components/StatTile.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data } = $props();
@@ -9,7 +9,7 @@
 	// Literal class strings — Tailwind's scanner cannot see computed names.
 	const revenueCols = $derived(data.revenue.totals.length >= 2 ? 'lg:grid-cols-6' : 'lg:grid-cols-3');
 
-	const pal = $derived(chartPalette(adminTheme.dark));
+	const pal = $derived(chartPalette(theme.dark));
 	const chartOptions = $derived({
 		chart: { type: 'bar' as const, height: 230, toolbar: { show: false }, fontFamily: 'inherit', background: 'transparent' },
 		series: [
@@ -153,7 +153,7 @@
 			<a href="/admin/plans" class="text-[12.5px] font-medium text-brand-600 hover:underline">Edit pricing →</a>
 		</header>
 		<div class="overflow-x-auto">
-			<table class="min-w-full divide-y divide-slate-100">
+			<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 				<thead class="bg-slate-50"><tr>
 					<th class="table-head">Plan</th><th class="table-head">Price / mo</th><th class="table-head">Paying</th>
 					<th class="table-head">On trial</th><th class="table-head">Past due</th><th class="table-head text-right">MRR</th>
@@ -182,7 +182,7 @@
 
 	<section class="card">
 		<header class="card-header"><h2 class="card-title">Failed background jobs</h2></header>
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 			<thead class="bg-slate-50"><tr><th class="table-head">Job</th><th class="table-head">Attempts</th><th class="table-head">Error</th><th class="table-head">When</th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.recentJobs as job, i (i)}

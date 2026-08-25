@@ -173,7 +173,7 @@
 				<span class="text-[12.5px] text-slate-400">Effective = override, else plan default</span>
 			</header>
 			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-100">
+				<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 					<thead class="bg-slate-50">
 						<tr><th class="table-head">Feature</th><th class="table-head">Plan default</th><th class="table-head">Override</th><th class="table-head">Effective</th><th class="table-head"></th></tr>
 					</thead>

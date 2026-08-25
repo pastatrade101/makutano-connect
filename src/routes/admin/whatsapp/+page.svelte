@@ -9,7 +9,7 @@
 <div class="space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">WhatsApp connections</h1>
 	<div class="card overflow-x-auto">
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 			<thead class="bg-slate-50"><tr><th class="table-head">Tenant</th><th class="table-head">Number</th><th class="table-head">Status</th><th class="table-head">Last inbound</th><th class="table-head">Last send</th><th class="table-head">Last error</th><th class="table-head">Token expires</th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.connections as c (c.id)}

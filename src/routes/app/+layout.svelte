@@ -7,6 +7,7 @@
 	import { page } from '$app/state';
 	import Toasts from '$components/Toasts.svelte';
 	import { catalogCopy, moduleRelevant, type Module } from '$lib/workspace';
+	import { theme, toggleTheme } from '$lib/stores/theme.svelte';
 	let { data, children } = $props();
 
 	/** Whole days left on the trial, or null when the end date is unknown. */
@@ -134,7 +135,7 @@
 
 <Toasts />
 
-<div class="flex min-h-screen">
+<div class="flex min-h-screen bg-canvas {theme.dark ? 'mk-dark' : ''}">
 	<!-- Sidenav (desktop) -->
 	<aside class="fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-slate-200 bg-white lg:flex {collapsed ? 'w-[70px]' : 'w-60'} transition-[width] duration-200">
 		<div class="flex h-[70px] items-center gap-2.5 border-b border-slate-200 {collapsed ? 'justify-center px-2' : 'px-5'}">
@@ -227,6 +228,18 @@
 						{/if}
 					</div>
 				{/if}
+				<button
+					class="rounded-panel p-2 text-slate-500 hover:bg-slate-100"
+					onclick={toggleTheme}
+					aria-label={theme.dark ? 'Switch to light mode' : 'Switch to dark mode'}
+					title={theme.dark ? 'Light mode' : 'Dark mode'}
+				>
+					{#if theme.dark}
+						<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="3.5" /><path d="M10 2.5v2m0 11v2m7.5-7.5h-2m-11 0h-2m12.8-5.3-1.4 1.4M6.1 13.9l-1.4 1.4m10.6 0-1.4-1.4M6.1 6.1 4.7 4.7" /></svg>
+					{:else}
+						<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M16.5 11.5A6.5 6.5 0 0 1 8.5 3.5a6.5 6.5 0 1 0 8 8Z" /></svg>
+					{/if}
+				</button>
 				<a href="/app/conversations" class="relative rounded-panel p-2 text-slate-500 hover:bg-slate-100" aria-label="Inbox notifications">
 					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3a4.5 4.5 0 0 0-4.5 4.5c0 3-1 4-1.5 4.8-.2.3 0 .7.4.7h11.2c.4 0 .6-.4.4-.7-.5-.8-1.5-1.8-1.5-4.8A4.5 4.5 0 0 0 10 3Zm-1.7 10.8a1.8 1.8 0 0 0 3.4 0" /></svg>
 					{#if data.unreadCount > 0}

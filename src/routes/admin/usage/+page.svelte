@@ -15,7 +15,7 @@
 
 	<section class="card overflow-x-auto">
 		<header class="card-header"><h2 class="card-title">Usage against plan limits</h2></header>
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 			<thead class="bg-slate-50">
 				<tr>
 					<th class="table-head">Tenant</th><th class="table-head">Plan</th>
@@ -54,7 +54,7 @@
 
 	<section class="card overflow-x-auto">
 		<header class="card-header"><h2 class="card-title">Subscriptions</h2></header>
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 			<thead class="bg-slate-50"><tr><th class="table-head">Tenant</th><th class="table-head">Plan</th><th class="table-head">Status</th><th class="table-head">Period ends</th><th class="table-head"></th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.subscriptions as row (row.subscription.id)}

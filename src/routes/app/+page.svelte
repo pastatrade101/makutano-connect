@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import Chart from '$components/Chart.svelte';
+	import { chartPalette, theme } from '$lib/stores/theme.svelte';
 	import OnboardingChecklist from '$components/OnboardingChecklist.svelte';
 	import { moduleRelevant } from '$lib/workspace';
 	import Money from '$components/Money.svelte';
@@ -50,21 +51,22 @@
 	const tz = $derived(data.tenant.timezone);
 
 	// Reback-style smooth area chart: brand + info series over the last fortnight.
+	const pal = $derived(chartPalette(theme.dark));
 	const chartOptions = $derived({
 		chart: { type: 'area' as const, height: 240, toolbar: { show: false }, fontFamily: 'inherit', zoom: { enabled: false } },
 		series: [
 			{ name: 'Enquiries', data: data.activity.requests },
 			{ name: 'Messages', data: data.activity.messages }
 		],
-		xaxis: { categories: data.activity.labels, labels: { style: { colors: '#8486a7', fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
-		yaxis: { labels: { style: { colors: '#8486a7', fontSize: '11px' } } },
+		xaxis: { categories: data.activity.labels, labels: { style: { colors: pal.label, fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+		yaxis: { labels: { style: { colors: pal.label, fontSize: '11px' } } },
 		colors: ['#1c84ee', '#4ecac2'],
 		stroke: { curve: 'smooth' as const, width: 2.5 },
 		fill: { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
 		dataLabels: { enabled: false },
-		grid: { borderColor: '#eaedf1', strokeDashArray: 4 },
-		legend: { labels: { colors: '#5d7186' } },
-		tooltip: { theme: 'light' as const }
+		grid: { borderColor: pal.grid, strokeDashArray: 4 },
+		legend: { labels: { colors: pal.legend } },
+		tooltip: { theme: pal.tooltip }
 	});
 </script>
 

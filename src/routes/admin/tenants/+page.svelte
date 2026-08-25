@@ -75,7 +75,39 @@
 	</form>
 
 	<div class="card overflow-hidden">
-		<table class="min-w-full divide-y divide-slate-100">
+		<!-- Phones: one card per tenant. Everything the table shows, stacked. -->
+		<ul class="divide-y divide-slate-100 sm:hidden">
+			{#each data.tenants as row (row.tenant.id)}
+				<li class="space-y-2 p-3">
+					<div class="flex items-start justify-between gap-2">
+						<div class="min-w-0">
+							<a href="/admin/tenants/{row.tenant.id}" class="block truncate font-medium text-brand-600">{row.tenant.name}</a>
+							<div class="truncate font-mono text-[12px] text-slate-400">{row.tenant.slug}</div>
+						</div>
+						<span class="badge shrink-0 {row.tenant.status === 'ACTIVE' ? 'bg-success/10 text-success' : row.tenant.status === 'SUSPENDED' ? 'bg-danger/10 text-danger' : 'bg-slate-100 text-slate-500'}">{row.tenant.status.toLowerCase()}</span>
+					</div>
+					<div class="truncate text-[12.5px] text-slate-500">{row.ownerEmail ?? 'no owner'}</div>
+					<div class="flex flex-wrap items-center gap-1.5 text-[12px] text-slate-500">
+						<span class="badge {row.tenant.provisioningSource === 'SELF_SERVICE' ? 'bg-purple/10 text-purple' : 'bg-slate-100 text-slate-600'}">
+							{row.tenant.provisioningSource === 'SELF_SERVICE' ? 'Self-service' : row.tenant.provisioningSource === 'IMPORT' ? 'Import' : 'Admin'}
+						</span>
+						<span>{row.plan?.name ?? 'No plan'}</span>
+						{#if row.whatsapp}<span class="badge bg-success/10 text-success">{row.whatsapp.toLowerCase()}</span>{/if}
+						<span class="ml-auto tabular-nums">{row.requests} req</span>
+					</div>
+					<div class="flex flex-wrap gap-2 pt-1">
+						<a href="/admin/tenants/{row.tenant.id}" class="btn-secondary !px-2.5 !py-1.5 text-[12px]">Control Center</a>
+						<form method="POST" action="?/openPortal" use:enhance>
+							<input type="hidden" name="id" value={row.tenant.id} />
+							<button class="btn-secondary !px-2.5 !py-1.5 text-[12px]">Open portal</button>
+						</form>
+					</div>
+				</li>
+			{/each}
+		</ul>
+
+		<div class="hidden overflow-x-auto sm:block">
+		<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 			<thead class="bg-slate-50"><tr><th class="table-head">Tenant</th><th class="table-head">Owner</th><th class="table-head">Source</th><th class="table-head">Plan</th><th class="table-head">Status</th><th class="table-head">WhatsApp</th><th class="table-head">Requests</th><th class="table-head">Created</th><th class="table-head"></th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.tenants as row (row.tenant.id)}
@@ -150,5 +182,6 @@
 				{/each}
 			</tbody>
 		</table>
+		</div>
 	</div>
 </div>

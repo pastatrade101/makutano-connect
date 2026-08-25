@@ -107,7 +107,7 @@
 
 <FormToast {form} successTitle="Message sent" />
 
-<header class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+<header class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-slate-200 px-4 py-3">
 	<div class="flex min-w-0 items-center gap-3">
 		<a href="/app/conversations" class="rounded-panel p-1 text-slate-400 hover:bg-slate-100 lg:hidden" aria-label="Back to inbox">
 			<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 6 10l6 6" /></svg>
@@ -124,7 +124,7 @@
 			</p>
 		</div>
 	</div>
-	<div class="flex shrink-0 items-center gap-1.5">
+	<div class="flex w-full shrink-0 items-center gap-1.5 sm:w-auto">
 		{#if data.conversation.bookingRequestId}
 			<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary !py-1.5 text-xs">Open enquiry</a>
 		{/if}
@@ -224,7 +224,7 @@
 
 <!-- §7: what this customer already has going on, without leaving the chat -->
 {#if data.context.length}
-	<div class="flex items-center gap-1.5 overflow-x-auto border-b border-slate-100 bg-white px-4 py-2">
+	<div class="flex flex-wrap items-center gap-1.5 border-b border-slate-100 bg-white px-4 py-2 sm:flex-nowrap sm:overflow-x-auto">
 		{#each data.context.slice(0, showContext ? 6 : 3) as t (t.kind + t.id)}
 			<a
 				href="{KIND_HREF[t.kind]}/{t.id}"
@@ -255,7 +255,7 @@
 <div class="flex-1 space-y-2.5 overflow-y-auto bg-canvas/60 p-4">
 	{#each data.messages as m (m.id)}
 		{@const tick = TICKS[m.status] ?? TICKS.QUEUED}
-		<div class="flex {m.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}">
+		<div class="flex flex-col {m.direction === 'OUTBOUND' ? 'items-end' : 'items-start'}">
 			<div class="max-w-[78%] rounded-panel px-3 py-2 text-[15px] {m.direction === 'OUTBOUND' ? 'rounded-br-none bg-brand-500 text-white' : 'rounded-bl-none border border-slate-200 bg-white text-slate-700'}">
 				<p class="whitespace-pre-wrap">{messagePreview(m.body, m.type)}</p>
 				<p class="mt-1 flex items-center justify-end gap-1 text-[11.5px] {m.direction === 'OUTBOUND' ? 'text-white/70' : 'text-slate-400'}">

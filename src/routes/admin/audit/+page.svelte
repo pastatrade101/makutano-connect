@@ -8,7 +8,7 @@
 <div class="space-y-3">
 	<h1 class="text-base font-semibold text-slate-900">Audit logs</h1>
 	<div class="card overflow-x-auto">
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 			<thead class="bg-slate-50"><tr><th class="table-head">Action</th><th class="table-head">Tenant</th><th class="table-head">Actor</th><th class="table-head">Entity</th><th class="table-head">When</th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.rows as row (row.log.id)}

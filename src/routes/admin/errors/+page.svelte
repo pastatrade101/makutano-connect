@@ -11,7 +11,7 @@
 
 	<section class="card overflow-x-auto">
 		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Client webhook failures</header>
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 			<thead class="bg-slate-50"><tr><th class="table-head">Tenant</th><th class="table-head">Event</th><th class="table-head">Endpoint</th><th class="table-head">Attempts</th><th class="table-head">Response</th><th class="table-head">Error</th><th class="table-head">When</th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.webhooks as row (row.delivery.id)}
@@ -33,7 +33,7 @@
 
 	<section class="card overflow-x-auto">
 		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Payment failures</header>
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 			<thead class="bg-slate-50"><tr><th class="table-head">Tenant</th><th class="table-head">Reference</th><th class="table-head">Provider</th><th class="table-head">Amount</th><th class="table-head">Reason</th><th class="table-head">When</th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.payments as row (row.payment.id)}
@@ -54,7 +54,7 @@
 
 	<section class="card overflow-x-auto">
 		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Failed WhatsApp sends</header>
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="min-w-[720px] divide-y divide-slate-100 sm:min-w-full">
 			<thead class="bg-slate-50"><tr><th class="table-head">Tenant</th><th class="table-head">To</th><th class="table-head">Type</th><th class="table-head">Error</th><th class="table-head">When</th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.messages as row (row.message.id)}
