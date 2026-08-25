@@ -1,24 +1,64 @@
-<script lang="ts"></script>
+<script lang="ts">
+	import SectionHead from './SectionHead.svelte';
+
+	// The theme opens a section with an icon chip, a dashed rule and a pill label; the
+	// three steps below use its "services" card treatment. Copy is unchanged.
+	const steps = [
+		{ n: '01', t: 'Connect', d: 'Connect WhatsApp Business and the customer-facing channels you need.', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z' },
+		{ n: '02', t: 'Integrate', d: 'Connect your website, CMS, booking system or business software using APIs and webhooks.', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5' },
+		{ n: '03', t: 'Operate', d: 'Your team manages conversations, transactions, payments and follow-up through Connect.', icon: 'M3 10h4l2-5 3 10 2-5h3' }
+	];
+</script>
 
 {#snippet check(text: string)}
 	<li class="flex items-start gap-2.5 text-[13px] leading-6 text-slate-600"><span class="mt-1 flex size-4 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600"><svg class="size-2.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m4 10.5 4 4 8-9" /></svg></span><span>{text}</span></li>
 {/snippet}
 
+<section id="how-it-works" class="scroll-mt-24 border-b border-slate-100 bg-white">
+	<div class="mx-auto max-w-[1240px] px-4 py-[90px] sm:px-6 lg:px-10">
+		<SectionHead
+			label="How it works"
+			title="Three steps. No migration."
+			subtitle="Connect fits beside your current systems, then gives your team one operational layer for customer work."
+			icon="M4 10h12M10 4v12"
+		/>
+		<div class="mt-12 grid gap-4 md:grid-cols-3">
+			{#each steps as step (step.n)}
+				<div class="rounded-2xl border border-slate-100 bg-white p-7 shadow-[0_10px_50px_rgba(50,58,70,0.05)]">
+					<span class="flex size-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+						<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d={step.icon} /></svg>
+					</span>
+					<p class="mt-6 text-[11px] font-bold tracking-[0.14em] text-brand-600 uppercase">{step.n}</p>
+					<h3 class="mt-1 text-lg font-semibold text-slate-900">{step.t}</h3>
+					<p class="mt-2 text-[13px] leading-6 text-slate-500">{step.d}</p>
+				</div>
+			{/each}
+		</div>
+	</div>
+</section>
+
 <section id="product" class="scroll-mt-24 border-b border-slate-100 bg-[#f8faff]">
-	<div class="mx-auto max-w-[1240px] px-4 py-20 sm:px-6 lg:px-10 lg:py-28">
-		<div class="mx-auto max-w-3xl text-center"><p class="eyebrow">Product infrastructure</p><h2 class="section-title">Simple on the surface. Serious underneath.</h2><p class="section-copy mx-auto">Connect keeps customer communication attached to the operational work it creates.</p></div>
+	<div class="mx-auto max-w-[1240px] px-4 py-[90px] sm:px-6 lg:px-10">
+		<SectionHead
+			label="Product infrastructure"
+			title="Simple on the surface. Serious underneath."
+			subtitle="Connect keeps customer communication attached to the operational work it creates."
+			icon="M4 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v11l-3-1.8L10 16l-3-1.8L4 16V5Z"
+		/>
 
 		<div class="mt-14 grid items-center gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:gap-16">
-			<div><span class="feature-number">01 · WhatsApp infrastructure</span><h3 class="feature-title">Turn one WhatsApp number into a business workspace.</h3><p class="feature-copy">Use your own number while giving every teammate controlled, accountable access to the conversations they should handle.</p><ul class="mt-6 grid gap-x-5 gap-y-1 sm:grid-cols-2 lg:grid-cols-1">{@render check("Client's own WhatsApp Business number")}{@render check('Shared inbox, assignment and presence')}{@render check('Private and assigned-only conversations')}{@render check('Approved template notifications')}{@render check('Customer conversation history')}{@render check('Granular staff permissions')}</ul></div>
-			<div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_65px_rgba(50,58,70,0.10)]">
+			<div><p class="flex items-center gap-2"><span class="flex size-[30px] items-center justify-center rounded-md bg-brand-500 text-[11px] font-bold text-white">01</span><span class="h-px w-6 border-t border-dashed border-brand-400"></span><span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11.5px] font-semibold text-brand-600">WhatsApp infrastructure</span></p><h3 class="feature-title">Turn one WhatsApp number into a business workspace.</h3><p class="feature-copy">Use your own number while giving every teammate controlled, accountable access to the conversations they should handle.</p><ul class="mt-6 grid gap-x-5 gap-y-1 sm:grid-cols-2 lg:grid-cols-1">{@render check("Client's own WhatsApp Business number")}{@render check('Shared inbox, assignment and presence')}{@render check('Private and assigned-only conversations')}{@render check('Approved template notifications')}{@render check('Customer conversation history')}{@render check('Granular staff permissions')}</ul></div>
+			<div class="rounded-2xl bg-brand-500 p-2 shadow-[0_24px_65px_rgba(50,58,70,0.12)]">
+			<div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
 				<div class="flex items-center justify-between border-b border-slate-200 px-4 py-3"><div><div class="text-[12px] font-semibold text-slate-800">Asha M.</div><div class="text-[9px] text-slate-400">WhatsApp · Active conversation</div></div><span class="rounded-full bg-brand-50 px-2.5 py-1 text-[9px] font-semibold text-brand-600">Assigned to Robert</span></div>
 				<div class="grid min-h-[330px] sm:grid-cols-[155px_1fr]"><div class="hidden border-r border-slate-200 bg-slate-50/70 p-3 sm:block"><p class="text-[8px] font-bold text-slate-400 uppercase">Conversations</p><div class="mt-3 rounded-lg bg-white p-2.5 shadow-sm"><div class="text-[10px] font-semibold text-slate-700">Asha M.</div><div class="mt-1 truncate text-[9px] text-slate-400">Hello, do you still…</div></div><div class="mt-2 rounded-lg p-2.5 text-[9px] text-slate-400">Mariam K.</div></div><div class="p-5"><div class="max-w-[85%] rounded-xl rounded-tl-sm bg-slate-100 px-3 py-2.5 text-[11px] leading-5 text-slate-700">Hello, do you still have availability for Saturday?</div><div class="mt-5 flex flex-wrap gap-2"><span class="rounded-full bg-success/10 px-2.5 py-1 text-[9px] font-medium text-success">● Robert is typing…</span><span class="rounded-full bg-purple/10 px-2.5 py-1 text-[9px] font-medium text-purple">Neema is viewing</span></div><div class="mt-7 flex flex-wrap gap-2"><button class="rounded-lg bg-brand-500 px-3 py-2 text-[10px] font-semibold text-white">Take conversation</button><button class="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-semibold text-slate-600">Assign</button></div><div class="mt-6 border-t border-slate-100 pt-4"><p class="text-[8px] font-bold tracking-wider text-slate-400 uppercase">Visibility</p><div class="mt-2 flex flex-wrap gap-2"><span class="rounded-full bg-slate-100 px-2 py-1 text-[9px] text-slate-500">Assigned team only</span><span class="rounded-full bg-slate-100 px-2 py-1 text-[9px] text-slate-500">History retained</span></div></div></div></div>
+			</div>
 			</div>
 		</div>
 
 		<div class="mt-24 grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
 			<div class="order-2 lg:order-1"><div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_22px_60px_rgba(50,58,70,0.09)]"><div class="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">{#each [{ t: 'Conversation', s: 'Asha M.' }, { t: 'Enquiry', s: 'Website' }, { t: 'Quotation', s: 'QT-2041' }, { t: 'Booking / Order', s: 'GFA-BK-128' }, { t: 'Payment', s: 'Reported' }] as item, index (item.t)}<div class="w-full rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-center sm:w-auto sm:flex-1"><div class="text-[9px] font-semibold text-slate-700">{item.t}</div><div class="mt-0.5 text-[8px] text-slate-400">{item.s}</div></div>{#if index < 4}<span class="rotate-90 text-slate-300 sm:rotate-0">→</span>{/if}{/each}</div><div class="mt-5 rounded-xl border border-dashed border-brand-200 bg-brand-50/60 p-3 text-center text-[10px] font-medium text-brand-700">Transaction context can arrive from your existing website, CMS or business software.</div></div></div>
-			<div class="order-1 lg:order-2"><span class="feature-number">02 · Transaction infrastructure</span><h3 class="feature-title">Keep conversations connected to what customers are buying.</h3><p class="feature-copy">Connect accepts transaction context from integrations. Tours, products, rooms, services and packages can stay where you manage them today.</p><p class="mt-5 inline-flex rounded-full bg-success/10 px-3 py-1.5 text-[10px] font-semibold text-success">No catalog migration required</p></div>
+			<div class="order-1 lg:order-2"><p class="flex items-center gap-2"><span class="flex size-[30px] items-center justify-center rounded-md bg-brand-500 text-[11px] font-bold text-white">02</span><span class="h-px w-6 border-t border-dashed border-brand-400"></span><span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11.5px] font-semibold text-brand-600">Transaction infrastructure</span></p><h3 class="feature-title">Keep conversations connected to what customers are buying.</h3><p class="feature-copy">Connect accepts transaction context from integrations. Tours, products, rooms, services and packages can stay where you manage them today.</p><p class="mt-5 inline-flex rounded-full bg-success/10 px-3 py-1.5 text-[10px] font-semibold text-success">No catalog migration required</p></div>
 		</div>
 
 		<div class="mt-24 overflow-hidden rounded-[24px] border border-brand-200 bg-[#0e335d] text-white shadow-[0_35px_90px_rgba(14,51,93,0.20)]">
@@ -29,7 +69,7 @@
 		</div>
 
 		<div class="mt-24 grid items-center gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
-			<div><span class="feature-number">04 · Team operations</span><h3 class="feature-title">One customer conversation. The right people around it.</h3><p class="feature-copy">Assignment, presence, roles and payment permissions make ownership visible without turning your business number into a shared password.</p><ul class="mt-5 space-y-1">{@render check('Conversation assignment and live presence')}{@render check('Private and assigned-only visibility')}{@render check('Role-based operational access')}{@render check('Dedicated payment verification permission')}</ul></div>
+			<div><p class="flex items-center gap-2"><span class="flex size-[30px] items-center justify-center rounded-md bg-brand-500 text-[11px] font-bold text-white">04</span><span class="h-px w-6 border-t border-dashed border-brand-400"></span><span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11.5px] font-semibold text-brand-600">Team operations</span></p><h3 class="feature-title">One customer conversation. The right people around it.</h3><p class="feature-copy">Assignment, presence, roles and payment permissions make ownership visible without turning your business number into a shared password.</p><ul class="mt-5 space-y-1">{@render check('Conversation assignment and live presence')}{@render check('Private and assigned-only visibility')}{@render check('Role-based operational access')}{@render check('Dedicated payment verification permission')}</ul></div>
 			<div class="grid gap-3 sm:grid-cols-3">{#each [{ initials: 'RJ', name: 'Robert', role: 'Manager', open: '4 open', detail: '12 replies today', tone: 'brand' }, { initials: 'NM', name: 'Neema', role: 'Agent', open: '2 open', detail: '8 replies today', tone: 'purple' }, { initials: 'FI', name: 'Finance', role: 'Custom role', open: '3 payments', detail: 'Awaiting verification', tone: 'warn' }] as member (member.name)}<div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(50,58,70,0.07)]"><span class="flex size-10 items-center justify-center rounded-full text-[11px] font-bold {member.tone === 'brand' ? 'bg-brand-50 text-brand-600' : member.tone === 'purple' ? 'bg-purple/10 text-purple' : 'bg-warning/15 text-[#a9780c]'}">{member.initials}</span><h4 class="mt-5 text-sm font-semibold text-slate-800">{member.name}</h4><p class="text-[10px] text-slate-400">{member.role}</p><div class="mt-5 border-t border-slate-100 pt-4"><p class="text-xl font-bold text-slate-900">{member.open}</p><p class="mt-1 text-[10px] text-slate-400">{member.detail}</p></div></div>{/each}</div>
 		</div>
 	</div>
