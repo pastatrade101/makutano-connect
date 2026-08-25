@@ -76,3 +76,21 @@ export function sourceLabel(value: string | null | undefined): string {
 	if (!value) return '—';
 	return SOURCE[value] ?? statusLabel(value);
 }
+
+/**
+ * Messages sent before Connect stored the rendered template text read as
+ * "[template:order_ready]". Show the human name and mark it automated, instead of
+ * a token no shop owner should ever have to decode.
+ */
+export function messagePreview(body: string | null | undefined, type?: string | null): string {
+	const raw = body ?? '';
+	const legacy = /^\[template:([a-z0-9_]+)\]$/i.exec(raw.trim());
+	if (legacy) {
+		const name = legacy[1]
+			.replace(/_/g, ' ')
+			.replace(/\bv\d+\b/gi, '')
+			.trim();
+		return `${name.charAt(0).toUpperCase()}${name.slice(1)} (automated message)`;
+	}
+	return raw || `[${type ?? 'message'}]`;
+}

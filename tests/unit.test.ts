@@ -145,3 +145,35 @@ describe('outbound webhook signing (§20)', () => {
 		expect(a).toMatch(/^t=1700000000,v1=[a-f0-9]{64}$/);
 	});
 });
+
+describe('message previews are readable by shop owners', () => {
+	it('renders the template body with resolved values instead of a token', async () => {
+		const { renderPreview } = await import('../src/lib/server/whatsapp/template-engine');
+		const body =
+			'Hi {{customer.first_name}}, your order {{order.number}} is ready for collection at {{business.name}}.';
+		expect(
+			renderPreview(
+				body,
+				['customer.first_name', 'order.number', 'business.name'],
+				['Josee', 'FIS-OR-2026-00002', 'Fish Hook Ltd']
+			)
+		).toBe('Hi Josee, your order FIS-OR-2026-00002 is ready for collection at Fish Hook Ltd.');
+	});
+
+	it('does not let a dot in a variable name match the wrong placeholder', async () => {
+		const { renderPreview } = await import('../src/lib/server/whatsapp/template-engine');
+		// "order.number" must not match "{{orderXnumber}}" via the regex wildcard.
+		expect(renderPreview('A {{orderXnumber}} B {{order.number}}', ['order.number'], ['OK'])).toBe(
+			'A {{orderXnumber}} B OK'
+		);
+	});
+
+	it('humanises messages stored before rendering existed', async () => {
+		const { messagePreview } = await import('../src/lib/labels');
+		expect(messagePreview('[template:order_received]')).toBe('Order received (automated message)');
+		expect(messagePreview('[template:payment_reminder_v2]')).toBe('Payment reminder (automated message)');
+		// Real text passes through untouched.
+		expect(messagePreview('I have paid')).toBe('I have paid');
+		expect(messagePreview(null, 'image')).toBe('[image]');
+	});
+});

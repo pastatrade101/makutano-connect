@@ -258,6 +258,19 @@ export async function submitTemplateToMeta(tenantId: string, templateId: string)
 	return updated;
 }
 
+/** Substitute resolved values back into the authored body, for display only. */
+export function renderPreview(bodyText: string | null, names: string[], values: string[]): string {
+	if (!bodyText) return '';
+	let out = bodyText;
+	names.forEach((name, i) => {
+		// Escape the variable name — dots are regex wildcards, and a stray one would
+		// let "order.number" match "orderXnumber".
+		const pattern = new RegExp(`\\{\\{\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\}\\}`, 'g');
+		out = out.replace(pattern, values[i] ?? '');
+	});
+	return out.trim();
+}
+
 /* ---------------------------------------------------- event dispatch ------ */
 
 /**
@@ -328,6 +341,8 @@ export async function sendEventTemplate(
 			dedupeKey,
 			content: {
 				type: 'template',
+				// Staff should read what the customer read, not "[template:order_ready]".
+				preview: renderPreview(template.bodyText, names, values),
 				templateName: template.name,
 				language: template.language,
 				components: components.length ? components : undefined

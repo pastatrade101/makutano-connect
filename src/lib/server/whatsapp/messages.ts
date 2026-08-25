@@ -24,7 +24,13 @@ import { markError, markSendSuccess, requireCredentials } from './connections';
 
 export type OutboundContent =
 	| { type: 'text'; text: string; previewUrl?: boolean }
-	| { type: 'template'; templateName: string; language?: string; components?: unknown[] }
+	| {
+			type: 'template';
+			templateName: string;
+			language?: string;
+			components?: unknown[];
+			/** The rendered text the customer will actually read — stored so the inbox shows the message, not a token. */ preview?: string;
+	  }
 	| { type: 'image'; link: string; caption?: string }
 	| { type: 'document'; link: string; filename?: string; caption?: string }
 	| { type: 'interactive'; interactive: Record<string, unknown> };
@@ -81,7 +87,7 @@ export function buildMessagePayload(to: string, content: OutboundContent): Recor
 
 function previewOf(content: OutboundContent): string {
 	if (content.type === 'text') return content.text;
-	if (content.type === 'template') return `[template:${content.templateName}]`;
+	if (content.type === 'template') return content.preview?.trim() || `[template:${content.templateName}]`;
 	if (content.type === 'image') return content.caption ?? '[image]';
 	if (content.type === 'document') return content.caption ?? '[document]';
 	return '[interactive]';

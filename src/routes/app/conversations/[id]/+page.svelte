@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { messagePreview } from '$lib/labels';
 	import { moduleRelevant } from '$lib/workspace';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
@@ -215,7 +216,7 @@
 		{@const tick = TICKS[m.status] ?? TICKS.QUEUED}
 		<div class="flex {m.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}">
 			<div class="max-w-[78%] rounded-panel px-3 py-2 text-[13.5px] {m.direction === 'OUTBOUND' ? 'rounded-br-none bg-brand-500 text-white' : 'rounded-bl-none border border-slate-200 bg-white text-slate-700'}">
-				<p class="whitespace-pre-wrap">{m.body ?? `[${m.type}]`}</p>
+				<p class="whitespace-pre-wrap">{messagePreview(m.body, m.type)}</p>
 				<p class="mt-1 flex items-center justify-end gap-1 text-[10px] {m.direction === 'OUTBOUND' ? 'text-white/70' : 'text-slate-400'}">
 					<TimeAgo value={m.createdAt} timezone={data.tenant.timezone} />
 					{#if m.direction === 'OUTBOUND'}
