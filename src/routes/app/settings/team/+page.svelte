@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The office roster: invite, role presets, grouped permission toggles, one-tap
 	// deactivate with reassignment. Cards on phones, table on wide screens (§30).
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data, form } = $props();

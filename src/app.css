@@ -90,6 +90,81 @@
 	}
 }
 
+/* Pending state for anything mid-flight (see $lib/forms.ts and the root layout).
+   The button dims, stops accepting clicks, and grows a small spinner — the answer to
+   "did that work?" arrives in the same instant as the click. */
+@keyframes mk-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+[aria-busy='true'],
+a[data-busy] {
+	position: relative;
+	pointer-events: none;
+	opacity: 0.65;
+	cursor: progress;
+	/* Buttons inherit a 150ms transition, which would fade the feedback in just
+	   slowly enough to feel like nothing happened. The whole point is immediacy. */
+	transition: none !important;
+}
+
+/* The spinner rides on the button itself, so it needs no markup changes anywhere. */
+button[aria-busy='true']::after,
+input[type='submit'][aria-busy='true']::after {
+	content: '';
+	display: inline-block;
+	/* The buttons are inline-flex, so the pseudo-element becomes a flex item and gets
+	   squeezed to a sliver unless it refuses to shrink. */
+	flex: 0 0 auto;
+	/* Fixed box: an em-sized border-box spinner collapses to a few pixels once the
+	   2px borders are subtracted. */
+	box-sizing: border-box;
+	width: 13px;
+	height: 13px;
+	margin-left: 0.5em;
+	vertical-align: -1px;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	animation: mk-spin 0.6s linear infinite;
+}
+
+/* Page-level progress for link navigation, where there is no form to mark. */
+.mk-progress {
+	position: fixed;
+	inset: 0 0 auto 0;
+	height: 2px;
+	z-index: 60;
+	background: var(--color-brand-500);
+	transform-origin: left;
+	animation: mk-progress-grow 8s cubic-bezier(0.1, 0.6, 0.2, 1) forwards;
+}
+
+@keyframes mk-progress-grow {
+	0% {
+		transform: scaleX(0);
+	}
+	40% {
+		transform: scaleX(0.7);
+	}
+	100% {
+		transform: scaleX(0.98);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	button[aria-busy='true']::after,
+	input[type='submit'][aria-busy='true']::after {
+		animation: none;
+	}
+	.mk-progress {
+		animation: none;
+		transform: scaleX(0.4);
+	}
+}
+
 @layer components {
 	/* Buttons — Reback: solid primary, soft radius, quiet secondary */
 	.btn {

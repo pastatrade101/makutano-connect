@@ -3,7 +3,7 @@
 	// Record an order the way a WhatsApp seller thinks about it: who, what, how many,
 	// how it reaches them. Catalog quick-pick fills names and prices; free-text rows
 	// cover everything the catalog doesn't. Nothing here is a storefront.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	let { data, form } = $props();
 

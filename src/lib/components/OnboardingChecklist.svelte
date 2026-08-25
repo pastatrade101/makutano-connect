@@ -1,6 +1,6 @@
 <!-- Getting-started card. Every tick reflects real data, so it cannot be gamed. -->
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 
 	type Item = { key: string; label: string; description: string; href: string; done: boolean };
 	let {

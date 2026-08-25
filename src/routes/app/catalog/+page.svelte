@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Deliberately small: a reference list so staff never retype names and prices.
 	// Not inventory, not a storefront — that boundary is the product.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import Pagination from '$components/Pagination.svelte';

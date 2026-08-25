@@ -2,7 +2,7 @@
 	import { WORKSPACE_OPTIONS, normalizeWorkspace } from '$lib/workspace';
 	// Tenant Control Center — the operational view of one tenant: what it is, what it
 	// may do, what it has used, and the levers to change all three.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';

@@ -5,7 +5,7 @@
 	import { page } from '$app/state';
 	// Reback chat thread: header with avatar + context, bubbles with delivery ticks
 	// (✓ sent, ✓✓ delivered, ✓✓ tinted read), composer pinned at the bottom.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';

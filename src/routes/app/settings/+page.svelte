@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { WORKSPACE_OPTIONS } from '$lib/workspace';
 	import FormToast from '$components/FormToast.svelte';
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	let { data, form } = $props();
 	let showMethodForm = $state(false);
 	let methodKind = $state<'MOBILE' | 'BANK' | 'ONLINE'>('MOBILE');

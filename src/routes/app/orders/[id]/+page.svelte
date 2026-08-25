@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { sourceLabel, statusLabel } from '$lib/labels';
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';

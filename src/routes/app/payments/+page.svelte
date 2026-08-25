@@ -7,7 +7,7 @@
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
 	import FormToast from '$components/FormToast.svelte';
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	let { data, form } = $props();
 	let verifying = $state<string | null>(null);
 	let verificationTargetInitialized = $state(false);

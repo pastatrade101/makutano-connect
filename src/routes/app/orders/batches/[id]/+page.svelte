@@ -2,7 +2,7 @@
 	import { sourceLabel, statusLabel } from '$lib/labels';
 	// The seller's pinned WhatsApp list, replaced. Mobile-first: cards on phones,
 	// a table on wide screens; every routine action is one tap.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import { invalidateAll } from '$app/navigation';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';

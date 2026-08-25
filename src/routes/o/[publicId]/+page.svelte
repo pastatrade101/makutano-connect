@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The customer side of an Order Link. One offer, one tiny form, under 30 seconds
 	// on a phone. Totals shown here are presentation — the server recomputes them.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	let { data, form } = $props();
 
 	const link = $derived(data.link);

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import BrandLockup from '$lib/components/BrandLockup.svelte';
 	import LoginShowcase from '$lib/components/LoginShowcase.svelte';
 

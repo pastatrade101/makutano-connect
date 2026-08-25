@@ -4,7 +4,7 @@
 	import FilterBar from '$components/FilterBar.svelte';
 	import Pagination from '$components/Pagination.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	let { data, form } = $props();
 	let showForm = $state(data.openNew);

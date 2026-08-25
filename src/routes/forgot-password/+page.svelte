@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import AuthShell from '$lib/components/AuthShell.svelte';
 
 	let { form } = $props();

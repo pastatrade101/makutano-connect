@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Plan definitions. Operational, not a billing product editor: name, price, active,
 	// and the entitlement values every tenant on the plan inherits.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	let { data, form } = $props();
 	let editing = $state<string | null>(null);

@@ -2,7 +2,7 @@
 	import { moduleRelevant } from '$lib/workspace';
 	// Forms & Widgets — the no-code intake manager. Compact by design: list on top,
 	// one expandable editor per form. Copy the hosted URL or the one-line embed.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import { toasts } from '$lib/stores/toast.svelte';

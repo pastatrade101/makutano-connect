@@ -1,6 +1,6 @@
 <script lang="ts">
 	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import EmptyState from '$components/EmptyState.svelte';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';

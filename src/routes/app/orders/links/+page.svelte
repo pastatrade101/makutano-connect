@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Order Links: create an offer, share the link anywhere, orders flow in.
 	// One offer → one link → simple form → one order. Deliberately not a store.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import Money from '$components/Money.svelte';

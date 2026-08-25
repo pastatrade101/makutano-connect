@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Connection health for operators. Shows everything needed to diagnose delivery —
 	// and no secret: the access token is reported only as "stored", never rendered.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';

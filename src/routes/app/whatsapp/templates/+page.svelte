@@ -2,7 +2,7 @@
 	// Template Center: author with named variables, submit to Meta, map to business
 	// events. The event mapping is the automation — application code emits
 	// ORDER_CONFIRMED and this configuration decides what the customer receives.
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	let { data, form } = $props();

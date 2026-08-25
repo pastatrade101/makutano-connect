@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { statusLabel } from '$lib/labels';
 	import FormToast from '$components/FormToast.svelte';
-	import { enhance } from '$app/forms';
+	import { enhance } from '$lib/forms';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
