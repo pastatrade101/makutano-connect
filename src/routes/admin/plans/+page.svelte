@@ -33,10 +33,10 @@
 			<header class="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
 				<div class="flex items-center gap-2">
 					<h2 class="text-sm font-semibold text-slate-700">{plan.name}</h2>
-					<span class="badge bg-slate-100 font-mono text-[10px] text-slate-500">{plan.code}</span>
+					<span class="badge bg-slate-100 font-mono text-[11.5px] text-slate-500">{plan.code}</span>
 					<span class="badge {plan.isActive ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-400'} text-xs">{plan.isActive ? 'active' : 'inactive'}</span>
-					<span class="text-[11px] font-semibold text-slate-600">{plan.currency} {Number(plan.priceMonthly).toLocaleString()} / mo</span>
-					<span class="text-[11px] text-slate-400">{data.tenantsByPlan[plan.id] ?? 0} tenant(s)</span>
+					<span class="text-[12.5px] font-semibold text-slate-600">{plan.currency} {Number(plan.priceMonthly).toLocaleString()} / mo</span>
+					<span class="text-[12.5px] text-slate-400">{data.tenantsByPlan[plan.id] ?? 0} tenant(s)</span>
 				</div>
 				<button class="btn-secondary !py-1 text-xs" onclick={() => (editing = editing === plan.id ? null : plan.id)}>
 					{editing === plan.id ? 'Close' : 'Edit plan'}
@@ -57,13 +57,13 @@
 
 					{#each groups as [group, items] (group)}
 						<div>
-							<p class="pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">{group}</p>
+							<p class="pb-1.5 text-[11.5px] font-bold uppercase tracking-widest text-slate-400">{group}</p>
 							<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
 								{#each items as e (e.key)}
 									<div class="flex items-center justify-between gap-2 rounded-panel border border-slate-200 bg-white px-2.5 py-1.5">
 										<div class="min-w-0">
 											<div class="truncate text-xs font-medium text-slate-600">{e.label}</div>
-											<div class="truncate font-mono text-[10px] text-slate-400">{e.key}</div>
+											<div class="truncate font-mono text-[11.5px] text-slate-400">{e.key}</div>
 										</div>
 										{#if e.kind === 'boolean'}
 											<input type="checkbox" name="e_{e.key}" checked={valueOf(plan, e.key) === true} class="shrink-0 rounded border-slate-300" />
@@ -78,7 +78,7 @@
 
 					<div class="flex items-center gap-3">
 						<button class="btn-primary">Save plan</button>
-						<span class="text-[11px] text-slate-400">0 means unlimited. Changes apply immediately to every tenant on this plan.</span>
+						<span class="text-[12.5px] text-slate-400">0 means unlimited. Changes apply immediately to every tenant on this plan.</span>
 					</div>
 				</form>
 			{/if}

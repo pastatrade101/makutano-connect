@@ -43,7 +43,7 @@
 			<h2 class="text-sm font-semibold text-slate-800">
 				{[data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || 'No customer attached'}
 			</h2>
-			<span class="text-[11px] text-slate-500">v{data.quotation.version} · <TimeAgo value={data.quotation.createdAt} timezone={data.tenant.timezone} /></span>
+			<span class="text-[12.5px] text-slate-500">v{data.quotation.version} · <TimeAgo value={data.quotation.createdAt} timezone={data.tenant.timezone} /></span>
 		</header>
 		<table class="min-w-full divide-y divide-slate-100">
 			<thead class="bg-slate-50"><tr><th class="table-head">Item</th><th class="table-head">Qty</th><th class="table-head">Unit</th><th class="table-head">Total</th></tr></thead>
@@ -52,7 +52,7 @@
 					<tr>
 						<td class="table-cell">
 							<div class="font-medium text-slate-800">{item.title}</div>
-							{#if item.description}<div class="text-[11px] text-slate-500">{item.description}</div>{/if}
+							{#if item.description}<div class="text-[12.5px] text-slate-500">{item.description}</div>{/if}
 						</td>
 						<td class="table-cell tabular-nums">{item.quantity}</td>
 						<td class="table-cell"><Money amount={item.unitPrice} currency={data.quotation.currency} /></td>
@@ -72,7 +72,7 @@
 			</tfoot>
 		</table>
 		{#if data.quotation.terms}
-			<div class="border-t border-slate-200 px-3 py-2 text-[11px] whitespace-pre-wrap text-slate-500">{data.quotation.terms}</div>
+			<div class="border-t border-slate-200 px-3 py-2 text-[12.5px] whitespace-pre-wrap text-slate-500">{data.quotation.terms}</div>
 		{/if}
 	</section>
 </div>

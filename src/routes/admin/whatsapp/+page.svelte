@@ -17,7 +17,7 @@
 						<td class="table-cell"><a href="/admin/whatsapp/{c.id}" class="font-medium text-brand-600 hover:underline">{c.tenantName}</a></td>
 						<td class="table-cell">
 							<div>{c.displayPhoneNumber ?? '—'}</div>
-							<div class="font-mono text-[11px] text-slate-400">{c.phoneNumberId}</div>
+							<div class="font-mono text-[12.5px] text-slate-400">{c.phoneNumberId}</div>
 						</td>
 						<td class="table-cell"><StatusBadge value={c.status} /></td>
 						<td class="table-cell text-slate-500"><TimeAgo value={c.lastWebhookAt} /></td>

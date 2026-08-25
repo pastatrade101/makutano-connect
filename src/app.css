@@ -42,6 +42,16 @@
 	--color-canvas: #f8f8fa;
 	--color-sidenav-dark: #262d34;
 
+	/* Type scale. The Reback defaults ran small enough that dense screens were tiring
+	   to read; each step is nudged up once so the whole product breathes without
+	   changing a single component. */
+	--text-xs: 12.5px;
+	--text-sm: 15px;
+	--text-base: 16px;
+	--text-lg: 18px;
+	--text-xl: 21px;
+	--text-2xl: 25px;
+
 	--radius-panel: 0.3rem;
 	--shadow-panel: 0px 3px 4px 0px rgb(0 0 0 / 0.03);
 }
@@ -73,7 +83,7 @@
 	}
 	body {
 		font-family: var(--font-sans);
-		font-size: 14px;
+		font-size: 15px;
 		background-color: var(--color-canvas);
 	}
 	h1,

@@ -40,7 +40,7 @@
 				<StatusBadge value={data.tenant.status} />
 				<span class="badge bg-brand-50 text-brand-600">{data.plan?.code ?? 'NO PLAN'}</span>
 			</h1>
-			<p class="font-mono text-[11px] text-slate-400">{data.tenant.slug} · created <TimeAgo value={data.tenant.createdAt} /></p>
+			<p class="font-mono text-[12.5px] text-slate-400">{data.tenant.slug} · created <TimeAgo value={data.tenant.createdAt} /></p>
 		</div>
 		<div class="flex items-center gap-2">
 			{#if suspended}
@@ -113,9 +113,9 @@
 								<option value={opt.value} selected={tenantWorkspace === opt.value}>{opt.label}</option>
 							{/each}
 						</select>
-						<button class="btn-secondary !px-2 !py-1 text-[11px]">Save</button>
+						<button class="btn-secondary !px-2 !py-1 text-[12.5px]">Save</button>
 					</form>
-					<p class="mt-0.5 text-[10px] text-slate-400">UI relevance only — plan entitlements still decide access.</p>
+					<p class="mt-0.5 text-[11.5px] text-slate-400">UI relevance only — plan entitlements still decide access.</p>
 				</dd>
 			</div>
 			<div>
@@ -159,7 +159,7 @@
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
 		{#each [['Members', data.counts.members], ['API keys', data.counts.api_keys], ['Customers', data.counts.customers], ['Requests', data.counts.booking_requests], ['Orders', data.counts.orders], ['Forms', data.counts.forms], ['Webhooks', data.counts.webhooks], ['Templates', data.counts.templates]] as [label, value] (label)}
 			<div class="card px-3 py-2">
-				<div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+				<div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
 				<div class="text-lg font-bold tabular-nums text-slate-800">{value ?? 0}</div>
 			</div>
 		{/each}
@@ -170,7 +170,7 @@
 		<section class="card lg:col-span-2">
 			<header class="card-header">
 				<h2 class="card-title">Features &amp; limits</h2>
-				<span class="text-[11px] text-slate-400">Effective = override, else plan default</span>
+				<span class="text-[12.5px] text-slate-400">Effective = override, else plan default</span>
 			</header>
 			<div class="overflow-x-auto">
 				<table class="min-w-full divide-y divide-slate-100">
@@ -179,12 +179,12 @@
 					</thead>
 					<tbody class="divide-y divide-slate-100">
 						{#each groups as [group, rows] (group)}
-							<tr class="bg-slate-50/60"><td colspan="5" class="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">{group}</td></tr>
+							<tr class="bg-slate-50/60"><td colspan="5" class="px-4 py-1.5 text-[11.5px] font-bold uppercase tracking-widest text-slate-400">{group}</td></tr>
 							{#each rows as row (row.key)}
 								<tr class={row.override !== null ? 'bg-brand-50/30' : ''}>
 									<td class="table-cell">
 										<div class="font-medium text-slate-700">{row.definition.label}</div>
-										<div class="font-mono text-[10.5px] text-slate-400">{row.key}</div>
+										<div class="font-mono text-[12px] text-slate-400">{row.key}</div>
 									</td>
 									<td class="table-cell text-slate-500">{show(row.planValue, row.definition.kind)}</td>
 									<td class="table-cell">
@@ -292,7 +292,7 @@
 								<a href="/admin/whatsapp/{c.id}" class="font-medium text-brand-600 hover:underline">{c.displayPhoneNumber ?? c.phoneNumberId}</a>
 								<StatusBadge value={c.status} size="xs" />
 							</div>
-							<div class="text-[11px] text-slate-400">last inbound <TimeAgo value={c.lastWebhookAt} /> · last send <TimeAgo value={c.lastSuccessfulSendAt} /></div>
+							<div class="text-[12.5px] text-slate-400">last inbound <TimeAgo value={c.lastWebhookAt} /> · last send <TimeAgo value={c.lastSuccessfulSendAt} /></div>
 						</li>
 					{:else}
 						<li class="px-4 py-6 text-center text-xs text-slate-400">No connected number.</li>
@@ -308,7 +308,7 @@
 			<ul class="divide-y divide-slate-100">
 				{#each data.recentErrors as e, i (i)}
 					<li class="px-4 py-2 text-xs">
-						<span class="badge bg-slate-100 text-[10px] uppercase text-slate-500">{e.kind}</span>
+						<span class="badge bg-slate-100 text-[11.5px] uppercase text-slate-500">{e.kind}</span>
 						<span class="ml-2 text-slate-600">{e.detail}</span>
 						<div class="mt-0.5 truncate text-danger">{e.message ?? '—'}</div>
 						<div class="text-slate-400"><TimeAgo value={e.created_at as string} /></div>

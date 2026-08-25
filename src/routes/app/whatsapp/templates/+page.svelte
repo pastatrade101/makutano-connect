@@ -69,10 +69,10 @@
 			<div><label class="label" for="t-header">Header (optional)</label><input id="t-header" name="headerText" class="input" /></div>
 			<div>
 				<label class="label" for="t-body">Body</label>
-				<textarea id="t-body" name="bodyText" rows="4" bind:value={bodyDraft} bind:this={bodyEl} class="input font-mono text-[13px]"></textarea>
+				<textarea id="t-body" name="bodyText" rows="4" bind:value={bodyDraft} bind:this={bodyEl} class="input font-mono text-[14.5px]"></textarea>
 				<div class="mt-1.5 flex flex-wrap gap-1">
 					{#each data.variables as v (v.key)}
-						<button type="button" class="rounded-full bg-brand-50 px-2 py-0.5 font-mono text-[10.5px] text-brand-600 hover:bg-brand-100" title={v.label} onclick={() => insertVariable(v.key)}>
+						<button type="button" class="rounded-full bg-brand-50 px-2 py-0.5 font-mono text-[12px] text-brand-600 hover:bg-brand-100" title={v.label} onclick={() => insertVariable(v.key)}>
 							{'{{'}{v.key}{'}}'}
 						</button>
 					{/each}
@@ -90,7 +90,7 @@
 			</div>
 			<div>
 				<label class="label" for="t-buttons">Buttons — one per line, max 3 ("Track order | https://…" for a link, plain text for quick reply)</label>
-				<textarea id="t-buttons" name="buttons" rows="2" placeholder="View order | https://example.com/orders&#10;Contact us" class="input font-mono text-[13px]"></textarea>
+				<textarea id="t-buttons" name="buttons" rows="2" placeholder="View order | https://example.com/orders&#10;Contact us" class="input font-mono text-[14.5px]"></textarea>
 			</div>
 			<button class="btn-primary">Save draft</button>
 		</form>
@@ -103,8 +103,8 @@
 				{#each data.templates as t (t.id)}
 					<tr class={t.enabled ? '' : 'opacity-60'}>
 						<td class="table-cell">
-							<div class="font-mono text-[13px] font-medium text-slate-700">{t.name} <span class="text-slate-400">· {t.language}</span></div>
-							{#if t.bodyText}<div class="mt-0.5 max-w-md truncate text-[11px] text-slate-400">{t.bodyText}</div>{/if}
+							<div class="font-mono text-[14.5px] font-medium text-slate-700">{t.name} <span class="text-slate-400">· {t.language}</span></div>
+							{#if t.bodyText}<div class="mt-0.5 max-w-md truncate text-[12.5px] text-slate-400">{t.bodyText}</div>{/if}
 						</td>
 						<td class="table-cell"><StatusBadge value={t.status} /></td>
 						<td class="table-cell">
@@ -146,7 +146,7 @@
 		</table>
 	</div>
 
-	<p class="text-[11px] text-slate-400">
+	<p class="text-[12.5px] text-slate-400">
 		Free-form chat replies in the Inbox stay free-form — templates are for business-initiated notifications outside WhatsApp's 24-hour service window. Timed rules (e.g. payment reminder 48h before due) are the next layer on this same mapping.
 	</p>
 </div>

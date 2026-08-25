@@ -28,7 +28,7 @@
 								<td class="table-cell text-slate-600">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
 								<td class="table-cell"><StatusBadge value={row.lead.stage} /></td>
 								<td class="table-cell"><Money amount={row.lead.value} currency={row.lead.currency ?? data.tenant.currency} /></td>
-								<td class="table-cell text-[11px] uppercase text-slate-500">{row.lead.source}</td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-500">{row.lead.source}</td>
 								<td class="table-cell text-slate-500"><TimeAgo value={row.lead.createdAt} timezone={data.tenant.timezone} /></td>
 							</tr>
 						{/each}

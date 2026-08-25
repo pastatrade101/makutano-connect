@@ -69,9 +69,9 @@
 
 	<!-- Workload at a glance (§23): open threads, unassigned, per-person today -->
 	<div class="grid grid-cols-3 gap-2">
-		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Open conversations</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.workload.open_total}</div></div>
-		<a href="/app/conversations?filter=unassigned" class="card px-3 py-2 transition hover:border-brand-300"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Unassigned</div><div class="text-lg font-bold tabular-nums {data.workload.open_unassigned > 0 ? 'text-warning' : 'text-slate-800'}">{data.workload.open_unassigned}</div></a>
-		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Replies today</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.workload.replies_today}</div></div>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Open conversations</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.workload.open_total}</div></div>
+		<a href="/app/conversations?filter=unassigned" class="card px-3 py-2 transition hover:border-brand-300"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Unassigned</div><div class="text-lg font-bold tabular-nums {data.workload.open_unassigned > 0 ? 'text-warning' : 'text-slate-800'}">{data.workload.open_unassigned}</div></a>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Replies today</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.workload.replies_today}</div></div>
 	</div>
 
 	<div class="card overflow-hidden">
@@ -82,25 +82,25 @@
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-sm font-semibold text-slate-800">{m.fullName || m.email}</p>
-							<p class="truncate text-[11px] text-slate-400">{m.email}</p>
+							<p class="truncate text-[12.5px] text-slate-400">{m.email}</p>
 						</div>
 						<span class="badge {STATUS_TONE[m.status]}">{m.status}</span>
 					</div>
-					<div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+					<div class="flex flex-wrap items-center gap-2 text-[12.5px] text-slate-500">
 						<span class="badge bg-brand-50 text-brand-600">{m.roleLabel}{m.customized ? ' · Customized' : ''}</span>
 						<span>{m.assignedOpen} open · {m.repliesToday} replies today</span>
 						<span class="ml-auto">{#if m.lastActiveAt}<TimeAgo value={m.lastActiveAt} timezone={data.tenant.timezone} />{:else}Never active{/if}</span>
 					</div>
 					{#if data.canManage && m.role !== 'OWNER'}
 						<div class="flex flex-wrap gap-1.5">
-							<button class="btn-secondary !px-2.5 !py-1.5 text-[11px]" onclick={() => startEdit(m)}>Permissions</button>
+							<button class="btn-secondary !px-2.5 !py-1.5 text-[12.5px]" onclick={() => startEdit(m)}>Permissions</button>
 							{#if m.status === 'Deactivated'}
 								<form method="POST" action="?/setActive" use:enhance>
 									<input type="hidden" name="membershipId" value={m.membershipId} /><input type="hidden" name="active" value="1" />
-									<button class="btn-secondary !px-2.5 !py-1.5 text-[11px]">Reactivate</button>
+									<button class="btn-secondary !px-2.5 !py-1.5 text-[12.5px]">Reactivate</button>
 								</form>
 							{:else}
-								<button class="btn-secondary !px-2.5 !py-1.5 text-[11px] text-danger" onclick={() => (deactivating = m.membershipId)}>Deactivate</button>
+								<button class="btn-secondary !px-2.5 !py-1.5 text-[12.5px] text-danger" onclick={() => (deactivating = m.membershipId)}>Deactivate</button>
 							{/if}
 						</div>
 					{/if}
@@ -121,35 +121,35 @@
 						<tr class="hover:bg-slate-50">
 							<td class="table-cell">
 								<div class="font-medium text-slate-800">{m.fullName || '—'}</div>
-								<div class="text-[11px] text-slate-400">{m.email}</div>
+								<div class="text-[12.5px] text-slate-400">{m.email}</div>
 							</td>
 							<td class="table-cell">
 								<span class="badge bg-brand-50 text-brand-600">{m.roleLabel}</span>
-								{#if m.customized}<span class="ml-1 text-[10px] text-slate-400">Customized</span>{/if}
+								{#if m.customized}<span class="ml-1 text-[11.5px] text-slate-400">Customized</span>{/if}
 							</td>
 							<td class="table-cell"><span class="badge {STATUS_TONE[m.status]}">{m.status}</span></td>
-							<td class="table-cell tabular-nums">{m.assignedOpen} <span class="text-[10px] text-slate-400">open</span> · {m.repliesToday} <span class="text-[10px] text-slate-400">today</span></td>
+							<td class="table-cell tabular-nums">{m.assignedOpen} <span class="text-[11.5px] text-slate-400">open</span> · {m.repliesToday} <span class="text-[11.5px] text-slate-400">today</span></td>
 							<td class="table-cell text-slate-500">{#if m.lastActiveAt}<TimeAgo value={m.lastActiveAt} timezone={data.tenant.timezone} />{:else}—{/if}</td>
 							{#if data.canManage}
 								<td class="table-cell">
 									{#if m.role !== 'OWNER'}
 										<div class="flex justify-end gap-1.5">
-											<button class="btn-secondary !px-2 !py-1 text-[11px]" onclick={() => startEdit(m)}>Permissions</button>
+											<button class="btn-secondary !px-2 !py-1 text-[12.5px]" onclick={() => startEdit(m)}>Permissions</button>
 											{#if m.status === 'Deactivated'}
 												<form method="POST" action="?/setActive" use:enhance>
 													<input type="hidden" name="membershipId" value={m.membershipId} /><input type="hidden" name="active" value="1" />
-													<button class="btn-secondary !px-2 !py-1 text-[11px]">Reactivate</button>
+													<button class="btn-secondary !px-2 !py-1 text-[12.5px]">Reactivate</button>
 												</form>
 												<form method="POST" action="?/remove" use:enhance>
 													<input type="hidden" name="membershipId" value={m.membershipId} />
-													<button class="!px-2 !py-1 text-[11px] text-slate-400 hover:text-danger hover:underline">Remove</button>
+													<button class="!px-2 !py-1 text-[12.5px] text-slate-400 hover:text-danger hover:underline">Remove</button>
 												</form>
 											{:else}
-												<button class="btn-secondary !px-2 !py-1 text-[11px] text-danger" onclick={() => (deactivating = m.membershipId)}>Deactivate</button>
+												<button class="btn-secondary !px-2 !py-1 text-[12.5px] text-danger" onclick={() => (deactivating = m.membershipId)}>Deactivate</button>
 											{/if}
 										</div>
 									{:else}
-										<div class="text-right text-[10px] text-slate-400">Owner — full access</div>
+										<div class="text-right text-[11.5px] text-slate-400">Owner — full access</div>
 									{/if}
 								</td>
 							{/if}
@@ -193,7 +193,7 @@
 			<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
 				<div>
 					<h2 class="text-sm font-semibold text-slate-800">{member.fullName || member.email}</h2>
-					<p class="text-[11px] text-slate-400">
+					<p class="text-[12.5px] text-slate-400">
 						{member.customized ? `${member.roleLabel} · Customized` : `Using ${member.roleLabel} defaults`}
 					</p>
 				</div>
@@ -225,7 +225,7 @@
 				<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 					{#each data.permissionGroups as group (group.group)}
 						<section class="rounded-panel border border-slate-200 p-3">
-							<h3 class="mb-2 text-[11px] font-bold tracking-wide text-slate-500 uppercase">{group.group}</h3>
+							<h3 class="mb-2 text-[12.5px] font-bold tracking-wide text-slate-500 uppercase">{group.group}</h3>
 							<div class="space-y-1.5">
 								{#each group.items as item (item.key)}
 									<label class="flex items-start gap-2 text-xs text-slate-600">

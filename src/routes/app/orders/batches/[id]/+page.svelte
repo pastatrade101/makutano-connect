@@ -109,8 +109,8 @@
 	{#if data.orderLink}
 		<div class="card flex flex-wrap items-center gap-2 p-3">
 			<div class="min-w-0 flex-1">
-				<div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Order link {data.orderLink.status !== 'ACTIVE' ? `· ${data.orderLink.status.toLowerCase()}` : ''}</div>
-				<code class="block truncate text-[12.5px] text-slate-600">{shareUrl}</code>
+				<div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Order link {data.orderLink.status !== 'ACTIVE' ? `· ${data.orderLink.status.toLowerCase()}` : ''}</div>
+				<code class="block truncate text-[14px] text-slate-600">{shareUrl}</code>
 			</div>
 			<button class="btn-secondary !px-2.5 !py-1.5 text-xs" onclick={copyShareUrl}>{copied ? '✓ Copied' : 'Copy link'}</button>
 			<a class="btn-secondary !px-2.5 !py-1.5 text-xs" href="https://wa.me/?text={encodeURIComponent(shareText)}" target="_blank" rel="noopener">Share to WhatsApp</a>
@@ -129,15 +129,15 @@
 
 	<!-- Batch summary: the numbers the seller used to keep in a pinned message -->
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Customers</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.summary.customers}</div></div>
-		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Quantity</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.summary.totalQuantity}{data.batch.defaultUnit ? ` ${data.batch.defaultUnit}` : ''}</div></div>
-		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Expected</div><div class="text-lg font-bold tabular-nums text-slate-800"><Money amount={data.summary.expectedRevenue} currency={data.batch.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Paid</div><div class="text-lg font-bold tabular-nums text-success"><Money amount={data.summary.paid} currency={data.batch.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Outstanding</div><div class="text-lg font-bold tabular-nums {Number(data.summary.outstanding) > 0 ? 'text-warning' : 'text-slate-800'}"><Money amount={data.summary.outstanding} currency={data.batch.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Customers</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.summary.customers}</div></div>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Quantity</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.summary.totalQuantity}{data.batch.defaultUnit ? ` ${data.batch.defaultUnit}` : ''}</div></div>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Expected</div><div class="text-lg font-bold tabular-nums text-slate-800"><Money amount={data.summary.expectedRevenue} currency={data.batch.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Paid</div><div class="text-lg font-bold tabular-nums text-success"><Money amount={data.summary.paid} currency={data.batch.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Outstanding</div><div class="text-lg font-bold tabular-nums {Number(data.summary.outstanding) > 0 ? 'text-warning' : 'text-slate-800'}"><Money amount={data.summary.outstanding} currency={data.batch.currency} /></div></div>
 	</div>
 
 	{#if Object.keys(data.summary.statusCounts).length}
-		<div class="flex flex-wrap gap-1.5 text-[11px]">
+		<div class="flex flex-wrap gap-1.5 text-[12.5px]">
 			{#each Object.entries(data.summary.statusCounts) as [status, n] (status)}
 				<span class="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-slate-600">{statusLabel(status)}: <b>{n}</b></span>
 			{/each}
@@ -175,7 +175,7 @@
 			<div class="mb-2 flex items-center justify-between gap-2">
 				<h2 class="card-title">Add order</h2>
 				{#if lastAdded}
-					<span class="truncate text-[11px] font-medium text-success">
+					<span class="truncate text-[12.5px] font-medium text-success">
 						✓ {lastAdded.orderNumber} · {lastAdded.currency} {Number(lastAdded.total).toLocaleString()}
 					</span>
 				{/if}
@@ -202,7 +202,7 @@
 							{#each matches as c (c.id)}
 								<button type="button" class="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm hover:bg-slate-50" onclick={() => pick(c)}>
 									<span>{fullName(c)}</span>
-									{#if c.whatsappPhone}<span class="text-[11px] text-slate-400">+{c.whatsappPhone}</span>{/if}
+									{#if c.whatsappPhone}<span class="text-[12.5px] text-slate-400">+{c.whatsappPhone}</span>{/if}
 								</button>
 							{/each}
 						</div>
@@ -228,20 +228,20 @@
 			</div>
 			{#if !customerId && customerQuery.trim() && !matches.length}
 				<div class="mt-2 grid gap-2 sm:grid-cols-2">
-					<p class="self-center text-[11px] text-slate-500">New customer "{customerQuery.trim()}" will be created.</p>
+					<p class="self-center text-[12.5px] text-slate-500">New customer "{customerQuery.trim()}" will be created.</p>
 					<input name="newCustomerPhone" bind:value={newCustomerPhone} placeholder="WhatsApp number (optional)" inputmode="tel" class="input h-9 text-xs" />
 				</div>
 			{/if}
-			<div class="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+			<div class="mt-2 flex flex-wrap items-center gap-3 text-[12.5px] text-slate-500">
 				<label class="flex items-center gap-1.5">Source
-					<select name="source" class="input w-auto !py-1 text-[11px]">
+					<select name="source" class="input w-auto !py-1 text-[12.5px]">
 						{#each ['WHATSAPP_GROUP', 'WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'PHONE', 'WALK_IN', 'MANUAL', 'OTHER'] as s (s)}
 							<option value={s}>{sourceLabel(s)}</option>
 						{/each}
 					</select>
 				</label>
 				<label class="flex items-center gap-1.5">Payment
-					<select name="paymentMethod" class="input w-auto !py-1 text-[11px]">
+					<select name="paymentMethod" class="input w-auto !py-1 text-[12.5px]">
 						<option value="">—</option>
 						{#each ['Cash on Delivery', 'Mobile Payment', 'Bank Transfer', 'Other'] as m (m)}<option value={m}>{m}</option>{/each}
 					</select>
@@ -256,7 +256,7 @@
 			<!-- Bulk: paste the list the seller already has. Deterministic, no AI. -->
 			<form method="POST" action="?/bulkAdd" use:enhance class="card p-3">
 				<h2 class="card-title mb-1">Bulk entry</h2>
-				<p class="mb-2 text-[11px] text-slate-500">One order per line: <code class="rounded bg-slate-100 px-1">Mama Daniel | 4</code> — name, then quantity.</p>
+				<p class="mb-2 text-[12.5px] text-slate-500">One order per line: <code class="rounded bg-slate-100 px-1">Mama Daniel | 4</code> — name, then quantity.</p>
 				<textarea name="lines" rows="6" class="input font-mono text-xs" placeholder={'Mama Daniel | 4\nNasri | 3\nHabiba | 5'}></textarea>
 				{#if form?.bulk}
 					<div class="mt-2 rounded-panel bg-slate-50 p-2 text-xs">
@@ -270,8 +270,8 @@
 					</div>
 				{/if}
 				<div class="mt-2 flex items-center justify-between gap-2">
-					<label class="flex items-center gap-1.5 text-[11px] text-slate-500">Source
-						<select name="source" class="input w-auto !py-1 text-[11px]">
+					<label class="flex items-center gap-1.5 text-[12.5px] text-slate-500">Source
+						<select name="source" class="input w-auto !py-1 text-[12.5px]">
 							{#each ['WHATSAPP_GROUP', 'WHATSAPP_DIRECT', 'PHONE', 'MANUAL'] as s (s)}<option value={s}>{sourceLabel(s)}</option>{/each}
 						</select>
 					</label>
@@ -297,23 +297,23 @@
 						<div class="flex items-center gap-1.5">
 							<StatusBadge value={o.status} size="xs" />
 							<StatusBadge value={o.payment_status} size="xs" />
-							<span class="ml-auto text-[10px] text-slate-400">{o.order_number}</span>
+							<span class="ml-auto text-[11.5px] text-slate-400">{o.order_number}</span>
 						</div>
 						<div class="flex flex-wrap gap-1.5">
 							{#each NEXT[o.status] ?? [] as nxt (nxt.to)}
 								<form method="POST" action="?/status" use:enhance>
 									<input type="hidden" name="orderId" value={o.id} /><input type="hidden" name="status" value={nxt.to} />
-									<button class="btn-secondary !px-2.5 !py-1.5 text-[11px]">{nxt.label}</button>
+									<button class="btn-secondary !px-2.5 !py-1.5 text-[12.5px]">{nxt.label}</button>
 								</form>
 							{/each}
 							{#if o.payment_status !== 'PAID' && o.status !== 'CANCELLED' && o.status !== 'REFUNDED'}
 								<form method="POST" action="?/markPaid" use:enhance>
 									<input type="hidden" name="orderId" value={o.id} />
-									<button class="btn-secondary !px-2.5 !py-1.5 text-[11px] text-success">Mark paid</button>
+									<button class="btn-secondary !px-2.5 !py-1.5 text-[12.5px] text-success">Mark paid</button>
 								</form>
 							{/if}
 							{#if o.conversation_id}
-								<a href="/app/conversations/{o.conversation_id}" class="btn-secondary !px-2.5 !py-1.5 text-[11px]">WhatsApp</a>
+								<a href="/app/conversations/{o.conversation_id}" class="btn-secondary !px-2.5 !py-1.5 text-[12.5px]">WhatsApp</a>
 							{/if}
 						</div>
 					</li>
@@ -332,29 +332,29 @@
 							<tr class="hover:bg-slate-50">
 								<td class="table-cell">
 									<a href="/app/orders/{o.id}" class="font-medium text-brand-600 hover:underline">{o.customer_name}</a>
-									<div class="text-[10px] text-slate-400">{o.order_number}{o.phone ? ` · +${o.phone}` : ''}</div>
+									<div class="text-[11.5px] text-slate-400">{o.order_number}{o.phone ? ` · +${o.phone}` : ''}</div>
 								</td>
 								<td class="table-cell font-semibold tabular-nums">{o.quantity}{o.unit ? ` ${o.unit}` : ''}</td>
 								<td class="table-cell tabular-nums"><Money amount={o.total} currency={o.currency} /></td>
 								<td class="table-cell"><StatusBadge value={o.payment_status} size="xs" /></td>
 								<td class="table-cell"><StatusBadge value={o.status} size="xs" /></td>
-								<td class="table-cell text-[11px] text-slate-500">{sourceLabel(o.source)}</td>
+								<td class="table-cell text-[12.5px] text-slate-500">{sourceLabel(o.source)}</td>
 								<td class="table-cell">
 									<div class="flex justify-end gap-1.5">
 										{#each NEXT[o.status] ?? [] as nxt (nxt.to)}
 											<form method="POST" action="?/status" use:enhance>
 												<input type="hidden" name="orderId" value={o.id} /><input type="hidden" name="status" value={nxt.to} />
-												<button class="btn-secondary !px-2 !py-1 text-[11px]">{nxt.label}</button>
+												<button class="btn-secondary !px-2 !py-1 text-[12.5px]">{nxt.label}</button>
 											</form>
 										{/each}
 										{#if o.payment_status !== 'PAID' && o.status !== 'CANCELLED' && o.status !== 'REFUNDED'}
 											<form method="POST" action="?/markPaid" use:enhance>
 												<input type="hidden" name="orderId" value={o.id} />
-												<button class="btn-secondary !px-2 !py-1 text-[11px] text-success">Mark paid</button>
+												<button class="btn-secondary !px-2 !py-1 text-[12.5px] text-success">Mark paid</button>
 											</form>
 										{/if}
 										{#if o.conversation_id}
-											<a href="/app/conversations/{o.conversation_id}" class="btn-secondary !px-2 !py-1 text-[11px]" title="Open WhatsApp conversation">Chat</a>
+											<a href="/app/conversations/{o.conversation_id}" class="btn-secondary !px-2 !py-1 text-[12.5px]" title="Open WhatsApp conversation">Chat</a>
 										{/if}
 									</div>
 								</td>

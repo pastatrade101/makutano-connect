@@ -50,12 +50,12 @@
 				</p>
 			{/if}
 			<dl class="grid grid-cols-2 gap-x-4 gap-y-2 p-3 text-sm sm:grid-cols-3">
-				<div><dt class="text-[11px] uppercase text-slate-500">Number</dt><dd class="font-medium">{c.displayPhoneNumber ?? '—'}</dd></div>
-				<div><dt class="text-[11px] uppercase text-slate-500">Business</dt><dd>{c.businessName ?? '—'}</dd></div>
-				<div><dt class="text-[11px] uppercase text-slate-500">Connected</dt><dd><TimeAgo value={c.connectedAt} timezone={data.tenant.timezone} /></dd></div>
-				<div><dt class="text-[11px] uppercase text-slate-500">Last inbound</dt><dd><TimeAgo value={c.lastWebhookAt} timezone={data.tenant.timezone} /></dd></div>
-				<div><dt class="text-[11px] uppercase text-slate-500">Last send</dt><dd><TimeAgo value={c.lastSuccessfulSendAt} timezone={data.tenant.timezone} /></dd></div>
-				<div><dt class="text-[11px] uppercase text-slate-500">Last error</dt><dd class="text-danger">{c.lastErrorCode ?? '—'}</dd></div>
+				<div><dt class="text-[12.5px] uppercase text-slate-500">Number</dt><dd class="font-medium">{c.displayPhoneNumber ?? '—'}</dd></div>
+				<div><dt class="text-[12.5px] uppercase text-slate-500">Business</dt><dd>{c.businessName ?? '—'}</dd></div>
+				<div><dt class="text-[12.5px] uppercase text-slate-500">Connected</dt><dd><TimeAgo value={c.connectedAt} timezone={data.tenant.timezone} /></dd></div>
+				<div><dt class="text-[12.5px] uppercase text-slate-500">Last inbound</dt><dd><TimeAgo value={c.lastWebhookAt} timezone={data.tenant.timezone} /></dd></div>
+				<div><dt class="text-[12.5px] uppercase text-slate-500">Last send</dt><dd><TimeAgo value={c.lastSuccessfulSendAt} timezone={data.tenant.timezone} /></dd></div>
+				<div><dt class="text-[12.5px] uppercase text-slate-500">Last error</dt><dd class="text-danger">{c.lastErrorCode ?? '—'}</dd></div>
 			</dl>
 			{#if canConnect}
 				<div class="flex gap-2 border-t border-slate-200 p-3">

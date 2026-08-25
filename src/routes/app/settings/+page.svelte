@@ -29,7 +29,7 @@
 			<div>
 				<label class="label" for="bookingReferencePrefix">Booking reference prefix</label>
 				<input id="bookingReferencePrefix" name="bookingReferencePrefix" value={data.settings.bookingReferencePrefix} class="input" disabled={!canWrite} />
-				<p class="mt-1 text-[11px] text-slate-400">New references only, e.g. {data.settings.bookingReferencePrefix}-BK-2026-00001</p>
+				<p class="mt-1 text-[12.5px] text-slate-400">New references only, e.g. {data.settings.bookingReferencePrefix}-BK-2026-00001</p>
 			</div>
 			<div><label class="label" for="quotationPrefix">Quotation prefix</label><input id="quotationPrefix" name="quotationPrefix" value={data.settings.quotationPrefix} class="input" disabled={!canWrite} /></div>
 			<div>
@@ -39,10 +39,10 @@
 						<option value={opt.value} selected={data.settings.capabilities === opt.value}>{opt.label} — {opt.hint.toLowerCase()}</option>
 					{/each}
 				</select>
-				<p class="mt-1 text-[11px] text-slate-400">
+				<p class="mt-1 text-[12.5px] text-slate-400">
 					This organises your menus and dashboard around your kind of work. It never adds or removes plan features.
 				</p>
-				<p class="mt-1 text-[11px] text-slate-400">Controls which features appear in navigation — nothing is deleted by switching.</p>
+				<p class="mt-1 text-[12.5px] text-slate-400">Controls which features appear in navigation — nothing is deleted by switching.</p>
 			</div>
 		</div>
 		{#if canWrite}<div class="border-t border-slate-200 p-3"><button class="btn-primary">Save settings</button></div>{/if}
@@ -54,7 +54,7 @@
 			<h2 class="card-title">Payment methods</h2>
 			{#if canWrite}<button class="btn-secondary !py-1.5 text-xs" onclick={() => (showMethodForm = !showMethodForm)}>Add method</button>{/if}
 		</div>
-		<p class="mb-3 text-[11px] text-slate-400">
+		<p class="mb-3 text-[12.5px] text-slate-400">
 			These details are included when you request a payment on WhatsApp. Display information only — never enter PINs or passwords.
 		</p>
 
@@ -87,7 +87,7 @@
 							{:else}
 								<p class="rounded-panel bg-slate-50 px-3 py-2 text-xs text-slate-500">No online provider is connected. Connect will not accept a pasted success URL as proof of payment.</p>
 							{/if}
-							<p class="mt-1 text-[11px] text-slate-400">The provider generates a fresh secure URL for each payment request.</p>
+							<p class="mt-1 text-[12.5px] text-slate-400">The provider generates a fresh secure URL for each payment request.</p>
 						</div>
 					{/if}
 					<div class="sm:col-span-2"><label class="label" for="pm-instr">Extra instructions <span class="font-normal text-slate-400">(optional)</span></label><input id="pm-instr" name="instructions" class="input" placeholder="Send the confirmation SMS screenshot here" /></div>
@@ -141,7 +141,7 @@
 					{/if}
 				</div>
 			{/each}
-			<p class="text-[11px] text-slate-400">Billing period {data.period} · times shown in {data.settings.timezone}</p>
+			<p class="text-[12.5px] text-slate-400">Billing period {data.period} · times shown in {data.settings.timezone}</p>
 		</div>
 	</section>
 

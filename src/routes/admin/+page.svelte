@@ -35,7 +35,7 @@
 
 	<!-- Platform -->
 	<div>
-		<p class="pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Platform</p>
+		<p class="pb-1.5 text-[11.5px] font-bold uppercase tracking-widest text-slate-400">Platform</p>
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
 			<StatTile label="Tenants" value={c.tenants} hint="{c.active_tenants} active" href="/admin/tenants" />
 			<StatTile label="Suspended" value={c.suspended_tenants} tone={c.suspended_tenants ? 'bad' : 'default'} href="/admin/tenants" />
@@ -48,8 +48,8 @@
 	<!-- Revenue — live subscriptions × current plan prices; currencies never mixed -->
 	<div>
 		<div class="flex items-baseline justify-between pb-1.5">
-			<p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Revenue</p>
-			<a href="/admin/plans" class="text-[11px] font-medium text-brand-600 hover:underline">Edit pricing →</a>
+			<p class="text-[11.5px] font-bold uppercase tracking-widest text-slate-400">Revenue</p>
+			<a href="/admin/plans" class="text-[12.5px] font-medium text-brand-600 hover:underline">Edit pricing →</a>
 		</div>
 		{#if data.revenue.totals.length}
 			<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 {revenueCols}">
@@ -66,7 +66,7 @@
 
 	<!-- Commerce + conversations -->
 	<div>
-		<p class="pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Last 24 hours</p>
+		<p class="pb-1.5 text-[11.5px] font-bold uppercase tracking-widest text-slate-400">Last 24 hours</p>
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
 			<StatTile label="Enquiries" value={c.requests_24h} />
 			<StatTile label="Orders" value={c.orders_24h} hint="{c.orders_awaiting} awaiting confirmation" tone={c.orders_awaiting ? 'warn' : 'default'} />
@@ -79,7 +79,7 @@
 
 	<!-- Delivery -->
 	<div>
-		<p class="pb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Delivery</p>
+		<p class="pb-1.5 text-[11.5px] font-bold uppercase tracking-widest text-slate-400">Delivery</p>
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 			<StatTile label="Jobs pending" value={c.jobs_pending} />
 			<StatTile label="Jobs dead" value={c.jobs_dead} tone={c.jobs_dead ? 'bad' : 'default'} />
@@ -105,7 +105,7 @@
 								<a href="/admin/tenants/{row.tenantId}" class="truncate font-medium text-brand-600 hover:underline">{row.tenantName}</a>
 								<span class="shrink-0 tabular-nums {row.percent >= 100 ? 'text-danger' : 'text-warning'}">{row.used}/{row.limit}</span>
 							</div>
-							<div class="mt-0.5 text-[11px] text-slate-400">{row.label}</div>
+							<div class="mt-0.5 text-[12.5px] text-slate-400">{row.label}</div>
 							<div class="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
 								<div class="h-full rounded-full {row.percent >= 100 ? 'bg-danger' : 'bg-warning'}" style="width: {Math.min(100, row.percent)}%"></div>
 							</div>
@@ -121,7 +121,7 @@
 				<ul class="divide-y divide-slate-100">
 					{#each data.planMix as p (p.code)}
 						<li class="flex items-center justify-between px-4 py-2 text-sm">
-							<span class="font-mono text-[11px] text-slate-500">{p.code}</span>
+							<span class="font-mono text-[12.5px] text-slate-500">{p.code}</span>
 							<span class="tabular-nums font-semibold text-slate-700">{p.tenants}</span>
 						</li>
 					{/each}
@@ -134,7 +134,7 @@
 		<section class="card">
 			<header class="card-header">
 				<h2 class="card-title">AI assist — this month</h2>
-				<span class="text-[11px] text-slate-400">{data.ai.totalRequests} requests · est. USD {data.ai.totalCost.toFixed(2)}</span>
+				<span class="text-[12.5px] text-slate-400">{data.ai.totalRequests} requests · est. USD {data.ai.totalCost.toFixed(2)}</span>
 			</header>
 			<ul class="divide-y divide-slate-100">
 				{#each data.ai.tenants as row (row.tenantId)}
@@ -150,7 +150,7 @@
 	<section class="card">
 		<header class="card-header">
 			<h2 class="card-title">Revenue by plan</h2>
-			<a href="/admin/plans" class="text-[11px] font-medium text-brand-600 hover:underline">Edit pricing →</a>
+			<a href="/admin/plans" class="text-[12.5px] font-medium text-brand-600 hover:underline">Edit pricing →</a>
 		</header>
 		<div class="overflow-x-auto">
 			<table class="min-w-full divide-y divide-slate-100">
@@ -163,8 +163,8 @@
 						<tr class={p.isActive ? '' : 'opacity-50'}>
 							<td class="table-cell">
 								<span class="font-medium text-slate-700">{p.name}</span>
-								<span class="ml-1.5 font-mono text-[10px] text-slate-400">{p.code}</span>
-								{#if !p.isActive}<span class="ml-1.5 text-[10px] text-slate-400">inactive</span>{/if}
+								<span class="ml-1.5 font-mono text-[11.5px] text-slate-400">{p.code}</span>
+								{#if !p.isActive}<span class="ml-1.5 text-[11.5px] text-slate-400">inactive</span>{/if}
 							</td>
 							<td class="table-cell tabular-nums">{money(p.currency, p.price)}</td>
 							<td class="table-cell tabular-nums">{p.paying}</td>

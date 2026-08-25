@@ -18,7 +18,7 @@
 					<tr>
 						<td class="table-cell">{row.tenant.name}</td>
 						<td class="table-cell font-mono text-xs">{row.delivery.event}</td>
-						<td class="table-cell max-w-[16rem] truncate font-mono text-[11px] text-slate-500">{row.endpoint.url}</td>
+						<td class="table-cell max-w-[16rem] truncate font-mono text-[12.5px] text-slate-500">{row.endpoint.url}</td>
 						<td class="table-cell tabular-nums">{row.delivery.attempts}</td>
 						<td class="table-cell tabular-nums">{row.delivery.responseStatus ?? '—'}</td>
 						<td class="table-cell max-w-[16rem] truncate text-xs text-danger">{row.delivery.errorMessage ?? '—'}</td>
@@ -40,7 +40,7 @@
 					<tr>
 						<td class="table-cell">{row.tenant.name}</td>
 						<td class="table-cell font-mono text-xs">{row.payment.reference}</td>
-						<td class="table-cell text-[11px] uppercase text-slate-500">{row.payment.provider}</td>
+						<td class="table-cell text-[12.5px] uppercase text-slate-500">{row.payment.provider}</td>
 						<td class="table-cell"><Money amount={row.payment.amount} currency={row.payment.currency} /></td>
 						<td class="table-cell text-xs text-danger">{row.payment.failureMessage ?? row.payment.failureCode ?? '—'}</td>
 						<td class="table-cell text-slate-500"><TimeAgo value={row.payment.createdAt} /></td>
@@ -61,7 +61,7 @@
 					<tr>
 						<td class="table-cell">{row.tenant.name}</td>
 						<td class="table-cell font-mono text-xs">{row.message.toAddress ?? '—'}</td>
-						<td class="table-cell text-[11px] uppercase text-slate-500">{row.message.type}</td>
+						<td class="table-cell text-[12.5px] uppercase text-slate-500">{row.message.type}</td>
 						<td class="table-cell max-w-[20rem] truncate text-xs text-danger">{row.message.errorMessage ?? row.message.errorCode ?? '—'}</td>
 						<td class="table-cell text-slate-500"><TimeAgo value={row.message.createdAt} /></td>
 					</tr>

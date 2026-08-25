@@ -35,10 +35,10 @@
 			<div class="card divide-y divide-slate-100">
 				{#each data.hits as hit (hit.kind + hit.id)}
 					<a href={hit.href} class="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
-						<span class="w-20 shrink-0 text-[10px] font-semibold tracking-wide text-slate-400 uppercase">{KIND_LABEL[hit.kind]}</span>
+						<span class="w-20 shrink-0 text-[11.5px] font-semibold tracking-wide text-slate-400 uppercase">{KIND_LABEL[hit.kind]}</span>
 						<span class="min-w-0 flex-1">
 							<span class="block truncate text-sm font-medium text-slate-700">{hit.title}</span>
-							{#if hit.subtitle}<span class="block truncate text-[11px] text-slate-400">{hit.subtitle}</span>{/if}
+							{#if hit.subtitle}<span class="block truncate text-[12.5px] text-slate-400">{hit.subtitle}</span>{/if}
 						</span>
 						{#if hit.status}<StatusBadge value={hit.status} size="xs" />{/if}
 					</a>

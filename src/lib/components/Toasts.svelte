@@ -25,7 +25,7 @@
 				<svg class="size-4.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d={ICONS[t.kind]} /></svg>
 			</div>
 			<div class="min-w-0 flex-1 pt-0.5">
-				<p class="text-[13px] font-semibold text-slate-700">{t.title}</p>
+				<p class="text-[14.5px] font-semibold text-slate-700">{t.title}</p>
 				{#if t.detail}<p class="mt-0.5 text-xs text-slate-500">{t.detail}</p>{/if}
 			</div>
 			<button class="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600" onclick={() => dismiss(t.id)} aria-label="Dismiss">

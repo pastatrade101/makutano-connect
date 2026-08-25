@@ -109,14 +109,14 @@
 
 	<!-- §5 Today -->
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">New chats today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('chats_today')}</div></div>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">New chats today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('chats_today')}</div></div>
 		{#if rel('orders')}
-			<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Orders today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('orders_today')}</div></div>
+			<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Orders today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('orders_today')}</div></div>
 		{/if}
 		{#if rel('enquiries')}
-			<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Enquiries today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('enquiries_today')}</div></div>
+			<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Enquiries today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('enquiries_today')}</div></div>
 		{/if}
-		<div class="card px-3 py-2"><div class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Received today</div><div class="text-lg font-bold tabular-nums text-success"><Money amount={String(c?.received_today ?? '0')} currency={data.tenant.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Received today</div><div class="text-lg font-bold tabular-nums text-success"><Money amount={String(c?.received_today ?? '0')} currency={data.tenant.currency} /></div></div>
 	</div>
 
 	<!-- §5 Quick actions -->
@@ -210,13 +210,13 @@
 									<span class="block truncate text-sm text-slate-800">
 										{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || row.conversation.externalId || 'Unknown'}
 									</span>
-									<span class="block truncate text-[11px] text-slate-500">{row.conversation.subject ?? row.conversation.channel}</span>
+									<span class="block truncate text-[12.5px] text-slate-500">{row.conversation.subject ?? row.conversation.channel}</span>
 								</span>
 								<span class="flex shrink-0 items-center gap-2">
 									{#if row.conversation.unreadCount > 0}
-										<span class="rounded-full bg-brand-500 px-1.5 text-[10px] font-semibold text-white">{row.conversation.unreadCount}</span>
+										<span class="rounded-full bg-brand-500 px-1.5 text-[11.5px] font-semibold text-white">{row.conversation.unreadCount}</span>
 									{/if}
-									<span class="text-[11px] text-slate-400"><TimeAgo value={row.conversation.lastMessageAt} timezone={tz} /></span>
+									<span class="text-[12.5px] text-slate-400"><TimeAgo value={row.conversation.lastMessageAt} timezone={tz} /></span>
 								</span>
 							</a>
 						</li>

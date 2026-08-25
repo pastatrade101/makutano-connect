@@ -42,7 +42,7 @@
 			{#each items as item (item.key)}
 				<li class="flex items-start gap-3 px-4 py-2.5">
 					<span
-						class="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold {item.done
+						class="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full text-[11.5px] font-bold {item.done
 							? 'bg-success text-white'
 							: 'border border-slate-300 text-transparent'}">✓</span
 					>

@@ -30,7 +30,7 @@
 							<a href="/admin/tenants/{row.tenantId}" class="font-medium text-brand-600 hover:underline">{row.name}</a>
 							{#if row.status !== 'ACTIVE'}<StatusBadge value={row.status} size="xs" />{/if}
 						</td>
-						<td class="table-cell text-[11px] uppercase text-slate-500">{row.plan}</td>
+						<td class="table-cell text-[12.5px] uppercase text-slate-500">{row.plan}</td>
 						{#each HEADLINE as key (key)}
 							{@const u = pick(row.usage, key)}
 							<td class="table-cell">

@@ -25,7 +25,7 @@
 				<StatusBadge value={c.status} />
 				{#if c.isPrimary}<span class="badge bg-brand-50 text-brand-600">primary</span>{/if}
 			</h1>
-			<p class="text-[11px] text-slate-400">
+			<p class="text-[12.5px] text-slate-400">
 				{c.businessName ?? '—'} · tenant <a href="/admin/tenants/{data.tenant.id}" class="text-brand-600 hover:underline">{data.tenant.name}</a>
 			</p>
 		</div>
@@ -69,16 +69,16 @@
 				<div class="flex justify-between gap-3"><dt class="text-slate-500">Key version</dt><dd class="tabular-nums">v{c.keyVersion}</dd></div>
 				<div class="flex justify-between gap-3"><dt class="text-slate-500">Token expires</dt><dd>{c.tokenExpiresAt ? new Date(c.tokenExpiresAt).toLocaleDateString('en-GB') : 'never (system user)'}</dd></div>
 				<div class="flex justify-between gap-3"><dt class="text-slate-500">Last error</dt><dd class="text-danger">{c.lastErrorCode ?? '—'}{#if c.lastErrorAt} · <TimeAgo value={c.lastErrorAt} />{/if}</dd></div>
-				<p class="pt-1 text-[11px] text-slate-400">Token values are never displayed or logged — only their presence and expiry.</p>
+				<p class="pt-1 text-[12.5px] text-slate-400">Token values are never displayed or logged — only their presence and expiry.</p>
 			</dl>
 		</section>
 
 		<section class="card">
 			<header class="card-header"><h2 class="card-title">Traffic (7 days)</h2></header>
 			<div class="grid grid-cols-3 gap-2 p-4 text-center">
-				<div><div class="text-lg font-bold tabular-nums text-slate-800">{data.messages.in_7d ?? 0}</div><div class="text-[10px] uppercase text-slate-500">inbound</div></div>
-				<div><div class="text-lg font-bold tabular-nums text-slate-800">{data.messages.out_7d ?? 0}</div><div class="text-[10px] uppercase text-slate-500">outbound</div></div>
-				<div><div class="text-lg font-bold tabular-nums {(data.messages.failed_7d ?? 0) > 0 ? 'text-danger' : 'text-slate-800'}">{data.messages.failed_7d ?? 0}</div><div class="text-[10px] uppercase text-slate-500">failed</div></div>
+				<div><div class="text-lg font-bold tabular-nums text-slate-800">{data.messages.in_7d ?? 0}</div><div class="text-[11.5px] uppercase text-slate-500">inbound</div></div>
+				<div><div class="text-lg font-bold tabular-nums text-slate-800">{data.messages.out_7d ?? 0}</div><div class="text-[11.5px] uppercase text-slate-500">outbound</div></div>
+				<div><div class="text-lg font-bold tabular-nums {(data.messages.failed_7d ?? 0) > 0 ? 'text-danger' : 'text-slate-800'}">{data.messages.failed_7d ?? 0}</div><div class="text-[11.5px] uppercase text-slate-500">failed</div></div>
 			</div>
 			<div class="space-y-1.5 border-t border-slate-100 px-4 py-3 text-sm">
 				<div class="flex justify-between"><span class="text-slate-500">Last inbound</span><TimeAgo value={c.lastWebhookAt} /></div>
@@ -96,7 +96,7 @@
 				<div class="flex justify-between"><dt class="text-slate-500">Registered</dt><dd class="tabular-nums">{data.templates.total ?? 0}</dd></div>
 				<div class="flex justify-between"><dt class="text-slate-500">Approved by Meta</dt><dd class="tabular-nums">{data.templates.approved ?? 0}</dd></div>
 				<div class="flex justify-between"><dt class="text-slate-500">Last synced</dt><dd><TimeAgo value={data.templates.last_synced as string} /></dd></div>
-				<p class="pt-1 text-[11px] text-slate-400">Approval is Meta's decision — Connect mirrors it and refuses to send unapproved templates.</p>
+				<p class="pt-1 text-[12.5px] text-slate-400">Approval is Meta's decision — Connect mirrors it and refuses to send unapproved templates.</p>
 			</dl>
 		</section>
 	</div>

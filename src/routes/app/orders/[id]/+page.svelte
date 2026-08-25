@@ -120,7 +120,7 @@
 					<div>
 						<label class="label" for="pr-amount">Amount to request ({data.order.currency})</label>
 						<input id="pr-amount" name="amount" inputmode="decimal" bind:value={requestAmount} class="input" />
-						<p class="mt-1 text-[11px] text-slate-400">Outstanding: {data.order.currency} {outstanding.toFixed(2)}</p>
+						<p class="mt-1 text-[12.5px] text-slate-400">Outstanding: {data.order.currency} {outstanding.toFixed(2)}</p>
 					</div>
 					<div>
 						<label class="label" for="pr-method">Payment method</label>
@@ -140,7 +140,7 @@
 					{/if}
 				</div>
 				<div class="flex items-center justify-between gap-2">
-					<p class="text-[11px] text-slate-500">
+					<p class="text-[12.5px] text-slate-500">
 						{#if !data.customer?.whatsappPhone}Add the customer's WhatsApp number.
 						{:else if !data.requestTemplateReady}The payment request template is not approved and enabled yet.
 						{:else if requestReady}WhatsApp: ready to send ✓
@@ -165,12 +165,12 @@
 		{/if}
 
 		{#if canWrite && destructive.length}
-		<div class="flex justify-end gap-3 text-[11px]">
+		<div class="flex justify-end gap-3 text-[12.5px]">
 			{#each destructive as move (move.to)}
 				{#if confirmDestructive === move.to}
 					<form method="POST" action="?/status" use:enhance={() => async ({ update }) => { await update(); confirmDestructive = null; }} class="flex items-center gap-2">
 						<input type="hidden" name="status" value={move.to} />
-						<input name="reason" placeholder="Reason (optional)" class="input !py-1 w-40 text-[11px]" />
+						<input name="reason" placeholder="Reason (optional)" class="input !py-1 w-40 text-[12.5px]" />
 						<button class="font-semibold text-danger hover:underline">Yes, {move.label.toLowerCase()}</button>
 						<button type="button" class="text-slate-400 hover:underline" onclick={() => (confirmDestructive = null)}>Keep it</button>
 					</form>
@@ -189,10 +189,10 @@
 	{/if}
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Total</div><div class="text-lg font-bold"><Money amount={data.order.total} currency={data.order.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Paid</div><div class="text-lg font-bold text-success"><Money amount={data.order.amountPaid} currency={data.order.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Delivery</div><div class="text-sm font-semibold">{data.order.deliveryMethod ?? '—'}{#if data.order.deliveryDate} · {new Date(data.order.deliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{/if}</div><div class="truncate text-[11px] text-slate-400">{data.order.deliveryLocation ?? ''}</div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Source</div><div class="text-sm font-semibold">{sourceLabel(data.order.source)}</div>{#if data.batch}<a href="/app/orders/batches/{data.batch.id}" class="truncate text-[11px] text-brand-600 hover:underline">{data.batch.name}</a>{:else if data.order.paymentMethod}<div class="truncate text-[11px] text-slate-400">{data.order.paymentMethod}</div>{/if}</div>
+		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Total</div><div class="text-lg font-bold"><Money amount={data.order.total} currency={data.order.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Paid</div><div class="text-lg font-bold text-success"><Money amount={data.order.amountPaid} currency={data.order.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Delivery</div><div class="text-sm font-semibold">{data.order.deliveryMethod ?? '—'}{#if data.order.deliveryDate} · {new Date(data.order.deliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{/if}</div><div class="truncate text-[12.5px] text-slate-400">{data.order.deliveryLocation ?? ''}</div></div>
+		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Source</div><div class="text-sm font-semibold">{sourceLabel(data.order.source)}</div>{#if data.batch}<a href="/app/orders/batches/{data.batch.id}" class="truncate text-[12.5px] text-brand-600 hover:underline">{data.batch.name}</a>{:else if data.order.paymentMethod}<div class="truncate text-[12.5px] text-slate-400">{data.order.paymentMethod}</div>{/if}</div>
 	</div>
 
 	<div class="grid gap-3 lg:grid-cols-3">
@@ -206,7 +206,7 @@
 							<tr>
 								<td class="table-cell">
 									<div class="font-medium text-slate-700">{item.title}</div>
-									{#if item.sku || item.externalReference}<div class="font-mono text-[11px] text-slate-400">{item.sku ?? item.externalReference}</div>{/if}
+									{#if item.sku || item.externalReference}<div class="font-mono text-[12.5px] text-slate-400">{item.sku ?? item.externalReference}</div>{/if}
 								</td>
 								<td class="table-cell text-slate-500">{item.variant ?? '—'}</td>
 								<td class="table-cell tabular-nums">{item.quantity}{item.unit ? ` ${item.unit}` : ''}</td>
@@ -239,7 +239,7 @@
 						{#each data.payments as p (p.id)}
 							<tr>
 								<td class="table-cell font-mono text-xs">{p.reference}</td>
-								<td class="table-cell text-[11px] uppercase text-slate-400">{p.provider}</td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-400">{p.provider}</td>
 								<td class="table-cell"><StatusBadge value={p.status} size="xs" /></td>
 								<td class="table-cell"><Money amount={p.amount} currency={p.currency} /></td>
 								<td class="table-cell text-slate-500"><TimeAgo value={p.createdAt} timezone={tz} /></td>

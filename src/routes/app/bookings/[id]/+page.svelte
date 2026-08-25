@@ -98,12 +98,12 @@
 	</div>
 
 	{#if canWrite && destructive.length}
-		<div class="flex justify-end gap-3 text-[11px]">
+		<div class="flex justify-end gap-3 text-[12.5px]">
 			{#each destructive as move (move.to)}
 				{#if confirmDestructive === move.to}
 					<form method="POST" action="?/status" use:enhance={() => async ({ update }) => { await update(); confirmDestructive = null; }} class="flex items-center gap-2">
 						<input type="hidden" name="status" value={move.to} />
-						<input name="reason" placeholder="Reason (optional)" class="input !py-1 w-40 text-[11px]" />
+						<input name="reason" placeholder="Reason (optional)" class="input !py-1 w-40 text-[12.5px]" />
 						<button class="font-semibold text-danger hover:underline">Yes, {move.label.toLowerCase()}</button>
 						<button type="button" class="text-slate-400 hover:underline" onclick={() => (confirmDestructive = null)}>Keep it</button>
 					</form>
@@ -132,7 +132,7 @@
 				<div>
 					<label class="label" for="pr-amount">Amount to request ({data.booking.currency})</label>
 					<input id="pr-amount" name="amount" inputmode="decimal" bind:value={requestAmount} class="input" />
-					<p class="mt-1 text-[11px] text-slate-400">Outstanding balance: {data.booking.currency} {balance.toFixed(2)} — lower it for a deposit.</p>
+					<p class="mt-1 text-[12.5px] text-slate-400">Outstanding balance: {data.booking.currency} {balance.toFixed(2)} — lower it for a deposit.</p>
 				</div>
 				<div>
 					<label class="label" for="pr-method">Payment method</label>
@@ -157,7 +157,7 @@
 					</dl>
 				{/if}
 				<div class="flex items-center justify-between gap-2">
-					<p class="text-[11px] text-slate-500">
+					<p class="text-[12.5px] text-slate-500">
 						{#if !data.customer?.whatsappPhone}Add a WhatsApp number to this customer before sending.
 						{:else if !data.requestTemplateReady}The payment request template is not approved and enabled yet.
 						{:else if !selectedMethod}Choose a usable payment method.
@@ -191,10 +191,10 @@
 	{/if}
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Total</div><div class="text-lg font-semibold"><Money amount={data.booking.total} currency={data.booking.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Paid</div><div class="text-lg font-semibold text-success"><Money amount={data.booking.amountPaid} currency={data.booking.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Balance</div><div class="text-lg font-semibold {Number(data.booking.balanceDue) > 0 ? 'text-danger' : 'text-slate-900'}"><Money amount={data.booking.balanceDue} currency={data.booking.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[11px] uppercase text-slate-500">Travellers</div><div class="text-lg font-semibold tabular-nums">{data.booking.adults + data.booking.children}</div></div>
+		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Total</div><div class="text-lg font-semibold"><Money amount={data.booking.total} currency={data.booking.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Paid</div><div class="text-lg font-semibold text-success"><Money amount={data.booking.amountPaid} currency={data.booking.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Balance</div><div class="text-lg font-semibold {Number(data.booking.balanceDue) > 0 ? 'text-danger' : 'text-slate-900'}"><Money amount={data.booking.balanceDue} currency={data.booking.currency} /></div></div>
+		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Travellers</div><div class="text-lg font-semibold tabular-nums">{data.booking.adults + data.booking.children}</div></div>
 	</div>
 
 	<div class="grid gap-3 lg:grid-cols-3">
@@ -207,7 +207,7 @@
 						{#each data.items as item (item.id)}
 							<tr>
 								<td class="table-cell font-medium text-slate-800">{item.title}</td>
-								<td class="table-cell text-[11px] uppercase text-slate-500">{item.type}</td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-500">{item.type}</td>
 								<td class="table-cell tabular-nums">{item.quantity}</td>
 								<td class="table-cell"><Money amount={item.unitPrice} currency={data.booking.currency} /></td>
 								<td class="table-cell"><Money amount={item.total} currency={data.booking.currency} /></td>
@@ -236,7 +236,7 @@
 						{#each data.payments as p (p.id)}
 							<tr>
 								<td class="table-cell font-mono text-xs">{p.reference}</td>
-								<td class="table-cell text-[11px] uppercase text-slate-500">{p.provider}</td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-500">{p.provider}</td>
 								<td class="table-cell"><StatusBadge value={p.status} /></td>
 								<td class="table-cell"><Money amount={p.amount} currency={p.currency} /></td>
 								<td class="table-cell text-slate-500"><TimeAgo value={p.createdAt} timezone={tz} /></td>

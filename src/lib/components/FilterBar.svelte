@@ -57,7 +57,7 @@
 	<button type="button" class="btn-secondary relative" onclick={() => (open = !open)}>
 		More filters
 		{#if activeExtras}
-			<span class="ml-1 rounded-full bg-brand-500 px-1.5 text-[10px] font-semibold text-white">{activeExtras}</span>
+			<span class="ml-1 rounded-full bg-brand-500 px-1.5 text-[11.5px] font-semibold text-white">{activeExtras}</span>
 		{/if}
 	</button>
 	<button type="submit" class="btn-primary">Apply</button>

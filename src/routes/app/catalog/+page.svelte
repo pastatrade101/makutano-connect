@@ -60,9 +60,9 @@
 					<tr class={item.isActive ? '' : 'opacity-50'}>
 						<td class="table-cell">
 							<div class="font-medium text-slate-700">{item.name}</div>
-							{#if item.sku}<div class="font-mono text-[11px] text-slate-400">{item.sku}</div>{/if}
+							{#if item.sku}<div class="font-mono text-[12.5px] text-slate-400">{item.sku}</div>{/if}
 						</td>
-						<td class="table-cell text-[11px] uppercase text-slate-400">{item.type}</td>
+						<td class="table-cell text-[12.5px] uppercase text-slate-400">{item.type}</td>
 						<td class="table-cell">{#if item.price}<Money amount={item.price} currency={item.currency ?? data.tenant.currency} />{:else}—{/if}</td>
 						<td class="table-cell max-w-[14rem] truncate text-xs text-slate-500">{(item.variants ?? []).map((v) => v.label).join(', ') || '—'}</td>
 						<td class="table-cell"><span class="badge {item.isActive ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-400'} text-xs">{item.isActive ? 'active' : 'hidden'}</span></td>

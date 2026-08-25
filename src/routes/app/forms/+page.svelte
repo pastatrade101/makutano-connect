@@ -57,9 +57,9 @@
 			<header class="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
 				<div class="flex items-center gap-2">
 					<h2 class="text-sm font-semibold text-slate-700">{f.name}</h2>
-					<span class="badge bg-slate-100 text-[10px] uppercase text-slate-500">{f.type}</span>
+					<span class="badge bg-slate-100 text-[11.5px] uppercase text-slate-500">{f.type}</span>
 					<StatusBadge value={f.isActive ? 'ACTIVE' : 'DISCONNECTED'} size="xs" />
-					<span class="text-[11px] text-slate-400">{f.submissionCount} submissions</span>
+					<span class="text-[12.5px] text-slate-400">{f.submissionCount} submissions</span>
 				</div>
 				<div class="flex items-center gap-1.5">
 					<a href={hostedUrl(f.publicId)} target="_blank" rel="noopener" class="btn-secondary !py-1 text-xs">Preview</a>

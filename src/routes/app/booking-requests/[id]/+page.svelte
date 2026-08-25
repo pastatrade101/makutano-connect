@@ -54,7 +54,7 @@
 						<button class="btn-secondary">{move.label}</button>
 					</form>
 				{/each}
-				<button class="text-[11px] text-slate-400 hover:underline" onclick={() => (moreStatus = !moreStatus)}>More…</button>
+				<button class="text-[12.5px] text-slate-400 hover:underline" onclick={() => (moreStatus = !moreStatus)}>More…</button>
 			{/if}
 		</div>
 	</div>
@@ -79,18 +79,18 @@
 			<section class="card">
 				<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Trip</header>
 				<dl class="grid grid-cols-2 gap-x-4 gap-y-2 p-3 text-sm sm:grid-cols-4">
-					<div><dt class="text-[11px] uppercase text-slate-500">Start</dt><dd>{data.request.startDate ? new Date(data.request.startDate).toLocaleDateString('en-GB', { timeZone: tz }) : '—'}</dd></div>
-					<div><dt class="text-[11px] uppercase text-slate-500">End</dt><dd>{data.request.endDate ? new Date(data.request.endDate).toLocaleDateString('en-GB', { timeZone: tz }) : '—'}</dd></div>
-					<div><dt class="text-[11px] uppercase text-slate-500">Travellers</dt><dd class="tabular-nums">{data.request.adults} adults · {data.request.children} children</dd></div>
-					<div><dt class="text-[11px] uppercase text-slate-500">Estimated</dt><dd><Money amount={data.request.estimatedTotal} currency={data.request.currency} /></dd></div>
+					<div><dt class="text-[12.5px] uppercase text-slate-500">Start</dt><dd>{data.request.startDate ? new Date(data.request.startDate).toLocaleDateString('en-GB', { timeZone: tz }) : '—'}</dd></div>
+					<div><dt class="text-[12.5px] uppercase text-slate-500">End</dt><dd>{data.request.endDate ? new Date(data.request.endDate).toLocaleDateString('en-GB', { timeZone: tz }) : '—'}</dd></div>
+					<div><dt class="text-[12.5px] uppercase text-slate-500">Travellers</dt><dd class="tabular-nums">{data.request.adults} adults · {data.request.children} children</dd></div>
+					<div><dt class="text-[12.5px] uppercase text-slate-500">Estimated</dt><dd><Money amount={data.request.estimatedTotal} currency={data.request.currency} /></dd></div>
 					{#if data.request.externalReference}
 						<div class="col-span-2">
-							<dt class="text-[11px] uppercase text-slate-500">Client catalog reference</dt>
+							<dt class="text-[12.5px] uppercase text-slate-500">Client catalog reference</dt>
 							<dd class="font-mono text-xs">{data.request.externalSource ?? 'external'}:{data.request.externalReference}</dd>
 						</div>
 					{/if}
 					{#if data.request.notes}
-						<div class="col-span-full"><dt class="text-[11px] uppercase text-slate-500">Notes</dt><dd class="whitespace-pre-wrap text-slate-700">{data.request.notes}</dd></div>
+						<div class="col-span-full"><dt class="text-[12.5px] uppercase text-slate-500">Notes</dt><dd class="whitespace-pre-wrap text-slate-700">{data.request.notes}</dd></div>
 					{/if}
 				</dl>
 			</section>
@@ -105,9 +105,9 @@
 								<tr>
 									<td class="table-cell">
 										<div class="font-medium text-slate-800">{item.title}</div>
-										{#if item.description}<div class="text-[11px] text-slate-500">{item.description}</div>{/if}
+										{#if item.description}<div class="text-[12.5px] text-slate-500">{item.description}</div>{/if}
 									</td>
-									<td class="table-cell text-[11px] uppercase text-slate-500">{item.type}</td>
+									<td class="table-cell text-[12.5px] uppercase text-slate-500">{item.type}</td>
 									<td class="table-cell tabular-nums">{item.quantity}</td>
 									<td class="table-cell"><Money amount={item.total ?? item.unitPrice} currency={data.request.currency} /></td>
 								</tr>
@@ -121,7 +121,7 @@
 				<section class="card">
 					<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
 						<h2 class="text-sm font-semibold text-slate-800">Travellers</h2>
-						{#if !data.canSeeSensitive}<span class="text-[11px] text-slate-400">Passport details hidden for your role</span>{/if}
+						{#if !data.canSeeSensitive}<span class="text-[12.5px] text-slate-400">Passport details hidden for your role</span>{/if}
 					</header>
 					<table class="min-w-full divide-y divide-slate-100">
 						<thead class="bg-slate-50"><tr><th class="table-head">Name</th><th class="table-head">Nationality</th><th class="table-head">Passport</th><th class="table-head">Requests</th></tr></thead>
@@ -131,7 +131,7 @@
 									<td class="table-cell">{[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}</td>
 									<td class="table-cell">{t.nationality ?? '—'}</td>
 									<td class="table-cell font-mono text-xs">{t.passportNumber ?? '••••••'}</td>
-									<td class="table-cell text-[11px] text-slate-500">{t.specialRequests ?? t.dietaryRequirements ?? '—'}</td>
+									<td class="table-cell text-[12.5px] text-slate-500">{t.specialRequests ?? t.dietaryRequirements ?? '—'}</td>
 								</tr>
 							{/each}
 						</tbody>
@@ -155,7 +155,7 @@
 							<li class="flex {m.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}">
 								<div class="max-w-[80%] rounded-lg px-3 py-1.5 text-sm {m.direction === 'OUTBOUND' ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-800'}">
 									<p class="whitespace-pre-wrap">{m.body ?? `[${m.type}]`}</p>
-									<p class="mt-0.5 text-[10px] {m.direction === 'OUTBOUND' ? 'text-white/70' : 'text-slate-400'}">
+									<p class="mt-0.5 text-[11.5px] {m.direction === 'OUTBOUND' ? 'text-white/70' : 'text-slate-400'}">
 										<TimeAgo value={m.createdAt} timezone={tz} /> · {m.status.toLowerCase()}
 									</p>
 								</div>
@@ -179,7 +179,7 @@
 					<div class="font-medium text-slate-900">{traveller}</div>
 					{#if data.customer?.email}<div class="text-slate-600">{data.customer.email}</div>{/if}
 					{#if data.customer?.whatsappPhone}<div class="text-slate-600">+{data.customer.whatsappPhone}</div>{/if}
-					{#if data.customer?.country}<div class="text-[11px] uppercase text-slate-500">{data.customer.country}</div>{/if}
+					{#if data.customer?.country}<div class="text-[12.5px] uppercase text-slate-500">{data.customer.country}</div>{/if}
 					{#if data.customer}
 						<a href="/app/customers?q={data.customer.email ?? data.customer.whatsappPhone ?? ''}" class="mt-2 inline-block text-xs text-brand-600 hover:underline">Customer record →</a>
 					{/if}
@@ -198,7 +198,7 @@
 					{#each data.notes as note (note.id)}
 						<li class="px-3 py-2">
 							<p class="whitespace-pre-wrap text-sm text-slate-700">{note.body}</p>
-							<p class="mt-0.5 text-[11px] text-slate-400"><TimeAgo value={note.createdAt} timezone={tz} /></p>
+							<p class="mt-0.5 text-[12.5px] text-slate-400"><TimeAgo value={note.createdAt} timezone={tz} /></p>
 						</li>
 					{:else}
 						<li class="px-3 py-6 text-center text-xs text-slate-500">No notes yet.</li>

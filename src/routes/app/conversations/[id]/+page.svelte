@@ -112,10 +112,10 @@
 		<a href="/app/conversations" class="rounded-panel p-1 text-slate-400 hover:bg-slate-100 lg:hidden" aria-label="Back to inbox">
 			<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 6 10l6 6" /></svg>
 		</a>
-		<div class="flex size-9 items-center justify-center rounded-full bg-brand-50 text-[12px] font-bold text-brand-600">{initials}</div>
+		<div class="flex size-9 items-center justify-center rounded-full bg-brand-50 text-[13.5px] font-bold text-brand-600">{initials}</div>
 		<div class="min-w-0">
-			<h1 class="truncate text-[14px] font-semibold text-slate-700">{who}</h1>
-			<p class="truncate text-[11px] text-slate-400">
+			<h1 class="truncate text-[15.5px] font-semibold text-slate-700">{who}</h1>
+			<p class="truncate text-[12.5px] text-slate-400">
 				{#if presenceLine}
 					<span class="font-medium text-brand-600">{presenceLine}</span>
 				{:else}
@@ -141,18 +141,18 @@
 
 <!-- Assignment + visibility — only rendered for conversations:assign holders (§8) -->
 {#if data.teamMembers.length}
-	<div class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-1.5 text-[11px] text-slate-500">
+	<div class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-1.5 text-[12.5px] text-slate-500">
 		{#if data.conversation.assignedToUserId !== data.user.id}
 			<!-- The most common assignment action, one thumb-tap on mobile -->
 			<form method="POST" action="?/access" use:enhance>
 				<input type="hidden" name="assignedToUserId" value={data.user.id} />
-				<button class="btn-primary !px-3 !py-1 text-[11px]">Take</button>
+				<button class="btn-primary !px-3 !py-1 text-[12.5px]">Take</button>
 			</form>
 		{/if}
 		<form method="POST" action="?/access" use:enhance class="flex items-center gap-1.5">
 			<label for="c-assignee">Assigned to</label>
 			<select
-				id="c-assignee" name="assignedToUserId" class="input w-auto !py-1 text-[11px]"
+				id="c-assignee" name="assignedToUserId" class="input w-auto !py-1 text-[12.5px]"
 				onchange={(e) => e.currentTarget.form?.requestSubmit()}
 			>
 				<option value="" selected={!data.conversation.assignedToUserId}>— nobody —</option>
@@ -164,7 +164,7 @@
 		<form method="POST" action="?/access" use:enhance class="flex items-center gap-1.5">
 			<label for="c-visibility">Visible to</label>
 			<select
-				id="c-visibility" name="visibility" class="input w-auto !py-1 text-[11px]"
+				id="c-visibility" name="visibility" class="input w-auto !py-1 text-[12.5px]"
 				onchange={(e) => e.currentTarget.form?.requestSubmit()}
 			>
 				<option value="TEAM" selected={data.conversation.visibility === 'TEAM'}>Whole team</option>
@@ -187,21 +187,21 @@
 		}}
 	>
 		<input type="hidden" name="batchId" value={data.openBatch.id} />
-		<span class="hidden text-[11px] text-slate-500 sm:block">Add to <b class="text-slate-700">{data.openBatch.name}</b></span>
-		<span class="text-[11px] text-slate-500 sm:hidden">Add to batch</span>
+		<span class="hidden text-[12.5px] text-slate-500 sm:block">Add to <b class="text-slate-700">{data.openBatch.name}</b></span>
+		<span class="text-[12.5px] text-slate-500 sm:hidden">Add to batch</span>
 		<input
 			type="number" min="1" inputmode="numeric" name="quantity" bind:value={batchQty}
 			placeholder={data.openBatch.unit ? `Qty (${data.openBatch.unit})` : 'Qty'}
 			class="input h-9 w-24 text-center text-sm font-semibold"
 		/>
 		{#if Number(batchQty) > 0}
-			<span class="text-[11px] font-semibold tabular-nums text-slate-600">
+			<span class="text-[12.5px] font-semibold tabular-nums text-slate-600">
 				= {data.openBatch.currency} {(Number(batchQty) * Number(data.openBatch.unitPrice)).toLocaleString()}
 			</span>
 		{/if}
 		<button class="btn-primary !py-1.5 text-xs" disabled={!batchQty}>Add order</button>
 		{#if form?.added}
-			<span class="ml-auto truncate text-[11px] text-success">✓ {form.added.orderNumber} added</span>
+			<span class="ml-auto truncate text-[12.5px] text-success">✓ {form.added.orderNumber} added</span>
 		{/if}
 	</form>
 {/if}
@@ -217,7 +217,7 @@
 			<span class="badge bg-orange/15 text-orange">Verification needed</span>
 			<a href="/app/payments?verify={data.paymentRequest.id}" class="ml-auto text-xs font-semibold text-brand-600 hover:underline">Verify payment</a>
 		{:else}
-			<span class="ml-auto text-[11px] text-slate-500">waiting for the customer to pay</span>
+			<span class="ml-auto text-[12.5px] text-slate-500">waiting for the customer to pay</span>
 		{/if}
 	</div>
 {/if}
@@ -228,7 +228,7 @@
 		{#each data.context.slice(0, showContext ? 6 : 3) as t (t.kind + t.id)}
 			<a
 				href="{KIND_HREF[t.kind]}/{t.id}"
-				class="flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition hover:border-brand-300 {t.this_thread ? 'border-brand-200 bg-brand-50/60' : 'border-slate-200 bg-white'}"
+				class="flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12.5px] transition hover:border-brand-300 {t.this_thread ? 'border-brand-200 bg-brand-50/60' : 'border-slate-200 bg-white'}"
 			>
 				<span class="font-semibold text-slate-700">{t.reference}</span>
 				<StatusBadge value={t.status} size="xs" />
@@ -236,7 +236,7 @@
 			</a>
 		{/each}
 		{#if Number(data.outstanding) > 0}
-			<span class="ml-auto shrink-0 rounded-full bg-warning/15 px-2.5 py-1 text-[11px] font-semibold text-[#b58514]">
+			<span class="ml-auto shrink-0 rounded-full bg-warning/15 px-2.5 py-1 text-[12.5px] font-semibold text-[#b58514]">
 				Owes <Money amount={data.outstanding} currency={data.context[0]?.currency ?? data.tenant.currency} />
 			</span>
 		{/if}
@@ -256,9 +256,9 @@
 	{#each data.messages as m (m.id)}
 		{@const tick = TICKS[m.status] ?? TICKS.QUEUED}
 		<div class="flex {m.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'}">
-			<div class="max-w-[78%] rounded-panel px-3 py-2 text-[13.5px] {m.direction === 'OUTBOUND' ? 'rounded-br-none bg-brand-500 text-white' : 'rounded-bl-none border border-slate-200 bg-white text-slate-700'}">
+			<div class="max-w-[78%] rounded-panel px-3 py-2 text-[15px] {m.direction === 'OUTBOUND' ? 'rounded-br-none bg-brand-500 text-white' : 'rounded-bl-none border border-slate-200 bg-white text-slate-700'}">
 				<p class="whitespace-pre-wrap">{messagePreview(m.body, m.type)}</p>
-				<p class="mt-1 flex items-center justify-end gap-1 text-[10px] {m.direction === 'OUTBOUND' ? 'text-white/70' : 'text-slate-400'}">
+				<p class="mt-1 flex items-center justify-end gap-1 text-[11.5px] {m.direction === 'OUTBOUND' ? 'text-white/70' : 'text-slate-400'}">
 					<TimeAgo value={m.createdAt} timezone={data.tenant.timezone} />
 					{#if m.direction === 'OUTBOUND'}
 						{#if m.status === 'FAILED'}
@@ -280,7 +280,7 @@
 					use:enhance={() => { suggestingFor = m.id; return async ({ update }) => { await update({ reset: false }); suggestingFor = null; }; }}
 				>
 					<input type="hidden" name="messageId" value={m.id} />
-					<button class="mt-1 text-[11px] font-medium text-brand-600 hover:underline disabled:opacity-50" disabled={suggestingFor === m.id}>
+					<button class="mt-1 text-[12.5px] font-medium text-brand-600 hover:underline disabled:opacity-50" disabled={suggestingFor === m.id}>
 						{suggestingFor === m.id ? 'Reading…' : `✦ ${primaryAiAction.label}`}
 					</button>
 				</form>
@@ -297,22 +297,22 @@
 	<div class="border-t border-brand-200 bg-brand-50/50 p-3">
 		{#if !enquiry.shouldCreateEnquiry}
 			<div class="flex flex-wrap items-center justify-between gap-2">
-				<p class="text-[13px] text-slate-600">
+				<p class="text-[14.5px] text-slate-600">
 					Read as <b>{INTENT_LABEL[x.intent] ?? x.intent.toLowerCase().replace(/_/g, ' ')}</b> — not a new trip enquiry, so nothing was prefilled.
 					{#if x.urgent}<span class="badge bg-danger/10 text-danger ml-1">needs attention</span>{/if}
 				</p>
 				<form method="POST" action="?/discardSuggestion" use:enhance>
 					<input type="hidden" name="usageId" value={enquiry.usageId ?? ''} />
-					<button class="text-[11px] text-slate-400 hover:underline">Dismiss</button>
+					<button class="text-[12.5px] text-slate-400 hover:underline">Dismiss</button>
 				</form>
 			</div>
 		{:else}
 			<form method="POST" action="?/createEnquiry" use:enhance oninput={() => (enquiryEdited = true)} class="space-y-2.5">
 				<div class="flex flex-wrap items-center gap-2">
-					<span class="text-[11px] font-bold tracking-wide text-brand-700 uppercase">✦ Trip enquiry detected</span>
-					<span class="badge {x.confidence === 'HIGH' ? 'bg-success/10 text-success' : x.confidence === 'MEDIUM' ? 'bg-warning/10 text-warning' : 'bg-slate-100 text-slate-500'} text-[10px]">{x.confidence.toLowerCase()} confidence</span>
-					{#if enquiry.externalTour?.name}<span class="badge bg-purple/10 text-purple text-[10px]">from website: {enquiry.externalTour.name}</span>{/if}
-					{#if enquiry.suggestedMatch}<span class="badge bg-slate-100 text-slate-500 text-[10px]">suggested match: {enquiry.suggestedMatch.title}</span>{/if}
+					<span class="text-[12.5px] font-bold tracking-wide text-brand-700 uppercase">✦ Trip enquiry detected</span>
+					<span class="badge {x.confidence === 'HIGH' ? 'bg-success/10 text-success' : x.confidence === 'MEDIUM' ? 'bg-warning/10 text-warning' : 'bg-slate-100 text-slate-500'} text-[11.5px]">{x.confidence.toLowerCase()} confidence</span>
+					{#if enquiry.externalTour?.name}<span class="badge bg-purple/10 text-purple text-[11.5px]">from website: {enquiry.externalTour.name}</span>{/if}
+					{#if enquiry.suggestedMatch}<span class="badge bg-slate-100 text-slate-500 text-[11.5px]">suggested match: {enquiry.suggestedMatch.title}</span>{/if}
 				</div>
 
 				<input type="hidden" name="usageId" value={enquiry.usageId ?? ''} />
@@ -327,29 +327,29 @@
 				<input type="hidden" name="destinations" value={x.travel.destinations.join(', ')} />
 
 				<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-					<label class="block"><span class="text-[10px] text-slate-500">Adults</span><input name="adults" value={x.travellers.adults ?? x.travellers.total ?? ''} inputmode="numeric" class="input py-1.5 text-[13px]" /></label>
-					<label class="block"><span class="text-[10px] text-slate-500">Children</span><input name="children" value={x.travellers.children ?? 0} inputmode="numeric" class="input py-1.5 text-[13px]" /></label>
-					<label class="block"><span class="text-[10px] text-slate-500">Start date</span><input name="startDate" type="date" value={x.travel.resolvedStartDate ?? ''} class="input py-1.5 text-[13px]" /></label>
-					<label class="block"><span class="text-[10px] text-slate-500">Days</span><input value={x.travel.durationDays ?? ''} disabled class="input py-1.5 text-[13px] opacity-70" /></label>
+					<label class="block"><span class="text-[11.5px] text-slate-500">Adults</span><input name="adults" value={x.travellers.adults ?? x.travellers.total ?? ''} inputmode="numeric" class="input py-1.5 text-[14.5px]" /></label>
+					<label class="block"><span class="text-[11.5px] text-slate-500">Children</span><input name="children" value={x.travellers.children ?? 0} inputmode="numeric" class="input py-1.5 text-[14.5px]" /></label>
+					<label class="block"><span class="text-[11.5px] text-slate-500">Start date</span><input name="startDate" type="date" value={x.travel.resolvedStartDate ?? ''} class="input py-1.5 text-[14.5px]" /></label>
+					<label class="block"><span class="text-[11.5px] text-slate-500">Days</span><input value={x.travel.durationDays ?? ''} disabled class="input py-1.5 text-[14.5px] opacity-70" /></label>
 				</div>
 
-				<label class="block"><span class="text-[10px] text-slate-500">Trip notes (goes on the enquiry)</span>
-					<textarea name="notes" rows="4" class="input text-[13px]">{enquiryNotesText}</textarea>
+				<label class="block"><span class="text-[11.5px] text-slate-500">Trip notes (goes on the enquiry)</span>
+					<textarea name="notes" rows="4" class="input text-[14.5px]">{enquiryNotesText}</textarea>
 				</label>
 
-				<p class="text-[11px] leading-relaxed text-slate-500">
+				<p class="text-[12.5px] leading-relaxed text-slate-500">
 					{#if x.travel.whenText}Customer said <b>"{x.travel.whenText}"</b>{#if !x.travel.resolvedStartDate} — no exact date set, confirm it with them{/if}. {/if}
 					{#if x.budget.amount}Budget noted as {x.budget.currency} {x.budget.amount.toLocaleString()}{x.budget.basis === 'PER_PERSON' ? '/person' : ''} — recorded as their budget, not a price. {/if}
 				</p>
 
 				{#if x.missing.length}
-					<p class="text-[11px] text-slate-500"><b>Useful details to ask next:</b> {x.missing.join(' · ')}</p>
+					<p class="text-[12.5px] text-slate-500"><b>Useful details to ask next:</b> {x.missing.join(' · ')}</p>
 				{/if}
 
 				<div class="flex flex-wrap items-center gap-2">
 					<button class="btn-primary !py-1.5 text-xs">Create enquiry</button>
-					<button formaction="?/discardSuggestion" class="text-[11px] text-slate-400 hover:underline">Discard</button>
-					<span class="text-[11px] text-slate-400">{enquiry.customer?.name ?? 'This customer'} · nothing is saved until you press create</span>
+					<button formaction="?/discardSuggestion" class="text-[12.5px] text-slate-400 hover:underline">Discard</button>
+					<span class="text-[12.5px] text-slate-400">{enquiry.customer?.name ?? 'This customer'} · nothing is saved until you press create</span>
 				</div>
 			</form>
 		{/if}
@@ -360,12 +360,12 @@
 {#if replyDraft}
 	<div class="border-t border-slate-200 bg-slate-50 p-3">
 		<div class="mb-1.5 flex flex-wrap items-center gap-2">
-			<span class="text-[11px] font-bold tracking-wide text-slate-600 uppercase">✦ Suggested reply</span>
-			<span class="text-[11px] text-slate-400">Edit it, then send — or discard.</span>
+			<span class="text-[12.5px] font-bold tracking-wide text-slate-600 uppercase">✦ Suggested reply</span>
+			<span class="text-[12.5px] text-slate-400">Edit it, then send — or discard.</span>
 		</div>
-		<textarea bind:value={replyText} oninput={() => (replyEdited = true)} rows="3" class="input text-[13px]"></textarea>
+		<textarea bind:value={replyText} oninput={() => (replyEdited = true)} rows="3" class="input text-[14.5px]"></textarea>
 		{#if replyDraft.caveats.length}
-			<p class="mt-1 text-[11px] text-warning">Check before sending: {replyDraft.caveats.join(' · ')}</p>
+			<p class="mt-1 text-[12.5px] text-warning">Check before sending: {replyDraft.caveats.join(' · ')}</p>
 		{/if}
 		<div class="mt-2 flex flex-wrap items-center gap-2">
 			<form method="POST" action="?/send" use:enhance={() => async ({ update }) => { await update({ reset: true }); }}>
@@ -376,7 +376,7 @@
 			</form>
 			<form method="POST" action="?/discardSuggestion" use:enhance>
 				<input type="hidden" name="usageId" value={replyDraft.usageId ?? ''} />
-				<button class="text-[11px] text-slate-400 hover:underline">Discard</button>
+				<button class="text-[12.5px] text-slate-400 hover:underline">Discard</button>
 			</form>
 		</div>
 	</div>
@@ -386,18 +386,18 @@
 {#if summary}
 	<div class="border-t border-slate-200 bg-white p-3">
 		<div class="mb-1 flex items-center justify-between gap-2">
-			<span class="text-[13px] font-semibold text-slate-800">{summary.headline}</span>
+			<span class="text-[14.5px] font-semibold text-slate-800">{summary.headline}</span>
 			<form method="POST" action="?/discardSuggestion" use:enhance>
 				<input type="hidden" name="usageId" value={summary.usageId ?? ''} />
-				<button class="text-[11px] text-slate-400 hover:underline">Close</button>
+				<button class="text-[12.5px] text-slate-400 hover:underline">Close</button>
 			</form>
 		</div>
-		<ul class="space-y-0.5 text-[12.5px] text-slate-600">
+		<ul class="space-y-0.5 text-[14px] text-slate-600">
 			{#each summary.points as point (point)}<li>• {point}</li>{/each}
 		</ul>
-		{#if summary.nextStep}<p class="mt-1.5 text-[12px] text-slate-500"><b>Waiting on:</b> {summary.nextStep}</p>{/if}
+		{#if summary.nextStep}<p class="mt-1.5 text-[13.5px] text-slate-500"><b>Waiting on:</b> {summary.nextStep}</p>{/if}
 		{#if summary.state.length}
-			<p class="mt-1.5 border-t border-slate-100 pt-1.5 text-[11px] text-slate-400">From your records: {summary.state.join(' ')}</p>
+			<p class="mt-1.5 border-t border-slate-100 pt-1.5 text-[12.5px] text-slate-400">From your records: {summary.state.join(' ')}</p>
 		{/if}
 	</div>
 {/if}
@@ -408,17 +408,17 @@
 	<div class="border-t border-brand-200 bg-brand-50/50 p-3">
 		{#if !suggestion.draft.isOrder}
 			<div class="flex items-center justify-between gap-2">
-				<p class="text-[13px] text-slate-600">This message doesn't look like an order — nothing to prefill.</p>
-				<a href="/app/orders/new" class="text-[12px] font-medium text-brand-600 hover:underline">Create manually →</a>
+				<p class="text-[14.5px] text-slate-600">This message doesn't look like an order — nothing to prefill.</p>
+				<a href="/app/orders/new" class="text-[13.5px] font-medium text-brand-600 hover:underline">Create manually →</a>
 			</div>
 		{:else}
 			<form method="POST" action="?/createSuggested" use:enhance class="space-y-2.5">
 				<div class="flex flex-wrap items-center gap-2">
-					<span class="text-[11px] font-bold tracking-wide text-brand-700 uppercase">Suggested order</span>
-					<span class="badge {suggestion.draft.confidence === 'high' ? 'bg-success/10 text-success' : suggestion.draft.confidence === 'medium' ? 'bg-warning/10 text-warning' : 'bg-slate-100 text-slate-500'} text-[10px]">
+					<span class="text-[12.5px] font-bold tracking-wide text-brand-700 uppercase">Suggested order</span>
+					<span class="badge {suggestion.draft.confidence === 'high' ? 'bg-success/10 text-success' : suggestion.draft.confidence === 'medium' ? 'bg-warning/10 text-warning' : 'bg-slate-100 text-slate-500'} text-[11.5px]">
 						{suggestion.draft.confidence} confidence
 					</span>
-					<span class="text-[11px] text-slate-500">Check it before creating — you can edit every field.</span>
+					<span class="text-[12.5px] text-slate-500">Check it before creating — you can edit every field.</span>
 				</div>
 
 				<input type="hidden" name="currency" value={suggestion.currency} />
@@ -426,31 +426,31 @@
 
 				{#each draftLines as line, i (i)}
 					<div class="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1.2fr]">
-						<input name="itemTitle" bind:value={line.title} placeholder="Item" class="input py-1.5 text-[13px]" />
-						<input name="itemQuantity" bind:value={line.quantity} inputmode="numeric" placeholder="Qty" class="input py-1.5 text-[13px]" />
-						<input name="itemUnit" value={line.unit ?? ''} placeholder="Unit" class="input py-1.5 text-[13px]" />
+						<input name="itemTitle" bind:value={line.title} placeholder="Item" class="input py-1.5 text-[14.5px]" />
+						<input name="itemQuantity" bind:value={line.quantity} inputmode="numeric" placeholder="Qty" class="input py-1.5 text-[14.5px]" />
+						<input name="itemUnit" value={line.unit ?? ''} placeholder="Unit" class="input py-1.5 text-[14.5px]" />
 						<input
 							name="itemPrice"
 							value={line.unitPrice ?? ''}
 							inputmode="decimal"
 							placeholder="Price / unit"
-							class="input py-1.5 text-[13px] {line.unitPrice ? '' : 'border-warning'}"
+							class="input py-1.5 text-[14.5px] {line.unitPrice ? '' : 'border-warning'}"
 						/>
 					</div>
 				{/each}
 
 				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-					<select name="deliveryMethod" bind:value={draftMethod} class="input py-1.5 text-[13px]">
+					<select name="deliveryMethod" bind:value={draftMethod} class="input py-1.5 text-[14.5px]">
 						<option value="">Method —</option>
 						<option value="PICKUP">Pickup</option>
 						<option value="DELIVERY">Delivery</option>
 					</select>
-					<input name="deliveryLocation" bind:value={draftLocation} placeholder="Delivery location" class="input py-1.5 text-[13px]" />
-					<input name="notes" value={suggestion.draft.notes ?? ''} placeholder="Notes" class="input py-1.5 text-[13px]" />
+					<input name="deliveryLocation" bind:value={draftLocation} placeholder="Delivery location" class="input py-1.5 text-[14.5px]" />
+					<input name="notes" value={suggestion.draft.notes ?? ''} placeholder="Notes" class="input py-1.5 text-[14.5px]" />
 				</div>
 
 				{#if suggestion.draft.whenText || suggestion.draft.missing.length || draftLines.some((l) => !l.unitPrice)}
-					<p class="text-[11px] text-slate-500">
+					<p class="text-[12.5px] text-slate-500">
 						{#if suggestion.draft.whenText}Customer said <b>"{suggestion.draft.whenText}"</b> — set the date on the order after creating. {/if}
 						{#if draftLines.some((l) => !l.unitPrice)}<span class="text-warning">Add a price for the highlighted line.</span> {/if}
 						{#if suggestion.draft.missing.length}Unclear: {suggestion.draft.missing.join(', ')}.{/if}
@@ -459,7 +459,7 @@
 
 				<div class="flex items-center gap-2">
 					<button class="btn-primary !py-1.5 text-xs">Create order</button>
-					<span class="text-[11px] text-slate-400">Awaiting confirmation · {suggestion.customer?.name ?? 'this customer'}</span>
+					<span class="text-[12.5px] text-slate-400">Awaiting confirmation · {suggestion.customer?.name ?? 'this customer'}</span>
 				</div>
 			</form>
 		{/if}
@@ -474,7 +474,7 @@
 				action={action.key === 'reply' ? '?/suggestReply' : '?/summarize'}
 				use:enhance={() => { busyAction = action.key; return async ({ update }) => { await update({ reset: false }); busyAction = null; }; }}
 			>
-				<button class="rounded-panel border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50" disabled={busyAction === action.key} title={action.hint}>
+				<button class="rounded-panel border border-slate-200 bg-white px-2.5 py-1 text-[12.5px] font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50" disabled={busyAction === action.key} title={action.hint}>
 					{busyAction === action.key ? 'Thinking…' : `✦ ${action.label}`}
 				</button>
 			</form>
@@ -482,7 +482,7 @@
 		{#if primaryAiAction?.key === 'enquiry'}
 			<form method="POST" action="?/suggestEnquiry" use:enhance={() => { busyAction = 'conv'; return async ({ update }) => { await update({ reset: false }); busyAction = null; }; }}>
 				<input type="hidden" name="scope" value="conversation" />
-				<button class="rounded-panel border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50" disabled={busyAction === 'conv'} title="Read the whole recent thread, not just one message">
+				<button class="rounded-panel border border-slate-200 bg-white px-2.5 py-1 text-[12.5px] font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50" disabled={busyAction === 'conv'} title="Read the whole recent thread, not just one message">
 					{busyAction === 'conv' ? 'Reading…' : '✦ Create enquiry from conversation'}
 				</button>
 			</form>

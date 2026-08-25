@@ -54,4 +54,4 @@
 	const label = $derived(statusLabel(value));
 </script>
 
-<span class="badge {tone} {size === 'xs' ? 'text-[10px]' : 'text-xs'}">{label}</span>
+<span class="badge {tone} {size === 'xs' ? 'text-[11.5px]' : 'text-xs'}">{label}</span>

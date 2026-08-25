@@ -16,7 +16,7 @@
 						<td class="table-cell font-mono text-xs">{row.log.action}</td>
 						<td class="table-cell">{row.tenant?.name ?? '—'}</td>
 						<td class="table-cell text-slate-600">{row.user?.email ?? row.log.actorType}</td>
-						<td class="table-cell font-mono text-[11px] text-slate-500">{row.log.entityType ?? '—'}</td>
+						<td class="table-cell font-mono text-[12.5px] text-slate-500">{row.log.entityType ?? '—'}</td>
 						<td class="table-cell text-slate-500"><TimeAgo value={row.log.createdAt} /></td>
 					</tr>
 				{:else}

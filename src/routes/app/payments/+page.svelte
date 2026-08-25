@@ -51,7 +51,7 @@
 								<span class="font-semibold tabular-nums text-slate-700">Expected {row.request.currency} {remaining(row.request).toFixed(2)}</span>
 								{#if Number(row.request.amountReceived) > 0}<span class="text-xs text-slate-500">already received {row.request.currency} {row.request.amountReceived}</span>{/if}
 							{#if row.request.methodLabel}<span class="text-xs text-slate-500">{row.request.methodLabel}</span>{/if}
-							<span class="ml-auto text-[11px] text-slate-400">reported <TimeAgo value={row.request.reportedAt} timezone={data.tenant.timezone} /></span>
+							<span class="ml-auto text-[12.5px] text-slate-400">reported <TimeAgo value={row.request.reportedAt} timezone={data.tenant.timezone} /></span>
 						</div>
 							{#if verifying === row.request.id && canVerify}
 							<form method="POST" action="?/confirmRequest" use:enhance={() => async ({ update }) => { await update(); verifying = null; }} class="flex flex-wrap items-end gap-2">
@@ -108,7 +108,7 @@
 								<td class="table-cell">
 									{#if row.booking}<a href="/app/bookings/{row.booking.id}" class="text-brand-600 hover:underline">{row.booking.bookingReference}</a>{:else}—{/if}
 								</td>
-								<td class="table-cell text-[11px] uppercase text-slate-500">{row.payment.provider}</td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-500">{row.payment.provider}</td>
 								<td class="table-cell"><StatusBadge value={row.payment.status} /></td>
 								<td class="table-cell"><Money amount={row.payment.amount} currency={row.payment.currency} /></td>
 								<td class="table-cell text-slate-500"><TimeAgo value={row.payment.createdAt} timezone={data.tenant.timezone} /></td>

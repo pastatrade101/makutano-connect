@@ -12,7 +12,7 @@
 	} = $props();
 
 	const markSize = $derived(size === 'lg' ? 'size-11' : size === 'sm' ? 'size-8' : 'size-9');
-	const nameSize = $derived(size === 'lg' ? 'text-lg' : size === 'sm' ? 'text-[14px]' : 'text-[15px]');
+	const nameSize = $derived(size === 'lg' ? 'text-lg' : size === 'sm' ? 'text-[15.5px]' : 'text-[16.5px]');
 </script>
 
 <a href={href} class="inline-flex items-center gap-2.5" aria-label="Makutano Connect home">

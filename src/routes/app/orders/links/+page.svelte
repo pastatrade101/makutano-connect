@@ -120,7 +120,7 @@
 				<div class="grid grid-cols-3 gap-2">
 					{#each [{ k: 'f_deliveryLocation', label: 'Delivery location', v: l?.fieldConfig?.deliveryLocation ?? 'OPTIONAL' }, { k: 'f_note', label: 'Note', v: l?.fieldConfig?.note ?? 'OPTIONAL' }, { k: 'f_email', label: 'Email', v: l?.fieldConfig?.email ?? 'HIDDEN' }] as f (f.k)}
 						<div>
-							<span class="mb-1 block text-[11px] text-slate-500">{f.label}</span>
+							<span class="mb-1 block text-[12.5px] text-slate-500">{f.label}</span>
 							<select name={f.k} class="input py-1.5 text-xs">
 								{#each ['OPTIONAL', 'REQUIRED', 'HIDDEN'] as m (m)}<option value={m} selected={f.v === m}>{m.toLowerCase()}</option>{/each}
 							</select>
@@ -155,17 +155,17 @@
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<div class="min-w-0">
 					<div class="flex flex-wrap items-center gap-2">
-						<h2 class="text-[15px] font-semibold text-slate-800">{link.title}</h2>
+						<h2 class="text-[16.5px] font-semibold text-slate-800">{link.title}</h2>
 						<span class="badge {STATUS_TONE[link.status]} text-xs">{isExpired(link) ? 'EXPIRED' : link.status.toLowerCase()}</span>
 						{#if link.paymentTiming === 'IMMEDIATE'}<span class="badge bg-purple/10 text-purple text-xs">pay now</span>{/if}
 					</div>
 					<p class="mt-0.5 text-sm text-slate-500"><Money amount={String(link.unitPrice)} currency={link.currency} /> / {link.unit}{#if link.deadline}<span class="text-xs text-slate-400"> · closes {new Date(link.deadline).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</span>{/if}</p>
 				</div>
 				<div class="flex flex-wrap items-center gap-4 text-center">
-					<div><div class="text-lg font-bold tabular-nums text-slate-800">{link.stats.orders}</div><div class="text-[10px] uppercase tracking-wide text-slate-400">orders</div></div>
-					<div><div class="text-lg font-bold tabular-nums text-slate-800">{link.stats.quantity}</div><div class="text-[10px] uppercase tracking-wide text-slate-400">{link.unit}</div></div>
-					<div><div class="text-lg font-bold tabular-nums text-slate-800"><Money amount={String(link.stats.expected)} currency={link.currency} /></div><div class="text-[10px] uppercase tracking-wide text-slate-400">expected</div></div>
-					<div><div class="text-lg font-bold tabular-nums text-slate-500">{link.viewCount}</div><div class="text-[10px] uppercase tracking-wide text-slate-400">views{#if conversion(link)}<span class="text-success"> · {conversion(link)}</span>{/if}</div></div>
+					<div><div class="text-lg font-bold tabular-nums text-slate-800">{link.stats.orders}</div><div class="text-[11.5px] uppercase tracking-wide text-slate-400">orders</div></div>
+					<div><div class="text-lg font-bold tabular-nums text-slate-800">{link.stats.quantity}</div><div class="text-[11.5px] uppercase tracking-wide text-slate-400">{link.unit}</div></div>
+					<div><div class="text-lg font-bold tabular-nums text-slate-800"><Money amount={String(link.stats.expected)} currency={link.currency} /></div><div class="text-[11.5px] uppercase tracking-wide text-slate-400">expected</div></div>
+					<div><div class="text-lg font-bold tabular-nums text-slate-500">{link.viewCount}</div><div class="text-[11.5px] uppercase tracking-wide text-slate-400">views{#if conversion(link)}<span class="text-success"> · {conversion(link)}</span>{/if}</div></div>
 				</div>
 			</div>
 
@@ -199,7 +199,7 @@
 			{#if (link.shareTags as Array<{ key: string; label: string }>).length}
 				<div class="mt-2 space-y-1">
 					{#each link.shareTags as Array<{ key: string; label: string }> as tag (tag.key)}
-						<div class="flex items-center gap-2 text-[11px]">
+						<div class="flex items-center gap-2 text-[12.5px]">
 							<span class="badge bg-slate-100 text-slate-500">{tag.label}</span>
 							<code class="truncate text-slate-400">{publicUrl(link.publicId, tag.key)}</code>
 							<button class="shrink-0 text-brand-600 hover:underline" onclick={() => navigator.clipboard.writeText(publicUrl(link.publicId, tag.key))}>copy</button>
@@ -210,7 +210,7 @@
 						</div>
 					{/each}
 					{#if data.detailId !== link.id}
-						<a href="?detail={link.id}" class="text-[11px] text-brand-600 hover:underline">Show orders per share tag →</a>
+						<a href="?detail={link.id}" class="text-[12.5px] text-brand-600 hover:underline">Show orders per share tag →</a>
 					{/if}
 				</div>
 			{/if}

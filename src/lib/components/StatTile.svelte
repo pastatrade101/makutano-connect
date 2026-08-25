@@ -35,9 +35,9 @@
 {#snippet body()}
 	<div class="flex items-center justify-between px-4 py-3">
 		<div class="min-w-0">
-			<div class="truncate text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{label}</div>
+			<div class="truncate text-[12.5px] font-semibold tracking-wide text-slate-500 uppercase">{label}</div>
 			<div class="mt-1 text-[22px] leading-7 font-bold tabular-nums {TONES[tone]}">{value}</div>
-			{#if hint}<div class="mt-0.5 truncate text-[11px] text-slate-400">{hint}</div>{/if}
+			{#if hint}<div class="mt-0.5 truncate text-[12.5px] text-slate-400">{hint}</div>{/if}
 		</div>
 		{#if icon}
 			<div class="flex size-10 shrink-0 items-center justify-center rounded-panel {BUBBLES[tone]}">

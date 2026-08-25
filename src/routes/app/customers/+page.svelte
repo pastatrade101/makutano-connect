@@ -46,7 +46,7 @@
 								<td class="table-cell text-slate-600">{c.email ?? '—'}</td>
 								<td class="table-cell text-slate-600">{c.whatsappPhone ? `+${c.whatsappPhone}` : '—'}</td>
 								<td class="table-cell text-slate-600">{c.country ?? '—'}</td>
-								<td class="table-cell text-[11px] text-slate-500">{sourceLabel(c.source)}</td>
+								<td class="table-cell text-[12.5px] text-slate-500">{sourceLabel(c.source)}</td>
 								<td class="table-cell text-slate-500"><TimeAgo value={c.createdAt} timezone={data.tenant.timezone} /></td>
 							</tr>
 						{/each}

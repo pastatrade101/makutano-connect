@@ -32,7 +32,7 @@
 		<div class="border-b border-slate-200 p-3">
 			<div class="flex items-center justify-between px-1 pb-2">
 				<h2 class="text-sm font-semibold text-slate-700">Chat</h2>
-				<div class="flex gap-1 text-[11px]">
+				<div class="flex gap-1 text-[12.5px]">
 					<a href="/app/conversations" class="rounded-full px-2.5 py-1 {data.filter === 'all' ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-500'}">All</a>
 					<a href="/app/conversations?filter=mine" class="rounded-full px-2.5 py-1 {data.filter === 'mine' ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-500'}">Mine</a>
 					<a href="/app/conversations?filter=unassigned" class="rounded-full px-2.5 py-1 {data.filter === 'unassigned' ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-500'}">Open</a>
@@ -49,19 +49,19 @@
 					href="/app/conversations/{t.id}"
 					class="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 transition hover:bg-slate-50 {activeId === t.id ? 'bg-brand-50/60' : ''}"
 				>
-					<div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[12px] font-bold text-brand-600">{initials(t.name)}</div>
+					<div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[13.5px] font-bold text-brand-600">{initials(t.name)}</div>
 					<div class="min-w-0 flex-1">
 						<div class="flex items-baseline justify-between gap-2">
-							<span class="truncate text-[13.5px] font-semibold text-slate-700">{t.name}</span>
-							<span class="shrink-0 text-[10.5px] text-slate-400"><TimeAgo value={t.lastMessageAt} /></span>
+							<span class="truncate text-[15px] font-semibold text-slate-700">{t.name}</span>
+							<span class="shrink-0 text-[12px] text-slate-400"><TimeAgo value={t.lastMessageAt} /></span>
 						</div>
 						<div class="flex items-center justify-between gap-2">
-							<span class="truncate text-[12px] text-slate-400">
-								{#if t.assignedToMe}<span class="mr-1 rounded bg-brand-50 px-1 text-[10px] font-semibold text-brand-600">mine</span>{:else if !t.assignedToUserId}<span class="mr-1 rounded bg-warning/15 px-1 text-[10px] font-semibold text-[#b58514]">open</span>{/if}
+							<span class="truncate text-[13.5px] text-slate-400">
+								{#if t.assignedToMe}<span class="mr-1 rounded bg-brand-50 px-1 text-[11.5px] font-semibold text-brand-600">mine</span>{:else if !t.assignedToUserId}<span class="mr-1 rounded bg-warning/15 px-1 text-[11.5px] font-semibold text-[#b58514]">open</span>{/if}
 								{t.subject ?? t.channel.toLowerCase()}
 							</span>
 							{#if t.unread > 0}
-								<span class="flex size-4.5 shrink-0 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-white">{t.unread}</span>
+								<span class="flex size-4.5 shrink-0 items-center justify-center rounded-full bg-brand-500 text-[11.5px] font-bold text-white">{t.unread}</span>
 							{/if}
 						</div>
 					</div>

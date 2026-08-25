@@ -25,7 +25,7 @@
 		<div class="mb-8 text-center">
 			<BrandLockup size="lg" />
 			<h1 class="mt-7 text-2xl font-bold tracking-[-0.025em] text-slate-900 sm:text-[28px]">{title}</h1>
-			{#if subtitle}<p class="mx-auto mt-2 max-w-xl text-[13.5px] leading-6 text-slate-500">{subtitle}</p>{/if}
+			{#if subtitle}<p class="mx-auto mt-2 max-w-xl text-[15px] leading-6 text-slate-500">{subtitle}</p>{/if}
 		</div>
 
 		{@render children()}

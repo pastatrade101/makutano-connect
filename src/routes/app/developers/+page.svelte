@@ -24,9 +24,9 @@
 			<a href="/documentation" class="text-xs font-medium text-brand-600 hover:underline">Full API documentation →</a>
 		</div>
 		<p class="mt-1 text-xs text-slate-500">Store these on your website's <b>server</b>. The secret key must never reach a browser.</p>
-		<pre class="mt-2 overflow-x-auto rounded-panel bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100"><code>MAKUTANO_API_URL={data.apiBaseUrl}
+		<pre class="mt-2 overflow-x-auto rounded-panel bg-slate-900 p-3 text-[12.5px] leading-relaxed text-slate-100"><code>MAKUTANO_API_URL={data.apiBaseUrl}
 MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
-		<pre class="mt-2 overflow-x-auto rounded-panel bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-700 ring-1 ring-slate-200"><code>curl -X POST "{data.apiBaseUrl}/api/v1/booking-requests" \
+		<pre class="mt-2 overflow-x-auto rounded-panel bg-slate-50 p-3 text-[12.5px] leading-relaxed text-slate-700 ring-1 ring-slate-200"><code>curl -X POST "{data.apiBaseUrl}/api/v1/booking-requests" \
   -H "Authorization: Bearer $MAKUTANO_API_KEY" \
   -H "Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
@@ -75,7 +75,7 @@ MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
 					<tr>
 						<td class="table-cell font-medium text-slate-800">{key.name}</td>
 						<td class="table-cell font-mono text-xs text-slate-500">{key.prefix}…</td>
-						<td class="table-cell text-[11px] uppercase text-slate-500">{key.environment}</td>
+						<td class="table-cell text-[12.5px] uppercase text-slate-500">{key.environment}</td>
 						<td class="table-cell"><StatusBadge value={key.status} /></td>
 						<td class="table-cell text-slate-500"><TimeAgo value={key.lastUsedAt} timezone={data.tenant.timezone} /></td>
 						<td class="table-cell text-right">
@@ -128,7 +128,7 @@ MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
 				{#each data.endpoints as ep (ep.id)}
 					<tr>
 						<td class="table-cell max-w-xs truncate font-mono text-xs">{ep.url}</td>
-						<td class="table-cell text-[11px] text-slate-500">{ep.events.length ? ep.events.join(', ') : 'all'}</td>
+						<td class="table-cell text-[12.5px] text-slate-500">{ep.events.length ? ep.events.join(', ') : 'all'}</td>
 						<td class="table-cell tabular-nums {ep.consecutiveFailures > 0 ? 'text-danger' : 'text-slate-500'}">{ep.consecutiveFailures}</td>
 						<td class="table-cell text-slate-500"><TimeAgo value={ep.lastSuccessAt} timezone={data.tenant.timezone} /></td>
 						<td class="table-cell text-right">

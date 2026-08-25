@@ -61,7 +61,7 @@
 								</td>
 								<td class="table-cell">
 									<div class="font-medium text-slate-800">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</div>
-									<div class="text-[11px] text-slate-500">{row.customer?.email ?? row.customer?.whatsappPhone ?? ''}</div>
+									<div class="text-[12.5px] text-slate-500">{row.customer?.email ?? row.customer?.whatsappPhone ?? ''}</div>
 								</td>
 								<td class="table-cell text-slate-600">
 									{#if row.request.startDate}
@@ -71,7 +71,7 @@
 								</td>
 								<td class="table-cell tabular-nums text-slate-600">{row.request.adults}A{row.request.children ? ` · ${row.request.children}C` : ''}</td>
 								<td class="table-cell"><StatusBadge value={row.request.status} /></td>
-								<td class="table-cell text-[11px] uppercase text-slate-500">{row.request.source}</td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-500">{row.request.source}</td>
 								<td class="table-cell"><Money amount={row.request.estimatedTotal} currency={row.request.currency} /></td>
 								<td class="table-cell text-slate-500"><TimeAgo value={row.request.createdAt} timezone={data.tenant.timezone} /></td>
 							</tr>

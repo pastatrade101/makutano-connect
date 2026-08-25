@@ -82,7 +82,7 @@
 					<tr class="hover:bg-slate-50">
 						<td class="table-cell">
 							<a href="/admin/tenants/{row.tenant.id}" class="font-medium text-brand-600 hover:underline">{row.tenant.name}</a>
-							<div class="font-mono text-[11px] text-slate-500">{row.tenant.slug}</div>
+							<div class="font-mono text-[12.5px] text-slate-500">{row.tenant.slug}</div>
 						</td>
 						<td class="table-cell">
 							{#if row.ownerEmail}
@@ -106,7 +106,7 @@
 						<td class="table-cell text-slate-600">
 							{row.plan?.name ?? '—'}
 							{#if row.subscriptionStatus && row.subscriptionStatus !== 'ACTIVE'}
-								<div class="text-[11px] text-slate-400">{row.subscriptionStatus}</div>
+								<div class="text-[12.5px] text-slate-400">{row.subscriptionStatus}</div>
 							{/if}
 						</td>
 						<td class="table-cell"><StatusBadge value={row.tenant.status} /></td>
@@ -137,7 +137,7 @@
 									class="mt-2 flex flex-wrap items-center gap-1.5 rounded-panel border border-danger/30 bg-danger/5 p-2"
 								>
 									<input type="hidden" name="id" value={row.tenant.id} />
-									<span class="w-full text-[11px] text-slate-500">
+									<span class="w-full text-[12.5px] text-slate-500">
 										Removes <b>{row.tenant.name}</b> from the platform and signs its team out. Type
 										<b class="font-mono">{row.tenant.slug}</b> to confirm.
 									</span>
