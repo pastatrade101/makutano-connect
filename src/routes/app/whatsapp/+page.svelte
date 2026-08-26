@@ -17,14 +17,14 @@
 <FormToast {form} successTitle="Done" />
 
 <div class="mx-auto max-w-5xl space-y-3">
-	<h1 class="text-base font-semibold text-slate-900">WhatsApp</h1>
+	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">WhatsApp</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Connection and notifications</p></div>
 
 	{#if !data.featureEnabled}
 		<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">WhatsApp is not included in your current plan.</p>
 	{/if}
 
 	<section class="card">
-		<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+		<header class="flex flex-col items-start justify-between gap-2 border-b border-slate-200 px-3 py-2 sm:flex-row sm:items-center">
 			<h2 class="text-sm font-semibold text-slate-800">Connection</h2>
 			{#if c}<StatusBadge value={c.status} />{/if}
 		</header>
@@ -88,19 +88,19 @@
 		{#if data.templates.length === 0}
 			<p class="px-3 py-6 text-center text-xs text-slate-500">No templates synced yet.</p>
 		{:else}
-			<table class="min-w-full divide-y divide-slate-100">
+			<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 				<thead class="bg-slate-50"><tr><th class="table-head">Template</th><th class="table-head">Language</th><th class="table-head">Status</th><th class="table-head">Used for</th></tr></thead>
 				<tbody class="divide-y divide-slate-100">
 					{#each data.templates as t (t.id)}
 						<tr>
-							<td class="table-cell font-medium text-slate-800">{t.name}</td>
-							<td class="table-cell text-slate-600">{t.language}</td>
-							<td class="table-cell"><StatusBadge value={t.status} /></td>
-							<td class="table-cell">
+							<td class="table-cell mobile-record-title font-semibold text-slate-800">{t.name}<div class="mt-1 sm:hidden"><StatusBadge value={t.status} /></div></td>
+							<td class="table-cell text-slate-600" data-label="Language">{t.language}</td>
+							<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={t.status} /></td>
+							<td class="table-cell" data-label="Used for">
 								{#if canConnect}
-									<form method="POST" action="?/mapTemplate" use:enhance class="flex items-center gap-1">
+									<form method="POST" action="?/mapTemplate" use:enhance class="flex min-w-0 items-center gap-1">
 										<input type="hidden" name="templateId" value={t.id} />
-										<select name="eventKey" class="input w-auto py-1 text-xs">
+										<select name="eventKey" class="input min-w-0 py-1 text-xs sm:w-auto">
 											<option value="">Not mapped</option>
 											{#each data.templateEvents as e (e)}<option value={e} selected={t.eventKey === e}>{e.replace(/_/g, ' ')}</option>{/each}
 										</select>

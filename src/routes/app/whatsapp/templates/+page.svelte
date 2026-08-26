@@ -27,14 +27,14 @@
 <FormToast {form} successTitle="Done" />
 
 <div class="space-y-3">
-	<div class="flex items-center justify-between">
+	<div class="flex items-start justify-between gap-3">
 		<div>
 			<a href="/app/whatsapp" class="text-xs text-slate-500 hover:underline">← WhatsApp</a>
-			<h1 class="text-base font-semibold text-slate-800">Template Center</h1>
+			<h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Template Center</h1>
 			<p class="text-xs text-slate-400">Design once with named variables · Meta approves · events send automatically.</p>
 		</div>
 		{#if canWrite}
-			<div class="flex gap-2">
+			<div class="hidden gap-2 sm:flex">
 				{#if !data.templatePack.version}
 					<form method="POST" action="?/setupPack" use:enhance>
 						<button class="btn-primary">Set up recommended templates</button>
@@ -96,22 +96,34 @@
 		</form>
 	{/if}
 
-	<div class="card overflow-x-auto">
-		<table class="min-w-full divide-y divide-slate-100">
+	{#if canWrite}
+		<details class="card sm:hidden">
+			<summary class="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">Template actions <span class="text-brand-500">Open</span></summary>
+			<div class="grid gap-2 border-t border-slate-100 p-3">
+				{#if !data.templatePack.version}<form method="POST" action="?/setupPack" use:enhance><button class="btn-primary w-full">Set up recommended templates</button></form>{/if}
+				<form method="POST" action="?/sync" use:enhance><button class="btn-secondary w-full">Sync from Meta</button></form>
+				<button class="btn-secondary w-full" onclick={() => (showCreate = !showCreate)}>New template</button>
+			</div>
+		</details>
+	{/if}
+
+	<div class="card overflow-hidden">
+		<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 			<thead class="bg-slate-50"><tr><th class="table-head">Template</th><th class="table-head">Status</th><th class="table-head">Sends on</th><th class="table-head">Enabled</th><th class="table-head"></th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.templates as t (t.id)}
 					<tr class={t.enabled ? '' : 'opacity-60'}>
-						<td class="table-cell">
-							<div class="font-mono text-[14.5px] font-medium text-slate-700">{t.name} <span class="text-slate-400">· {t.language}</span></div>
-							{#if t.bodyText}<div class="mt-0.5 max-w-md truncate text-[12.5px] text-slate-400">{t.bodyText}</div>{/if}
-						</td>
-						<td class="table-cell"><StatusBadge value={t.status} /></td>
-						<td class="table-cell">
+					<td class="table-cell mobile-record-title">
+						<div class="font-mono text-[14.5px] font-medium text-slate-700">{t.name} <span class="text-slate-400">· {t.language}</span></div>
+						{#if t.bodyText}<div class="mt-0.5 max-w-md truncate text-[12.5px] text-slate-400">{t.bodyText}</div>{/if}
+						<div class="mt-1 sm:hidden"><StatusBadge value={t.status} /></div>
+					</td>
+					<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={t.status} /></td>
+					<td class="table-cell" data-label="Sends on">
 							{#if canWrite}
-								<form method="POST" action="?/map" use:enhance class="flex items-center gap-1">
+							<form method="POST" action="?/map" use:enhance class="flex min-w-0 items-center gap-1">
 									<input type="hidden" name="id" value={t.id} />
-									<select name="eventKey" class="input w-auto py-1 text-xs">
+								<select name="eventKey" class="input min-w-0 py-1 text-xs sm:w-auto">
 										<option value="">not mapped</option>
 										{#each data.events as e (e)}<option value={e} selected={t.eventKey === e}>{e.replace(/_/g, ' ')}</option>{/each}
 									</select>
@@ -121,7 +133,7 @@
 								<span class="text-xs text-slate-500">{t.eventKey ?? '—'}</span>
 							{/if}
 						</td>
-						<td class="table-cell">
+					<td class="table-cell" data-label="Enabled">
 							{#if canWrite}
 								<form method="POST" action="?/toggle" use:enhance>
 									<input type="hidden" name="id" value={t.id} />
@@ -130,7 +142,7 @@
 								</form>
 							{/if}
 						</td>
-						<td class="table-cell text-right">
+					<td class="table-cell mobile-record-action text-right">
 							{#if canWrite && (t.status === 'DRAFT' || t.status === 'REJECTED')}
 								<form method="POST" action="?/submit" use:enhance>
 									<input type="hidden" name="id" value={t.id} />

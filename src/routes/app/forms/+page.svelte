@@ -28,27 +28,27 @@
 <FormToast {form} successTitle="Form saved" />
 
 <div class="space-y-3">
-	<div class="flex items-center justify-between">
+	<div class="flex items-start justify-between gap-3">
 		<div>
-			<h1 class="text-base font-semibold text-slate-800">Forms & Widgets</h1>
+			<h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Forms & Widgets</h1>
 			<p class="text-xs text-slate-400">Hosted pages and embeddable widgets that feed enquiries, orders and leads straight into Connect.</p>
 		</div>
 		{#if canWrite}<button class="btn-primary" onclick={() => (showCreate = !showCreate)}>New form</button>{/if}
 	</div>
 
 	{#if showCreate && canWrite}
-		<form method="POST" action="?/create" use:enhance={() => async ({ update }) => { await update({ reset: true }); showCreate = false; }} class="card flex flex-wrap items-end gap-3 p-3">
-			<div class="flex-1"><label class="label" for="nf-name">Name</label><input id="nf-name" name="name" placeholder="Website booking form" class="input" /></div>
+		<form method="POST" action="?/create" use:enhance={() => async ({ update }) => { await update({ reset: true }); showCreate = false; }} class="card grid gap-3 p-3 sm:grid-cols-[minmax(12rem,1fr)_auto_auto] sm:items-end">
+			<div><label class="label" for="nf-name">Name</label><input id="nf-name" name="name" placeholder="Website booking form" class="input" /></div>
 			<div>
 				<label class="label" for="nf-type">Template</label>
-				<select id="nf-type" name="type" class="input w-auto">
+				<select id="nf-type" name="type" class="input sm:w-auto">
 					{#if moduleRelevant(data.tenant.capabilities, 'enquiries')}<option value="BOOKING">Booking enquiry</option>{/if}
 					{#if moduleRelevant(data.tenant.capabilities, 'orders')}<option value="ORDER">Product order</option>{/if}
 					{#if moduleRelevant(data.tenant.capabilities, 'quotations')}<option value="QUOTE">Quote request</option>{/if}
 					<option value="LEAD">Contact / lead</option>
 				</select>
 			</div>
-			<button class="btn-primary">Create</button>
+			<button class="btn-primary w-full">Create</button>
 		</form>
 	{/if}
 
@@ -61,7 +61,7 @@
 					<StatusBadge value={f.isActive ? 'ACTIVE' : 'DISCONNECTED'} size="xs" />
 					<span class="text-[12.5px] text-slate-400">{f.submissionCount} submissions</span>
 				</div>
-				<div class="flex items-center gap-1.5">
+				<div class="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:items-center">
 					<a href={hostedUrl(f.publicId)} target="_blank" rel="noopener" class="btn-secondary !py-1 text-xs">Preview</a>
 					<button class="btn-secondary !py-1 text-xs" onclick={() => copy(hostedUrl(f.publicId), 'Hosted URL copied')}>Copy URL</button>
 					<button class="btn-secondary !py-1 text-xs" onclick={() => copy(embedCode(f.publicId), 'Embed code copied')}>Copy embed</button>
@@ -120,11 +120,11 @@
 						<textarea id="fe-origins-{f.id}" name="allowedOrigins" rows="2" placeholder="example.com" class="input">{(f.allowedOrigins ?? []).join('\n')}</textarea>
 					</div>
 
-					<div class="flex items-center justify-between">
+					<div class="grid gap-2 sm:flex sm:items-center sm:justify-between">
 						<div class="flex gap-2">
 							<button class="btn-primary">Save form</button>
 						</div>
-						<div class="flex gap-2">
+						<div class="grid grid-cols-2 gap-2 sm:flex">
 							<button formaction="?/toggle" name="isActive" value={String(!f.isActive)} class="btn-secondary">{f.isActive ? 'Disable' : 'Enable'}</button>
 							<button formaction="?/regenerate" class="btn-danger" title="Invalidates every published URL and embed">Regenerate ID</button>
 						</div>

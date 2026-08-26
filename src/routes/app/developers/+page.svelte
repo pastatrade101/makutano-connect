@@ -15,7 +15,7 @@
 <FormToast {form} successTitle="Done" />
 
 <div class="space-y-3">
-	<h1 class="text-base font-semibold text-slate-900">Developers</h1>
+	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Developers</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">API keys and webhooks</p></div>
 
 
 	<section class="card p-3">
@@ -68,17 +68,17 @@ MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
 			</form>
 		{/if}
 
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 			<thead class="bg-slate-50"><tr><th class="table-head">Name</th><th class="table-head">Key</th><th class="table-head">Env</th><th class="table-head">Status</th><th class="table-head">Last used</th><th class="table-head"></th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.keys as key (key.id)}
 					<tr>
-						<td class="table-cell font-medium text-slate-800">{key.name}</td>
-						<td class="table-cell font-mono text-xs text-slate-500">{key.prefix}…</td>
-						<td class="table-cell text-[12.5px] uppercase text-slate-500">{key.environment}</td>
-						<td class="table-cell"><StatusBadge value={key.status} /></td>
-						<td class="table-cell text-slate-500"><TimeAgo value={key.lastUsedAt} timezone={data.tenant.timezone} /></td>
-						<td class="table-cell text-right">
+						<td class="table-cell mobile-record-title font-semibold text-slate-800">{key.name}<div class="mt-1 sm:hidden"><StatusBadge value={key.status} /></div></td>
+						<td class="table-cell font-mono text-xs text-slate-500" data-label="Key">{key.prefix}…</td>
+						<td class="table-cell text-[12.5px] uppercase text-slate-500" data-label="Environment">{key.environment}</td>
+						<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={key.status} /></td>
+						<td class="table-cell text-slate-500" data-label="Last used"><TimeAgo value={key.lastUsedAt} timezone={data.tenant.timezone} /></td>
+						<td class="table-cell mobile-record-action text-right">
 							{#if canWrite && key.status === 'ACTIVE'}
 								<form method="POST" action="?/revokeKey" use:enhance>
 									<input type="hidden" name="id" value={key.id} />
@@ -122,16 +122,16 @@ MAKUTANO_API_KEY=mk_live_••••••••</code></pre>
 			</form>
 		{/if}
 
-		<table class="min-w-full divide-y divide-slate-100">
+		<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 			<thead class="bg-slate-50"><tr><th class="table-head">URL</th><th class="table-head">Events</th><th class="table-head">Failures</th><th class="table-head">Last success</th><th class="table-head"></th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.endpoints as ep (ep.id)}
 					<tr>
-						<td class="table-cell max-w-xs truncate font-mono text-xs">{ep.url}</td>
-						<td class="table-cell text-[12.5px] text-slate-500">{ep.events.length ? ep.events.join(', ') : 'all'}</td>
-						<td class="table-cell tabular-nums {ep.consecutiveFailures > 0 ? 'text-danger' : 'text-slate-500'}">{ep.consecutiveFailures}</td>
-						<td class="table-cell text-slate-500"><TimeAgo value={ep.lastSuccessAt} timezone={data.tenant.timezone} /></td>
-						<td class="table-cell text-right">
+						<td class="table-cell mobile-record-title max-w-full break-all font-mono text-xs sm:max-w-xs sm:truncate">{ep.url}</td>
+						<td class="table-cell text-[12.5px] text-slate-500" data-label="Events">{ep.events.length ? ep.events.join(', ') : 'all'}</td>
+						<td class="table-cell tabular-nums {ep.consecutiveFailures > 0 ? 'text-danger' : 'text-slate-500'}" data-label="Failures">{ep.consecutiveFailures}</td>
+						<td class="table-cell text-slate-500" data-label="Last success"><TimeAgo value={ep.lastSuccessAt} timezone={data.tenant.timezone} /></td>
+						<td class="table-cell mobile-record-action text-right">
 							{#if canHooks}
 								<form method="POST" action="?/deleteEndpoint" use:enhance>
 									<input type="hidden" name="id" value={ep.id} />

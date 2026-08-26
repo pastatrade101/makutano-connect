@@ -201,16 +201,16 @@
 		<div class="space-y-3 lg:col-span-2">
 			<section class="card">
 				<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Items</header>
-				<table class="min-w-full divide-y divide-slate-100">
+				<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 					<thead class="bg-slate-50"><tr><th class="table-head">Item</th><th class="table-head">Type</th><th class="table-head">Qty</th><th class="table-head">Unit</th><th class="table-head">Total</th></tr></thead>
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as item (item.id)}
 							<tr>
-								<td class="table-cell font-medium text-slate-800">{item.title}</td>
-								<td class="table-cell text-[12.5px] uppercase text-slate-500">{item.type}</td>
-								<td class="table-cell tabular-nums">{item.quantity}</td>
-								<td class="table-cell"><Money amount={item.unitPrice} currency={data.booking.currency} /></td>
-								<td class="table-cell"><Money amount={item.total} currency={data.booking.currency} /></td>
+								<td class="table-cell mobile-record-title font-semibold text-slate-800">{item.title}</td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-500" data-label="Type">{item.type}</td>
+								<td class="table-cell tabular-nums" data-label="Quantity">{item.quantity}</td>
+								<td class="table-cell" data-label="Unit"><Money amount={item.unitPrice} currency={data.booking.currency} /></td>
+								<td class="table-cell font-semibold" data-label="Total"><Money amount={item.total} currency={data.booking.currency} /></td>
 							</tr>
 						{/each}
 					</tbody>
@@ -220,26 +220,26 @@
 			<section class="card">
 				<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Payments</header>
 				{#if canPay}
-					<form method="POST" action="?/payment" use:enhance class="flex flex-wrap items-end gap-2 border-b border-slate-100 p-3">
-						<div><label class="label" for="amount">Amount</label><input id="amount" name="amount" placeholder="0.00" class="input w-32" /></div>
+					<form method="POST" action="?/payment" use:enhance class="grid gap-2 border-b border-slate-100 p-3 sm:grid-cols-[8rem_auto_minmax(10rem,1fr)_auto] sm:items-end">
+						<div><label class="label" for="amount">Amount</label><input id="amount" name="amount" inputmode="decimal" placeholder="0.00" class="input" /></div>
 						<div>
 							<label class="label" for="provider">Method</label>
-							<select id="provider" name="provider" class="input w-auto"><option value="MANUAL">Manual / cash</option><option value="BANK_TRANSFER">Bank transfer</option></select>
+							<select id="provider" name="provider" class="input"><option value="MANUAL">Manual / cash</option><option value="BANK_TRANSFER">Bank transfer</option></select>
 						</div>
-						<div class="flex-1"><label class="label" for="description">Note</label><input id="description" name="description" class="input" /></div>
-						<button class="btn-primary">Record</button>
+						<div><label class="label" for="description">Note</label><input id="description" name="description" class="input" /></div>
+						<button class="btn-primary w-full">Record payment</button>
 					</form>
 				{/if}
-				<table class="min-w-full divide-y divide-slate-100">
+				<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 					<thead class="bg-slate-50"><tr><th class="table-head">Reference</th><th class="table-head">Method</th><th class="table-head">Status</th><th class="table-head">Amount</th><th class="table-head">When</th></tr></thead>
 					<tbody class="divide-y divide-slate-100">
 						{#each data.payments as p (p.id)}
 							<tr>
-								<td class="table-cell font-mono text-xs">{p.reference}</td>
-								<td class="table-cell text-[12.5px] uppercase text-slate-500">{p.provider}</td>
-								<td class="table-cell"><StatusBadge value={p.status} /></td>
-								<td class="table-cell"><Money amount={p.amount} currency={p.currency} /></td>
-								<td class="table-cell text-slate-500"><TimeAgo value={p.createdAt} timezone={tz} /></td>
+								<td class="table-cell mobile-record-title font-mono text-xs">{p.reference}<div class="mt-1 sm:hidden"><StatusBadge value={p.status} /></div></td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-500" data-label="Method">{p.provider}</td>
+								<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={p.status} /></td>
+								<td class="table-cell font-semibold" data-label="Amount"><Money amount={p.amount} currency={p.currency} /></td>
+								<td class="table-cell text-slate-500" data-label="When"><TimeAgo value={p.createdAt} timezone={tz} /></td>
 							</tr>
 						{:else}
 							<tr><td colspan="5" class="px-3 py-6 text-center text-xs text-slate-500">No payments recorded.</td></tr>

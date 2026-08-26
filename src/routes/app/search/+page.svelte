@@ -20,7 +20,6 @@
 			value={data.q}
 			placeholder="Name, phone number, or a reference like ORD-…"
 			class="input h-11 flex-1"
-			autofocus
 		/>
 		<button class="btn-primary h-11">Search</button>
 	</form>

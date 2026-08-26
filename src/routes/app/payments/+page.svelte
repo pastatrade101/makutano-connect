@@ -31,7 +31,7 @@
 <FormToast {form} successTitle="Done" />
 
 <div class="space-y-3">
-	<h1 class="text-base font-semibold text-slate-900">Payments</h1>
+	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Payments</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Collections and verification</p></div>
 
 	<!-- §11: verification queue — customers who say they've paid -->
 	{#if data.reported.length}
@@ -98,20 +98,20 @@
 		{#if data.items.length === 0}
 			<EmptyState title="No payments recorded" description="Record a payment from a booking, or take one through a provider." />
 		{:else}
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-100">
+			<div>
+				<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 					<thead class="bg-slate-50"><tr><th class="table-head">Reference</th><th class="table-head">Booking</th><th class="table-head">Method</th><th class="table-head">Status</th><th class="table-head">Amount</th><th class="table-head">When</th></tr></thead>
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as row (row.payment.id)}
 							<tr class="hover:bg-slate-50">
-								<td class="table-cell font-mono text-xs">{row.payment.reference}</td>
-								<td class="table-cell">
+								<td class="table-cell mobile-record-title font-mono text-xs">{row.payment.reference}<div class="mt-1 sm:hidden"><StatusBadge value={row.payment.status} /></div></td>
+								<td class="table-cell" data-label="Booking">
 									{#if row.booking}<a href="/app/bookings/{row.booking.id}" class="text-brand-600 hover:underline">{row.booking.bookingReference}</a>{:else}—{/if}
 								</td>
-								<td class="table-cell text-[12.5px] uppercase text-slate-500">{row.payment.provider}</td>
-								<td class="table-cell"><StatusBadge value={row.payment.status} /></td>
-								<td class="table-cell"><Money amount={row.payment.amount} currency={row.payment.currency} /></td>
-								<td class="table-cell text-slate-500"><TimeAgo value={row.payment.createdAt} timezone={data.tenant.timezone} /></td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-500" data-label="Method">{row.payment.provider}</td>
+								<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={row.payment.status} /></td>
+								<td class="table-cell font-semibold" data-label="Amount"><Money amount={row.payment.amount} currency={row.payment.currency} /></td>
+								<td class="table-cell text-slate-500" data-label="When"><TimeAgo value={row.payment.createdAt} timezone={data.tenant.timezone} /></td>
 							</tr>
 						{/each}
 					</tbody>

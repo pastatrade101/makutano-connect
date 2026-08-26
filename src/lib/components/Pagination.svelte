@@ -14,7 +14,7 @@
 	}
 </script>
 
-<div class="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+<div class="flex flex-col items-center justify-between gap-2 border-t border-slate-200 px-3 py-3 text-xs text-slate-500 sm:flex-row sm:px-4">
 	<span>Showing <b class="tabular-nums text-slate-700">{from}–{to}</b> of <b class="tabular-nums text-slate-700">{total}</b></span>
 	<div class="flex items-center gap-1">
 		<a
@@ -22,7 +22,7 @@
 			class="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50 {pageNumber <= 1 ? 'pointer-events-none opacity-40' : ''}"
 			aria-disabled={pageNumber <= 1}>Previous</a
 		>
-		<span class="px-2 tabular-nums">Page {pageNumber} / {totalPages}</span>
+		<span class="px-1 tabular-nums sm:px-2">{pageNumber} / {totalPages}</span>
 		<a
 			href={urlForPage(Math.min(totalPages, pageNumber + 1))}
 			class="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50 {pageNumber >= totalPages ? 'pointer-events-none opacity-40' : ''}"

@@ -98,18 +98,18 @@
 			{#if data.items.length}
 				<section class="card">
 					<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Requested items</header>
-					<table class="min-w-full divide-y divide-slate-100">
+					<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 						<thead class="bg-slate-50"><tr><th class="table-head">Item</th><th class="table-head">Type</th><th class="table-head">Qty</th><th class="table-head">Total</th></tr></thead>
 						<tbody class="divide-y divide-slate-100">
 							{#each data.items as item (item.id)}
 								<tr>
-									<td class="table-cell">
+									<td class="table-cell mobile-record-title">
 										<div class="font-medium text-slate-800">{item.title}</div>
 										{#if item.description}<div class="text-[12.5px] text-slate-500">{item.description}</div>{/if}
 									</td>
-									<td class="table-cell text-[12.5px] uppercase text-slate-500">{item.type}</td>
-									<td class="table-cell tabular-nums">{item.quantity}</td>
-									<td class="table-cell"><Money amount={item.total ?? item.unitPrice} currency={data.request.currency} /></td>
+									<td class="table-cell text-[12.5px] uppercase text-slate-500" data-label="Type">{item.type}</td>
+									<td class="table-cell tabular-nums" data-label="Quantity">{item.quantity}</td>
+									<td class="table-cell font-semibold" data-label="Total"><Money amount={item.total ?? item.unitPrice} currency={data.request.currency} /></td>
 								</tr>
 							{/each}
 						</tbody>
@@ -123,15 +123,15 @@
 						<h2 class="text-sm font-semibold text-slate-800">Travellers</h2>
 						{#if !data.canSeeSensitive}<span class="text-[12.5px] text-slate-400">Passport details hidden for your role</span>{/if}
 					</header>
-					<table class="min-w-full divide-y divide-slate-100">
+					<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 						<thead class="bg-slate-50"><tr><th class="table-head">Name</th><th class="table-head">Nationality</th><th class="table-head">Passport</th><th class="table-head">Requests</th></tr></thead>
 						<tbody class="divide-y divide-slate-100">
 							{#each data.travelers as t (t.id)}
 								<tr>
-									<td class="table-cell">{[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}</td>
-									<td class="table-cell">{t.nationality ?? '—'}</td>
-									<td class="table-cell font-mono text-xs">{t.passportNumber ?? '••••••'}</td>
-									<td class="table-cell text-[12.5px] text-slate-500">{t.specialRequests ?? t.dietaryRequirements ?? '—'}</td>
+									<td class="table-cell mobile-record-title font-semibold">{[t.firstName, t.lastName].filter(Boolean).join(' ') || '—'}</td>
+									<td class="table-cell" data-label="Nationality">{t.nationality ?? '—'}</td>
+									<td class="table-cell font-mono text-xs" data-label="Passport">{t.passportNumber ?? '••••••'}</td>
+									<td class="table-cell text-[12.5px] text-slate-500" data-label="Requests">{t.specialRequests ?? t.dietaryRequirements ?? '—'}</td>
 								</tr>
 							{/each}
 						</tbody>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { sourceLabel, statusLabel } from '$lib/labels';
+	import { sourceLabel } from '$lib/labels';
 	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
@@ -40,6 +40,7 @@
 	const destructive = $derived(DESTRUCTIVE[data.order.status] ?? []);
 	const outstanding = $derived(Math.max(0, Number(data.order.total) - Number(data.order.amountPaid)));
 	let confirmDestructive = $state<string | null>(null);
+	let showActions = $state(false);
 	let showRequestPanel = $state(false);
 	let requestAmount = $state('');
 	let selectedMethodKey = $state('');
@@ -49,6 +50,14 @@
 	const customerName = $derived([data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || '—');
 	const activeRequest = $derived(
 		data.paymentRequests.find((request) => ['REQUESTED', 'REPORTED', 'PARTIALLY_PAID'].includes(request.status)) ?? null
+	);
+	const paymentOpen = $derived(
+		canPay && outstanding > 0 && !['CANCELLED', 'REFUNDED'].includes(data.order.status)
+	);
+	const hasOrderActions = $derived(
+		(canWrite && (forward.length > 0 || destructive.length > 0)) ||
+		paymentOpen ||
+		(canPay && !!activeRequest && activeRequest.status !== 'REPORTED')
 	);
 	const selectedMethod = $derived(data.payMethods.find((method) => method.key === selectedMethodKey) ?? data.payMethods[0] ?? null);
 	const requestReady = $derived(
@@ -62,29 +71,34 @@
 
 <svelte:head><title>{data.order.orderNumber} · {data.tenant.name}</title></svelte:head>
 
-	<FormToast {form} successTitle="Order updated" />
-	{#if form?.warning}<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#8a6815]">{form.warning}</p>{/if}
+<FormToast {form} successTitle="Order updated" />
 
-<div class="space-y-3">
-	<div class="flex flex-wrap items-center justify-between gap-2">
-		<div>
-			<a href="/app/orders" class="text-xs text-slate-500 hover:underline">← Orders</a>
-			<h1 class="flex items-center gap-2 text-base font-semibold text-slate-800">
-				{data.order.orderNumber}
+<div class="space-y-3 sm:space-y-4">
+	<header class="flex items-start justify-between gap-3">
+		<div class="min-w-0">
+			<a href="/app/orders" class="mb-1 inline-flex min-h-8 items-center gap-1 text-xs font-medium text-slate-500 hover:text-brand-600">
+				<svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12.5 4.5-5 5 5 5" /></svg>
+				All orders
+			</a>
+			<h1 class="truncate text-xl font-bold tracking-tight text-slate-900 sm:text-lg">{data.order.orderNumber}</h1>
+			<div class="mt-1.5 flex flex-wrap items-center gap-1.5">
 				<StatusBadge value={data.order.status} />
 				<StatusBadge value={data.order.paymentStatus} size="xs" />
-			</h1>
+				<span class="text-[12px] text-slate-400">{sourceLabel(data.order.source)}</span>
+			</div>
 		</div>
-			<div class="flex flex-wrap items-center gap-1.5">
-				{#if canPay && outstanding > 0 && !activeRequest && !['CANCELLED', 'REFUNDED'].includes(data.order.status)}
-					<button class="btn-primary" onclick={() => { requestAmount = outstanding.toFixed(2); showRequestPanel = !showRequestPanel; }}>Request payment</button>
-				{/if}
-				{#if canPay && activeRequest && activeRequest.status !== 'REPORTED'}
-					<form method="POST" action="?/remindPayment" use:enhance>
-						<input type="hidden" name="requestId" value={activeRequest.id} />
-						<button class="btn-secondary">Send payment reminder</button>
-					</form>
-				{/if}
+
+		<!-- Desktop keeps the full toolbar; mobile promotes one next step. -->
+		<div class="hidden flex-wrap items-center justify-end gap-1.5 md:flex">
+			{#if canPay && outstanding > 0 && !activeRequest && !['CANCELLED', 'REFUNDED'].includes(data.order.status)}
+				<button class="btn-primary" onclick={() => { requestAmount = outstanding.toFixed(2); showRequestPanel = !showRequestPanel; }}>Request payment</button>
+			{/if}
+			{#if canPay && activeRequest && activeRequest.status !== 'REPORTED'}
+				<form method="POST" action="?/remindPayment" use:enhance>
+					<input type="hidden" name="requestId" value={activeRequest.id} />
+					<button class="btn-secondary">Send reminder</button>
+				</form>
+			{/if}
 			{#if canWrite}
 				{#each forward as move, i (move.to)}
 					<form method="POST" action="?/status" use:enhance>
@@ -102,53 +116,143 @@
 				</form>
 			{/if}
 		</div>
-		</div>
+	</header>
 
-		{#if showRequestPanel}
-			<form
-				method="POST"
-				action="?/requestPayment"
-				use:enhance={() => async ({ result, update }) => { await update(); if (result.type === 'success') showRequestPanel = false; }}
-				class="card space-y-3 p-4"
-			>
-				<h2 class="card-title">Request payment</h2>
-				<dl class="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
-					<div class="flex justify-between sm:block"><dt class="text-slate-400">Customer</dt><dd class="font-medium text-slate-700">{customerName}</dd></div>
-					<div class="flex justify-between sm:block"><dt class="text-slate-400">Order</dt><dd class="font-medium text-slate-700">{data.order.orderNumber}</dd></div>
-				</dl>
-				<div class="grid gap-3 sm:grid-cols-2">
-					<div>
-						<label class="label" for="pr-amount">Amount to request ({data.order.currency})</label>
-						<input id="pr-amount" name="amount" inputmode="decimal" bind:value={requestAmount} class="input" />
-						<p class="mt-1 text-[12.5px] text-slate-400">Outstanding: {data.order.currency} {outstanding.toFixed(2)}</p>
-					</div>
-					<div>
-						<label class="label" for="pr-method">Payment method</label>
-						{#if data.payMethods.length}
-							<select id="pr-method" name="methodKey" class="input" bind:value={selectedMethodKey}>
-								{#each data.payMethods as method (method.key)}<option value={method.key}>{method.displayName}</option>{/each}
-							</select>
-						{:else}
-							<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">Add a usable method in <a href="/app/settings" class="font-semibold underline">Settings</a>.</p>
-						{/if}
-					</div>
-					{#if selectedMethod}
-						<dl class="rounded-panel bg-slate-50 p-3 text-xs sm:col-span-2">
-							<div class="flex gap-3"><dt class="w-28 shrink-0 text-slate-400">Payment details</dt><dd class="font-medium text-slate-700">{selectedMethod.summary}</dd></div>
-							<div class="mt-1 flex gap-3"><dt class="w-28 shrink-0 text-slate-400">Reference</dt><dd class="font-mono font-medium text-slate-700">{data.order.orderNumber}</dd></div>
-						</dl>
+	{#if form?.warning}<p class="rounded-xl bg-warning/10 px-3 py-2.5 text-xs text-[#8a6815]">{form.warning}</p>{/if}
+
+	<!-- Phone action bar: one confident next step plus a complete secondary sheet. -->
+	{#if hasOrderActions}
+		<div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2 md:hidden">
+			{#if canWrite && forward[0]}
+				<form method="POST" action="?/status" use:enhance>
+					<input type="hidden" name="status" value={forward[0].to} />
+					<button class="btn-primary w-full">{forward[0].label}</button>
+				</form>
+			{:else if canPay && outstanding > 0 && !activeRequest && !['CANCELLED', 'REFUNDED'].includes(data.order.status)}
+				<button class="btn-primary w-full" onclick={() => { requestAmount = outstanding.toFixed(2); showRequestPanel = true; }}>Request payment</button>
+			{:else if canPay && activeRequest && activeRequest.status !== 'REPORTED'}
+				<form method="POST" action="?/remindPayment" use:enhance>
+					<input type="hidden" name="requestId" value={activeRequest.id} />
+					<button class="btn-primary w-full">Send reminder</button>
+				</form>
+			{:else if paymentOpen}
+				<form method="POST" action="?/payment" use:enhance>
+					<input type="hidden" name="amount" value={outstanding.toFixed(2)} />
+					<input type="hidden" name="provider" value="MANUAL" />
+					<input type="hidden" name="description" value="Marked paid" />
+					<button class="btn-primary w-full">Mark paid</button>
+				</form>
+			{:else}
+				<div></div>
+			{/if}
+			<button class="btn-secondary !px-3" onclick={() => (showActions = true)} aria-label="More order actions">
+				<svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><circle cx="4" cy="10" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="16" cy="10" r="1.5" /></svg>
+			</button>
+		</div>
+	{/if}
+
+	{#if showActions}
+		<div class="fixed inset-0 z-50 flex items-end bg-slate-900/40 md:hidden">
+			<button class="absolute inset-0" onclick={() => (showActions = false)} aria-label="Close actions" tabindex="-1"></button>
+			<section class="mobile-sheet relative z-10 w-full rounded-t-3xl bg-white p-4 shadow-xl">
+				<div class="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200"></div>
+				<div class="mb-3 flex items-center justify-between">
+					<div><h2 class="font-semibold text-slate-800">Order actions</h2><p class="text-xs text-slate-400">{data.order.orderNumber}</p></div>
+					<button class="rounded-full bg-slate-50 p-2 text-slate-500" onclick={() => (showActions = false)} aria-label="Close"><svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 5 10 10M15 5 5 15" /></svg></button>
+				</div>
+				<div class="grid gap-2">
+					{#if canPay && outstanding > 0 && !activeRequest && !['CANCELLED', 'REFUNDED'].includes(data.order.status)}
+						<button class="btn-secondary w-full justify-between" onclick={() => { requestAmount = outstanding.toFixed(2); showActions = false; showRequestPanel = true; }}><span>Request payment</span><span class="text-xs text-slate-400">{data.order.currency} {outstanding.toFixed(2)}</span></button>
+					{/if}
+					{#if canPay && activeRequest && activeRequest.status !== 'REPORTED'}
+						<form method="POST" action="?/remindPayment" use:enhance>
+							<input type="hidden" name="requestId" value={activeRequest.id} />
+							<button class="btn-secondary w-full justify-start">Send payment reminder</button>
+						</form>
+					{/if}
+					{#if canWrite}
+						{#each forward as move (move.to)}
+							<form method="POST" action="?/status" use:enhance>
+								<input type="hidden" name="status" value={move.to} />
+								<button class="btn-secondary w-full justify-start">{move.label}</button>
+							</form>
+						{/each}
+					{/if}
+					{#if canPay && outstanding > 0 && !['CANCELLED', 'REFUNDED'].includes(data.order.status)}
+						<form method="POST" action="?/payment" use:enhance>
+							<input type="hidden" name="amount" value={outstanding.toFixed(2)} />
+							<input type="hidden" name="provider" value="MANUAL" />
+							<input type="hidden" name="description" value="Marked paid" />
+							<button class="btn-secondary w-full justify-start text-success">Mark fully paid</button>
+						</form>
+					{/if}
+					{#if canWrite && destructive.length}
+						<div class="mt-1 border-t border-slate-100 pt-2">
+							{#each destructive as move (move.to)}
+								{#if confirmDestructive === move.to}
+									<form method="POST" action="?/status" use:enhance={() => async ({ update }) => { await update(); confirmDestructive = null; showActions = false; }} class="space-y-2 rounded-xl bg-danger/5 p-3">
+										<input type="hidden" name="status" value={move.to} />
+										<label class="label" for="mobile-reason">Reason for {move.label.toLowerCase()} <span class="font-normal text-slate-400">(optional)</span></label>
+										<input id="mobile-reason" name="reason" placeholder="Add a note for your team" class="input" />
+										<div class="grid grid-cols-2 gap-2"><button type="button" class="btn-secondary" onclick={() => (confirmDestructive = null)}>Keep order</button><button class="btn-danger">{move.label}</button></div>
+									</form>
+								{:else}
+									<button class="btn-secondary w-full justify-start text-danger" onclick={() => (confirmDestructive = move.to)}>{move.label}</button>
+								{/if}
+							{/each}
+						</div>
 					{/if}
 				</div>
-				<div class="flex items-center justify-between gap-2">
-					<p class="text-[12.5px] text-slate-500">
-						{#if !data.customer?.whatsappPhone}Add the customer's WhatsApp number.
+			</section>
+		</div>
+	{/if}
+
+		{#if showRequestPanel}
+			<div class="fixed inset-0 z-40 flex items-end bg-slate-900/40 md:static md:block md:bg-transparent">
+				<button class="absolute inset-0 md:hidden" onclick={() => (showRequestPanel = false)} aria-label="Close payment request" tabindex="-1"></button>
+				<form
+					method="POST"
+					action="?/requestPayment"
+					use:enhance={() => async ({ result, update }) => { await update(); if (result.type === 'success') showRequestPanel = false; }}
+					class="mobile-sheet card relative z-10 w-full space-y-3 rounded-t-3xl p-4 md:rounded-panel"
+				>
+					<div class="mx-auto h-1 w-10 rounded-full bg-slate-200 md:hidden"></div>
+					<div class="flex items-start justify-between gap-3">
+						<div><h2 class="font-semibold text-slate-800">Request payment</h2><p class="text-xs text-slate-400">Send payment details to {customerName} on WhatsApp.</p></div>
+						<button type="button" class="rounded-full bg-slate-50 p-2 text-slate-500" onclick={() => (showRequestPanel = false)} aria-label="Close"><svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 5 10 10M15 5 5 15" /></svg></button>
+					</div>
+					<div class="grid gap-3 sm:grid-cols-2">
+						<div>
+							<label class="label" for="pr-amount">Amount ({data.order.currency})</label>
+							<input id="pr-amount" name="amount" inputmode="decimal" bind:value={requestAmount} class="input" />
+							<p class="mt-1 text-[12px] text-slate-400">Outstanding: {data.order.currency} {outstanding.toFixed(2)}</p>
+						</div>
+						<div>
+							<label class="label" for="pr-method">Payment method</label>
+							{#if data.payMethods.length}
+								<select id="pr-method" name="methodKey" class="input" bind:value={selectedMethodKey}>
+									{#each data.payMethods as method (method.key)}<option value={method.key}>{method.displayName}</option>{/each}
+								</select>
+							{:else}
+								<p class="rounded-xl bg-warning/10 px-3 py-2 text-xs text-[#b58514]">Add a usable method in <a href="/app/settings" class="font-semibold underline">Settings</a>.</p>
+							{/if}
+						</div>
+						{#if selectedMethod}
+							<dl class="rounded-xl bg-slate-50 p-3 text-xs sm:col-span-2">
+								<div class="flex gap-3"><dt class="w-24 shrink-0 text-slate-400">Pay to</dt><dd class="font-medium text-slate-700">{selectedMethod.summary}</dd></div>
+								<div class="mt-1.5 flex gap-3"><dt class="w-24 shrink-0 text-slate-400">Reference</dt><dd class="font-mono font-medium text-slate-700">{data.order.orderNumber}</dd></div>
+							</dl>
+						{/if}
+					</div>
+					<p class="text-[12px] {requestReady ? 'text-success' : 'text-slate-500'}">
+						{#if !data.customer?.whatsappPhone}Add the customer's WhatsApp number before sending.
 						{:else if !data.requestTemplateReady}The payment request template is not approved and enabled yet.
-						{:else if requestReady}WhatsApp: ready to send ✓
-						{:else}Choose valid payment details and amount.{/if}
+						{:else if requestReady}Ready to send on WhatsApp ✓
+						{:else}Enter a valid amount and payment method.{/if}
 					</p>
-					<div class="flex gap-2"><button type="button" class="btn-secondary" onclick={() => (showRequestPanel = false)}>Cancel</button><button class="btn-primary" disabled={!requestReady}>Request payment</button></div>
-				</div>
-			</form>
+					<div class="grid grid-cols-2 gap-2 sm:flex sm:justify-end"><button type="button" class="btn-secondary" onclick={() => (showRequestPanel = false)}>Cancel</button><button class="btn-primary" disabled={!requestReady}>Send request</button></div>
+				</form>
+			</div>
 		{/if}
 
 		{#if data.paymentRequests.length}
@@ -164,8 +268,8 @@
 			</div>
 		{/if}
 
-		{#if canWrite && destructive.length}
-		<div class="flex justify-end gap-3 text-[12.5px]">
+	{#if canWrite && destructive.length}
+		<div class="hidden justify-end gap-3 text-[12.5px] md:flex">
 			{#each destructive as move (move.to)}
 				{#if confirmDestructive === move.to}
 					<form method="POST" action="?/status" use:enhance={() => async ({ update }) => { await update(); confirmDestructive = null; }} class="flex items-center gap-2">
@@ -188,18 +292,29 @@
 		</p>
 	{/if}
 
-	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Total</div><div class="text-lg font-bold"><Money amount={data.order.total} currency={data.order.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Paid</div><div class="text-lg font-bold text-success"><Money amount={data.order.amountPaid} currency={data.order.currency} /></div></div>
-		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Delivery</div><div class="text-sm font-semibold">{data.order.deliveryMethod ?? '—'}{#if data.order.deliveryDate} · {new Date(data.order.deliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{/if}</div><div class="truncate text-[12.5px] text-slate-400">{data.order.deliveryLocation ?? ''}</div></div>
-		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Source</div><div class="text-sm font-semibold">{sourceLabel(data.order.source)}</div>{#if data.batch}<a href="/app/orders/batches/{data.batch.id}" class="truncate text-[12.5px] text-brand-600 hover:underline">{data.batch.name}</a>{:else if data.order.paymentMethod}<div class="truncate text-[12.5px] text-slate-400">{data.order.paymentMethod}</div>{/if}</div>
-	</div>
+	<section class="card grid grid-cols-2 overflow-hidden sm:grid-cols-4">
+		<div class="border-r border-b border-slate-100 p-3 sm:border-b-0"><div class="text-[10.5px] font-bold tracking-wide text-slate-400 uppercase">Total</div><div class="mt-1 text-lg font-bold text-slate-800"><Money amount={data.order.total} currency={data.order.currency} /></div></div>
+		<div class="border-b border-slate-100 p-3 sm:border-r sm:border-b-0"><div class="text-[10.5px] font-bold tracking-wide text-slate-400 uppercase">Paid</div><div class="mt-1 text-lg font-bold text-success"><Money amount={data.order.amountPaid} currency={data.order.currency} /></div>{#if outstanding > 0}<div class="text-[11.5px] text-danger">{data.order.currency} {outstanding.toFixed(2)} due</div>{/if}</div>
+		<div class="border-r border-slate-100 p-3"><div class="text-[10.5px] font-bold tracking-wide text-slate-400 uppercase">Delivery</div><div class="mt-1 text-sm font-semibold text-slate-700">{data.order.deliveryMethod ?? '—'}{#if data.order.deliveryDate} · {new Date(data.order.deliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{/if}</div><div class="truncate text-[11.5px] text-slate-400">{data.order.deliveryLocation ?? ''}</div></div>
+		<div class="p-3"><div class="text-[10.5px] font-bold tracking-wide text-slate-400 uppercase">Source</div><div class="mt-1 text-sm font-semibold text-slate-700">{sourceLabel(data.order.source)}</div>{#if data.batch}<a href="/app/orders/batches/{data.batch.id}" class="block truncate text-[11.5px] text-brand-600 hover:underline">{data.batch.name}</a>{:else if data.order.paymentMethod}<div class="truncate text-[11.5px] text-slate-400">{data.order.paymentMethod}</div>{/if}</div>
+	</section>
 
 	<div class="grid gap-3 lg:grid-cols-3">
 		<div class="space-y-3 lg:col-span-2">
 			<section class="card">
 				<header class="card-header"><h2 class="card-title">Items</h2></header>
-				<table class="min-w-full divide-y divide-slate-100">
+				<ul class="divide-y divide-slate-100 md:hidden">
+					{#each data.items as item (item.id)}
+						<li class="p-3">
+							<div class="flex items-start justify-between gap-4">
+								<div class="min-w-0"><p class="font-medium text-slate-800">{item.title}</p>{#if item.variant}<p class="text-xs text-slate-400">{item.variant}</p>{/if}</div>
+								<p class="shrink-0 font-semibold text-slate-800"><Money amount={item.total} currency={data.order.currency} /></p>
+							</div>
+							<div class="mt-2 flex items-center justify-between text-xs text-slate-500"><span>{item.quantity}{item.unit ? ` ${item.unit}` : ''} × <Money amount={item.unitPrice} currency={data.order.currency} /></span>{#if item.sku || item.externalReference}<span class="font-mono text-slate-400">{item.sku ?? item.externalReference}</span>{/if}</div>
+						</li>
+					{/each}
+				</ul>
+				<table class="hidden min-w-full divide-y divide-slate-100 md:table">
 					<thead class="bg-slate-50"><tr><th class="table-head">Item</th><th class="table-head">Variant</th><th class="table-head">Qty</th><th class="table-head">Unit</th><th class="table-head">Total</th></tr></thead>
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as item (item.id)}
@@ -222,27 +337,33 @@
 						<tr class="font-bold"><td colspan="4" class="table-cell text-right">Total</td><td class="table-cell"><Money amount={data.order.total} currency={data.order.currency} /></td></tr>
 					</tfoot>
 				</table>
+				<div class="space-y-1 border-t border-slate-100 bg-slate-50 px-3 py-2.5 text-sm md:hidden">
+					<div class="flex justify-between text-slate-500"><span>Subtotal</span><Money amount={data.order.subtotal} currency={data.order.currency} /></div>
+					{#if Number(data.order.discount) > 0}<div class="flex justify-between text-success"><span>Discount</span><span>−<Money amount={data.order.discount} currency={data.order.currency} /></span></div>{/if}
+					{#if Number(data.order.deliveryFee) > 0}<div class="flex justify-between text-slate-500"><span>Delivery</span><Money amount={data.order.deliveryFee} currency={data.order.currency} /></div>{/if}
+					<div class="flex justify-between border-t border-slate-200 pt-1.5 font-bold text-slate-800"><span>Total</span><Money amount={data.order.total} currency={data.order.currency} /></div>
+				</div>
 			</section>
 
 			<section class="card">
 				<header class="card-header"><h2 class="card-title">Payments</h2></header>
 				{#if canPay}
-					<form method="POST" action="?/payment" use:enhance class="flex flex-wrap items-end gap-2 border-b border-slate-100 p-3">
-						<div><label class="label" for="amount">Amount</label><input id="amount" name="amount" placeholder="0.00" class="input w-32" /></div>
-						<div><label class="label" for="provider">Method</label><select id="provider" name="provider" class="input w-auto"><option value="MANUAL">Cash / mobile money</option><option value="BANK_TRANSFER">Bank transfer</option></select></div>
-						<div class="flex-1"><label class="label" for="description">Reference / note</label><input id="description" name="description" placeholder="M-Pesa TX123… (optional)" class="input" /></div>
-						<button class="btn-primary">Record</button>
+					<form method="POST" action="?/payment" use:enhance class="grid gap-2 border-b border-slate-100 p-3 sm:grid-cols-[8rem_auto_minmax(10rem,1fr)_auto] sm:items-end">
+						<div><label class="label" for="amount">Amount</label><input id="amount" name="amount" inputmode="decimal" placeholder="0.00" class="input" /></div>
+						<div><label class="label" for="provider">Method</label><select id="provider" name="provider" class="input"><option value="MANUAL">Cash / mobile money</option><option value="BANK_TRANSFER">Bank transfer</option></select></div>
+						<div><label class="label" for="description">Reference / note</label><input id="description" name="description" placeholder="M-Pesa TX123… (optional)" class="input" /></div>
+						<button class="btn-primary w-full">Record payment</button>
 					</form>
 				{/if}
-				<table class="min-w-full divide-y divide-slate-100">
+				<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 					<tbody class="divide-y divide-slate-100">
 						{#each data.payments as p (p.id)}
 							<tr>
-								<td class="table-cell font-mono text-xs">{p.reference}</td>
-								<td class="table-cell text-[12.5px] uppercase text-slate-400">{p.provider}</td>
-								<td class="table-cell"><StatusBadge value={p.status} size="xs" /></td>
-								<td class="table-cell"><Money amount={p.amount} currency={p.currency} /></td>
-								<td class="table-cell text-slate-500"><TimeAgo value={p.createdAt} timezone={tz} /></td>
+								<td class="table-cell mobile-record-title font-mono text-xs">{p.reference}</td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-400" data-label="Method">{p.provider}</td>
+								<td class="table-cell" data-label="Status"><StatusBadge value={p.status} size="xs" /></td>
+								<td class="table-cell" data-label="Amount"><Money amount={p.amount} currency={p.currency} /></td>
+								<td class="table-cell text-slate-500" data-label="Recorded"><TimeAgo value={p.createdAt} timezone={tz} /></td>
 							</tr>
 						{:else}
 							<tr><td class="px-3 py-6 text-center text-xs text-slate-400">No payments recorded — the order can still be confirmed.</td></tr>
@@ -257,8 +378,8 @@
 				<header class="card-header"><h2 class="card-title">Customer</h2></header>
 				<div class="space-y-1 p-3 text-sm">
 					<div class="font-medium text-slate-700">{customerName}</div>
-					{#if data.customer?.whatsappPhone}<div class="text-slate-500">+{data.customer.whatsappPhone}</div>{/if}
-					{#if data.customer?.email}<div class="text-slate-500">{data.customer.email}</div>{/if}
+					{#if data.customer?.whatsappPhone}<a href="https://wa.me/{data.customer.whatsappPhone}" target="_blank" rel="noopener" class="block text-brand-600 hover:underline">+{data.customer.whatsappPhone}</a>{/if}
+					{#if data.customer?.email}<a href="mailto:{data.customer.email}" class="block break-all text-slate-500 hover:underline">{data.customer.email}</a>{/if}
 					{#if data.conversation}
 						<a href="/app/conversations/{data.conversation.id}" class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">
 							<svg class="size-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h14v9H7l-4 3V4Z" /></svg>
@@ -269,15 +390,15 @@
 			</section>
 
 			{#if data.order.notes}
-				<section class="card">
-					<header class="card-header"><h2 class="card-title">Notes</h2></header>
-					<p class="whitespace-pre-wrap p-3 text-sm text-slate-600">{data.order.notes}</p>
-				</section>
+				<details class="card group">
+					<summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3"><span class="card-title">Notes</span><svg class="size-4 text-slate-400 transition group-open:rotate-180" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 7.5 5 5 5-5" /></svg></summary>
+					<p class="whitespace-pre-wrap border-t border-slate-100 p-3 text-sm text-slate-600">{data.order.notes}</p>
+				</details>
 			{/if}
 
-			<section class="card">
-				<header class="card-header"><h2 class="card-title">Status history</h2></header>
-				<ul class="divide-y divide-slate-100">
+			<details class="card group">
+				<summary class="flex cursor-pointer list-none items-center justify-between px-4 py-3"><span class="card-title">Status history <span class="ml-1 font-normal text-slate-400">({data.history.length})</span></span><svg class="size-4 text-slate-400 transition group-open:rotate-180" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 7.5 5 5 5-5" /></svg></summary>
+				<ul class="divide-y divide-slate-100 border-t border-slate-100">
 					{#each data.history as h (h.id)}
 						<li class="px-3 py-2 text-xs">
 							<div class="flex items-center gap-1">
@@ -289,7 +410,7 @@
 						</li>
 					{/each}
 				</ul>
-			</section>
+			</details>
 		</div>
 	</div>
 </div>

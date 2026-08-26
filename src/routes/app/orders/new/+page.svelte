@@ -115,13 +115,13 @@
 			</div>
 			<div class="space-y-2">
 				{#each rows as row, i (i)}
-					<div class="grid grid-cols-12 gap-2">
-						<input placeholder="Item (e.g. Fresh Fish)" bind:value={row.title} class="input col-span-12 sm:col-span-4" />
-						<input placeholder="Variant (optional)" bind:value={row.variant} class="input col-span-4 sm:col-span-2" />
-						<input type="number" min="1" inputmode="numeric" bind:value={row.quantity} class="input col-span-2 sm:col-span-1" aria-label="Quantity" />
-						<input placeholder="Unit" list="unit-options" bind:value={row.unit} class="input col-span-2 sm:col-span-2" aria-label="Unit" />
-						<input placeholder="Unit price" inputmode="decimal" bind:value={row.unitPrice} class="input col-span-3 sm:col-span-2" />
-						<button type="button" class="col-span-1 text-slate-400 hover:text-danger" onclick={() => rows.splice(i, 1)} aria-label="Remove">✕</button>
+					<div class="relative grid grid-cols-2 gap-2 rounded-xl border border-slate-100 p-2 sm:grid-cols-12 sm:rounded-none sm:border-0 sm:p-0">
+						<input placeholder="Item (e.g. Fresh Fish)" bind:value={row.title} class="input col-span-2 pr-10 sm:col-span-4 sm:pr-3" />
+						<input placeholder="Variant (optional)" bind:value={row.variant} class="input col-span-2 sm:col-span-2" />
+						<input type="number" min="1" inputmode="numeric" bind:value={row.quantity} class="input col-span-1 sm:col-span-1" aria-label="Quantity" placeholder="Qty" />
+						<input placeholder="Unit" list="unit-options" bind:value={row.unit} class="input col-span-1 sm:col-span-2" aria-label="Unit" />
+						<input placeholder="Unit price" inputmode="decimal" bind:value={row.unitPrice} class="input col-span-2 sm:col-span-2" />
+						<button type="button" class="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-danger sm:static sm:col-span-1 sm:size-auto sm:bg-transparent" onclick={() => rows.splice(i, 1)} aria-label="Remove">✕</button>
 					</div>
 				{/each}
 			</div>
@@ -155,13 +155,13 @@
 			<datalist id="unit-options">{#each data.units as u (u)}<option value={u}></option>{/each}</datalist>
 		</section>
 
-		<div class="card flex flex-wrap items-center justify-between gap-3 p-3">
+		<div class="card grid gap-3 p-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
 			<div class="text-sm text-slate-600">
 				Subtotal <b class="tabular-nums">{subtotal.toFixed(2)}</b> · Total <b class="text-base tabular-nums text-slate-800">{data.tenant.currency} {total.toFixed(2)}</b>
 			</div>
-			<div class="flex gap-2">
-				<button name="saveAs" value="DRAFT" class="btn-secondary" disabled={!validRows.length}>Save draft</button>
-				<button name="saveAs" value="PENDING_CONFIRMATION" class="btn-primary" disabled={!validRows.length}>Save for confirmation</button>
+			<div class="grid grid-cols-2 gap-2 sm:flex">
+				<button name="saveAs" value="DRAFT" class="btn-secondary w-full" disabled={!validRows.length}>Save draft</button>
+				<button name="saveAs" value="PENDING_CONFIRMATION" class="btn-primary w-full" disabled={!validRows.length}>Save for confirmation</button>
 			</div>
 		</div>
 	</form>

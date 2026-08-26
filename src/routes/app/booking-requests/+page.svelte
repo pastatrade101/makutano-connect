@@ -22,7 +22,7 @@
 	<WorkspaceNotice module="Enquiries" />
 {:else}
 <div class="space-y-3">
-	<h1 class="text-base font-semibold text-slate-900">Booking requests</h1>
+	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Booking requests</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">New enquiries and trip requests</p></div>
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
 		<StatTile label="Total" value={data.stats.total} />
@@ -39,8 +39,8 @@
 		{#if data.items.length === 0}
 			<EmptyState title="No booking requests match this view" description="Requests arrive from your website form, the API or WhatsApp." />
 		{:else}
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-100">
+			<div>
+				<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 					<thead class="bg-slate-50">
 						<tr>
 							<th class="table-head">Reference</th>
@@ -56,24 +56,25 @@
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as row (row.request.id)}
 							<tr class="hover:bg-slate-50">
-								<td class="table-cell">
+								<td class="table-cell mobile-record-title">
 									<a href="/app/booking-requests/{row.request.id}" class="font-medium text-brand-600 hover:underline">{row.request.reference}</a>
+									<div class="mt-1 sm:hidden"><StatusBadge value={row.request.status} /></div>
 								</td>
-								<td class="table-cell">
+								<td class="table-cell" data-label="Traveller">
 									<div class="font-medium text-slate-800">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</div>
 									<div class="text-[12.5px] text-slate-500">{row.customer?.email ?? row.customer?.whatsappPhone ?? ''}</div>
 								</td>
-								<td class="table-cell text-slate-600">
+								<td class="table-cell text-slate-600" data-label="Trip">
 									{#if row.request.startDate}
 										{new Date(row.request.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
 										{#if row.request.endDate}– {new Date(row.request.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}{/if}
 									{:else}—{/if}
 								</td>
-								<td class="table-cell tabular-nums text-slate-600">{row.request.adults}A{row.request.children ? ` · ${row.request.children}C` : ''}</td>
-								<td class="table-cell"><StatusBadge value={row.request.status} /></td>
-								<td class="table-cell text-[12.5px] uppercase text-slate-500">{row.request.source}</td>
-								<td class="table-cell"><Money amount={row.request.estimatedTotal} currency={row.request.currency} /></td>
-								<td class="table-cell text-slate-500"><TimeAgo value={row.request.createdAt} timezone={data.tenant.timezone} /></td>
+								<td class="table-cell tabular-nums text-slate-600" data-label="Travellers">{row.request.adults}A{row.request.children ? ` · ${row.request.children}C` : ''}</td>
+								<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={row.request.status} /></td>
+								<td class="table-cell text-[12.5px] uppercase text-slate-500" data-label="Source">{row.request.source}</td>
+								<td class="table-cell font-semibold" data-label="Estimated"><Money amount={row.request.estimatedTotal} currency={row.request.currency} /></td>
+								<td class="table-cell text-slate-500" data-label="Received"><TimeAgo value={row.request.createdAt} timezone={data.tenant.timezone} /></td>
 							</tr>
 						{/each}
 					</tbody>

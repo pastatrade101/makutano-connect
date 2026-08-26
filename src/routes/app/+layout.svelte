@@ -106,6 +106,8 @@
 		return items;
 	});
 	let quickOpen = $state(false);
+	let mobileMenuOpen = $state(false);
+	let mobileSearchOpen = $state(false);
 
 	let collapsed = $state(browser ? localStorage.getItem('mk-nav-collapsed') === '1' : false);
 	let userMenu = $state(false);
@@ -129,7 +131,18 @@
 	function submitSearch(event: SubmitEvent) {
 		event.preventDefault();
 		const q = search.trim();
+		mobileSearchOpen = false;
 		void goto(q ? `/app/search?q=${encodeURIComponent(q)}` : '/app/search');
+	}
+
+	function openQuickCreate() {
+		mobileMenuOpen = false;
+		quickOpen = !quickOpen;
+	}
+
+	function openMobileMenu() {
+		quickOpen = false;
+		mobileMenuOpen = !mobileMenuOpen;
 	}
 </script>
 
@@ -192,25 +205,35 @@
 		{/if}
 	</aside>
 
-	<div class="flex min-w-0 flex-1 flex-col pb-14 lg:pb-0 {collapsed ? 'lg:pl-[70px]' : 'lg:pl-60'} transition-[padding] duration-200">
+	<div class="flex min-w-0 flex-1 flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0 {collapsed ? 'lg:pl-[70px]' : 'lg:pl-60'} transition-[padding] duration-200">
 		<!-- Topbar -->
-		<header class="sticky top-0 z-20 flex h-[60px] items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 lg:h-[70px] lg:px-6">
+		<header class="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur lg:h-[70px] lg:bg-white lg:px-6">
 			<div class="flex min-w-0 items-center gap-3">
 				<button class="hidden rounded-panel p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 lg:block" onclick={toggleNav} aria-label="Toggle navigation">
 					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h14M3 10h14M3 15h14" /></svg>
 				</button>
-				<img src="/2.png" alt="" class="size-7 object-contain lg:hidden" />
+				<img src="/2.png" alt="" class="size-7 shrink-0 object-contain lg:hidden" />
 
 				<form onsubmit={submitSearch} class="relative hidden md:block">
 					<input bind:value={search} placeholder="Search customers, orders, references…" class="w-64 rounded-panel border border-slate-200 bg-slate-50 py-2 pr-3 pl-9 text-[14.5px] placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-1 focus:ring-brand-500" />
 					<svg class="pointer-events-none absolute top-2.5 left-3 size-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.4 9.84l3.13 3.13a.75.75 0 1 0 1.06-1.06l-3.13-3.13A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" /></svg>
 				</form>
-				<h2 class="truncate text-[16.5px] font-semibold text-slate-800 md:hidden">{current}</h2>
+				<div class="min-w-0 md:hidden">
+					<p class="truncate text-[10px] font-bold tracking-[0.14em] text-brand-500 uppercase">Makutano Connect</p>
+					<h2 class="-mt-0.5 truncate text-[15px] leading-5 font-semibold text-slate-800">{current}</h2>
+				</div>
 			</div>
 
 			<div class="flex items-center gap-1.5">
+				<button
+					class="rounded-full p-2 text-slate-500 hover:bg-slate-100 md:hidden"
+					onclick={() => (mobileSearchOpen = true)}
+					aria-label="Search"
+				>
+					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m12.5 12.5 4 4" /></svg>
+				</button>
 				{#if quickCreate.length}
-					<div class="relative">
+					<div class="relative hidden lg:block">
 						<button class="btn-primary !py-1.5 text-[14.5px]" onclick={() => (quickOpen = !quickOpen)} aria-label="Create new">
 							<svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12" /></svg>
 							<span class="hidden sm:inline">New</span>
@@ -229,7 +252,7 @@
 					</div>
 				{/if}
 				<button
-					class="rounded-panel p-2 text-slate-500 hover:bg-slate-100"
+					class="hidden rounded-panel p-2 text-slate-500 hover:bg-slate-100 lg:block"
 					onclick={toggleTheme}
 					aria-label={theme.dark ? 'Switch to light mode' : 'Switch to dark mode'}
 					title={theme.dark ? 'Light mode' : 'Dark mode'}
@@ -240,14 +263,14 @@
 						<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M16.5 11.5A6.5 6.5 0 0 1 8.5 3.5a6.5 6.5 0 1 0 8 8Z" /></svg>
 					{/if}
 				</button>
-				<a href="/app/conversations" class="relative rounded-panel p-2 text-slate-500 hover:bg-slate-100" aria-label="Inbox notifications">
+				<a href="/app/conversations" class="relative hidden rounded-panel p-2 text-slate-500 hover:bg-slate-100 lg:block" aria-label="Inbox notifications">
 					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3a4.5 4.5 0 0 0-4.5 4.5c0 3-1 4-1.5 4.8-.2.3 0 .7.4.7h11.2c.4 0 .6-.4.4-.7-.5-.8-1.5-1.8-1.5-4.8A4.5 4.5 0 0 0 10 3Zm-1.7 10.8a1.8 1.8 0 0 0 3.4 0" /></svg>
 					{#if data.unreadCount > 0}
 						<span class="absolute -top-0.5 -right-0.5 flex size-4.5 items-center justify-center rounded-full bg-danger text-[11.5px] font-bold text-white">{data.unreadCount > 9 ? '9+' : data.unreadCount}</span>
 					{/if}
 				</a>
 
-				<div class="relative">
+				<div class="relative hidden lg:block">
 					<button class="flex items-center gap-2 rounded-panel p-1.5 hover:bg-slate-100" onclick={() => (userMenu = !userMenu)} aria-label="Account menu">
 						<div class="flex size-8 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-600">
 							{(data.user.fullName || data.user.email).slice(0, 1).toUpperCase()}
@@ -276,25 +299,26 @@
 			</div>
 		</header>
 
-		<main class="mx-auto w-full min-w-0 max-w-[1600px] flex-1 p-4 lg:p-6">
+		<main class="mx-auto w-full min-w-0 max-w-[1600px] flex-1 p-3 sm:p-4 lg:p-6">
 			{#if data.tenantSuspended}
 				<div class="mb-4 rounded-panel bg-danger/10 px-4 py-3 text-sm text-danger">
 					<b>This account is suspended.</b> You can still view your data, but new orders, bookings, messages and API writes are blocked. Please contact support.
 				</div>
 			{:else if data.trial}
-				<div class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-panel bg-brand-50 px-4 py-2.5 text-xs text-brand-800">
+				<div class="mb-3 flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-3 py-2.5 text-xs text-brand-800 sm:mb-4 sm:rounded-panel sm:px-4">
 					<span>
 						{#if trialDaysLeft === null}
 							You're on a free trial — everything is switched on.
 						{:else if trialDaysLeft > 1}
-							<b>{trialDaysLeft} days</b> left on your free trial. Nothing is charged until you choose a plan.
+							<span class="sm:hidden"><b>{trialDaysLeft} days</b> left in your free trial.</span>
+							<span class="hidden sm:inline"><b>{trialDaysLeft} days</b> left on your free trial. Nothing is charged until you choose a plan.</span>
 						{:else if trialDaysLeft === 1}
 							Your free trial ends <b>tomorrow</b>.
 						{:else}
 							Your free trial ends <b>today</b>.
 						{/if}
 					</span>
-					<a href="/app/settings" class="font-semibold underline">Manage plan</a>
+					<a href="/app/settings" class="shrink-0 font-semibold underline">Manage plan</a>
 				</div>
 			{:else if data.nearLimits?.length}
 				<div class="mb-4 rounded-panel bg-warning/10 px-4 py-2.5 text-xs text-[#b58514]">
@@ -304,39 +328,64 @@
 				</div>
 			{/if}
 			{@render children()}
-			<footer class="mt-8 text-center text-[12.5px] text-slate-400">{new Date().getFullYear()} © Makutano Connect</footer>
+			<footer class="mt-8 hidden text-center text-[12.5px] text-slate-400 lg:block">{new Date().getFullYear()} © Makutano Connect</footer>
 		</main>
 	</div>
 
-	<!-- Mobile bottom tabs: the three most-used destinations + Create in the middle (§22) -->
-	<nav class="fixed inset-x-0 bottom-0 z-20 grid border-t border-slate-200 bg-white lg:hidden" style="grid-template-columns: repeat({quickCreate.length ? primary.length + 1 : primary.length}, 1fr)">
+	<!-- Mobile bottom tabs: daily work stays one tap away; every other module lives in More. -->
+	<nav class="mobile-tabbar fixed inset-x-0 bottom-0 z-30 grid border-t border-slate-200/80 bg-white/95 px-1 backdrop-blur lg:hidden" style="grid-template-columns: repeat({primary.length + (quickCreate.length ? 2 : 1)}, 1fr)">
 		{#each primary.slice(0, 2) as item (item.href)}
-			<a href={item.href} class="flex flex-col items-center gap-0.5 py-2 text-[11.5px] {isActive(item.href) ? 'font-semibold text-brand-500' : 'text-slate-400'}">
-				<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
+			<a href={item.href} class="relative flex min-w-0 flex-col items-center gap-0.5 px-1 pt-2 pb-1.5 text-[11px] {isActive(item.href) ? 'font-semibold text-brand-500' : 'text-slate-400'}">
+				<span class="relative">
+					<svg class="size-[21px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d={item.icon} /></svg>
+					{#if item.href === '/app/conversations' && data.unreadCount > 0}
+						<span class="absolute -top-1.5 -right-2 flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] leading-4 font-bold text-white">{data.unreadCount > 9 ? '9+' : data.unreadCount}</span>
+					{/if}
+				</span>
 				{item.label}
 			</a>
 		{/each}
 		{#if quickCreate.length}
-			<button class="flex flex-col items-center gap-0.5 py-2 text-[11.5px] text-slate-400" onclick={() => (quickOpen = !quickOpen)} aria-label="Create new">
-				<span class="flex size-6 items-center justify-center rounded-full bg-brand-500 text-white">
-					<svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12" /></svg>
+			<button class="flex min-w-0 flex-col items-center gap-0.5 px-1 pt-1 pb-1.5 text-[11px] text-slate-500" onclick={openQuickCreate} aria-label="Create new">
+				<span class="flex size-8 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm shadow-brand-500/25">
+					<svg class="size-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4v12M4 10h12" /></svg>
 				</span>
 				New
 			</button>
 		{/if}
 		{#each primary.slice(2) as item (item.href)}
-			<a href={item.href} class="flex flex-col items-center gap-0.5 py-2 text-[11.5px] {isActive(item.href) ? 'font-semibold text-brand-500' : 'text-slate-400'}">
-				<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
+			<a href={item.href} class="flex min-w-0 flex-col items-center gap-0.5 px-1 pt-2 pb-1.5 text-[11px] {isActive(item.href) ? 'font-semibold text-brand-500' : 'text-slate-400'}">
+				<svg class="size-[21px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d={item.icon} /></svg>
 				{item.label}
 			</a>
 		{/each}
+		<button class="flex min-w-0 flex-col items-center gap-0.5 px-1 pt-2 pb-1.5 text-[11px] {mobileMenuOpen ? 'font-semibold text-brand-500' : 'text-slate-400'}" onclick={openMobileMenu} aria-label="Open all sections">
+			<svg class="size-[21px]" viewBox="0 0 20 20" fill="currentColor"><circle cx="5" cy="5" r="1.5" /><circle cx="15" cy="5" r="1.5" /><circle cx="5" cy="15" r="1.5" /><circle cx="15" cy="15" r="1.5" /></svg>
+			More
+		</button>
 	</nav>
+
+	<!-- Mobile search, deliberately full-width so filters and results never compete with the keyboard. -->
+	{#if mobileSearchOpen}
+		<div class="fixed inset-0 z-50 bg-white lg:hidden">
+			<div class="flex h-14 items-center gap-2 border-b border-slate-200 px-3">
+				<button class="rounded-full p-2 text-slate-500" onclick={() => (mobileSearchOpen = false)} aria-label="Close search">
+					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12.5 4.5-5 5 5 5" /></svg>
+				</button>
+				<form onsubmit={submitSearch} class="relative flex-1">
+					<input bind:value={search} placeholder="Search customers, orders, references…" class="input h-10 rounded-full bg-slate-50 pl-10" />
+					<svg class="pointer-events-none absolute top-3 left-3.5 size-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.4 9.84l3.13 3.13a.75.75 0 1 0 1.06-1.06l-3.13-3.13A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" /></svg>
+				</form>
+			</div>
+			<p class="px-5 pt-5 text-sm text-slate-500">Search across customers, conversations, bookings, orders and references.</p>
+		</div>
+	{/if}
 
 	<!-- Mobile create sheet -->
 	{#if quickOpen}
 		<div class="fixed inset-0 z-40 flex items-end bg-slate-900/40 lg:hidden">
 			<button class="absolute inset-0 cursor-default" onclick={() => (quickOpen = false)} aria-label="Close" tabindex="-1"></button>
-			<div class="relative z-10 w-full rounded-t-2xl bg-white p-4 pb-8 shadow-lg">
+			<div class="mobile-sheet relative z-10 w-full rounded-t-3xl bg-white p-4 shadow-lg">
 				<div class="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200"></div>
 				<p class="mb-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">Create</p>
 				<div class="space-y-1">
@@ -346,6 +395,54 @@
 							<div class="text-[12.5px] text-slate-400">{item.hint}</div>
 						</a>
 					{/each}
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Every permitted destination remains available on mobile without crowding the tab bar. -->
+	{#if mobileMenuOpen}
+		<div class="fixed inset-0 z-40 flex items-end bg-slate-900/40 lg:hidden">
+			<button class="absolute inset-0 cursor-default" onclick={() => (mobileMenuOpen = false)} aria-label="Close menu" tabindex="-1"></button>
+			<div class="mobile-sheet relative z-10 max-h-[82dvh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-xl">
+				<div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur">
+					<div class="min-w-0">
+						<p class="truncate text-sm font-semibold text-slate-800">{data.tenant.name}</p>
+						<p class="truncate text-[12px] text-slate-400">{data.user.fullName || data.user.email} · {data.role?.replace(/_/g, ' ').toLowerCase()}</p>
+					</div>
+					<button class="rounded-full bg-slate-50 p-2 text-slate-500" onclick={() => (mobileMenuOpen = false)} aria-label="Close menu">
+						<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 5 10 10M15 5 5 15" /></svg>
+					</button>
+				</div>
+
+				<div class="space-y-5 p-4">
+					{#each groups as group (group.label)}
+						<section>
+							{#if group.label}<h3 class="mb-2 px-1 text-[11px] font-bold tracking-widest text-slate-400 uppercase">{group.label}</h3>{/if}
+							<div class="grid grid-cols-2 gap-2">
+								{#each group.items as item (item.href)}
+									{#if locked(item)}
+										<div class="flex min-h-12 cursor-not-allowed items-center gap-3 rounded-xl bg-slate-50 px-3 py-2 text-slate-300">
+											<svg class="size-5 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
+											<span class="min-w-0 flex-1 truncate text-sm">{item.label}</span>
+											<svg class="size-3 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 0 0-4 4v2H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1V6a4 4 0 0 0-4-4Zm-2 6V6a2 2 0 1 1 4 0v2H8Z" /></svg>
+										</div>
+									{:else}
+										<a href={item.href} class="flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 {isActive(item.href) ? 'bg-brand-50 font-semibold text-brand-600' : 'bg-slate-50 text-slate-600'}" onclick={() => (mobileMenuOpen = false)}>
+											<svg class="size-5 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
+											<span class="min-w-0 truncate text-sm">{item.label}</span>
+										</a>
+									{/if}
+								{/each}
+							</div>
+						</section>
+					{/each}
+				</div>
+
+				<div class="sticky bottom-0 grid grid-cols-3 gap-2 border-t border-slate-100 bg-white px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+					<button class="btn-secondary" onclick={toggleTheme}>{theme.dark ? 'Light mode' : 'Dark mode'}</button>
+					{#if data.user.isSuperAdmin}<a href="/admin" class="btn-secondary" onclick={() => (mobileMenuOpen = false)}>Admin</a>{:else}<a href="/app/settings" class="btn-secondary" onclick={() => (mobileMenuOpen = false)}>Settings</a>{/if}
+					<form method="POST" action="/logout"><button type="submit" class="btn-danger w-full">Sign out</button></form>
 				</div>
 			</div>
 		</div>

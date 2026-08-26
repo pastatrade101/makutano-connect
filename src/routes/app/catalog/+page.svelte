@@ -30,7 +30,7 @@
 <div class="space-y-3">
 	<div class="flex items-center justify-between">
 		<div>
-			<h1 class="text-base font-semibold text-slate-800">{copy.label}</h1>
+			<h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">{copy.label}</h1>
 			<p class="text-xs text-slate-400">{copy.hint}</p>
 		</div>
 		{#if canWrite}<button class="btn-primary" onclick={() => (showForm = !showForm)}>Add item</button>{/if}
@@ -52,21 +52,22 @@
 		</form>
 	{/if}
 
-	<div class="card overflow-x-auto">
-		<table class="min-w-full divide-y divide-slate-100">
+	<div class="card overflow-hidden">
+		<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 			<thead class="bg-slate-50"><tr><th class="table-head">Item</th><th class="table-head">Type</th><th class="table-head">Price</th><th class="table-head">Variants</th><th class="table-head">Status</th><th class="table-head"></th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.items as item (item.id)}
 					<tr class={item.isActive ? '' : 'opacity-50'}>
-						<td class="table-cell">
-							<div class="font-medium text-slate-700">{item.name}</div>
-							{#if item.sku}<div class="font-mono text-[12.5px] text-slate-400">{item.sku}</div>{/if}
-						</td>
-						<td class="table-cell text-[12.5px] uppercase text-slate-400">{item.type}</td>
-						<td class="table-cell">{#if item.price}<Money amount={item.price} currency={item.currency ?? data.tenant.currency} />{:else}—{/if}</td>
-						<td class="table-cell max-w-[14rem] truncate text-xs text-slate-500">{(item.variants ?? []).map((v) => v.label).join(', ') || '—'}</td>
-						<td class="table-cell"><span class="badge {item.isActive ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-400'} text-xs">{item.isActive ? 'active' : 'hidden'}</span></td>
-						<td class="table-cell text-right">
+					<td class="table-cell mobile-record-title">
+						<div class="font-medium text-slate-700">{item.name}</div>
+						{#if item.sku}<div class="font-mono text-[12.5px] text-slate-400">{item.sku}</div>{/if}
+						<div class="mt-1 sm:hidden"><span class="badge {item.isActive ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-400'} text-xs">{item.isActive ? 'active' : 'hidden'}</span></div>
+					</td>
+					<td class="table-cell text-[12.5px] uppercase text-slate-400" data-label="Type">{item.type}</td>
+					<td class="table-cell font-semibold" data-label="Price">{#if item.price}<Money amount={item.price} currency={item.currency ?? data.tenant.currency} />{:else}—{/if}</td>
+					<td class="table-cell max-w-[14rem] text-xs text-slate-500" data-label="Variants">{(item.variants ?? []).map((v) => v.label).join(', ') || '—'}</td>
+					<td class="table-cell mobile-hide" data-label="Status"><span class="badge {item.isActive ? 'bg-success/10 text-success' : 'bg-slate-100 text-slate-400'} text-xs">{item.isActive ? 'active' : 'hidden'}</span></td>
+					<td class="table-cell mobile-record-action text-right">
 							{#if canWrite}
 								<form method="POST" action="?/toggle" use:enhance>
 									<input type="hidden" name="id" value={item.id} />

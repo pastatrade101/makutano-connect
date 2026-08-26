@@ -74,7 +74,7 @@
 
 <div class="space-y-4">
 	<div class="flex items-center justify-between">
-		<h1 class="text-base font-semibold text-slate-900">Home</h1>
+		<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Home</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Your business today</p></div>
 		{#if rel('orders') && !rel('enquiries')}
 			<a href="/app/orders/batches" class="btn-secondary">Batches</a>
 		{:else}
@@ -166,8 +166,8 @@
 			{#if data.recentRequests.length === 0}
 				<p class="px-3 py-8 text-center text-xs text-slate-500">No booking requests yet.</p>
 			{:else}
-				<div class="overflow-x-auto">
-					<table class="min-w-full divide-y divide-slate-100">
+				<div>
+					<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 						<thead class="bg-slate-50">
 							<tr>
 								<th class="table-head">Reference</th>
@@ -180,13 +180,14 @@
 						<tbody class="divide-y divide-slate-100">
 							{#each data.recentRequests as row (row.request.id)}
 								<tr class="hover:bg-slate-50">
-									<td class="table-cell">
+									<td class="table-cell mobile-record-title">
 										<a href="/app/booking-requests/{row.request.id}" class="font-medium text-brand-600 hover:underline">{row.request.reference}</a>
+										<div class="mt-1 sm:hidden"><StatusBadge value={row.request.status} /></div>
 									</td>
-									<td class="table-cell">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
-									<td class="table-cell"><StatusBadge value={row.request.status} /></td>
-									<td class="table-cell"><Money amount={row.request.estimatedTotal} currency={row.request.currency} /></td>
-									<td class="table-cell text-slate-500"><TimeAgo value={row.request.createdAt} timezone={tz} /></td>
+									<td class="table-cell" data-label="Traveller">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
+									<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={row.request.status} /></td>
+									<td class="table-cell font-semibold" data-label="Value"><Money amount={row.request.estimatedTotal} currency={row.request.currency} /></td>
+									<td class="table-cell text-slate-500" data-label="Received"><TimeAgo value={row.request.createdAt} timezone={tz} /></td>
 								</tr>
 							{/each}
 						</tbody>

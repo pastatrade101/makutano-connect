@@ -17,7 +17,7 @@
 
 <div class="space-y-3">
 	<div class="flex items-center justify-between">
-		<h1 class="text-base font-semibold text-slate-900">Customers</h1>
+		<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Customers</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">People your team works with</p></div>
 		{#if canWrite}
 			<button class="btn-primary" onclick={() => (showForm = !showForm)}>New customer</button>
 		{/if}
@@ -36,18 +36,18 @@
 		{#if data.items.length === 0}
 			<EmptyState title="No customers yet" description="Customers appear here automatically when they message you on WhatsApp or send an enquiry — or add one yourself." action={{ href: '/app/customers?new=1', label: 'Add your first customer' }} />
 		{:else}
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-100">
+			<div>
+				<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 					<thead class="bg-slate-50"><tr><th class="table-head">Name</th><th class="table-head">Email</th><th class="table-head">WhatsApp</th><th class="table-head">Country</th><th class="table-head">Source</th><th class="table-head">Added</th></tr></thead>
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as c (c.id)}
 							<tr class="hover:bg-slate-50">
-								<td class="table-cell font-medium text-slate-800">{[c.firstName, c.lastName].filter(Boolean).join(' ') || '—'}</td>
-								<td class="table-cell text-slate-600">{c.email ?? '—'}</td>
-								<td class="table-cell text-slate-600">{c.whatsappPhone ? `+${c.whatsappPhone}` : '—'}</td>
-								<td class="table-cell text-slate-600">{c.country ?? '—'}</td>
-								<td class="table-cell text-[12.5px] text-slate-500">{sourceLabel(c.source)}</td>
-								<td class="table-cell text-slate-500"><TimeAgo value={c.createdAt} timezone={data.tenant.timezone} /></td>
+								<td class="table-cell mobile-record-title font-semibold text-slate-800">{[c.firstName, c.lastName].filter(Boolean).join(' ') || '—'}</td>
+								<td class="table-cell break-all text-slate-600" data-label="Email">{c.email ?? '—'}</td>
+								<td class="table-cell text-slate-600" data-label="WhatsApp">{c.whatsappPhone ? `+${c.whatsappPhone}` : '—'}</td>
+								<td class="table-cell text-slate-600" data-label="Country">{c.country ?? '—'}</td>
+								<td class="table-cell text-[12.5px] text-slate-500" data-label="Source">{sourceLabel(c.source)}</td>
+								<td class="table-cell text-slate-500" data-label="Added"><TimeAgo value={c.createdAt} timezone={data.tenant.timezone} /></td>
 							</tr>
 						{/each}
 					</tbody>

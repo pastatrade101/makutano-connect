@@ -26,7 +26,7 @@
 			.toUpperCase() || '#';
 </script>
 
-<div class="flex h-[calc(100vh-10.5rem)] gap-4 lg:h-[calc(100vh-9.5rem)]">
+<div class="flex h-[calc(100dvh-9.5rem-env(safe-area-inset-bottom))] gap-3 lg:h-[calc(100vh-9.5rem)] lg:gap-4">
 	<!-- Thread list -->
 	<aside class="{inThread ? 'hidden lg:flex' : 'flex'} w-full flex-col card lg:w-80 lg:shrink-0">
 		<div class="border-b border-slate-200 p-3">

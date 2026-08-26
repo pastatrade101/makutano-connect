@@ -33,10 +33,10 @@
 </script>
 
 {#snippet body()}
-	<div class="flex items-center justify-between px-4 py-3">
+	<div class="flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3">
 		<div class="min-w-0">
-			<div class="truncate text-[12.5px] font-semibold tracking-wide text-slate-500 uppercase">{label}</div>
-			<div class="mt-1 text-[22px] leading-7 font-bold tabular-nums {TONES[tone]}">{value}</div>
+			<div class="truncate text-[10.5px] font-bold tracking-wide text-slate-500 uppercase sm:text-[12.5px] sm:font-semibold">{label}</div>
+			<div class="mt-0.5 text-xl leading-7 font-bold tabular-nums sm:mt-1 sm:text-[22px] {TONES[tone]}">{value}</div>
 			{#if hint}<div class="mt-0.5 truncate text-[12.5px] text-slate-400">{hint}</div>{/if}
 		</div>
 		{#if icon}

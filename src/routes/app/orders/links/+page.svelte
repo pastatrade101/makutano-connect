@@ -64,7 +64,7 @@
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div>
 			<a href="/app/orders" class="text-xs text-slate-500 hover:underline">← Orders</a>
-			<h1 class="text-base font-semibold text-slate-900">Order Links</h1>
+			<h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Order Links</h1>
 			<p class="text-xs text-slate-400">One offer → one link. Share it in WhatsApp groups, status, Instagram — orders arrive structured.</p>
 		</div>
 		<div class="flex items-center gap-2">
@@ -117,7 +117,7 @@
 
 			<div class="sm:col-span-2">
 				<span class="label">Customer fields</span>
-				<div class="grid grid-cols-3 gap-2">
+				<div class="grid gap-2 sm:grid-cols-3">
 					{#each [{ k: 'f_deliveryLocation', label: 'Delivery location', v: l?.fieldConfig?.deliveryLocation ?? 'OPTIONAL' }, { k: 'f_note', label: 'Note', v: l?.fieldConfig?.note ?? 'OPTIONAL' }, { k: 'f_email', label: 'Email', v: l?.fieldConfig?.email ?? 'HIDDEN' }] as f (f.k)}
 						<div>
 							<span class="mb-1 block text-[12.5px] text-slate-500">{f.label}</span>

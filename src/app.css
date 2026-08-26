@@ -80,11 +80,13 @@
 @layer base {
 	html {
 		-webkit-text-size-adjust: 100%;
+		-webkit-tap-highlight-color: transparent;
 	}
 	body {
 		font-family: var(--font-sans);
 		font-size: 15px;
 		background-color: var(--color-canvas);
+		min-width: 320px;
 	}
 	h1,
 	h2,
@@ -213,5 +215,114 @@ input[type='submit'][aria-busy='true']::after {
 	}
 	.badge {
 		@apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+	}
+}
+
+/* Mobile is the product's primary operating surface. Touch targets grow, panels
+   become softer, and data tables turn into readable records instead of forcing
+   horizontal scrolling. Desktop keeps the denser admin treatment above. */
+@media (max-width: 639px) {
+	.btn,
+	.btn-primary,
+	.btn-secondary,
+	.btn-danger {
+		min-height: 44px;
+		border-radius: 0.75rem;
+	}
+
+	.input {
+		min-height: 44px;
+		border-radius: 0.75rem;
+		font-size: 16px; /* Prevent iOS from zooming the viewport on focus. */
+	}
+
+	.card {
+		border-radius: 0.875rem;
+		box-shadow: 0 1px 2px rgb(15 23 42 / 0.035);
+	}
+
+	.card-header {
+		padding: 0.8rem 0.875rem;
+	}
+
+	.mobile-sheet {
+		padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+	}
+
+	.mobile-tabbar {
+		padding-bottom: env(safe-area-inset-bottom);
+		box-shadow: 0 -8px 24px rgb(15 23 42 / 0.04);
+	}
+
+	.mobile-record-table,
+	.mobile-record-table tbody,
+	.mobile-record-table tr,
+	.mobile-record-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.mobile-record-table thead {
+		display: none;
+	}
+
+	.mobile-record-table tbody {
+		border: 0;
+	}
+
+	.mobile-record-table tbody tr {
+		position: relative;
+		padding: 0.875rem;
+		border-bottom: 1px solid var(--color-slate-100);
+	}
+
+	.mobile-record-table tbody tr:last-child {
+		border-bottom: 0;
+	}
+
+	.mobile-record-table .table-cell {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.2rem 0;
+		text-align: right;
+	}
+
+	.mobile-record-table .table-cell::before {
+		content: attr(data-label);
+		flex: 0 0 auto;
+		font-size: 10.5px;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-slate-400);
+	}
+
+	.mobile-record-table .mobile-record-title {
+		display: block;
+		padding: 0 2.5rem 0.55rem 0;
+		text-align: left;
+	}
+
+	.mobile-record-table .mobile-record-title::before,
+	.mobile-record-table td[colspan]::before,
+	.mobile-record-table .mobile-record-action::before {
+		display: none;
+	}
+
+	.mobile-record-table .mobile-record-action {
+		justify-content: flex-end;
+		padding-top: 0.5rem;
+	}
+
+	.mobile-record-table td[colspan] {
+		display: block;
+		padding: 1.5rem 0.5rem;
+		text-align: center;
+	}
+
+	.mobile-record-table .mobile-hide {
+		display: none;
 	}
 }

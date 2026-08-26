@@ -19,7 +19,7 @@
 	<WorkspaceNotice module="Bookings" />
 {:else}
 <div class="space-y-3">
-	<h1 class="text-base font-semibold text-slate-900">Bookings</h1>
+	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Bookings</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Confirmed work and balances</p></div>
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
 		<StatTile label="Total" value={data.stats.total} />
@@ -35,8 +35,8 @@
 		{#if data.items.length === 0}
 			<EmptyState title="No bookings in this view" description="Bookings are created when a traveller accepts a quotation or an agent converts a request." />
 		{:else}
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-100">
+			<div>
+				<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 					<thead class="bg-slate-50">
 						<tr>
 							<th class="table-head">Reference</th><th class="table-head">Traveller</th><th class="table-head">Status</th>
@@ -46,15 +46,15 @@
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as row (row.booking.id)}
 							<tr class="hover:bg-slate-50">
-								<td class="table-cell"><a href="/app/bookings/{row.booking.id}" class="font-medium text-brand-600 hover:underline">{row.booking.bookingReference}</a></td>
-								<td class="table-cell">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
-								<td class="table-cell"><StatusBadge value={row.booking.status} /></td>
-								<td class="table-cell"><Money amount={row.booking.total} currency={row.booking.currency} /></td>
-								<td class="table-cell"><Money amount={row.booking.amountPaid} currency={row.booking.currency} /></td>
-								<td class="table-cell {Number(row.booking.balanceDue) > 0 ? 'font-medium text-danger' : 'text-slate-500'}">
+								<td class="table-cell mobile-record-title"><a href="/app/bookings/{row.booking.id}" class="font-semibold text-brand-600 hover:underline">{row.booking.bookingReference}</a><div class="mt-1 sm:hidden"><StatusBadge value={row.booking.status} /></div></td>
+								<td class="table-cell" data-label="Traveller">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
+								<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={row.booking.status} /></td>
+								<td class="table-cell font-semibold" data-label="Total"><Money amount={row.booking.total} currency={row.booking.currency} /></td>
+								<td class="table-cell" data-label="Paid"><Money amount={row.booking.amountPaid} currency={row.booking.currency} /></td>
+								<td class="table-cell {Number(row.booking.balanceDue) > 0 ? 'font-medium text-danger' : 'text-slate-500'}" data-label="Balance">
 									<Money amount={row.booking.balanceDue} currency={row.booking.currency} />
 								</td>
-								<td class="table-cell text-slate-500"><TimeAgo value={row.booking.createdAt} timezone={data.tenant.timezone} /></td>
+								<td class="table-cell text-slate-500" data-label="Created"><TimeAgo value={row.booking.createdAt} timezone={data.tenant.timezone} /></td>
 							</tr>
 						{/each}
 					</tbody>

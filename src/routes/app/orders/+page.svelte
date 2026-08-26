@@ -21,13 +21,21 @@
 	<WorkspaceNotice module="Orders" />
 {:else}
 <div class="space-y-3">
-	<div class="flex items-center justify-between">
-		<h1 class="text-base font-semibold text-slate-800">Orders</h1>
-		<div class="flex gap-2">
+	<div class="flex items-center justify-between gap-2">
+		<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Orders</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Track fulfilment and payments</p></div>
+		<div class="hidden gap-2 sm:flex">
 			<a href="/app/orders/batches" class="btn-secondary">Batches</a>
 			<a href="/app/orders/links" class="btn-secondary">Order Links</a>
 			<a href="/app/orders/new" class="btn-primary">New order</a>
 		</div>
+		<details class="group relative sm:hidden">
+			<summary class="btn-secondary list-none !px-3" aria-label="Order tools"><svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><circle cx="4" cy="10" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="16" cy="10" r="1.5" /></svg></summary>
+			<div class="absolute right-0 z-10 mt-1 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+				<a href="/app/orders/new" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-brand-600">New order</a>
+				<a href="/app/orders/batches" class="block rounded-lg px-3 py-2.5 text-sm text-slate-600">Batches</a>
+				<a href="/app/orders/links" class="block rounded-lg px-3 py-2.5 text-sm text-slate-600">Order links</a>
+			</div>
+		</details>
 	</div>
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
@@ -44,8 +52,8 @@
 		{#if data.items.length === 0}
 			<EmptyState title="No orders in this view" description="Orders arrive from WhatsApp conversations, hosted forms, the API — or create one manually." action={{ href: '/app/orders/new', label: 'Create an order' }} />
 		{:else}
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-slate-100">
+			<div>
+				<table class="mobile-record-table min-w-full divide-y divide-slate-100">
 					<thead class="bg-slate-50">
 						<tr>
 							<th class="table-head">Order</th><th class="table-head">Customer</th><th class="table-head">Items</th>
@@ -56,14 +64,14 @@
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as row (row.order.id)}
 							<tr class="hover:bg-slate-50">
-								<td class="table-cell"><a href="/app/orders/{row.order.id}" class="font-medium text-brand-600 hover:underline">{row.order.orderNumber}</a></td>
-								<td class="table-cell">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
-								<td class="table-cell max-w-[16rem] truncate text-slate-500">{row.itemsSummary ?? '—'}</td>
-								<td class="table-cell"><Money amount={row.order.total} currency={row.order.currency} /></td>
-								<td class="table-cell"><StatusBadge value={row.order.paymentStatus} size="xs" /></td>
-								<td class="table-cell"><StatusBadge value={row.order.status} /></td>
-								<td class="table-cell text-[12.5px] text-slate-400">{sourceLabel(row.order.source)}</td>
-								<td class="table-cell text-slate-500"><TimeAgo value={row.order.createdAt} timezone={data.tenant.timezone} /></td>
+								<td class="table-cell mobile-record-title"><a href="/app/orders/{row.order.id}" class="font-semibold text-brand-600 hover:underline">{row.order.orderNumber}</a><div class="mt-1 flex items-center gap-1.5 sm:hidden"><StatusBadge value={row.order.status} /><StatusBadge value={row.order.paymentStatus} size="xs" /></div></td>
+								<td class="table-cell" data-label="Customer">{[row.customer?.firstName, row.customer?.lastName].filter(Boolean).join(' ') || '—'}</td>
+								<td class="table-cell max-w-[16rem] truncate text-slate-500 mobile-hide" data-label="Items">{row.itemsSummary ?? '—'}</td>
+								<td class="table-cell font-semibold" data-label="Total"><Money amount={row.order.total} currency={row.order.currency} /></td>
+								<td class="table-cell mobile-hide" data-label="Payment"><StatusBadge value={row.order.paymentStatus} size="xs" /></td>
+								<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={row.order.status} /></td>
+								<td class="table-cell text-[12.5px] text-slate-400" data-label="Source">{sourceLabel(row.order.source)}</td>
+								<td class="table-cell text-slate-500" data-label="Created"><TimeAgo value={row.order.createdAt} timezone={data.tenant.timezone} /></td>
 							</tr>
 						{/each}
 					</tbody>

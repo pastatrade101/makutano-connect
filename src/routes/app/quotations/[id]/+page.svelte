@@ -45,7 +45,15 @@
 			</h2>
 			<span class="text-[12.5px] text-slate-500">v{data.quotation.version} · <TimeAgo value={data.quotation.createdAt} timezone={data.tenant.timezone} /></span>
 		</header>
-		<table class="min-w-full divide-y divide-slate-100">
+		<ul class="divide-y divide-slate-100 sm:hidden">
+			{#each data.items as item (item.id)}
+				<li class="p-3">
+					<div class="flex items-start justify-between gap-4"><div class="min-w-0"><p class="font-medium text-slate-800">{item.title}</p>{#if item.description}<p class="text-xs text-slate-500">{item.description}</p>{/if}</div><p class="shrink-0 font-semibold"><Money amount={item.total} currency={data.quotation.currency} /></p></div>
+					<p class="mt-2 text-xs text-slate-500">{item.quantity} × <Money amount={item.unitPrice} currency={data.quotation.currency} /></p>
+				</li>
+			{/each}
+		</ul>
+		<table class="hidden min-w-full divide-y divide-slate-100 sm:table">
 			<thead class="bg-slate-50"><tr><th class="table-head">Item</th><th class="table-head">Qty</th><th class="table-head">Unit</th><th class="table-head">Total</th></tr></thead>
 			<tbody class="divide-y divide-slate-100">
 				{#each data.items as item (item.id)}
@@ -71,6 +79,12 @@
 				<tr class="font-semibold"><td colspan="3" class="table-cell text-right">Total</td><td class="table-cell"><Money amount={data.quotation.total} currency={data.quotation.currency} /></td></tr>
 			</tfoot>
 		</table>
+		<div class="space-y-1 border-t border-slate-100 bg-slate-50 px-3 py-2.5 text-sm sm:hidden">
+			<div class="flex justify-between text-slate-500"><span>Subtotal</span><Money amount={data.quotation.subtotal} currency={data.quotation.currency} /></div>
+			{#if Number(data.quotation.discount) > 0}<div class="flex justify-between text-success"><span>Discount</span><span>−<Money amount={data.quotation.discount} currency={data.quotation.currency} /></span></div>{/if}
+			{#if Number(data.quotation.tax) > 0}<div class="flex justify-between text-slate-500"><span>Tax</span><Money amount={data.quotation.tax} currency={data.quotation.currency} /></div>{/if}
+			<div class="flex justify-between border-t border-slate-200 pt-1.5 font-bold text-slate-800"><span>Total</span><Money amount={data.quotation.total} currency={data.quotation.currency} /></div>
+		</div>
 		{#if data.quotation.terms}
 			<div class="border-t border-slate-200 px-3 py-2 text-[12.5px] whitespace-pre-wrap text-slate-500">{data.quotation.terms}</div>
 		{/if}
