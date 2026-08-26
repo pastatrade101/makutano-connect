@@ -33,12 +33,19 @@ export async function findOrCreateConversation(params: {
 			)
 			.limit(1);
 		if (existing[0]) {
-			// Late-arriving links (a booking request created after the chat started) are
-			// filled in, but an existing link is never overwritten.
+			// Who the thread belongs to is decided once — a WhatsApp number is one person,
+			// and a later enquiry must never quietly re-point the chat at someone else.
 			const patch: Partial<typeof schema.conversations.$inferInsert> = {};
 			if (params.customerId && !existing[0].customerId) patch.customerId = params.customerId;
 			if (params.leadId && !existing[0].leadId) patch.leadId = params.leadId;
-			if (params.bookingRequestId && !existing[0].bookingRequestId) patch.bookingRequestId = params.bookingRequestId;
+
+			// The enquiry is the opposite case. A traveller who writes again is asking
+			// about their NEW request, so "Open enquiry" and the subject follow the
+			// latest one; the earlier enquiries stay reachable from the context chips.
+			if (params.bookingRequestId && params.bookingRequestId !== existing[0].bookingRequestId) {
+				patch.bookingRequestId = params.bookingRequestId;
+				if (params.subject) patch.subject = params.subject;
+			}
 			if (Object.keys(patch).length === 0) return existing[0];
 			const [updated] = await db()
 				.update(schema.conversations)

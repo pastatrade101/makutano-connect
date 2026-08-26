@@ -88,7 +88,13 @@
 	const who = $derived([data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || `+${data.conversation.externalId ?? ''}`);
 	const initials = $derived(who.replace(/^\+/, '').split(/\s+/).map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || '#');
 
-	const KIND_HREF: Record<string, string> = { order: '/app/orders', booking: '/app/bookings', quotation: '/app/quotations' };
+	const KIND_HREF: Record<string, string> = {
+		order: '/app/orders',
+		booking: '/app/bookings',
+		quotation: '/app/quotations',
+		enquiry: '/app/booking-requests'
+	};
+	const KIND_LABEL: Record<string, string> = { enquiry: 'Enquiry' };
 	let showContext = $state(false);
 	let showChatActions = $state(false);
 	let batchQty = $state('');
@@ -316,9 +322,12 @@
 				href="{KIND_HREF[t.kind]}/{t.id}"
 				class="flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12.5px] transition hover:border-brand-300 {t.this_thread ? 'border-brand-200 bg-brand-50/60' : 'border-slate-200 bg-white'}"
 			>
+				{#if KIND_LABEL[t.kind]}<span class="text-[11px] font-semibold text-slate-400 uppercase">{KIND_LABEL[t.kind]}</span>{/if}
 				<span class="font-semibold text-slate-700">{t.reference}</span>
 				<StatusBadge value={t.status} size="xs" />
-				<span class="tabular-nums text-slate-500"><Money amount={t.total} currency={t.currency} /></span>
+				{#if Number(t.total) > 0}
+					<span class="tabular-nums text-slate-500"><Money amount={t.total} currency={t.currency} /></span>
+				{/if}
 			</a>
 		{/each}
 		{#if Number(data.outstanding) > 0}

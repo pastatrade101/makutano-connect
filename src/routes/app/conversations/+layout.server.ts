@@ -1,7 +1,8 @@
-import { inArray } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 import { requireTenantPermission } from '$lib/server/guards';
 import { listConversations } from '$lib/server/conversations';
 import { db, schema } from '$lib/server/db';
+import { messagePreview } from '$lib/labels';
 import type { LayoutServerLoad } from './$types';
 
 /** The chat list lives in the layout so the two-pane inbox shares it across
@@ -17,6 +18,22 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		{ assigned: filter as never },
 		{ userId: locals.user!.id, permissions: locals.permissions }
 	);
+	// What the list actually needs to show: the last thing said. Without it every row
+	// falls back to the channel name and the inbox reads "whatsapp" three times over.
+	const ids = items.map((i) => i.conversation.id);
+	const lastMessages = ids.length
+		? ((await db().execute(sql`
+				select distinct on (conversation_id) conversation_id, body, type, direction
+				from messages
+				where conversation_id in (${sql.join(
+					ids.map((i) => sql`${i}::uuid`),
+					sql`, `
+				)})
+				order by conversation_id, created_at desc
+			`)) as unknown as Array<{ conversation_id: string; body: string | null; type: string | null; direction: string }>)
+		: [];
+	const lastById = new Map(lastMessages.map((m) => [m.conversation_id, m]));
+
 	// Whoever holds a thread is named in the list, so an owner can see at a glance
 	// what they still hold and what has been handed to somebody else.
 	const assigneeIds = [...new Set(items.map((i) => i.conversation.assignedToUserId).filter(Boolean))] as string[];
@@ -38,6 +55,11 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 			lastMessageAt: conversation.lastMessageAt,
 			assignedToUserId: conversation.assignedToUserId,
 			assignedToMe: conversation.assignedToUserId === locals.user!.id,
+			preview: (() => {
+				const last = lastById.get(conversation.id);
+				return last ? messagePreview(last.body, last.type) : null;
+			})(),
+			lastFromCustomer: lastById.get(conversation.id)?.direction === 'INBOUND',
 			assignedToName: conversation.assignedToUserId
 				? (shortNameById.get(conversation.assignedToUserId) ?? 'Teammate')
 				: null

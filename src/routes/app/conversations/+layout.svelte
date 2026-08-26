@@ -58,12 +58,22 @@
 						</div>
 						<div class="flex items-center justify-between gap-2">
 							<span class="truncate text-[13.5px] wa-text-muted">
-								{#if t.assignedToMe}<span class="mr-1 text-[11.5px] font-semibold text-[#008069]">You:</span>{:else if t.assignedToName}<span class="mr-1 text-[11.5px] font-semibold wa-text-muted">{t.assignedToName}:</span>{:else}<span class="mr-1 text-[11.5px] font-semibold text-[#b58514]">Open:</span>{/if}
-								{t.subject ?? t.channel.toLowerCase()}
+								<!-- "You:" is authorship, as in WhatsApp — never who the thread belongs to. -->
+								{#if t.preview && !t.lastFromCustomer}<span class="mr-1 wa-text-muted">You:</span>{/if}
+								{t.preview ?? t.subject ?? 'No messages yet'}
 							</span>
-							{#if t.unread > 0}
-								<span class="flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[#25d366] px-1 text-[10.5px] leading-5 font-bold text-white">{t.unread}</span>
-							{/if}
+							<span class="flex shrink-0 items-center gap-1.5">
+								<!-- Ownership rides on the right, and only when it is news: somebody
+								     else holds it, or nobody does. -->
+								{#if !t.assignedToUserId}
+									<span class="rounded-full bg-warning/15 px-1.5 py-px text-[10px] font-semibold text-[#b58514]">Open</span>
+								{:else if !t.assignedToMe}
+									<span class="rounded-full bg-slate-100 px-1.5 py-px text-[10px] font-semibold text-slate-500">{t.assignedToName}</span>
+								{/if}
+								{#if t.unread > 0}
+									<span class="flex min-w-5 items-center justify-center rounded-full bg-[#25d366] px-1 text-[10.5px] leading-5 font-bold text-white">{t.unread}</span>
+								{/if}
+							</span>
 						</div>
 					</div>
 				</a>

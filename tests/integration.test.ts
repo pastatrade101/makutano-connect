@@ -33,6 +33,7 @@ type Ctx = {
 	idempotency: typeof import('../src/lib/server/idempotency');
 	connections: typeof import('../src/lib/server/whatsapp/connections');
 	inbound: typeof import('../src/lib/server/whatsapp/inbound');
+	conv: typeof import('../src/lib/server/conversations');
 };
 
 let ctx: Ctx;
@@ -41,7 +42,6 @@ let tenantB: { id: string; slug: string };
 let keyA: string;
 let keyB: string;
 const stamp = Date.now();
-
 
 /** Test tenants exercise behaviour, not plan limits — lift the caps explicitly. */
 async function liftLimits(tenantId: string): Promise<void> {
@@ -78,7 +78,8 @@ suite('multi-tenant engine', () => {
 			customers: await import('../src/lib/server/customers'),
 			idempotency: await import('../src/lib/server/idempotency'),
 			connections: await import('../src/lib/server/whatsapp/connections'),
-			inbound: await import('../src/lib/server/whatsapp/inbound')
+			inbound: await import('../src/lib/server/whatsapp/inbound'),
+			conv: await import('../src/lib/server/conversations')
 		};
 
 		tenantA = await provisionTestTenant({
@@ -160,6 +161,28 @@ suite('multi-tenant engine', () => {
 		).rejects.toBeTruthy();
 		const untouched = await ctx.requests.getBookingRequest(tenantA.id, request.id);
 		expect(untouched.status).toBe('NEW');
+	});
+
+	it('a repeat enquiry stays in one thread, and that thread shows the NEW enquiry', async () => {
+		const phone = `2556${stamp.toString().slice(-8)}`;
+		const first = await ctx.requests.createBookingRequest(tenantA.id, {
+			customer: { firstName: 'Repeat', whatsappPhone: phone },
+			sendAcknowledgement: false
+		});
+		const second = await ctx.requests.createBookingRequest(tenantA.id, {
+			customer: { firstName: 'Repeat', whatsappPhone: phone },
+			sendAcknowledgement: false
+		});
+
+		// One number is one WhatsApp thread — the second request must not fork it.
+		expect(second.request.conversationId).toBe(first.request.conversationId);
+
+		// ...but the thread's context follows the latest request, or "Open enquiry"
+		// takes the operator to an enquiry the traveller stopped talking about.
+		const convo = await ctx.conv.getConversation(tenantA.id, first.request.conversationId!);
+		expect(convo.bookingRequestId).toBe(second.request.id);
+		expect(convo.subject).toContain(second.request.reference);
+		expect(convo.customerId).toBe(second.request.customerId);
 	});
 
 	it('customers with the same phone are separate records per tenant', async () => {
@@ -459,7 +482,10 @@ suite('webhook tenant routing', () => {
 	});
 
 	it('falls back to waba_id when no phone number is present', async () => {
-		const routed = await routingCtx.connections.resolveTenantForEvent({ phoneNumberId: null, wabaId: `waba-${suffix}` });
+		const routed = await routingCtx.connections.resolveTenantForEvent({
+			phoneNumberId: null,
+			wabaId: `waba-${suffix}`
+		});
 		expect(routed?.tenantId).toBe(routeTenant.id);
 		expect(routed?.matchedOn).toBe('waba_id');
 	});
@@ -473,7 +499,9 @@ suite('webhook tenant routing', () => {
 	});
 
 	it('drops an event whose identifiers nobody owns — no default tenant', async () => {
-		expect(await routingCtx.connections.resolveTenantForEvent({ phoneNumberId: 'nope', wabaId: 'also-nope' })).toBeNull();
+		expect(
+			await routingCtx.connections.resolveTenantForEvent({ phoneNumberId: 'nope', wabaId: 'also-nope' })
+		).toBeNull();
 		expect(await routingCtx.connections.resolveTenantForEvent({})).toBeNull();
 	});
 });

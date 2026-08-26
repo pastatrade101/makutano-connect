@@ -95,7 +95,15 @@ function previewOf(content: OutboundContent): string {
 
 /** Queue an outbound message. Returns the persisted row immediately (§18). */
 export async function queueMessage(params: SendParams): Promise<schema.Message> {
-	const to = normalizePhone(params.to);
+	// The tenant's country expands a locally-typed number (0629142552) into the E.164
+	// form WhatsApp itself uses. Without it the same person gets a second customer and
+	// a second thread — one for what they typed, one for what Meta sends back.
+	const [tenantRow] = await db()
+		.select({ country: schema.tenants.country })
+		.from(schema.tenants)
+		.where(eq(schema.tenants.id, params.tenantId))
+		.limit(1);
+	const to = normalizePhone(params.to, tenantRow?.country);
 	if (!to) throw new AppError('VALIDATION_ERROR', 'A valid recipient phone number is required.');
 
 	// Entitlements decide whether the tenant MAY send at all. Compliance (below) then

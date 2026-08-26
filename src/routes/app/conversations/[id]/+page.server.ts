@@ -62,11 +62,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				from quotations q
 				where q.tenant_id = ${tenantId}::uuid
 					and (q.conversation_id = ${id}::uuid or (q.customer_id is not null and q.customer_id = ${conversation.customerId ?? null}::uuid))
+				union all
+				select 'enquiry', br.id::text, br.reference, br.status::text,
+					coalesce(br.estimated_total::text, '0'), '0', br.currency, br.created_at,
+					(br.conversation_id = ${id}::uuid)
+				from booking_requests br
+				where br.tenant_id = ${tenantId}::uuid
+					and (br.conversation_id = ${id}::uuid or (br.customer_id is not null and br.customer_id = ${conversation.customerId ?? null}::uuid))
 			) t
 			order by this_thread desc, created_at desc
 			limit 6
 		`)) as unknown as Array<{
-			kind: 'order' | 'booking' | 'quotation';
+			kind: 'order' | 'booking' | 'quotation' | 'enquiry';
 			id: string;
 			reference: string;
 			status: string;
@@ -76,8 +83,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			this_thread: boolean;
 		}>;
 
+		// Only things that can actually be owed: an enquiry or a quotation is not a debt.
 		const outstanding = context
-			.filter((t) => t.kind !== 'quotation' && !['CANCELLED', 'REFUNDED', 'DECLINED', 'EXPIRED'].includes(t.status))
+			.filter((t) => (t.kind === 'order' || t.kind === 'booking') && !['CANCELLED', 'REFUNDED'].includes(t.status))
 			.reduce((sum, t) => sum + Math.max(0, Number(t.total) - Number(t.amount_paid)), 0);
 
 		// The seller's most common move: a customer writes "nataka kilo 4" and the
