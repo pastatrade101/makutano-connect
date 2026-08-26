@@ -4,7 +4,7 @@
 // external id), carrying the customer, lead and booking request it belongs to — so an
 // agent opens a request and sees the WhatsApp thread beside it instead of hunting for
 // a matching record.
-import { and, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { AppError } from './errors';
 import { audit } from './audit';
@@ -49,6 +49,10 @@ export async function findOrCreateConversation(params: {
 		}
 	}
 
+	// A new thread lands with the account owner rather than in an unowned pile: someone
+	// is answerable for it from the first message, and the owner hands it on from there.
+	const assignedToUserId = await defaultAssignee(params.tenantId);
+
 	const [row] = await db()
 		.insert(schema.conversations)
 		.values({
@@ -60,12 +64,36 @@ export async function findOrCreateConversation(params: {
 			bookingRequestId: params.bookingRequestId ?? null,
 			whatsappConnectionId: params.whatsappConnectionId ?? null,
 			subject: params.subject ?? null,
+			assignedToUserId,
 			lastMessageAt: new Date()
 		})
 		.returning();
 	return row;
 }
 
+/**
+ * Who owns a brand-new conversation: the tenant's longest-standing active owner.
+ *
+ * Deliberately narrow — only an OWNER, only an accepted membership, never a
+ * deactivated one. If a tenant somehow has no active owner we leave the thread
+ * unassigned rather than guessing at a staff member who may not expect it.
+ */
+export async function defaultAssignee(tenantId: string): Promise<string | null> {
+	const rows = await db()
+		.select({ userId: schema.tenantMemberships.userId })
+		.from(schema.tenantMemberships)
+		.where(
+			and(
+				eq(schema.tenantMemberships.tenantId, tenantId),
+				eq(schema.tenantMemberships.role, 'OWNER'),
+				isNotNull(schema.tenantMemberships.acceptedAt),
+				isNull(schema.tenantMemberships.disabledAt)
+			)
+		)
+		.orderBy(schema.tenantMemberships.createdAt)
+		.limit(1);
+	return rows[0]?.userId ?? null;
+}
 
 /** Who is looking at the inbox — drives visibility scoping (§team-access §7-§9). */
 export type ConversationViewer = {
@@ -154,16 +182,28 @@ export async function updateConversationAccess(
 		.returning();
 
 	if (patch.assignedToUserId !== undefined && patch.assignedToUserId !== before.assignedToUserId) {
-		await audit(tenantId, 'conversation.assigned', { type: 'user', userId: actor.userId }, { type: 'conversation', id }, {
-			from: before.assignedToUserId,
-			to: patch.assignedToUserId
-		});
+		await audit(
+			tenantId,
+			'conversation.assigned',
+			{ type: 'user', userId: actor.userId },
+			{ type: 'conversation', id },
+			{
+				from: before.assignedToUserId,
+				to: patch.assignedToUserId
+			}
+		);
 	}
 	if (patch.visibility !== undefined && patch.visibility !== before.visibility) {
-		await audit(tenantId, 'conversation.visibility_changed', { type: 'user', userId: actor.userId }, { type: 'conversation', id }, {
-			from: before.visibility,
-			to: patch.visibility
-		});
+		await audit(
+			tenantId,
+			'conversation.visibility_changed',
+			{ type: 'user', userId: actor.userId },
+			{ type: 'conversation', id },
+			{
+				from: before.visibility,
+				to: patch.visibility
+			}
+		);
 	}
 	return updated;
 }

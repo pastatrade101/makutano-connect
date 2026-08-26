@@ -81,6 +81,8 @@
 	const flat = $derived(groups.flatMap((g) => g.items));
 	const primary = $derived(flat.filter((n) => n.primary).slice(0, 3));
 	const current = $derived(flat.find((n) => isActive(n.href))?.label ?? 'Overview');
+	const inConversations = $derived(page.url.pathname.startsWith('/app/conversations'));
+	const inConversationThread = $derived(/^\/app\/conversations\/[^/]+/.test(page.url.pathname));
 
 	/** Global "+ New" (§6): only what this tenant can create, one tap from anywhere. */
 	type QuickItem = { href: string; label: string; hint: string };
@@ -205,9 +207,9 @@
 		{/if}
 	</aside>
 
-	<div class="flex min-w-0 flex-1 flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0 {collapsed ? 'lg:pl-[70px]' : 'lg:pl-60'} transition-[padding] duration-200">
+	<div class="flex min-w-0 flex-1 flex-col {inConversationThread ? 'h-dvh overflow-hidden pb-0 lg:h-auto lg:overflow-visible' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'} lg:pb-0 {collapsed ? 'lg:pl-[70px]' : 'lg:pl-60'} transition-[padding] duration-200">
 		<!-- Topbar -->
-		<header class="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur lg:h-[70px] lg:bg-white lg:px-6">
+		<header class="sticky top-0 z-20 {inConversationThread ? 'hidden' : 'flex'} h-14 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur lg:flex lg:h-[70px] lg:bg-white lg:px-6">
 			<div class="flex min-w-0 items-center gap-3">
 				<button class="hidden rounded-panel p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 lg:block" onclick={toggleNav} aria-label="Toggle navigation">
 					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h14M3 10h14M3 15h14" /></svg>
@@ -299,33 +301,35 @@
 			</div>
 		</header>
 
-		<main class="mx-auto w-full min-w-0 max-w-[1600px] flex-1 p-3 sm:p-4 lg:p-6">
-			{#if data.tenantSuspended}
-				<div class="mb-4 rounded-panel bg-danger/10 px-4 py-3 text-sm text-danger">
-					<b>This account is suspended.</b> You can still view your data, but new orders, bookings, messages and API writes are blocked. Please contact support.
-				</div>
-			{:else if data.trial}
-				<div class="mb-3 flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-3 py-2.5 text-xs text-brand-800 sm:mb-4 sm:rounded-panel sm:px-4">
-					<span>
-						{#if trialDaysLeft === null}
-							You're on a free trial — everything is switched on.
-						{:else if trialDaysLeft > 1}
-							<span class="sm:hidden"><b>{trialDaysLeft} days</b> left in your free trial.</span>
-							<span class="hidden sm:inline"><b>{trialDaysLeft} days</b> left on your free trial. Nothing is charged until you choose a plan.</span>
-						{:else if trialDaysLeft === 1}
-							Your free trial ends <b>tomorrow</b>.
-						{:else}
-							Your free trial ends <b>today</b>.
-						{/if}
-					</span>
-					<a href="/app/settings" class="shrink-0 font-semibold underline">Manage plan</a>
-				</div>
-			{:else if data.nearLimits?.length}
-				<div class="mb-4 rounded-panel bg-warning/10 px-4 py-2.5 text-xs text-[#b58514]">
-					You're approaching your monthly limit —
-					{#each data.nearLimits as l, i (l.label)}{i > 0 ? ', ' : ' '}<b>{l.label.toLowerCase()} {l.used}/{l.limit}</b>{/each}.
-					<a href="/app/settings" class="font-semibold underline">View usage</a>
-				</div>
+		<main class="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col {inConversations ? 'min-h-0 p-0' : 'p-3 sm:p-4'} lg:p-6">
+			{#if !inConversationThread}
+				{#if data.tenantSuspended}
+					<div class="mb-4 rounded-panel bg-danger/10 px-4 py-3 text-sm text-danger">
+						<b>This account is suspended.</b> You can still view your data, but new orders, bookings, messages and API writes are blocked. Please contact support.
+					</div>
+				{:else if data.trial}
+					<div class="mb-3 flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-3 py-2.5 text-xs text-brand-800 sm:mb-4 sm:rounded-panel sm:px-4">
+						<span>
+							{#if trialDaysLeft === null}
+								You're on a free trial — everything is switched on.
+							{:else if trialDaysLeft > 1}
+								<span class="sm:hidden"><b>{trialDaysLeft} days</b> left in your free trial.</span>
+								<span class="hidden sm:inline"><b>{trialDaysLeft} days</b> left on your free trial. Nothing is charged until you choose a plan.</span>
+							{:else if trialDaysLeft === 1}
+								Your free trial ends <b>tomorrow</b>.
+							{:else}
+								Your free trial ends <b>today</b>.
+							{/if}
+						</span>
+						<a href="/app/settings" class="shrink-0 font-semibold underline">Manage plan</a>
+					</div>
+				{:else if data.nearLimits?.length}
+					<div class="mb-4 rounded-panel bg-warning/10 px-4 py-2.5 text-xs text-[#b58514]">
+						You're approaching your monthly limit —
+						{#each data.nearLimits as l, i (l.label)}{i > 0 ? ', ' : ' '}<b>{l.label.toLowerCase()} {l.used}/{l.limit}</b>{/each}.
+						<a href="/app/settings" class="font-semibold underline">View usage</a>
+					</div>
+				{/if}
 			{/if}
 			{@render children()}
 			<footer class="mt-8 hidden text-center text-[12.5px] text-slate-400 lg:block">{new Date().getFullYear()} © Makutano Connect</footer>
@@ -333,6 +337,7 @@
 	</div>
 
 	<!-- Mobile bottom tabs: daily work stays one tap away; every other module lives in More. -->
+	{#if !inConversationThread}
 	<nav class="mobile-tabbar fixed inset-x-0 bottom-0 z-30 grid border-t border-slate-200/80 bg-white/95 px-1 backdrop-blur lg:hidden" style="grid-template-columns: repeat({primary.length + (quickCreate.length ? 2 : 1)}, 1fr)">
 		{#each primary.slice(0, 2) as item (item.href)}
 			<a href={item.href} class="relative flex min-w-0 flex-col items-center gap-0.5 px-1 pt-2 pb-1.5 text-[11px] {isActive(item.href) ? 'font-semibold text-brand-500' : 'text-slate-400'}">
@@ -364,6 +369,7 @@
 			More
 		</button>
 	</nav>
+	{/if}
 
 	<!-- Mobile search, deliberately full-width so filters and results never compete with the keyboard. -->
 	{#if mobileSearchOpen}

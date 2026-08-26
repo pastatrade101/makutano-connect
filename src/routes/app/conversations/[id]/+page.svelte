@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { messagePreview } from '$lib/labels';
 	import { moduleRelevant } from '$lib/workspace';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { page } from '$app/state';
 	// Reback chat thread: header with avatar + context, bubbles with delivery ticks
 	// (✓ sent, ✓✓ delivered, ✓✓ tinted read), composer pinned at the bottom.
@@ -11,6 +11,37 @@
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data, form } = $props();
+
+	// Assignment reads as one plain line — who holds this chat and who can see it.
+	// The pickers only unfold when somebody actually wants to hand it over.
+	let assignOpen = $state(false);
+	const isMine = $derived(data.conversation.assignedToUserId === data.user.id);
+	const assignee = $derived(
+		data.teamMembers.find((m) => m.userId === data.conversation.assignedToUserId) ?? null
+	);
+	const assigneeLabel = $derived(
+		assignee
+			? assignee.fullName || assignee.email
+			: data.conversation.assignedToUserId
+				? 'Assigned teammate'
+				: 'Nobody yet'
+	);
+	const assigneeInitials = $derived(
+		assignee
+			? (assignee.fullName || assignee.email)
+					.split(/[\s@.]+/)
+					.filter(Boolean)
+					.map((part: string) => part[0])
+					.join('')
+					.slice(0, 2)
+					.toUpperCase()
+			: '?'
+	);
+	const VISIBILITY_LINE: Record<string, string> = {
+		TEAM: 'Whole team can see this chat',
+		ASSIGNED: 'Only the assigned person can see this chat',
+		PRIVATE: 'Private to the assigned person'
+	};
 
 	// AI assist: every suggestion is a DRAFT held in the page until a human commits.
 	let suggestingFor = $state<string | null>(null);
@@ -59,10 +90,17 @@
 
 	const KIND_HREF: Record<string, string> = { order: '/app/orders', booking: '/app/bookings', quotation: '/app/quotations' };
 	let showContext = $state(false);
+	let showChatActions = $state(false);
 	let batchQty = $state('');
 	let others = $state<Array<{ name: string; typing: boolean }>>([]);
 	let composerText = $state('');
 	let typingUntil = 0;
+	let messageViewport = $state<HTMLDivElement>();
+
+	async function scrollToLatest(behavior: ScrollBehavior = 'auto') {
+		await tick();
+		messageViewport?.scrollTo({ top: messageViewport.scrollHeight, behavior });
+	}
 
 	async function beat() {
 		try {
@@ -78,8 +116,13 @@
 	}
 	onMount(() => {
 		void beat();
+		void scrollToLatest();
 		const interval = setInterval(beat, 8000);
 		return () => clearInterval(interval);
+	});
+	$effect(() => {
+		data.messages.length;
+		if (messageViewport) void scrollToLatest();
 	});
 	const presenceLine = $derived.by(() => {
 		if (!others.length) return null;
@@ -107,24 +150,24 @@
 
 <FormToast {form} successTitle="Message sent" />
 
-<header class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-slate-200 px-4 py-3">
-	<div class="flex min-w-0 items-center gap-3">
-		<a href="/app/conversations" class="rounded-panel p-1 text-slate-400 hover:bg-slate-100 lg:hidden" aria-label="Back to inbox">
+<header class="wa-surface flex h-14 shrink-0 items-center justify-between gap-2 border-b px-2.5 lg:h-auto lg:min-h-[64px] lg:px-4 lg:py-3">
+	<div class="flex min-w-0 items-center gap-2 lg:gap-3">
+		<a href="/app/conversations" class="flex size-9 shrink-0 items-center justify-center rounded-full wa-text-muted hover:bg-black/5 lg:hidden" aria-label="Back to inbox">
 			<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 6 10l6 6" /></svg>
 		</a>
-		<div class="flex size-9 items-center justify-center rounded-full bg-brand-50 text-[13.5px] font-bold text-brand-600">{initials}</div>
+		<div class="wa-avatar flex size-10 shrink-0 items-center justify-center rounded-full text-[13.5px] font-bold">{initials}</div>
 		<div class="min-w-0">
-			<h1 class="truncate text-[15.5px] font-semibold text-slate-700">{who}</h1>
-			<p class="truncate text-[12.5px] text-slate-400">
+			<h1 class="truncate text-[15.5px] font-semibold wa-text">{who}</h1>
+			<p class="truncate text-[12px] wa-text-muted">
 				{#if presenceLine}
-					<span class="font-medium text-brand-600">{presenceLine}</span>
+					<span class="font-medium text-[#00a884]">{presenceLine}</span>
 				{:else}
 					{#if data.customer?.whatsappPhone}+{data.customer.whatsappPhone} · {/if}{data.conversation.channel.toLowerCase()}
 				{/if}
 			</p>
 		</div>
 	</div>
-	<div class="flex w-full shrink-0 items-center gap-1.5 sm:w-auto">
+	<div class="hidden shrink-0 items-center gap-1.5 lg:flex">
 		{#if data.conversation.bookingRequestId}
 			<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary !py-1.5 text-xs">Open enquiry</a>
 		{/if}
@@ -137,41 +180,84 @@
 			</button>
 		{/if}
 	</div>
+	<button class="flex size-10 shrink-0 items-center justify-center rounded-full wa-text-muted hover:bg-black/5 lg:hidden" onclick={() => (showChatActions = true)} aria-label="Conversation actions">
+		<svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="10" cy="16" r="1.5" /></svg>
+	</button>
 </header>
+
+{#if showChatActions}
+	<div class="fixed inset-0 z-50 flex items-end bg-slate-900/40 lg:hidden">
+		<button class="absolute inset-0" onclick={() => (showChatActions = false)} aria-label="Close conversation actions" tabindex="-1"></button>
+		<section class="mobile-sheet relative z-10 w-full rounded-t-3xl bg-white p-4 shadow-xl">
+			<div class="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200"></div>
+			<div class="mb-3 flex items-center justify-between"><div><h2 class="font-semibold text-slate-800">{who}</h2><p class="text-xs text-slate-400">Conversation actions</p></div><button class="rounded-full bg-slate-50 p-2 text-slate-500" onclick={() => (showChatActions = false)} aria-label="Close"><svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 5 10 10M15 5 5 15" /></svg></button></div>
+			<div class="grid gap-2">
+				{#if data.context.length || Number(data.outstanding) > 0}
+					<button class="btn-secondary w-full justify-start" onclick={() => { showContext = !showContext; showChatActions = false; }}>{showContext ? 'Hide customer details' : 'Customer and order details'}</button>
+				{/if}
+				{#if data.conversation.bookingRequestId}<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary w-full justify-start">Open enquiry</a>{/if}
+				{#if moduleRelevant(data.tenant.capabilities, 'orders') && data.permissions?.includes('orders:write')}<a href="/app/orders/new?conversation={data.conversation.id}" class="btn-primary w-full justify-start">Create order</a>{/if}
+			</div>
+		</section>
+	</div>
+{/if}
+
+<!-- Everything between the WhatsApp-style header and composer shares one scroll
+     viewport. Operational panels can no longer push the input off-screen. -->
+<div bind:this={messageViewport} class="whatsapp-chat-bg min-h-0 flex-1 overflow-y-auto overscroll-contain">
 
 <!-- Assignment + visibility — only rendered for conversations:assign holders (§8) -->
 {#if data.teamMembers.length}
-	<div class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-1.5 text-[12.5px] text-slate-500">
-		{#if data.conversation.assignedToUserId !== data.user.id}
-			<!-- The most common assignment action, one thumb-tap on mobile -->
-			<form method="POST" action="?/access" use:enhance>
-				<input type="hidden" name="assignedToUserId" value={data.user.id} />
-				<button class="btn-primary !px-3 !py-1 text-[12.5px]">Take</button>
-			</form>
+	<div class="border-b border-slate-100 bg-slate-50/70 px-3 py-2 sm:px-4">
+		<div class="flex items-center gap-2.5">
+			<span class="wa-avatar flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">{assigneeInitials}</span>
+			<div class="min-w-0 flex-1 leading-tight">
+				<p class="flex items-center gap-1.5 text-[13px] font-semibold wa-text">
+					<span class="truncate">{assigneeLabel}</span>
+					{#if isMine}<span class="shrink-0 rounded-full bg-[#e7fce9] px-1.5 py-px text-[10px] font-semibold text-[#008069]">you</span>{/if}
+				</p>
+				<p class="truncate text-[11.5px] wa-text-muted">{VISIBILITY_LINE[data.conversation.visibility] ?? ''}</p>
+			</div>
+			{#if !isMine}
+				<!-- The most common assignment action, one thumb-tap on mobile -->
+				<form method="POST" action="?/access" use:enhance>
+					<input type="hidden" name="assignedToUserId" value={data.user.id} />
+					<button class="btn-secondary !px-3 !py-1 text-[12px]">Take</button>
+				</form>
+			{/if}
+			<button type="button" class="btn-secondary !px-3 !py-1 text-[12px]" aria-expanded={assignOpen} onclick={() => (assignOpen = !assignOpen)}>
+				{assignOpen ? 'Close' : 'Assign'}
+			</button>
+		</div>
+		{#if assignOpen}
+			<div class="mt-2 grid gap-2 sm:grid-cols-2">
+				<form method="POST" action="?/access" use:enhance class="grid gap-1">
+					<label class="text-[11.5px] font-medium wa-text-muted" for="c-assignee">Assigned to</label>
+					<select
+						id="c-assignee" name="assignedToUserId" class="input !py-1.5 text-[13px]"
+						onchange={(e) => e.currentTarget.form?.requestSubmit()}
+					>
+						<option value="" selected={!data.conversation.assignedToUserId}>Nobody</option>
+						{#each data.teamMembers as m (m.userId)}
+							<option value={m.userId} selected={m.userId === data.conversation.assignedToUserId}>
+								{m.fullName || m.email}{m.userId === data.user.id ? ' (you)' : ''}
+							</option>
+						{/each}
+					</select>
+				</form>
+				<form method="POST" action="?/access" use:enhance class="grid gap-1">
+					<label class="text-[11.5px] font-medium wa-text-muted" for="c-visibility">Who can see it</label>
+					<select
+						id="c-visibility" name="visibility" class="input !py-1.5 text-[13px]"
+						onchange={(e) => e.currentTarget.form?.requestSubmit()}
+					>
+						<option value="TEAM" selected={data.conversation.visibility === 'TEAM'}>Whole team</option>
+						<option value="ASSIGNED" selected={data.conversation.visibility === 'ASSIGNED'}>Assigned person only</option>
+						<option value="PRIVATE" selected={data.conversation.visibility === 'PRIVATE'}>Private</option>
+					</select>
+				</form>
+			</div>
 		{/if}
-		<form method="POST" action="?/access" use:enhance class="flex items-center gap-1.5">
-			<label for="c-assignee">Assigned to</label>
-			<select
-				id="c-assignee" name="assignedToUserId" class="input w-auto !py-1 text-[12.5px]"
-				onchange={(e) => e.currentTarget.form?.requestSubmit()}
-			>
-				<option value="" selected={!data.conversation.assignedToUserId}>— nobody —</option>
-				{#each data.teamMembers as m (m.userId)}
-					<option value={m.userId} selected={m.userId === data.conversation.assignedToUserId}>{m.fullName || m.email}</option>
-				{/each}
-			</select>
-		</form>
-		<form method="POST" action="?/access" use:enhance class="flex items-center gap-1.5">
-			<label for="c-visibility">Visible to</label>
-			<select
-				id="c-visibility" name="visibility" class="input w-auto !py-1 text-[12.5px]"
-				onchange={(e) => e.currentTarget.form?.requestSubmit()}
-			>
-				<option value="TEAM" selected={data.conversation.visibility === 'TEAM'}>Whole team</option>
-				<option value="ASSIGNED" selected={data.conversation.visibility === 'ASSIGNED'}>Assigned person only</option>
-				<option value="PRIVATE" selected={data.conversation.visibility === 'PRIVATE'}>Private</option>
-			</select>
-		</form>
 	</div>
 {/if}
 
@@ -252,19 +338,19 @@
 	</div>
 {/if}
 
-<div class="flex-1 space-y-2.5 overflow-y-auto bg-canvas/60 p-4">
+<div class="space-y-2.5 p-3 sm:p-4">
 	{#each data.messages as m (m.id)}
 		{@const tick = TICKS[m.status] ?? TICKS.QUEUED}
 		<div class="flex flex-col {m.direction === 'OUTBOUND' ? 'items-end' : 'items-start'}">
-			<div class="max-w-[78%] rounded-panel px-3 py-2 text-[15px] {m.direction === 'OUTBOUND' ? 'rounded-br-none bg-brand-500 text-white' : 'rounded-bl-none border border-slate-200 bg-white text-slate-700'}">
+			<div class="max-w-[86%] rounded-lg px-3 py-2 text-[14.5px] leading-5 shadow-[0_1px_1px_rgba(11,20,26,0.12)] sm:max-w-[78%] {m.direction === 'OUTBOUND' ? 'wa-out rounded-br-sm' : 'wa-in rounded-bl-sm'}">
 				<p class="whitespace-pre-wrap">{messagePreview(m.body, m.type)}</p>
-				<p class="mt-1 flex items-center justify-end gap-1 text-[11.5px] {m.direction === 'OUTBOUND' ? 'text-white/70' : 'text-slate-400'}">
+				<p class="mt-1 flex items-center justify-end gap-1 text-[10.5px] wa-text-muted">
 					<TimeAgo value={m.createdAt} timezone={data.tenant.timezone} />
 					{#if m.direction === 'OUTBOUND'}
 						{#if m.status === 'FAILED'}
-							<span class="font-semibold {m.direction === 'OUTBOUND' ? 'text-white' : 'text-danger'}">failed</span>
+							<span class="font-semibold text-danger">failed</span>
 						{:else if tick.marks > 0}
-							<svg class="size-3.5 {tick.tinted ? 'text-[#9be7ff]' : ''}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+							<svg class="size-3.5 {tick.tinted ? 'text-[#53bdeb]' : ''}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
 								<path d="m3 10.5 3.5 3.5L13 7.5" />
 								{#if tick.marks === 2}<path d="m9 13.5.5.5L16 7.5" />{/if}
 							</svg>
@@ -489,23 +575,37 @@
 		{/if}
 	</div>
 {/if}
+</div>
 
 {#if canSend}
-	<form method="POST" action="?/send" use:enhance class="flex items-center gap-2 border-t border-slate-200 p-3">
-		<input
-			name="text"
-			placeholder="Enter your message…"
-			autocomplete="off"
-			class="input bg-slate-50 focus:bg-white"
-			bind:value={composerText}
-			oninput={() => {
-				const wasTyping = Date.now() < typingUntil;
-				typingUntil = Date.now() + 6000;
-				if (!wasTyping) void beat();
-			}}
-		/>
-		<button class="btn-primary shrink-0 !px-3" aria-label="Send">
-			<svg class="size-4.5" viewBox="0 0 20 20" fill="currentColor"><path d="M2.5 3.4c-.3-.9.6-1.7 1.4-1.3l13.6 6.6c.8.4.8 1.5 0 1.9L3.9 17.2c-.8.4-1.7-.4-1.4-1.3l1.9-5.4c.1-.2.1-.5 0-.7L2.5 3.4Zm2.1 6.1h5.9a.5.5 0 0 1 0 1H4.6l-1.5 4.4 12.4-6-12.4-6 1.5 4.4Z" /></svg>
+	<form
+		method="POST"
+		action="?/send"
+		use:enhance={() => async ({ result, update }) => {
+			await update({ reset: false });
+			if (result.type === 'success') {
+				composerText = '';
+				await scrollToLatest('smooth');
+			}
+		}}
+		class="wa-surface flex shrink-0 items-end gap-2 border-t px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] lg:p-3"
+	>
+		<div class="relative min-w-0 flex-1">
+			<input
+				name="text"
+				placeholder="Message"
+				autocomplete="off"
+				class="input !h-11 !min-h-11 !rounded-full border-0 bg-white pr-4 pl-4 text-[15px] focus:bg-white"
+				bind:value={composerText}
+				oninput={() => {
+					const wasTyping = Date.now() < typingUntil;
+					typingUntil = Date.now() + 6000;
+					if (!wasTyping) void beat();
+				}}
+			/>
+		</div>
+		<button class="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition hover:bg-[#008f72] disabled:opacity-50" aria-label="Send" disabled={!composerText.trim()}>
+			<svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2.5 3.4c-.3-.9.6-1.7 1.4-1.3l13.6 6.6c.8.4.8 1.5 0 1.9L3.9 17.2c-.8.4-1.7-.4-1.4-1.3l1.9-5.4c.1-.2.1-.5 0-.7L2.5 3.4Zm2.1 6.1h5.9a.5.5 0 0 1 0 1H4.6l-1.5 4.4 12.4-6-12.4-6 1.5 4.4Z" /></svg>
 		</button>
 	</form>
 {/if}

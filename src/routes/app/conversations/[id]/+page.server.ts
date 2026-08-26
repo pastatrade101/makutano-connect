@@ -156,7 +156,7 @@ export const actions: Actions = {
 				patch.visibility = v as never;
 			}
 			await updateConversationAccess(requireTenant(locals).id, idOf(params), patch, { userId: locals.user!.id });
-			return { success: true };
+			return { success: true, notice: patch.visibility !== undefined ? 'Visibility updated' : 'Assignment updated' };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}

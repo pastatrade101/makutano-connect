@@ -110,6 +110,49 @@ suite('team access & conversation visibility', () => {
 		expect(finance).not.toContain('whatsapp:connect');
 	});
 
+	it('a brand-new conversation lands with the account owner, not in an unowned pile', async () => {
+		const convo = await ctx.conv.findOrCreateConversation({
+			tenantId,
+			channel: 'WHATSAPP',
+			externalId: `default-assignee-${stamp}`
+		});
+		expect(convo.assignedToUserId).toBe(ownerId);
+		expect(convo.visibility).toBe('TEAM');
+
+		// A later message on the same thread must not bounce it back to the owner
+		// after somebody else has taken it.
+		const other = await mkUser('taker');
+		await addMember(other.id, 'SALES');
+		await ctx.conv.updateConversationAccess(tenantId, convo.id, { assignedToUserId: other.id }, { userId: ownerId });
+		const again = await ctx.conv.findOrCreateConversation({
+			tenantId,
+			channel: 'WHATSAPP',
+			externalId: `default-assignee-${stamp}`
+		});
+		expect(again.id).toBe(convo.id);
+		expect(again.assignedToUserId).toBe(other.id);
+	});
+
+	it('no active owner means the thread stays unassigned rather than guessing', async () => {
+		const { db, schema } = ctx.db;
+		const { and, eq } = await import('drizzle-orm');
+		const ownerMembership = and(
+			eq(schema.tenantMemberships.tenantId, tenantId),
+			eq(schema.tenantMemberships.userId, ownerId)
+		);
+		await db().update(schema.tenantMemberships).set({ disabledAt: new Date() }).where(ownerMembership);
+		try {
+			const convo = await ctx.conv.findOrCreateConversation({
+				tenantId,
+				channel: 'WHATSAPP',
+				externalId: `no-owner-${stamp}`
+			});
+			expect(convo.assignedToUserId).toBeNull();
+		} finally {
+			await db().update(schema.tenantMemberships).set({ disabledAt: null }).where(ownerMembership);
+		}
+	});
+
 	it('owner overrides are ignored — an owner can never lock themselves out (§12)', () => {
 		const owner = ctx.perms.effectivePermissions('OWNER', { 'members:write': false, 'tenant:write': false });
 		expect(owner).toContain('members:write');
@@ -146,7 +189,12 @@ suite('team access & conversation visibility', () => {
 		expect(ownerList.items.some((i) => i.conversation.id === conversation.id)).toBe(true);
 
 		// Sharing with the agent explicitly opens exactly that thread.
-		await ctx.conv.updateConversationAccess(tenantId, conversation.id, { sharedWithUserIds: [agent.id] }, { userId: ownerId });
+		await ctx.conv.updateConversationAccess(
+			tenantId,
+			conversation.id,
+			{ sharedWithUserIds: [agent.id] },
+			{ userId: ownerId }
+		);
 		await expect(ctx.conv.getConversation(tenantId, conversation.id, agentView)).resolves.toBeTruthy();
 	});
 
@@ -159,17 +207,29 @@ suite('team access & conversation visibility', () => {
 
 		const [conversation] = await db()
 			.insert(schema.conversations)
-			.values({ tenantId, channel: 'WHATSAPP', externalId: '255700900002', visibility: 'ASSIGNED', assignedToUserId: neema.id })
+			.values({
+				tenantId,
+				channel: 'WHATSAPP',
+				externalId: '255700900002',
+				visibility: 'ASSIGNED',
+				assignedToUserId: neema.id
+			})
 			.returning();
 
-		await expect(ctx.conv.getConversation(tenantId, conversation.id, viewerOf(neema.id, 'SALES'))).resolves.toBeTruthy();
-		await expect(ctx.conv.getConversation(tenantId, conversation.id, viewerOf(other.id, 'SALES'))).rejects.toMatchObject({
+		await expect(
+			ctx.conv.getConversation(tenantId, conversation.id, viewerOf(neema.id, 'SALES'))
+		).resolves.toBeTruthy();
+		await expect(
+			ctx.conv.getConversation(tenantId, conversation.id, viewerOf(other.id, 'SALES'))
+		).rejects.toMatchObject({
 			code: 'CONVERSATION_NOT_FOUND'
 		});
 		// A manager with view_all sees assigned threads (but still not private ones).
 		const manager = await mkUser('manager');
 		await addMember(manager.id, 'BOOKING_AGENT');
-		await expect(ctx.conv.getConversation(tenantId, conversation.id, viewerOf(manager.id, 'BOOKING_AGENT'))).resolves.toBeTruthy();
+		await expect(
+			ctx.conv.getConversation(tenantId, conversation.id, viewerOf(manager.id, 'BOOKING_AGENT'))
+		).resolves.toBeTruthy();
 	});
 
 	it('§35 permission change takes effect through the resolver', async () => {
@@ -194,10 +254,7 @@ suite('team access & conversation visibility', () => {
 		expect(resolved!.permissions).toContain('payments:verify');
 
 		// And the change is audited with before/after.
-		const audits = await db()
-			.select()
-			.from(schema.auditLogs)
-			.where(eq(schema.auditLogs.tenantId, tenantId));
+		const audits = await db().select().from(schema.auditLogs).where(eq(schema.auditLogs.tenantId, tenantId));
 		expect(audits.some((a) => a.action === 'permission.changed')).toBe(true);
 	});
 
@@ -214,10 +271,22 @@ suite('team access & conversation visibility', () => {
 			.values({ tenantId, channel: 'WHATSAPP', externalId: '255700900003', assignedToUserId: robert.id, isOpen: true })
 			.returning();
 		await db().insert(schema.messages).values({
-			tenantId, conversationId: conversation.id, direction: 'OUTBOUND', type: 'text', body: 'Sent by Robert', status: 'SENT', sentByUserId: robert.id
+			tenantId,
+			conversationId: conversation.id,
+			direction: 'OUTBOUND',
+			type: 'text',
+			body: 'Sent by Robert',
+			status: 'SENT',
+			sentByUserId: robert.id
 		});
 
-		await ctx.team.setMemberActive(tenantId, robertMembership.id, false, { userId: ownerId }, { reassignToUserId: backup.id });
+		await ctx.team.setMemberActive(
+			tenantId,
+			robertMembership.id,
+			false,
+			{ userId: ownerId },
+			{ reassignToUserId: backup.id }
+		);
 
 		// Access revoked through the resolver.
 		const resolved = await ctx.tenants.resolveTenantForUser(
@@ -246,17 +315,27 @@ suite('team access & conversation visibility', () => {
 		await expect(ctx.team.removeMember(tenantId, ownerMembership.id, { userId: ownerId })).rejects.toMatchObject({
 			code: 'CONFLICT'
 		});
-		await expect(
-			ctx.team.changeRole(tenantId, ownerMembership.id, 'SALES', { userId: ownerId })
-		).rejects.toMatchObject({ code: 'CONFLICT' });
+		await expect(ctx.team.changeRole(tenantId, ownerMembership.id, 'SALES', { userId: ownerId })).rejects.toMatchObject(
+			{ code: 'CONFLICT' }
+		);
 	});
 
 	it('invitations cannot mint owners or platform admins (§12, §27)', async () => {
 		await expect(
-			ctx.team.inviteMember(tenantId, { fullName: 'X', email: `evil-${stamp}@example.com`, role: 'OWNER' as never, invitedByUserId: ownerId })
+			ctx.team.inviteMember(tenantId, {
+				fullName: 'X',
+				email: `evil-${stamp}@example.com`,
+				role: 'OWNER' as never,
+				invitedByUserId: ownerId
+			})
 		).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
 		await expect(
-			ctx.team.inviteMember(tenantId, { fullName: 'X', email: `evil2-${stamp}@example.com`, role: 'SUPER_ADMIN' as never, invitedByUserId: ownerId })
+			ctx.team.inviteMember(tenantId, {
+				fullName: 'X',
+				email: `evil2-${stamp}@example.com`,
+				role: 'SUPER_ADMIN' as never,
+				invitedByUserId: ownerId
+			})
 		).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
 	});
 
@@ -269,7 +348,12 @@ suite('team access & conversation visibility', () => {
 			.where(eq(schema.tenants.id, tenantId));
 		(await import('../src/lib/server/entitlements')).invalidateEntitlements(tenantId);
 		await expect(
-			ctx.team.inviteMember(tenantId, { fullName: 'Over', email: `over-${stamp}@example.com`, role: 'SALES', invitedByUserId: ownerId })
+			ctx.team.inviteMember(tenantId, {
+				fullName: 'Over',
+				email: `over-${stamp}@example.com`,
+				role: 'SALES',
+				invitedByUserId: ownerId
+			})
 		).rejects.toMatchObject({ code: 'ENTITLEMENT_LIMIT_REACHED' });
 		await db()
 			.update(schema.tenants)

@@ -326,3 +326,71 @@ input[type='submit'][aria-busy='true']::after {
 		display: none;
 	}
 }
+
+/* A quiet WhatsApp-like conversation canvas. The pattern is intentionally subtle
+   so message text and operational cards remain the visual priority. */
+.whatsapp-chat-bg {
+	background-color: #efeae2;
+	background-image:
+		radial-gradient(circle at 18px 22px, rgb(121 134 125 / 0.055) 1px, transparent 1.5px),
+		radial-gradient(circle at 62px 58px, rgb(121 134 125 / 0.04) 1px, transparent 1.5px);
+	background-size: 76px 76px;
+}
+
+/* WhatsApp's own palette is fixed, not part of the Reback token scale, so these
+   surfaces need explicit values in both themes — otherwise the dark flip turns the
+   incoming bubble into dark text on a dark background. */
+.wa-surface {
+	background-color: #f0f2f5;
+	border-color: #d8dee1;
+}
+.wa-avatar {
+	background-color: #dfe5e7;
+	color: #54656f;
+}
+.wa-in {
+	background-color: #ffffff;
+	color: #111b21;
+}
+.wa-out {
+	background-color: #d9fdd3;
+	color: #111b21;
+}
+
+.wa-text {
+	color: #111b21;
+}
+.wa-text-muted {
+	color: #667781;
+}
+
+.mk-dark .wa-text {
+	color: #e9edef;
+}
+.mk-dark .wa-text-muted {
+	color: #8696a0;
+}
+
+.mk-dark .wa-surface {
+	background-color: #202c33;
+	border-color: #2a3942;
+}
+.mk-dark .wa-avatar {
+	background-color: #2a3942;
+	color: #aebac1;
+}
+.mk-dark .wa-in {
+	background-color: #202c33;
+	color: #e9edef;
+}
+.mk-dark .wa-out {
+	background-color: #005c4b;
+	color: #e9edef;
+}
+
+.mk-dark .whatsapp-chat-bg {
+	background-color: #0b141a;
+	background-image:
+		radial-gradient(circle at 18px 22px, rgb(134 150 143 / 0.07) 1px, transparent 1.5px),
+		radial-gradient(circle at 62px 58px, rgb(134 150 143 / 0.05) 1px, transparent 1.5px);
+}

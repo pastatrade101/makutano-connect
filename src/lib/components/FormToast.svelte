@@ -24,6 +24,9 @@
 							? 'WhatsApp template issue'
 							: 'Could not save';
 			toasts.danger(title, form.message);
-		} else if (form.success) toasts.success(successTitle);
+		} else if (form.success) {
+			// An action can name its own headline; otherwise the page's default stands.
+			toasts.success(typeof form.notice === 'string' && form.notice ? form.notice : successTitle);
+		}
 	});
 </script>
