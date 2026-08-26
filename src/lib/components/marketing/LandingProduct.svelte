@@ -22,17 +22,25 @@
 			subtitle="Connect fits beside your current systems, then gives your team one operational layer for customer work."
 			icon="M4 10h12M10 4v12"
 		/>
-		<div class="mt-12 grid gap-4 md:grid-cols-3">
-			{#each steps as step (step.n)}
-				<div class="rounded-2xl border border-slate-100 bg-white p-7 shadow-[0_10px_50px_rgba(50,58,70,0.05)]">
-					<span class="flex size-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-						<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d={step.icon} /></svg>
-					</span>
-					<p class="mt-6 text-[12.5px] font-bold tracking-[0.14em] text-brand-600 uppercase">{step.n}</p>
-					<h3 class="mt-1 text-lg font-semibold text-slate-900">{step.t}</h3>
-					<p class="mt-2 text-[14.5px] leading-6 text-slate-500">{step.d}</p>
-				</div>
-			{/each}
+		<!-- One rail rather than three separate boxes: the steps are a sequence, and a
+		     single panel says that in a third of the height three stacked cards took. -->
+		<div class="relative mt-9 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_12px_44px_rgba(50,58,70,0.06)]">
+			<span class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-brand-500 via-brand-400 to-brand-100"></span>
+			<ol class="grid divide-y divide-dashed divide-slate-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+				{#each steps as step (step.n)}
+					<li class="flex items-start gap-4 px-5 py-5 sm:px-7 sm:py-6">
+						<span class="relative flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white shadow-[0_8px_18px_rgba(28,132,238,0.28)]">
+							<svg class="size-[22px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d={step.icon} /></svg>
+							<!-- the step number rides the tile instead of costing its own line -->
+							<span class="absolute -right-1.5 -bottom-1.5 flex size-[21px] items-center justify-center rounded-full bg-white text-[10.5px] font-bold text-brand-600 ring-1 ring-slate-200">{step.n}</span>
+						</span>
+						<div class="min-w-0">
+							<h3 class="text-[17px] leading-6 font-semibold text-slate-900">{step.t}</h3>
+							<p class="mt-1.5 text-[14.5px] leading-[1.55] text-slate-500">{step.d}</p>
+						</div>
+					</li>
+				{/each}
+			</ol>
 		</div>
 	</div>
 </section>
