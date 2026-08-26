@@ -177,3 +177,29 @@ describe('message previews are readable by shop owners', () => {
 		expect(messagePreview(null, 'image')).toBe('[image]');
 	});
 });
+
+// --- persona ---------------------------------------------------------------
+// Connect has no finance role, so "finance" has to be recognised from permissions:
+// may verify money, does not run operations. Everything else falls out of the same
+// permission checks, never a role name.
+import { personaFor } from '../src/lib/server/attention';
+import { effectivePermissions } from '../src/lib/server/auth/permissions';
+
+describe('persona', () => {
+	it('reads responsibility from permissions, not role names', () => {
+		expect(personaFor(effectivePermissions('OWNER' as never, {}))).toBe('owner');
+		expect(personaFor(effectivePermissions('ADMIN' as never, {}))).toBe('owner');
+		// Manager: sees every conversation, so leads with the business view.
+		expect(personaFor(effectivePermissions('BOOKING_AGENT' as never, {}))).toBe('owner');
+		expect(personaFor(effectivePermissions('SALES' as never, {}))).toBe('agent');
+		expect(personaFor(effectivePermissions('VIEWER' as never, {}))).toBe('viewer');
+	});
+
+	it('finance is a viewer who was granted payment verification', () => {
+		const finance = effectivePermissions('VIEWER' as never, { 'payments:verify': true });
+		expect(personaFor(finance)).toBe('finance');
+		// Give that same person operational work and they stop being finance-first.
+		const hybrid = effectivePermissions('SALES' as never, { 'payments:verify': true });
+		expect(personaFor(hybrid)).toBe('agent');
+	});
+});

@@ -1,3 +1,5 @@
+import { attentionFor, myWork } from '$lib/server/attention';
+import { normalizeWorkspace } from '$lib/workspace';
 import { bookingRequestStats } from '$lib/server/booking-requests';
 import { requireTenant } from '$lib/server/guards';
 import { dismissOnboarding, onboardingState } from '$lib/server/onboarding';
@@ -60,27 +62,38 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const tenantId = requireTenant(locals).id;
 	const pagination = { page: 1, limit: 8, order: 'desc' as const };
 
-	const [requests, bookings, customers, payments, recent, inbox, connection, activity, centre] = await Promise.all([
-		bookingRequestStats(tenantId),
-		bookingStats(tenantId),
-		customerStats(tenantId),
-		paymentStats(tenantId),
-		listBookingRequests(tenantId, pagination),
-		listConversations(
-			tenantId,
-			pagination,
-			{ open: true },
-			{ userId: locals.user!.id, permissions: locals.permissions }
-		),
-		getConnectionForTenant(tenantId),
-		dailySeries(tenantId),
-		actionCentre(tenantId)
-	]);
+	const viewer = { userId: locals.user!.id, permissions: locals.permissions };
+	const workspace = normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities);
+
+	const [requests, bookings, customers, payments, recent, inbox, connection, activity, centre, attention, mine] =
+		await Promise.all([
+			bookingRequestStats(tenantId),
+			bookingStats(tenantId),
+			customerStats(tenantId),
+			paymentStats(tenantId),
+			listBookingRequests(tenantId, pagination),
+			listConversations(
+				tenantId,
+				pagination,
+				{ open: true },
+				{ userId: locals.user!.id, permissions: locals.permissions }
+			),
+			getConnectionForTenant(tenantId),
+			dailySeries(tenantId),
+			actionCentre(tenantId),
+			// Who is looking, and what is waiting for THEM — visibility-scoped on the server.
+			attentionFor(tenantId, viewer, workspace),
+			myWork(tenantId, viewer)
+		]);
 
 	const onboarding = await onboardingState(tenantId);
 
 	return {
 		centre,
+		attention: attention.items,
+		persona: attention.persona,
+		today: attention.today,
+		myWork: mine,
 		stats: { requests, bookings, customers, payments },
 		recentRequests: recent.items,
 		inbox: inbox.items,

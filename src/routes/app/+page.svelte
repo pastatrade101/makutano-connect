@@ -15,31 +15,36 @@
 	const caps = $derived(data.tenant.capabilities);
 	const n = (key: string) => Number(c?.[key] ?? 0);
 
-	/** §5 — what needs me, each one a link straight to the work. */
+	/** Attention is derived on the server now — visibility-scoped, already ordered. */
 	const rel = (m: Parameters<typeof moduleRelevant>[1]) => moduleRelevant(caps, m);
-	const can = (perm: string) => data.permissions?.includes(perm as never);
-	const attention = $derived.by(() => {
-		const items: Array<{ label: string; count: number; href: string; tone: 'warn' | 'info' | 'bad' }> = [];
-		// Money first: a reported payment is a customer waiting on the business.
-		if (can('payments:read') && n('payments_reported')) items.push({ label: n('payments_reported') === 1 ? 'payment reported — verify' : 'payments reported — verify', count: n('payments_reported'), href: '/app/payments?verify=1', tone: 'bad' });
-		if (n('unread_chats')) items.push({ label: n('unread_chats') === 1 ? 'conversation waiting for a reply' : 'conversations waiting for a reply', count: n('unread_chats'), href: '/app/conversations', tone: 'info' });
-		if (rel('enquiries') && n('new_enquiries')) items.push({ label: n('new_enquiries') === 1 ? 'new enquiry' : 'new enquiries', count: n('new_enquiries'), href: '/app/booking-requests?status=NEW', tone: 'warn' });
-		if (rel('orders') && n('orders_to_confirm')) items.push({ label: n('orders_to_confirm') === 1 ? 'order awaiting confirmation' : 'orders awaiting confirmation', count: n('orders_to_confirm'), href: '/app/orders?status=PENDING_CONFIRMATION', tone: 'warn' });
-		if (rel('orders') && n('orders_ready')) items.push({ label: n('orders_ready') === 1 ? 'order ready for delivery' : 'orders ready for delivery', count: n('orders_ready'), href: '/app/orders?status=READY', tone: 'info' });
-		if (rel('bookings') && n('bookings_unpaid')) items.push({ label: n('bookings_unpaid') === 1 ? 'booking awaiting payment' : 'bookings awaiting payment', count: n('bookings_unpaid'), href: '/app/bookings?payment=unpaid', tone: 'bad' });
-		if (rel('quotations') && n('quotes_waiting')) items.push({ label: n('quotes_waiting') === 1 ? 'quotation awaiting response' : 'quotations awaiting response', count: n('quotes_waiting'), href: '/app/quotations?status=SENT', tone: 'info' });
-		return items;
-	});
+	const can = (perm: string) => data.permissions?.includes(perm as never) ?? false;
+	const attention = $derived(data.attention ?? []);
+	const persona = $derived(data.persona ?? 'owner');
+	/** Analytics is for people who watch the business, not people working a queue. */
+	const showAnalytics = $derived(persona === 'owner');
 
 	const quickActions = $derived.by(() => {
 		const items: Array<{ href: string; label: string }> = [];
-		const can = (perm: string) => data.permissions?.includes(perm as never);
-		if (rel('orders') && data.entitlements?.['orders.enabled'] === true && can('orders:write')) {
+		// Four conditions, every time: relevant to this business, allowed by the plan,
+		// permitted for this person, and useful for what they are actually responsible for.
+		const ent = (key: string) => data.entitlements?.[key] === true;
+
+		if (persona === 'finance') {
+			if (can('payments:verify')) items.push({ href: '/app/payments?verify=1', label: 'Verify payments' });
+			if (can('payments:read')) items.push({ href: '/app/payments', label: 'Payment history' });
+			return items;
+		}
+		if (persona === 'viewer') return items; // nothing to create; no decorative buttons
+
+		if (rel('orders') && ent('orders.enabled') && can('orders:write')) {
 			if (c?.open_batch_id) items.push({ href: `/app/orders/batches/${c.open_batch_id}`, label: `Open batch: ${String(c.open_batch_name ?? '').slice(0, 26)}` });
 			items.push({ href: '/app/orders/new', label: 'New order' });
+			if (persona === 'owner' && can('order_links:write') && ent('orderLinks.enabled')) {
+				items.push({ href: '/app/orders/links', label: 'Order link' });
+			}
 		}
 		if (rel('enquiries') && can('booking_requests:write')) items.push({ href: '/app/booking-requests/new', label: 'New enquiry' });
-		items.push({ href: '/app/conversations', label: 'Open inbox' });
+		if (can('conversations:read')) items.push({ href: '/app/conversations', label: 'Open inbox' });
 		if (can('customers:write')) items.push({ href: '/app/customers?new=1', label: 'New customer' });
 		return items.slice(0, 4);
 	});
@@ -116,27 +121,65 @@
 	<!-- §5 Needs your attention -->
 	{#if attention.length}
 		<section class="card divide-y divide-slate-100">
-			{#each attention as item (item.href)}
+			{#each attention as item (item.key)}
 				<a href={item.href} class="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
-					<span class="flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-bold {item.tone === 'bad' ? 'bg-danger/10 text-danger' : item.tone === 'warn' ? 'bg-warning/15 text-[#b58514]' : 'bg-brand-50 text-brand-600'}">{item.count}</span>
-					<span class="flex-1 text-sm text-slate-700">{item.count} {item.label}</span>
-					<svg class="size-4 text-slate-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 5 5 5-5 5" /></svg>
+					<span class="flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-bold {item.urgency === 'critical' ? 'bg-danger/10 text-danger' : item.urgency === 'high' ? 'bg-warning/15 text-[#b58514]' : 'bg-brand-50 text-brand-600'}">{item.count}</span>
+					<span class="flex-1 text-sm text-slate-700">{item.label}</span>
+					{#if item.scope === 'mine'}
+						<span class="shrink-0 rounded-full bg-brand-50 px-1.5 py-px text-[10px] font-semibold text-brand-600">yours</span>
+					{/if}
+					<svg class="size-4 shrink-0 text-slate-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 5 5 5-5 5" /></svg>
 				</a>
 			{/each}
 		</section>
 	{:else}
 		<section class="card flex items-center gap-3 px-4 py-3">
-			<span class="flex size-7 items-center justify-center rounded-full bg-success/10 text-success">✓</span>
-			<span class="text-sm text-slate-600">All caught up — nothing needs your attention right now.</span>
+			<span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">✓</span>
+			<span class="text-sm text-slate-600">
+				{persona === 'agent' ? "You're caught up — nothing assigned to you is waiting." : persona === 'finance' ? 'No payments are waiting to be checked.' : 'All caught up — nothing needs your attention right now.'}
+			</span>
+			{#if persona === 'agent' && can('conversations:read')}
+				<a href="/app/conversations" class="ml-auto shrink-0 text-[13px] font-medium text-brand-600 hover:underline">Open the inbox</a>
+			{/if}
 		</section>
 	{/if}
 
-	<!-- §5 Quick actions — what I can do right now, in this business -->
-	<div class="flex flex-wrap gap-2">
-		{#each quickActions as action, i (action.href)}
-			<a href={action.href} class={i === 0 ? 'btn-primary' : 'btn-secondary'}>{action.label}</a>
-		{/each}
-	</div>
+	{#if persona === 'agent' && data.myWork?.length}
+		<section class="card">
+			<header class="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
+				<h2 class="text-sm font-semibold text-slate-800">Your conversations</h2>
+				<a href="/app/conversations?filter=mine" class="text-xs text-brand-600 hover:underline">All yours</a>
+			</header>
+			<ul class="divide-y divide-slate-100">
+				{#each data.myWork as thread (thread.id)}
+					<li>
+						<a href="/app/conversations/{thread.id}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
+							<span class="min-w-0 flex-1">
+								<span class="block truncate text-sm text-slate-800">
+									{[thread.firstName, thread.lastName].filter(Boolean).join(' ') || `+${thread.externalId ?? ''}`}
+								</span>
+								{#if thread.subject}<span class="block truncate text-[12.5px] text-slate-500">{thread.subject}</span>{/if}
+							</span>
+							{#if thread.unreadCount > 0}
+								<span class="shrink-0 rounded-full bg-brand-500 px-1.5 text-[11.5px] font-semibold text-white">{thread.unreadCount}</span>
+							{/if}
+							<span class="shrink-0 text-[12.5px] text-slate-400"><TimeAgo value={thread.lastMessageAt} timezone={tz} /></span>
+						</a>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
+	<!-- §5 Quick actions — what I can do right now, in this business. A person with
+	     nothing to create gets no empty row of buttons. -->
+	{#if quickActions.length}
+		<div class="flex flex-wrap gap-2">
+			{#each quickActions as action, i (action.href)}
+				<a href={action.href} class={i === 0 ? 'btn-primary' : 'btn-secondary'}>{action.label}</a>
+			{/each}
+		</div>
+	{/if}
 
 	{#if !started && routesIn.length}
 		<section class="card p-4 sm:p-5">
@@ -154,17 +197,17 @@
 		</section>
 	{/if}
 
-	<!-- §5 Today -->
-	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">New chats today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('chats_today')}</div></div>
-		{#if rel('orders')}
-			<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Orders today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('orders_today')}</div></div>
-		{/if}
-		{#if rel('enquiries')}
-			<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Enquiries today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('enquiries_today')}</div></div>
-		{/if}
-		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Received today</div><div class="text-lg font-bold tabular-nums text-success"><Money amount={String(c?.received_today ?? '0')} currency={data.tenant.currency} /></div></div>
-	</div>
+	<!-- §5 Today — scoped to what this person is responsible for -->
+	{#if data.today?.length}
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+			{#each data.today as tile (tile.label)}
+				<div class="card px-3 py-2">
+					<div class="text-[11.5px] font-semibold tracking-wide text-slate-500 uppercase">{tile.label}</div>
+					<div class="text-lg font-bold tabular-nums text-slate-800">{tile.label.includes('Received') ? '' : tile.value}{#if tile.label.includes('Received')}<Money amount={tile.value} currency={data.tenant.currency} />{/if}</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
 
 	{#if !data.whatsapp || data.whatsapp.status !== 'CONNECTED'}
 		<div class="flex flex-wrap items-center justify-between gap-2 rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">
@@ -173,8 +216,8 @@
 		</div>
 	{/if}
 
-	<!-- Booking KPIs — only for businesses that book -->
-	{#if rel('bookings')}
+	<!-- Booking KPIs — only for businesses that book, and only for people watching them -->
+	{#if rel('bookings') && showAnalytics}
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
 		<StatTile label="Requests" value={s.requests.total} hint="{s.requests.last7Days} this week" href="/app/booking-requests" />
 		<StatTile label="Pending" value={s.requests.pending} tone="warn" href="/app/booking-requests?status=NEW" />
@@ -258,19 +301,23 @@
 		</section>
 	</div>
 
-	<section class="card">
-		<header class="card-header">
-			<h2 class="card-title">Activity — last 14 days</h2>
-		</header>
-		<div class="px-2 pt-2">
-			<Chart options={chartOptions} />
-		</div>
-	</section>
+	{#if showAnalytics}
+		<section class="card">
+			<header class="card-header">
+				<h2 class="card-title">Activity — last 14 days</h2>
+			</header>
+			<div class="px-2 pt-2">
+				<Chart options={chartOptions} />
+			</div>
+		</section>
+	{/if}
 
+	{#if showAnalytics}
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 		<StatTile label="Customers" value={s.customers.total} hint="{s.customers.last30Days} new in 30 days" href="/app/customers" />
 		<StatTile label="Confirmed value" value={s.bookings.confirmedValue.toFixed(0)} hint={data.tenant.currency} />
 		<StatTile label="Collected" value={s.payments.collected.toFixed(0)} hint={data.tenant.currency} tone="good" href="/app/payments" />
 		<StatTile label="Failed payments" value={s.payments.failed} tone={s.payments.failed > 0 ? 'bad' : 'default'} href="/app/payments?status=FAILED" />
 	</div>
+	{/if}
 </div>
