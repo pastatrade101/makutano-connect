@@ -606,9 +606,7 @@ export async function verifyPaymentRequest(
 	}
 
 	const remaining = Math.max(0, Number(request.amountRequested) - Number(request.amountReceived));
-	const receivedNum = input.amountReceived
-		? Number(String(input.amountReceived).replace(/[, ]/g, ''))
-		: remaining;
+	const receivedNum = input.amountReceived ? Number(String(input.amountReceived).replace(/[, ]/g, '')) : remaining;
 	if (!Number.isFinite(receivedNum) || receivedNum <= 0) {
 		throw new AppError('VALIDATION_ERROR', 'Enter the amount actually received.');
 	}
@@ -866,6 +864,42 @@ export async function reportedRequests(tenantId: string) {
 		)
 		.where(and(eq(schema.paymentRequests.tenantId, tenantId), eq(schema.paymentRequests.status, 'REPORTED')))
 		.orderBy(desc(schema.paymentRequests.reportedAt));
+}
+
+/**
+ * One request with whatever it was raised against — used after verification, so the
+ * screen can send staff to the order or booking the money belongs to rather than
+ * leaving them in the payments queue.
+ */
+export async function requestWithContext(tenantId: string, requestId: string) {
+	const rows = await db()
+		.select({
+			request: schema.paymentRequests,
+			customer: schema.customers,
+			booking: schema.bookings,
+			order: schema.orders,
+			quotation: schema.quotations
+		})
+		.from(schema.paymentRequests)
+		.leftJoin(
+			schema.customers,
+			and(eq(schema.customers.id, schema.paymentRequests.customerId), eq(schema.customers.tenantId, tenantId))
+		)
+		.leftJoin(
+			schema.bookings,
+			and(eq(schema.bookings.id, schema.paymentRequests.bookingId), eq(schema.bookings.tenantId, tenantId))
+		)
+		.leftJoin(
+			schema.orders,
+			and(eq(schema.orders.id, schema.paymentRequests.orderId), eq(schema.orders.tenantId, tenantId))
+		)
+		.leftJoin(
+			schema.quotations,
+			and(eq(schema.quotations.id, schema.paymentRequests.quotationId), eq(schema.quotations.tenantId, tenantId))
+		)
+		.where(and(eq(schema.paymentRequests.tenantId, tenantId), eq(schema.paymentRequests.id, requestId)))
+		.limit(1);
+	return rows[0] ?? null;
 }
 
 export async function requestsForTransaction(tenantId: string, ref: TransactionRef) {

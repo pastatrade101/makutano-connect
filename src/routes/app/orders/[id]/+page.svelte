@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { sourceLabel } from '$lib/labels';
 	import { enhance } from '$lib/forms';
+	import { nextForOrder } from '$lib/next-action';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
@@ -51,6 +52,29 @@
 	const activeRequest = $derived(
 		data.paymentRequests.find((request) => ['REQUESTED', 'REPORTED', 'PARTIALLY_PAID'].includes(request.status)) ?? null
 	);
+	// One screen, one dominant action. The precedence lives in $lib/next-action so the
+	// thread, the payments queue and this page never disagree about what comes next.
+	const reportedRequest = $derived(data.paymentRequests.find((r) => r.status === 'REPORTED') ?? null);
+	const canVerify = $derived(data.permissions?.includes('payments:verify') ?? false);
+	const STATUS_KEY: Record<string, string> = {
+		CONFIRMED: 'confirm_order',
+		READY: 'mark_ready',
+		DISPATCHED: 'dispatch_order',
+		DELIVERED: 'mark_delivered'
+	};
+	const next = $derived(
+		nextForOrder(
+			{
+				id: data.order.id,
+				status: data.order.status,
+				outstanding,
+				activeRequestStatus: activeRequest?.status ?? null
+			},
+			{ orders: canWrite, payments: canPay, verifyPayments: canVerify }
+		)
+	);
+	const cls = (key: string) => (next?.key === key ? 'btn-primary' : 'btn-secondary');
+
 	const paymentOpen = $derived(
 		canPay && outstanding > 0 && !['CANCELLED', 'REFUNDED'].includes(data.order.status)
 	);
@@ -90,8 +114,11 @@
 
 		<!-- Desktop keeps the full toolbar; mobile promotes one next step. -->
 		<div class="hidden flex-wrap items-center justify-end gap-1.5 md:flex">
+			{#if reportedRequest && canVerify}
+				<a href="/app/payments?verify={reportedRequest.id}" class={cls('verify_payment')}>Verify payment</a>
+			{/if}
 			{#if canPay && outstanding > 0 && !activeRequest && !['CANCELLED', 'REFUNDED'].includes(data.order.status)}
-				<button class="btn-primary" onclick={() => { requestAmount = outstanding.toFixed(2); showRequestPanel = !showRequestPanel; }}>Request payment</button>
+				<button class={cls('request_payment')} onclick={() => { requestAmount = outstanding.toFixed(2); showRequestPanel = !showRequestPanel; }}>Request payment</button>
 			{/if}
 			{#if canPay && activeRequest && activeRequest.status !== 'REPORTED'}
 				<form method="POST" action="?/remindPayment" use:enhance>
@@ -100,10 +127,10 @@
 				</form>
 			{/if}
 			{#if canWrite}
-				{#each forward as move, i (move.to)}
+				{#each forward as move (move.to)}
 					<form method="POST" action="?/status" use:enhance>
 						<input type="hidden" name="status" value={move.to} />
-						<button class={i === 0 ? 'btn-primary' : 'btn-secondary'}>{move.label}</button>
+						<button class={cls(STATUS_KEY[move.to])}>{move.label}</button>
 					</form>
 				{/each}
 			{/if}
@@ -123,13 +150,16 @@
 	<!-- Phone action bar: one confident next step plus a complete secondary sheet. -->
 	{#if hasOrderActions}
 		<div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2 md:hidden">
-			{#if canWrite && forward[0]}
-				<form method="POST" action="?/status" use:enhance>
-					<input type="hidden" name="status" value={forward[0].to} />
-					<button class="btn-primary w-full">{forward[0].label}</button>
-				</form>
-			{:else if canPay && outstanding > 0 && !activeRequest && !['CANCELLED', 'REFUNDED'].includes(data.order.status)}
+			{#if next?.key === 'verify_payment' && reportedRequest}
+				<a href="/app/payments?verify={reportedRequest.id}" class="btn-primary w-full">Verify payment</a>
+			{:else if next?.key === 'request_payment'}
 				<button class="btn-primary w-full" onclick={() => { requestAmount = outstanding.toFixed(2); showRequestPanel = true; }}>Request payment</button>
+			{:else if next && forward.find((m) => STATUS_KEY[m.to] === next.key)}
+				{@const move = forward.find((m) => STATUS_KEY[m.to] === next.key)!}
+				<form method="POST" action="?/status" use:enhance>
+					<input type="hidden" name="status" value={move.to} />
+					<button class="btn-primary w-full">{move.label}</button>
+				</form>
 			{:else if canPay && activeRequest && activeRequest.status !== 'REPORTED'}
 				<form method="POST" action="?/remindPayment" use:enhance>
 					<input type="hidden" name="requestId" value={activeRequest.id} />

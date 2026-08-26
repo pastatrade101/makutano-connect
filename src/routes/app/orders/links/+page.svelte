@@ -41,6 +41,19 @@
 		qrFor = link.id;
 	}
 
+	// Creating a link is never the goal — sharing it is. The panel stays until the
+	// seller dismisses it or navigates away, and comes back on refresh.
+	const createdLink = $derived(data.links.find((l) => l.id === data.createdId) ?? null);
+	let sharePanelClosed = $state(false);
+	$effect(() => {
+		// A newly created link reopens the panel even if the last one was dismissed —
+		// and closes the form behind it, which has done its job.
+		if (!data.createdId) return;
+		sharePanelClosed = false;
+		showForm = false;
+		editing = null;
+	});
+
 	const isExpired = (l: (typeof data.links)[number]) => l.status === 'ACTIVE' && l.deadline && new Date(l.deadline) < new Date();
 	const conversion = (l: (typeof data.links)[number]) =>
 		l.viewCount >= 10 && l.stats.orders > 0 ? `${((l.stats.orders / l.viewCount) * 100).toFixed(1)}%` : null;
@@ -74,6 +87,33 @@
 			{/if}
 		</div>
 	</div>
+
+	{#if createdLink && !sharePanelClosed}
+		<section class="rounded-panel border border-success/25 bg-success/5 p-4 sm:p-5">
+			<div class="flex items-start justify-between gap-3">
+				<div class="min-w-0">
+					<p class="text-sm font-semibold text-slate-900">Your link is ready</p>
+					<p class="mt-0.5 text-[13px] text-slate-600">Share it anywhere — every order placed through it arrives here.</p>
+				</div>
+				<button class="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-black/5" onclick={() => (sharePanelClosed = true)} aria-label="Dismiss">
+					<svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 5 10 10M15 5 5 15" /></svg>
+				</button>
+			</div>
+
+			<p class="mt-3 truncate rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono text-[12.5px] text-slate-600">{publicUrl(createdLink.publicId)}</p>
+
+			<div class="mt-3 grid gap-2 sm:flex sm:flex-wrap">
+				<button class="btn-primary" onclick={() => copyLink(createdLink.publicId)}>{copied === createdLink.publicId ? '✓ Link copied' : 'Copy link'}</button>
+				<button class="btn-secondary" onclick={() => whatsappShare(createdLink)}>Share to WhatsApp</button>
+				<button class="btn-secondary" onclick={() => showQr(createdLink)}>Show QR code</button>
+			</div>
+
+			<div class="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-success/20 pt-3 text-[12.5px] text-slate-600">
+				<span>Orders from this link appear in <a href="/app/orders" class="font-medium text-brand-600 hover:underline">Orders</a>, and you are notified on WhatsApp.</span>
+				<a href="?detail={createdLink.id}" class="font-medium text-brand-600 hover:underline">See orders from this link →</a>
+			</div>
+		</section>
+	{/if}
 
 	{#if (showForm || editing) && data.canWrite}
 		{@const l = editLink}

@@ -1,5 +1,5 @@
 // Order Links management: one offer → one public link → structured orders.
-import { fail, type Actions } from '@sveltejs/kit';
+import { fail, redirect, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { listBatches } from '$lib/server/order-batches';
@@ -35,6 +35,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const breakdown = detailId ? await orderLinkSourceBreakdown(tenant.id, detailId).catch(() => []) : [];
 	return {
 		workspaceRelevant,
+		// The link just created, if any — drives the share panel (which must survive a refresh).
+		createdId: url.searchParams.get('created'),
 		links: links.map(({ link, stats }) => ({ ...link, stats })),
 		batches: ('items' in batches ? batches.items : []).map((b: { batch: { id: string; name: string } }) => ({
 			id: b.batch.id,
@@ -137,6 +139,7 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'order_links:write');
 		const tenant = requireTenant(locals);
 		const data = await request.formData();
+		let created: string | null = null;
 		try {
 			const link = await createOrderLink(tenant.id, parseInput(data, tenant.timezone), { userId: locals.user!.id });
 			// A new link goes live immediately — creating then hunting for "activate" is friction.
@@ -149,10 +152,14 @@ export const actions: Actions = {
 					return { success: true, createdId: link.id, warning: toAppError(err).message };
 				}
 			}
-			return { success: true, createdId: link.id };
+			// The share panel is the point of creating a link, so it lives in the URL
+			// rather than in form state — it survives a refresh and can be sent to a
+			// colleague. Sharing is the next step; confirming is not a step at all.
+			created = link.id;
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}
+		redirect(303, `/app/orders/links?created=${created}`);
 	},
 
 	update: async ({ locals, request }) => {

@@ -34,6 +34,30 @@
 	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Payments</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Collections and verification</p></div>
 
 	<!-- §11: verification queue — customers who say they've paid -->
+	{#if data.verified}
+		{@const v = data.verified}
+		{@const dest = v.order
+			? { href: `/app/orders/${v.order.id}`, label: `Open order ${v.order.orderNumber}` }
+			: v.booking
+				? { href: `/app/bookings/${v.booking.id}`, label: `Open booking ${v.booking.bookingReference}` }
+				: v.quotation
+					? { href: `/app/quotations/${v.quotation.id}`, label: `Open quotation ${v.quotation.reference}` }
+					: null}
+		<section class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-success/25 bg-success/5 px-4 py-3">
+			<span class="text-sm font-semibold text-slate-900">
+				Payment verified — {v.request.currency}
+				{Number(v.request.amountReceived).toLocaleString()} received
+			</span>
+			<span class="text-[13px] text-slate-600">The customer has been notified.</span>
+			<div class="ml-auto flex flex-wrap gap-1.5">
+				{#if dest}<a href={dest.href} class="btn-primary !py-1.5 text-xs">{dest.label}</a>{/if}
+				{#if v.request.conversationId}
+					<a href="/app/conversations/{v.request.conversationId}" class="btn-secondary !py-1.5 text-xs">Open chat</a>
+				{/if}
+			</div>
+		</section>
+	{/if}
+
 	{#if data.reported.length}
 		<div class="card overflow-hidden border-orange/40">
 			<header class="flex items-center gap-2 border-b border-slate-200 bg-orange/5 px-4 py-2.5">

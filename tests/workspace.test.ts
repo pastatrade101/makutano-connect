@@ -90,3 +90,70 @@ describe('workspace resolver', () => {
 		expect(workspaceForIndustry(null)).toBe('HYBRID');
 	});
 });
+
+// --- next action -----------------------------------------------------------
+// The precedence that five screens now share. Money before promises, promises
+// before packing — and never an action the viewer cannot perform.
+import { nextForBooking, nextForEnquiry, nextForOrder, nextForQuotation, pickNext } from '../src/lib/next-action';
+
+const ALL = { orders: true, payments: true, verifyPayments: true, quotations: true, bookings: true };
+
+describe('next action', () => {
+	it('a reported payment outranks everything else the order needs', () => {
+		const action = nextForOrder(
+			{ id: 'o1', status: 'PENDING_CONFIRMATION', outstanding: 50, activeRequestStatus: 'REPORTED' },
+			ALL
+		);
+		expect(action?.key).toBe('verify_payment');
+	});
+
+	it('walks an order through its journey one step at a time', () => {
+		const at = (status: string, outstanding = 0, activeRequestStatus: string | null = null) =>
+			nextForOrder({ id: 'o1', status, outstanding, activeRequestStatus }, ALL)?.key ?? null;
+		expect(at('PENDING_CONFIRMATION', 50)).toBe('confirm_order');
+		expect(at('CONFIRMED', 50)).toBe('request_payment');
+		expect(at('CONFIRMED', 50, 'REQUESTED')).toBe('mark_ready'); // asked already; get on with it
+		expect(at('CONFIRMED')).toBe('mark_ready');
+		expect(at('READY')).toBe('dispatch_order');
+		expect(at('DISPATCHED')).toBe('mark_delivered');
+		expect(at('DELIVERED')).toBeNull();
+		expect(at('CANCELLED', 50)).toBeNull();
+	});
+
+	it('never offers an action the viewer is not allowed to take', () => {
+		const readOnly = { orders: false, payments: false, verifyPayments: false, quotations: false, bookings: false };
+		expect(nextForOrder({ id: 'o1', status: 'PENDING_CONFIRMATION', outstanding: 50 }, readOnly)).toBeNull();
+		expect(
+			nextForOrder({ id: 'o1', status: 'CONFIRMED', outstanding: 50, activeRequestStatus: 'REPORTED' }, readOnly)
+		).toBeNull();
+		expect(nextForEnquiry({ id: 'e1', status: 'NEW' }, readOnly)).toBeNull();
+		// Payment permission alone still gets the money step, and nothing else.
+		expect(nextForOrder({ id: 'o1', status: 'CONFIRMED', outstanding: 50 }, { ...readOnly, payments: true })?.key).toBe(
+			'request_payment'
+		);
+	});
+
+	it('quotations and enquiries hand over at the right moment', () => {
+		expect(nextForEnquiry({ id: 'e1', status: 'NEW' }, ALL)?.key).toBe('create_quotation');
+		expect(nextForEnquiry({ id: 'e1', status: 'NEW', hasQuotation: true }, ALL)).toBeNull();
+		expect(nextForQuotation({ id: 'q1', status: 'DRAFT' }, ALL)?.key).toBe('send_quotation');
+		expect(nextForQuotation({ id: 'q1', status: 'SENT' }, ALL)?.key).toBe('accept_quotation');
+		expect(nextForQuotation({ id: 'q1', status: 'CONVERTED', convertedBookingId: 'b1' }, ALL)?.key).toBe(
+			'open_booking'
+		);
+		expect(nextForBooking({ id: 'b1', status: 'AWAITING_PAYMENT', outstanding: 100 }, ALL)?.key).toBe(
+			'request_payment'
+		);
+		expect(nextForBooking({ id: 'b1', status: 'COMPLETED', outstanding: 100 }, ALL)).toBeNull();
+	});
+
+	it('picks the most urgent when a customer has several things open', () => {
+		const picked = pickNext([
+			nextForEnquiry({ id: 'e1', status: 'NEW' }, ALL),
+			nextForOrder({ id: 'o1', status: 'READY', outstanding: 0 }, ALL),
+			nextForBooking({ id: 'b1', status: 'AWAITING_PAYMENT', outstanding: 100, activeRequestStatus: 'REPORTED' }, ALL)
+		]);
+		expect(picked?.key).toBe('verify_payment');
+		expect(pickNext([null, undefined])).toBeNull();
+	});
+});

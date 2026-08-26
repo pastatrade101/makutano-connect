@@ -6,6 +6,7 @@
 	// Reback chat thread: header with avatar + context, bubbles with delivery ticks
 	// (✓ sent, ✓✓ delivered, ✓✓ tinted read), composer pinned at the bottom.
 	import { enhance } from '$lib/forms';
+	import { nextForBooking, nextForEnquiry, nextForOrder, nextForQuotation, pickNext } from '$lib/next-action';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
@@ -89,26 +90,32 @@
 	const initials = $derived(who.replace(/^\+/, '').split(/\s+/).map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || '#');
 
 	// §12/§18 — the thread is where staff live, so it carries the next move rather than
-	// making them remember the workflow. Derived from what this customer already has.
+	// making them remember the workflow. The precedence itself lives in $lib/next-action,
+	// shared with the order screen and the payments queue.
+	const ability = $derived({
+		orders: data.permissions?.includes('orders:write') ?? false,
+		payments: data.permissions?.includes('payments:write') ?? false,
+		verifyPayments: data.permissions?.includes('payments:verify') ?? false,
+		quotations:
+			(data.permissions?.includes('quotations:write') ?? false) &&
+			data.entitlements?.['quotations.enabled'] === true,
+		bookings: data.permissions?.includes('bookings:read') ?? false
+	});
 	const nextAction = $derived.by(() => {
-		const perm = (p: string) => data.permissions?.includes(p as never);
 		const ctx = data.context ?? [];
-		const find = (kind: string, status?: string) =>
-			ctx.find((t) => t.kind === kind && (!status || t.status === status));
-		if (data.paymentRequest?.status === 'REPORTED' && perm('payments:verify')) {
-			return { label: 'Verify payment', href: '/app/payments?verify=1' };
-		}
-		const order = find('order', 'PENDING_CONFIRMATION');
-		if (order && perm('orders:write')) return { label: 'Confirm order', href: `/app/orders/${order.id}` };
-		const sentQuote = find('quotation', 'SENT');
-		if (sentQuote && !data.paymentRequest && perm('payments:write')) {
-			return { label: 'Request payment', href: `/app/quotations/${sentQuote.id}` };
-		}
-		const enquiry = find('enquiry');
-		if (enquiry && !find('quotation') && perm('quotations:write') && data.entitlements?.['quotations.enabled'] === true) {
-			return { label: 'Create quotation', href: `/app/booking-requests/${enquiry.id}` };
-		}
-		return null;
+		const activeRequestStatus = data.paymentRequest?.status ?? null;
+		const money = (t: { total: string; amount_paid: string }) =>
+			Math.max(0, Number(t.total) - Number(t.amount_paid));
+		const hasQuotation = ctx.some((t) => t.kind === 'quotation');
+		return pickNext(
+			ctx.map((t) => {
+				if (t.kind === 'order') return nextForOrder({ id: t.id, status: t.status, outstanding: money(t), activeRequestStatus }, ability);
+				if (t.kind === 'booking') return nextForBooking({ id: t.id, status: t.status, outstanding: money(t), activeRequestStatus }, ability);
+				if (t.kind === 'quotation') return nextForQuotation({ id: t.id, status: t.status }, ability);
+				if (t.kind === 'enquiry') return nextForEnquiry({ id: t.id, status: t.status, hasQuotation }, ability);
+				return null;
+			})
+		);
 	});
 
 	const KIND_HREF: Record<string, string> = {

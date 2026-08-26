@@ -1,10 +1,29 @@
 <script lang="ts">
+	import { nextForQuotation } from '$lib/next-action';
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$lib/forms';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data, form } = $props();
+
+	// Same precedence as the order screen and the thread: a draft wants sending, a sent
+	// quote wants a decision. Whichever it is, it is the only primary on the page.
+	const next = $derived(
+		nextForQuotation(
+			{
+				id: data.quotation.id,
+				status: data.quotation.status,
+				convertedBookingId: data.quotation.convertedBookingId
+			},
+			{
+				quotations:
+					(data.permissions?.includes('quotations:write') ?? false) &&
+					data.entitlements?.['quotations.enabled'] === true,
+				bookings: data.permissions?.includes('bookings:read') ?? false
+			}
+		)
+	);
 
 	const canWrite = $derived(data.permissions?.includes('quotations:write'));
 	const canBook = $derived(data.permissions?.includes('bookings:write'));
@@ -23,10 +42,10 @@
 		</div>
 		<div class="flex gap-2">
 			{#if canWrite && isOpen}
-				<form method="POST" action="?/send" use:enhance><button class="btn-secondary">{data.quotation.status === 'DRAFT' ? 'Send' : 'Resend'}</button></form>
+				<form method="POST" action="?/send" use:enhance><button class={next?.key === 'send_quotation' ? 'btn-primary' : 'btn-secondary'}>{data.quotation.status === 'DRAFT' ? 'Send' : 'Resend'}</button></form>
 			{/if}
 			{#if canBook && isOpen}
-				<form method="POST" action="?/accept" use:enhance><button class="btn-primary">Accept &amp; convert</button></form>
+				<form method="POST" action="?/accept" use:enhance><button class={next?.key === 'accept_quotation' ? 'btn-primary' : 'btn-secondary'}>Accept &amp; convert</button></form>
 			{/if}
 		</div>
 	</div>
