@@ -207,6 +207,9 @@
 		{#if data.conversation.bookingRequestId}
 			<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary !py-1.5 text-xs">Open enquiry</a>
 		{/if}
+		{#if moduleRelevant(data.tenant.capabilities, 'enquiries') && data.permissions?.includes('booking_requests:write')}
+			<a href="/app/booking-requests/new?conversation={data.conversation.id}" class="btn-primary !py-1.5 text-xs">Create enquiry</a>
+		{/if}
 		{#if moduleRelevant(data.tenant.capabilities, 'orders') && data.permissions?.includes('orders:write')}
 			<a href="/app/orders/new?conversation={data.conversation.id}" class="btn-primary !py-1.5 text-xs">Create order</a>
 		{/if}
@@ -232,6 +235,7 @@
 					<button class="btn-secondary w-full justify-start" onclick={() => { showContext = !showContext; showChatActions = false; }}>{showContext ? 'Hide customer details' : 'Customer and order details'}</button>
 				{/if}
 				{#if data.conversation.bookingRequestId}<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary w-full justify-start">Open enquiry</a>{/if}
+				{#if moduleRelevant(data.tenant.capabilities, 'enquiries') && data.permissions?.includes('booking_requests:write')}<a href="/app/booking-requests/new?conversation={data.conversation.id}" class="btn-primary w-full justify-start">Create enquiry</a>{/if}
 				{#if moduleRelevant(data.tenant.capabilities, 'orders') && data.permissions?.includes('orders:write')}<a href="/app/orders/new?conversation={data.conversation.id}" class="btn-primary w-full justify-start">Create order</a>{/if}
 			</div>
 		</section>
@@ -412,6 +416,19 @@
 					{#if m.errorMessage}<span>· {m.errorMessage}</span>{/if}
 				</p>
 			</div>
+			<!-- No AI on this plan? The message can still become an enquiry or an order —
+			     the difference is who reads it, not whether the door exists. -->
+			{#if !primaryAiAction && m.direction === 'INBOUND' && (m.body ?? '').trim().length > 6}
+				{#if moduleRelevant(data.tenant.capabilities, 'enquiries') && data.permissions?.includes('booking_requests:write')}
+					<a href="/app/booking-requests/new?conversation={data.conversation.id}&message={m.id}" class="mt-1 text-[12.5px] font-medium text-brand-600 hover:underline">
+						Create enquiry from this
+					</a>
+				{:else if moduleRelevant(data.tenant.capabilities, 'orders') && data.permissions?.includes('orders:write')}
+					<a href="/app/orders/new?conversation={data.conversation.id}" class="mt-1 text-[12.5px] font-medium text-brand-600 hover:underline">
+						Make order from this
+					</a>
+				{/if}
+			{/if}
 			{#if primaryAiAction && m.direction === 'INBOUND' && (m.body ?? '').trim().length > 6}
 				<form
 					method="POST"

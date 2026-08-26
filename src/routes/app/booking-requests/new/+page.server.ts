@@ -8,7 +8,7 @@ import { getConversation } from '$lib/server/conversations';
 import { db, schema } from '$lib/server/db';
 import { toAppError } from '$lib/server/errors';
 import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -42,7 +42,26 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
-	return { workspaceRelevant: moduleRelevant(workspace, 'enquiries'), conversation, workspace };
+	// Started from one specific message: carry its words across so nobody retypes what
+	// the traveller already wrote. Read tenant-scoped — a message id is never trusted.
+	let fromMessage: string | null = null;
+	const messageId = url.searchParams.get('message');
+	if (messageId && conversation) {
+		const [row] = await db()
+			.select({ body: schema.messages.body })
+			.from(schema.messages)
+			.where(
+				and(
+					eq(schema.messages.id, messageId),
+					eq(schema.messages.tenantId, tenantId),
+					eq(schema.messages.conversationId, conversation.id)
+				)
+			)
+			.limit(1);
+		fromMessage = row?.body?.trim() || null;
+	}
+
+	return { workspaceRelevant: moduleRelevant(workspace, 'enquiries'), conversation, fromMessage, workspace };
 };
 
 export const actions: Actions = {

@@ -47,7 +47,9 @@
 
 			<div>
 				<label class="label" for="e-notes">What are they asking for?</label>
-				<textarea id="e-notes" name="notes" rows="3" class="input" placeholder="4 days Serengeti and Ngorongoro, mid-range lodges, family of five.">{form?.notes ?? ''}</textarea>
+				<textarea id="e-notes" name="notes" rows="3" class="input" placeholder="4 days Serengeti and Ngorongoro, mid-range lodges, family of five."
+					>{form?.notes ?? data.fromMessage ?? ''}</textarea
+				>
 			</div>
 
 			<button type="button" class="text-[13px] font-medium text-brand-600 hover:underline" onclick={() => (more = !more)}>
