@@ -70,7 +70,13 @@ suite('entitlements + enforcement', () => {
 			.values({ email: `ent-admin-${stamp}@example.com`, fullName: 'Ent Admin', isSuperAdmin: true })
 			.returning();
 		adminUserId = user.id;
-		starterPlanId = (await db().select().from(schema.plans).where(schema.plans.code ? undefined : undefined).limit(50)).find((p) => p.code === 'STARTER')!.id;
+		starterPlanId = (
+			await db()
+				.select()
+				.from(schema.plans)
+				.where(schema.plans.code ? undefined : undefined)
+				.limit(50)
+		).find((p) => p.code === 'STARTER')!.id;
 	}, 60_000);
 
 	afterAll(async () => {
@@ -119,7 +125,9 @@ suite('entitlements + enforcement', () => {
 		).rejects.toMatchObject({ code: 'FEATURE_NOT_AVAILABLE' });
 
 		await ctx.admin.setEntitlementOverride(tenantId, 'orders.enabled', true, { userId: adminUserId });
-		await expect(ctx.orders.createOrder(tenantId, { items: [{ title: 'Allowed', unitPrice: '1.00' }] })).resolves.toBeTruthy();
+		await expect(
+			ctx.orders.createOrder(tenantId, { items: [{ title: 'Allowed', unitPrice: '1.00' }] })
+		).resolves.toBeTruthy();
 	});
 
 	it('blocks at the monthly limit with structured metadata, and 0 means unlimited', async () => {
@@ -131,7 +139,10 @@ suite('entitlements + enforcement', () => {
 		try {
 			await ctx.orders.createOrder(tenantId, { items: [{ title: 'Over limit', unitPrice: '1.00' }] });
 		} catch (err) {
-			captured = { code: (err as { code: string }).code, details: (err as { details: Record<string, unknown> }).details };
+			captured = {
+				code: (err as { code: string }).code,
+				details: (err as { details: Record<string, unknown> }).details
+			};
 		}
 		expect(captured.code).toBe('ENTITLEMENT_LIMIT_REACHED');
 		expect(captured.details).toMatchObject({ feature: 'orders.maxPerMonth', limit: used });
@@ -139,14 +150,18 @@ suite('entitlements + enforcement', () => {
 
 		// 0 = unlimited restores service immediately.
 		await ctx.admin.setEntitlementOverride(tenantId, 'orders.maxPerMonth', 0, { userId: adminUserId });
-		await expect(ctx.orders.createOrder(tenantId, { items: [{ title: 'Unlimited', unitPrice: '1.00' }] })).resolves.toBeTruthy();
+		await expect(
+			ctx.orders.createOrder(tenantId, { items: [{ title: 'Unlimited', unitPrice: '1.00' }] })
+		).resolves.toBeTruthy();
 		await ctx.admin.clearEntitlementOverride(tenantId, 'orders.maxPerMonth', { userId: adminUserId });
 	});
 
 	it('suspension blocks writes across domains but never reads', async () => {
 		await ctx.admin.setTenantStatus(tenantId, 'SUSPENDED', { userId: adminUserId }, 'test');
 
-		await expect(ctx.orders.createOrder(tenantId, { items: [{ title: 'X', unitPrice: '1.00' }] })).rejects.toMatchObject({
+		await expect(
+			ctx.orders.createOrder(tenantId, { items: [{ title: 'X', unitPrice: '1.00' }] })
+		).rejects.toMatchObject({
 			code: 'TENANT_SUSPENDED'
 		});
 		await expect(
@@ -158,7 +173,9 @@ suite('entitlements + enforcement', () => {
 		await expect(ctx.admin.tenantControlCenter(tenantId)).resolves.toBeTruthy();
 
 		await ctx.admin.setTenantStatus(tenantId, 'ACTIVE', { userId: adminUserId });
-		await expect(ctx.orders.createOrder(tenantId, { items: [{ title: 'Back', unitPrice: '1.00' }] })).resolves.toBeTruthy();
+		await expect(
+			ctx.orders.createOrder(tenantId, { items: [{ title: 'Back', unitPrice: '1.00' }] })
+		).resolves.toBeTruthy();
 	});
 
 	it('a plan change moves the tenant without touching its overrides', async () => {
@@ -185,7 +202,13 @@ suite('entitlements + enforcement', () => {
 			.where(
 				and(
 					eq(schema.auditLogs.tenantId, tenantId),
-					inArray(schema.auditLogs.action, ['entitlement.overridden', 'entitlement.override_removed', 'tenant.suspended', 'tenant.reactivated', 'plan.changed'])
+					inArray(schema.auditLogs.action, [
+						'entitlement.overridden',
+						'entitlement.override_removed',
+						'tenant.suspended',
+						'tenant.reactivated',
+						'plan.changed'
+					])
 				)
 			);
 		const actions = new Set(rows.map((r) => r.action));
@@ -238,7 +261,11 @@ suite('entitlements + enforcement', () => {
 
 		// A template Connect has never seen is left to Meta to judge — not blocked here.
 		await expect(
-			ctx.compliance.assertSendCompliant({ tenantId, to: phone, content: { type: 'template', templateName: 'unknown_tpl', language: 'en' } })
+			ctx.compliance.assertSendCompliant({
+				tenantId,
+				to: phone,
+				content: { type: 'template', templateName: 'unknown_tpl', language: 'en' }
+			})
 		).resolves.toBeUndefined();
 	});
 
@@ -246,16 +273,35 @@ suite('entitlements + enforcement', () => {
 		const phone = `2555${stamp.replace(/\D/g, '').slice(-8)}`;
 		await ctx.customers.findOrCreateCustomer(tenantId, { firstName: 'Tpl', whatsappPhone: phone });
 		const { db, schema } = ctx.db;
-		await db().insert(schema.whatsappTemplates).values({
-			tenantId,
-			name: `pending_tpl_${stamp.replace(/\D/g, '')}`,
-			language: 'en',
-			status: 'PENDING',
-			bodyText: 'hi'
-		});
+		await db()
+			.insert(schema.whatsappTemplates)
+			.values({
+				tenantId,
+				name: `pending_tpl_${stamp.replace(/\D/g, '')}`,
+				language: 'en',
+				status: 'PENDING',
+				bodyText: 'hi'
+			});
 		const name = `pending_tpl_${stamp.replace(/\D/g, '')}`;
 		await expect(
-			ctx.compliance.assertSendCompliant({ tenantId, to: phone, content: { type: 'template', templateName: name, language: 'en' } })
+			ctx.compliance.assertSendCompliant({
+				tenantId,
+				to: phone,
+				content: { type: 'template', templateName: name, language: 'en' }
+			})
 		).rejects.toMatchObject({ code: 'WHATSAPP_POLICY_BLOCKED' });
+	});
+});
+
+// A duplicated definition is invisible in the resolver and fatal in the UI: Svelte
+// throws each_key_duplicate and the admin's tenant page stops rendering mid-navigation.
+// This is the cheap guard that keeps a copy-paste from doing that again.
+describe('entitlement registry', () => {
+	it('defines every key exactly once', async () => {
+		const { ENTITLEMENTS } = await import('../src/lib/server/entitlements');
+		const keys = ENTITLEMENTS.map((d: { key: string }) => d.key);
+		const duplicates = keys.filter((key: string, i: number) => keys.indexOf(key) !== i);
+		expect(duplicates).toEqual([]);
+		expect(new Set(keys).size).toBe(keys.length);
 	});
 });

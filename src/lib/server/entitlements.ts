@@ -105,9 +105,6 @@ export const ENTITLEMENTS: EntitlementDefinition[] = [
 	// AI assist is OFF unless a plan grants it — nobody is opted in by surprise.
 	{ key: 'ai.enabled', label: 'AI assist', group: 'AI', kind: 'boolean', fallback: false },
 	{ key: 'ai.maxMonthlyRequests', label: 'AI requests / month', group: 'AI', kind: 'number', fallback: 200 },
-	// AI assist is OFF unless a plan grants it — nobody is opted in by surprise.
-	{ key: 'ai.enabled', label: 'AI assist', group: 'AI', kind: 'boolean', fallback: false },
-	{ key: 'ai.maxMonthlyRequests', label: 'AI requests / month', group: 'AI', kind: 'number', fallback: 200 },
 	{ key: 'orderLinks.maxActive', label: 'Active order links', group: 'Orders', kind: 'number', fallback: 0 },
 
 	// --- Quotations ---------------------------------------------------------
