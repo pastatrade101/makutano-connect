@@ -42,7 +42,9 @@
 					<tbody class="divide-y divide-slate-100">
 						{#each data.items as c (c.id)}
 							<tr class="hover:bg-slate-50">
-								<td class="table-cell mobile-record-title font-semibold text-slate-800">{[c.firstName, c.lastName].filter(Boolean).join(' ') || '—'}</td>
+								<td class="table-cell mobile-record-title font-semibold">
+									<a href="/app/customers/{c.id}" class="text-brand-600 hover:underline">{[c.firstName, c.lastName].filter(Boolean).join(' ') || 'Unnamed customer'}</a>
+								</td>
 								<td class="table-cell break-all text-slate-600" data-label="Email">{c.email ?? '—'}</td>
 								<td class="table-cell text-slate-600" data-label="WhatsApp">{c.whatsappPhone ? `+${c.whatsappPhone}` : '—'}</td>
 								<td class="table-cell text-slate-600" data-label="Country">{c.country ?? '—'}</td>

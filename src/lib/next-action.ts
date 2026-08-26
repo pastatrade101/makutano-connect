@@ -18,6 +18,9 @@ export type NextActionKey =
 	| 'create_quotation'
 	| 'send_quotation'
 	| 'accept_quotation'
+	| 'confirm_booking'
+	| 'start_trip'
+	| 'complete_booking'
 	| 'mark_ready'
 	| 'dispatch_order'
 	| 'mark_delivered'
@@ -43,6 +46,9 @@ const RANK: Record<NextActionKey, number> = {
 	create_quotation: 40,
 	send_quotation: 50,
 	accept_quotation: 55,
+	confirm_booking: 25,
+	start_trip: 65,
+	complete_booking: 75,
 	mark_ready: 60,
 	dispatch_order: 70,
 	mark_delivered: 80,
@@ -55,7 +61,10 @@ export type NextActionAbility = {
 	payments?: boolean;
 	verifyPayments?: boolean;
 	quotations?: boolean;
+	/** May open a booking (read). */
 	bookings?: boolean;
+	/** May move a booking along (write). */
+	bookingsWrite?: boolean;
 };
 
 const OVER = ['CANCELLED', 'REFUNDED', 'COMPLETED', 'DELIVERED'];
@@ -118,14 +127,28 @@ export function nextForBooking(booking: BookingLike, can: NextActionAbility): Ne
 			: null;
 	}
 	if (OVER.includes(booking.status)) return null;
-	if (booking.outstanding > 0 && !booking.activeRequestStatus && can.payments) {
-		return {
-			key: 'request_payment',
-			label: 'Request payment',
-			href: `/app/bookings/${booking.id}`,
-			hint: 'Send them how to pay, on WhatsApp.'
-		};
+	const href = `/app/bookings/${booking.id}`;
+
+	// Money that has actually arrived turns a held booking into a confirmed one, so
+	// confirming outranks asking again.
+	if (booking.outstanding <= 0 && ['PENDING', 'AWAITING_PAYMENT', 'PARTIALLY_PAID'].includes(booking.status)) {
+		return can.bookingsWrite
+			? {
+					key: 'confirm_booking',
+					label: 'Confirm booking',
+					href,
+					hint: 'Paid up — tell the traveller it is confirmed.'
+				}
+			: null;
 	}
+	if (booking.outstanding > 0 && !booking.activeRequestStatus && can.payments) {
+		return { key: 'request_payment', label: 'Request payment', href, hint: 'Send them how to pay, on WhatsApp.' };
+	}
+	if (!can.bookingsWrite) return null;
+	if (booking.status === 'CONFIRMED') {
+		return { key: 'start_trip', label: 'Start trip', href, hint: 'They are travelling — mark the trip under way.' };
+	}
+	if (booking.status === 'IN_PROGRESS') return { key: 'complete_booking', label: 'Complete', href };
 	return null;
 }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { sourceLabel } from '$lib/labels';
 	import { enhance } from '$lib/forms';
 	import { nextForOrder } from '$lib/next-action';
@@ -144,6 +145,29 @@
 			{/if}
 		</div>
 	</header>
+
+	<!-- Created just now. The state-driven CTA above is right, but a person who has
+	     just pressed "create" needs telling what happened and what follows. -->
+	{#if page.url.searchParams.get('created') === '1'}
+		<div class="flex flex-wrap items-center gap-2 rounded-panel border border-success/25 bg-success/5 px-4 py-3">
+			<span class="text-sm font-semibold text-slate-900">Order created</span>
+			{#if next}<span class="text-[13px] text-slate-600">{next.hint ?? ''}</span>{/if}
+			<div class="ml-auto flex flex-wrap gap-1.5">
+				{#if next?.key === 'request_payment'}
+					<button class="btn-primary !py-1.5 text-xs" onclick={() => { requestAmount = outstanding.toFixed(2); showRequestPanel = true; }}>Request payment</button>
+				{:else if next && forward.find((m) => STATUS_KEY[m.to] === next.key)}
+					{@const move = forward.find((m) => STATUS_KEY[m.to] === next.key)!}
+					<form method="POST" action="?/status" use:enhance>
+						<input type="hidden" name="status" value={move.to} />
+						<button class="btn-primary !py-1.5 text-xs">{move.label}</button>
+					</form>
+				{/if}
+				{#if data.order.conversationId}
+					<a href="/app/conversations/{data.order.conversationId}" class="btn-secondary !py-1.5 text-xs">Open chat</a>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 	{#if form?.warning}<p class="rounded-xl bg-warning/10 px-3 py-2.5 text-xs text-[#8a6815]">{form.warning}</p>{/if}
 

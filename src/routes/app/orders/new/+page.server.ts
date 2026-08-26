@@ -125,6 +125,6 @@ export const actions: Actions = {
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}
-		redirect(303, `/app/orders/${orderId}`);
+		redirect(303, `/app/orders/${orderId}?created=1`);
 	}
 };

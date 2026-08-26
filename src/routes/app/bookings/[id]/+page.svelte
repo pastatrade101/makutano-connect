@@ -1,6 +1,7 @@
 <script lang="ts">
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$lib/forms';
+	import { nextForBooking } from '$lib/next-action';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
@@ -45,6 +46,28 @@
 	const activeRequest = $derived(
 		data.paymentRequests.find((r) => ['REQUESTED', 'REPORTED', 'PARTIALLY_PAID'].includes(r.status)) ?? null
 	);
+	// Same precedence as orders, payments and the thread — bookings no longer keep
+	// their own opinion about what matters most.
+	const reportedRequest = $derived(data.paymentRequests?.find((r) => r.status === 'REPORTED') ?? null);
+	const canVerify = $derived(data.permissions?.includes('payments:verify') ?? false);
+	const BOOKING_KEY: Record<string, string> = {
+		CONFIRMED: 'confirm_booking',
+		IN_PROGRESS: 'start_trip',
+		COMPLETED: 'complete_booking'
+	};
+	const next = $derived(
+		nextForBooking(
+			{
+				id: data.booking.id,
+				status: data.booking.status,
+				outstanding: balance,
+				activeRequestStatus: activeRequest?.status ?? null
+			},
+			{ payments: canPay, verifyPayments: canVerify, bookingsWrite: canWrite }
+		)
+	);
+	const cls = (key: string) => (next?.key === key ? 'btn-primary' : 'btn-secondary');
+
 	const selectedMethod = $derived(data.payMethods.find((method) => method.key === selectedMethodKey) ?? data.payMethods[0] ?? null);
 	const requestReady = $derived(
 		!!selectedMethod &&
@@ -67,8 +90,11 @@
 			<h1 class="flex items-center gap-2 text-base font-semibold text-slate-900">{data.booking.bookingReference} <StatusBadge value={data.booking.status} /></h1>
 		</div>
 		<div class="flex flex-wrap items-center gap-1.5">
+			{#if reportedRequest && canVerify}
+				<a href="/app/payments?verify={reportedRequest.id}" class={cls('verify_payment')}>Verify payment</a>
+			{/if}
 			{#if canPay && balance > 0 && !activeRequest && ['DRAFT', 'PENDING', 'AWAITING_PAYMENT', 'PARTIALLY_PAID'].includes(data.booking.status)}
-				<button class="btn-primary" onclick={() => { requestAmount = balance.toFixed(2); showRequestPanel = !showRequestPanel; }}>
+				<button class={cls('request_payment')} onclick={() => { requestAmount = balance.toFixed(2); showRequestPanel = !showRequestPanel; }}>
 					Request payment
 				</button>
 			{/if}
@@ -79,10 +105,10 @@
 				</form>
 			{/if}
 			{#if canWrite}
-				{#each forward as move, i (move.to)}
+				{#each forward as move (move.to)}
 					<form method="POST" action="?/status" use:enhance>
 						<input type="hidden" name="status" value={move.to} />
-						<button class={i === 0 ? 'btn-primary' : 'btn-secondary'}>{move.label}</button>
+						<button class={cls(BOOKING_KEY[move.to])}>{move.label}</button>
 					</form>
 				{/each}
 			{/if}

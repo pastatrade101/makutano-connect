@@ -80,7 +80,7 @@ export const actions: Actions = {
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}
-		redirect(303, `/app/quotations/${quotationId}`);
+		redirect(303, `/app/quotations/${quotationId}?created=1`);
 	},
 
 	status: async ({ locals, params, request }) => {

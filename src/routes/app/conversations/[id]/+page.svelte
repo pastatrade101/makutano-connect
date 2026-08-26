@@ -377,7 +377,14 @@
 
 {#if showContext}
 	<div class="grid gap-x-6 gap-y-1.5 border-b border-slate-100 bg-slate-50/60 px-4 py-3 text-xs sm:grid-cols-3">
-		<div><span class="text-slate-400">Customer</span> <span class="ml-1 font-medium text-slate-700">{who}</span></div>
+		<div>
+			<span class="text-slate-400">Customer</span>
+			{#if data.customer?.id}
+				<a href="/app/customers/{data.customer.id}" class="ml-1 font-medium text-brand-600 hover:underline">{who}</a>
+			{:else}
+				<span class="ml-1 font-medium text-slate-700">{who}</span>
+			{/if}
+		</div>
 		{#if data.customer?.whatsappPhone}<div><span class="text-slate-400">WhatsApp</span> <span class="ml-1 font-medium text-slate-700">+{data.customer.whatsappPhone}</span></div>{/if}
 		{#if data.customer?.email}<div><span class="text-slate-400">Email</span> <span class="ml-1 font-medium text-slate-700">{data.customer.email}</span></div>{/if}
 		{#if data.customer?.notes}<div class="sm:col-span-3"><span class="text-slate-400">Notes</span> <span class="ml-1 text-slate-600">{data.customer.notes}</span></div>{/if}

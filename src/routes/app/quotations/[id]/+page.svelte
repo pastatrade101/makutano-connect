@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { nextForQuotation } from '$lib/next-action';
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$lib/forms';
@@ -35,6 +36,22 @@
 <FormToast {form} successTitle="Quotation updated" />
 
 <div class="mx-auto max-w-4xl space-y-3">
+	<!-- Arrived straight from an enquiry: the quote exists but nobody has seen it yet. -->
+	{#if page.url.searchParams.get('created') === '1'}
+		<div class="flex flex-wrap items-center gap-2 rounded-panel border border-success/25 bg-success/5 px-4 py-3">
+			<span class="text-sm font-semibold text-slate-900">Quotation created</span>
+			<span class="text-[13px] text-slate-600">Priced from the enquiry — check the lines, then send it.</span>
+			<div class="ml-auto flex flex-wrap gap-1.5">
+				{#if next?.key === 'send_quotation'}
+					<form method="POST" action="?/send" use:enhance><button class="btn-primary !py-1.5 text-xs">Send to the traveller</button></form>
+				{/if}
+				{#if data.quotation.bookingRequestId}
+					<a href="/app/booking-requests/{data.quotation.bookingRequestId}" class="btn-secondary !py-1.5 text-xs">Back to enquiry</a>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div>
 			<a href="/app/quotations" class="text-xs text-slate-500 hover:underline">← Quotations</a>

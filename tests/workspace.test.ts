@@ -96,7 +96,14 @@ describe('workspace resolver', () => {
 // before packing — and never an action the viewer cannot perform.
 import { nextForBooking, nextForEnquiry, nextForOrder, nextForQuotation, pickNext } from '../src/lib/next-action';
 
-const ALL = { orders: true, payments: true, verifyPayments: true, quotations: true, bookings: true };
+const ALL = {
+	orders: true,
+	payments: true,
+	verifyPayments: true,
+	quotations: true,
+	bookings: true,
+	bookingsWrite: true
+};
 
 describe('next action', () => {
 	it('a reported payment outranks everything else the order needs', () => {
@@ -145,6 +152,10 @@ describe('next action', () => {
 			'request_payment'
 		);
 		expect(nextForBooking({ id: 'b1', status: 'COMPLETED', outstanding: 100 }, ALL)).toBeNull();
+		// Paid up: confirming beats asking for money nobody owes any more.
+		expect(nextForBooking({ id: 'b1', status: 'AWAITING_PAYMENT', outstanding: 0 }, ALL)?.key).toBe('confirm_booking');
+		expect(nextForBooking({ id: 'b1', status: 'CONFIRMED', outstanding: 0 }, ALL)?.key).toBe('start_trip');
+		expect(nextForBooking({ id: 'b1', status: 'IN_PROGRESS', outstanding: 0 }, ALL)?.key).toBe('complete_booking');
 	});
 
 	it('picks the most urgent when a customer has several things open', () => {

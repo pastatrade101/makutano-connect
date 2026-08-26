@@ -199,7 +199,7 @@
 					{#if data.customer?.whatsappPhone}<div class="text-slate-600">+{data.customer.whatsappPhone}</div>{/if}
 					{#if data.customer?.country}<div class="text-[12.5px] uppercase text-slate-500">{data.customer.country}</div>{/if}
 					{#if data.customer}
-						<a href="/app/customers?q={data.customer.email ?? data.customer.whatsappPhone ?? ''}" class="mt-2 inline-block text-xs text-brand-600 hover:underline">Customer record →</a>
+						<a href="/app/customers/{data.customer.id}" class="mt-2 inline-block text-xs text-brand-600 hover:underline">Customer record →</a>
 					{/if}
 				</div>
 			</section>
