@@ -148,6 +148,8 @@ export async function attentionFor(
 ): Promise<{
 	persona: Persona;
 	items: AttentionItem[];
+	/** True and worth knowing, but somebody else's move. Never in "Needs you". */
+	context: AttentionItem[];
 	today: Array<{ label: string; value: string }>;
 }> {
 	const persona = personaFor(viewer.permissions);
@@ -162,23 +164,34 @@ export async function attentionFor(
 	]);
 
 	const items: AttentionItem[] = [];
+	const context: AttentionItem[] = [];
 	const push = (item: AttentionItem) => {
 		if (item.count > 0) items.push(item);
 	};
+	const note = (item: AttentionItem) => {
+		if (item.count > 0) context.push(item);
+	};
 
-	// Money someone is waiting to be believed about. Nothing outranks it.
+	// Money someone is waiting to be believed about. Nothing outranks it — for the
+	// person who can act on it. "Needs you" means YOU can take the next step, so for
+	// anyone without payments:verify the same fact is context, not a task.
 	if (can('payments:read')) {
-		push({
+		const forMe = can('payments:verify') ? push : note;
+		forMe({
 			key: 'payments_reported',
-			label: `${ops.paymentsReported} ${plural(ops.paymentsReported, 'customer says', 'customers say')} they've paid`,
+			label: can('payments:verify')
+				? `${ops.paymentsReported} ${plural(ops.paymentsReported, 'customer says', 'customers say')} they've paid`
+				: `${ops.paymentsReported} reported ${plural(ops.paymentsReported, 'payment is', 'payments are')} waiting for finance`,
 			count: ops.paymentsReported,
 			href: '/app/payments?verify=1',
 			urgency: 'critical',
 			scope: 'business'
 		});
-		push({
+		forMe({
 			key: 'payments_failed',
-			label: `${ops.paymentsFailed} ${plural(ops.paymentsFailed, 'payment', 'payments')} failed`,
+			label: can('payments:verify')
+				? `${ops.paymentsFailed} ${plural(ops.paymentsFailed, 'payment', 'payments')} failed`
+				: `${ops.paymentsFailed} failed ${plural(ops.paymentsFailed, 'payment is', 'payments are')} with finance`,
 			count: ops.paymentsFailed,
 			href: '/app/payments?status=FAILED',
 			urgency: 'high',
@@ -323,11 +336,67 @@ export async function attentionFor(
 		if (can('payments:read')) today.push({ label: 'Received today', value: ops.receivedToday });
 	}
 
-	return { persona, items: items.slice(0, 6), today };
+	return { persona, items: items.slice(0, 6), context: context.slice(0, 3), today };
 }
 
-/** An agent's own queue: threads they hold that are still talking to them. */
-export async function myWork(tenantId: string, viewer: Viewer) {
+export type MyWorkItem = {
+	kind: 'conversation' | 'enquiry';
+	id: string;
+	title: string;
+	detail: string | null;
+	unread: number;
+	at: Date | string | null;
+	href: string;
+};
+
+/**
+ * An agent's own queue — the threads AND the enquiries they personally hold. Five of
+ * each at most, scoped on the server: Home is a starting point, not a work manager.
+ */
+export async function myWork(tenantId: string, viewer: Viewer): Promise<MyWorkItem[]> {
+	const [threads, enquiries] = await Promise.all([myConversations(tenantId, viewer), myEnquiries(tenantId, viewer)]);
+	return [...threads, ...enquiries]
+		.sort((a, b) => {
+			if (a.unread !== b.unread) return b.unread - a.unread;
+			return new Date(b.at ?? 0).getTime() - new Date(a.at ?? 0).getTime();
+		})
+		.slice(0, 6);
+}
+
+/** Enquiries assigned to this person that still need work. */
+async function myEnquiries(tenantId: string, viewer: Viewer): Promise<MyWorkItem[]> {
+	if (!viewer.permissions.includes('booking_requests:read')) return [];
+	const rows = await db()
+		.select({
+			id: schema.bookingRequests.id,
+			reference: schema.bookingRequests.reference,
+			updatedAt: schema.bookingRequests.updatedAt,
+			firstName: schema.customers.firstName,
+			lastName: schema.customers.lastName
+		})
+		.from(schema.bookingRequests)
+		.leftJoin(schema.customers, eq(schema.customers.id, schema.bookingRequests.customerId))
+		.where(
+			and(
+				eq(schema.bookingRequests.tenantId, tenantId),
+				eq(schema.bookingRequests.assigneeUserId, viewer.userId),
+				sql`${schema.bookingRequests.status} in ('NEW', 'UNDER_REVIEW', 'CONTACTED')`
+			)
+		)
+		.orderBy(sql`${schema.bookingRequests.updatedAt} desc`)
+		.limit(5);
+	return rows.map((row) => ({
+		kind: 'enquiry' as const,
+		id: row.id,
+		title: [row.firstName, row.lastName].filter(Boolean).join(' ') || row.reference,
+		detail: `Enquiry ${row.reference}`,
+		unread: 0,
+		at: row.updatedAt,
+		href: `/app/booking-requests/${row.id}`
+	}));
+}
+
+async function myConversations(tenantId: string, viewer: Viewer): Promise<MyWorkItem[]> {
 	if (!viewer.permissions.includes('conversations:read')) return [];
 	const scope = conversationScope(viewer);
 	const where = scope
@@ -342,7 +411,7 @@ export async function myWork(tenantId: string, viewer: Viewer) {
 				eq(schema.conversations.assignedToUserId, viewer.userId),
 				eq(schema.conversations.isOpen, true)
 			);
-	return db()
+	const rows = await db()
 		.select({
 			id: schema.conversations.id,
 			unreadCount: schema.conversations.unreadCount,
@@ -359,4 +428,13 @@ export async function myWork(tenantId: string, viewer: Viewer) {
 			sql`${schema.conversations.unreadCount} > 0 desc, coalesce(${schema.conversations.lastMessageAt}, ${schema.conversations.createdAt}) desc`
 		)
 		.limit(5);
+	return rows.map((row) => ({
+		kind: 'conversation' as const,
+		id: row.id,
+		title: [row.firstName, row.lastName].filter(Boolean).join(' ') || `+${row.externalId ?? ''}`,
+		detail: row.subject,
+		unread: row.unreadCount,
+		at: row.lastMessageAt,
+		href: `/app/conversations/${row.id}`
+	}));
 }

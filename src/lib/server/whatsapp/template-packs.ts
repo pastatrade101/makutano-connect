@@ -22,7 +22,7 @@ import { createTemplateDraft, submitTemplateToMeta, type NotifyEvent } from './t
 import { resolveCredentials } from './connections';
 import { log } from '../logger';
 
-export const PACK_VERSION = 5;
+export const PACK_VERSION = 6;
 
 type PackTemplate = {
 	name: string;
@@ -115,6 +115,45 @@ const PACK: PackTemplate[] = [
 			{ type: 'QUICK_REPLY', text: 'I have paid' },
 			{ type: 'QUICK_REPLY', text: 'Need help' }
 		]
+	},
+	{
+		// V6: the quote is agreed — say so, and say what happens next, so the traveller
+		// is not left wondering whether their "yes" arrived.
+		name: 'quotation_accepted',
+		eventKey: 'QUOTATION_ACCEPTED',
+		module: 'quotations',
+		bodyText:
+			'Thank you {{customer.first_name}} — your quotation {{quotation.reference}} is accepted and we are preparing your booking. We will confirm the details here shortly.'
+	},
+	{
+		// V6: an unanswered quote is the most common place a sale goes quiet.
+		name: 'quotation_reminder',
+		eventKey: 'QUOTATION_REMINDER',
+		module: 'quotations',
+		bodyText:
+			'Hi {{customer.first_name}}, just checking in on quotation {{quotation.reference}} for {{quotation.total}}. Reply here to accept it, ask for changes, or tell us it is no longer needed.',
+		buttons: [
+			{ type: 'QUICK_REPLY', text: 'Accept quotation' },
+			{ type: 'QUICK_REPLY', text: 'I have a question' }
+		]
+	},
+	{
+		// V6: staff checked and the money is not there. Saying nothing leaves the
+		// customer believing they have paid.
+		name: 'payment_not_found',
+		eventKey: 'PAYMENT_NOT_FOUND',
+		module: 'always',
+		bodyText:
+			'Hi {{customer.first_name}}, we could not find your payment of {{payment.amount_due}} for reference {{transaction.reference}} yet. Please check the details and send us the confirmation message, and we will look again.',
+		buttons: [{ type: 'QUICK_REPLY', text: 'Send proof' }]
+	},
+	{
+		// V6: a cancelled booking currently notifies nobody.
+		name: 'booking_cancelled',
+		eventKey: 'BOOKING_CANCELLED',
+		module: 'bookings',
+		bodyText:
+			'Hello {{customer.first_name}}, your booking {{booking.reference}} with {{business.name}} has been cancelled. Reply here if this was not expected and we will look into it.'
 	},
 	{
 		name: 'payment_received',

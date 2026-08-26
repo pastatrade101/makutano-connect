@@ -1,4 +1,4 @@
-import { fail, redirect, type Actions } from '@sveltejs/kit';
+import { error, fail, redirect, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { listCatalogItems } from '$lib/server/catalog';
@@ -9,10 +9,17 @@ import { db, schema } from '$lib/server/db';
 import { toAppError } from '$lib/server/errors';
 import { createOrder } from '$lib/server/orders';
 import { eq, and, desc } from 'drizzle-orm';
+import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	requireTenantPermission(locals, 'orders:write');
+	// A page load that throws a domain error renders a 500; someone simply lacking
+	// permission deserves a plain 403 instead.
+	try {
+		requireTenantPermission(locals, 'orders:write');
+	} catch {
+		error(403, 'You do not have permission to create orders.');
+	}
 	const tenantId = requireTenant(locals).id;
 
 	// Conversation → Order: prefill customer + linkage from the thread the staff
@@ -27,7 +34,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				: null;
 			conversation = {
 				id: conv.id,
-				customerName: [customer?.firstName, customer?.lastName].filter(Boolean).join(' ') || `+${conv.externalId ?? ''}`,
+				customerName:
+					[customer?.firstName, customer?.lastName].filter(Boolean).join(' ') || `+${conv.externalId ?? ''}`,
 				phone: customer?.whatsappPhone ?? conv.externalId
 			};
 		} catch {
@@ -38,7 +46,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const [{ items: catalog }, recentCustomers, { items: openBatches }] = await Promise.all([
 		listCatalogItems(tenantId, { page: 1, limit: 100, order: 'desc' }, { activeOnly: true }),
 		db()
-			.select({ id: schema.customers.id, firstName: schema.customers.firstName, lastName: schema.customers.lastName, whatsappPhone: schema.customers.whatsappPhone })
+			.select({
+				id: schema.customers.id,
+				firstName: schema.customers.firstName,
+				lastName: schema.customers.lastName,
+				whatsappPhone: schema.customers.whatsappPhone
+			})
 			.from(schema.customers)
 			.where(and(eq(schema.customers.tenantId, tenantId)))
 			.orderBy(desc(schema.customers.createdAt))
@@ -47,8 +60,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	]);
 
 	return {
+		workspaceRelevant: moduleRelevant(
+			normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities),
+			'orders'
+		),
 		conversation,
-		catalog: catalog.map((c) => ({ id: c.id, name: c.name, price: c.price, currency: c.currency, variants: c.variants })),
+		catalog: catalog.map((c) => ({
+			id: c.id,
+			name: c.name,
+			price: c.price,
+			currency: c.currency,
+			variants: c.variants
+		})),
 		customers: recentCustomers,
 		units: COMMON_UNITS,
 		batches: openBatches.map((b) => ({
@@ -72,9 +95,9 @@ export const actions: Actions = {
 		try {
 			items = JSON.parse(String(data.get('items') ?? '[]'));
 		} catch {
-			return fail(400, { message: 'Order items are malformed.' });
+			return fail(400, { message: 'Order items are malformed.', field: '' });
 		}
-		if (!Array.isArray(items) || items.length === 0) return fail(400, { message: 'Add at least one item.' });
+		if (!Array.isArray(items) || items.length === 0) return fail(400, { message: 'Add at least one item.', field: '' });
 
 		// Quick customer creation: a name is enough; phone is optional (§1).
 		let customerId = String(data.get('customerId') ?? '') || null;
@@ -91,6 +114,19 @@ export const actions: Actions = {
 			customerId = created.id;
 		}
 
+		// Money typed by hand, checked before it reaches the totals — "12,000" or a
+		// stray word used to sail through and land as NaN in the order total. The
+		// field name travels back so the form can open the section holding it.
+		const MONEY = /^\d+(\.\d{1,2})?$/;
+		const discount = String(data.get('discount') ?? '').trim();
+		const deliveryFee = String(data.get('deliveryFee') ?? '').trim();
+		if (discount && !MONEY.test(discount)) {
+			return fail(400, { message: 'Enter the discount as a plain number, like 500 or 500.50.', field: 'discount' });
+		}
+		if (deliveryFee && !MONEY.test(deliveryFee)) {
+			return fail(400, { message: 'Enter the delivery fee as a plain number, like 2000.', field: 'deliveryFee' });
+		}
+
 		const deliveryDateRaw = String(data.get('deliveryDate') ?? '');
 
 		let orderId: string;
@@ -102,8 +138,8 @@ export const actions: Actions = {
 					conversationId: String(data.get('conversationId') ?? '') || null,
 					status: String(data.get('saveAs') ?? 'DRAFT') === 'PENDING_CONFIRMATION' ? 'PENDING_CONFIRMATION' : 'DRAFT',
 					source: (String(data.get('source') ?? '') || 'MANUAL') as never,
-					discount: String(data.get('discount') ?? '') || undefined,
-					deliveryFee: String(data.get('deliveryFee') ?? '') || undefined,
+					discount: discount || undefined,
+					deliveryFee: deliveryFee || undefined,
 					deliveryMethod: (String(data.get('deliveryMethod') ?? '') || null) as never,
 					deliveryLocation: String(data.get('deliveryLocation') ?? '') || null,
 					batchId: String(data.get('batchId') ?? '') || null,
@@ -123,7 +159,7 @@ export const actions: Actions = {
 			);
 			orderId = order.id;
 		} catch (err) {
-			return fail(400, { message: toAppError(err).message });
+			return fail(400, { message: toAppError(err).message, field: '' });
 		}
 		redirect(303, `/app/orders/${orderId}?created=1`);
 	}

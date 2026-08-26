@@ -19,7 +19,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const { items, total } = await listBatches(tenantId, paginationFrom(url), {
 		status: (status === 'OPEN' || status === 'CLOSED' ? status : undefined) as never
 	});
+	const canWrite = locals.permissions?.includes('orders:write') ?? false;
 	return {
+		canWrite,
 		workspaceRelevant,
 		batches: items.map((r) => ({ ...r.batch, orders: r.orders, revenue: r.revenue })),
 		total,

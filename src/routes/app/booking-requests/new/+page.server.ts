@@ -1,7 +1,7 @@
 // Logging an enquiry by hand: the phone rings, someone walks in, a message arrives
 // somewhere Connect cannot see. Until now the "+ New enquiry" action led to a list
 // with no way to create anything — this is the missing screen, not a new feature.
-import { fail, redirect, type Actions } from '@sveltejs/kit';
+import { error, fail, redirect, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { createBookingRequest } from '$lib/server/booking-requests';
 import { getConversation } from '$lib/server/conversations';
@@ -12,7 +12,13 @@ import { eq } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	requireTenantPermission(locals, 'booking_requests:write');
+	// A page load that throws a domain error renders a 500; someone simply lacking
+	// permission deserves a plain 403 instead.
+	try {
+		requireTenantPermission(locals, 'booking_requests:write');
+	} catch {
+		error(403, 'You do not have permission to create enquiries.');
+	}
 	const tenantId = requireTenant(locals).id;
 	const workspace = normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities);
 

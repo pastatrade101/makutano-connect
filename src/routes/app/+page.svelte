@@ -147,27 +147,38 @@
 	{#if persona === 'agent' && data.myWork?.length}
 		<section class="card">
 			<header class="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
-				<h2 class="text-sm font-semibold text-slate-800">Your conversations</h2>
-				<a href="/app/conversations?filter=mine" class="text-xs text-brand-600 hover:underline">All yours</a>
+				<h2 class="text-sm font-semibold text-slate-800">Your work</h2>
+				<a href="/app/conversations?filter=mine" class="text-xs text-brand-600 hover:underline">Your chats</a>
 			</header>
 			<ul class="divide-y divide-slate-100">
-				{#each data.myWork as thread (thread.id)}
+				{#each data.myWork as item (item.kind + item.id)}
 					<li>
-						<a href="/app/conversations/{thread.id}" class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
+						<a href={item.href} class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
 							<span class="min-w-0 flex-1">
-								<span class="block truncate text-sm text-slate-800">
-									{[thread.firstName, thread.lastName].filter(Boolean).join(' ') || `+${thread.externalId ?? ''}`}
-								</span>
-								{#if thread.subject}<span class="block truncate text-[12.5px] text-slate-500">{thread.subject}</span>{/if}
+								<span class="block truncate text-sm text-slate-800">{item.title}</span>
+								{#if item.detail}<span class="block truncate text-[12.5px] text-slate-500">{item.detail}</span>{/if}
 							</span>
-							{#if thread.unreadCount > 0}
-								<span class="shrink-0 rounded-full bg-brand-500 px-1.5 text-[11.5px] font-semibold text-white">{thread.unreadCount}</span>
+							{#if item.unread > 0}
+								<span class="shrink-0 rounded-full bg-brand-500 px-1.5 text-[11.5px] font-semibold text-white">{item.unread}</span>
 							{/if}
-							<span class="shrink-0 text-[12.5px] text-slate-400"><TimeAgo value={thread.lastMessageAt} timezone={tz} /></span>
+							<span class="shrink-0 text-[12.5px] text-slate-400"><TimeAgo value={item.at} timezone={tz} /></span>
 						</a>
 					</li>
 				{/each}
 			</ul>
+		</section>
+	{/if}
+
+	<!-- True, and worth knowing, but not this person's move. -->
+	{#if data.context?.length}
+		<section class="flex flex-col gap-1 rounded-panel bg-slate-50 px-4 py-2.5">
+			{#each data.context as item (item.key)}
+				<p class="text-[13px] text-slate-500">
+					{#if can('payments:read')}
+						<a href={item.href} class="hover:underline">{item.label}</a>
+					{:else}{item.label}{/if}
+				</p>
+			{/each}
 		</section>
 	{/if}
 

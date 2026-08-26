@@ -370,6 +370,25 @@ export async function acceptQuotation(
 		bookingId: booking.id,
 		bookingReference: booking.bookingReference
 	});
+
+	// The traveller said yes: acknowledge it. Best effort — a messaging failure must
+	// never undo a booking that has already been created.
+	void (async () => {
+		const [customer] = updated.customerId
+			? await db().select().from(schema.customers).where(eq(schema.customers.id, updated.customerId)).limit(1)
+			: [];
+		await sendEventTemplate(
+			tenantId,
+			'QUOTATION_ACCEPTED',
+			customer?.whatsappPhone,
+			{
+				customer: { firstName: customer?.firstName, lastName: customer?.lastName },
+				quotation: { reference: updated.reference, total: `${updated.currency} ${updated.total}` }
+			},
+			`quotation-QUOTATION_ACCEPTED:${updated.id}:${updated.version}`
+		);
+	})().catch(() => undefined);
+
 	return { quotation: updated, booking };
 }
 
@@ -393,7 +412,13 @@ export async function expireStaleQuotations(): Promise<number> {
 export type QuotationMirrorInput = {
 	externalReference: string; // the legacy system's code, e.g. GFQ-BCAE65 — the upsert anchor
 	externalSource: string;
-	customer?: { firstName?: string; lastName?: string; email?: string | null; phone?: string | null; whatsappPhone?: string | null } | null;
+	customer?: {
+		firstName?: string;
+		lastName?: string;
+		email?: string | null;
+		phone?: string | null;
+		whatsappPhone?: string | null;
+	} | null;
 	/** The legacy system's booking/enquiry id, resolved to our mirrored request when present. */
 	legacyBookingRequestId?: string | null;
 	title?: string | null;
@@ -427,7 +452,10 @@ export async function upsertQuotationMirror(tenantId: string, input: QuotationMi
 	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant could not be found.');
 
 	let customerId: string | null = null;
-	if (input.customer && (input.customer.email || input.customer.phone || input.customer.whatsappPhone || input.customer.firstName)) {
+	if (
+		input.customer &&
+		(input.customer.email || input.customer.phone || input.customer.whatsappPhone || input.customer.firstName)
+	) {
 		const matched = await findOrCreateCustomer(tenantId, { ...input.customer, source: 'API' }, tenant.country);
 		customerId = matched.id;
 	}
@@ -488,7 +516,12 @@ export async function upsertQuotationMirror(tenantId: string, input: QuotationMi
 			.returning();
 		await db().delete(schema.quotationItems).where(eq(schema.quotationItems.quotationId, existing.id));
 	} else {
-		const reference = await nextReference(db(), tenantId, 'QT', tenant.quotationPrefix || tenant.bookingReferencePrefix);
+		const reference = await nextReference(
+			db(),
+			tenantId,
+			'QT',
+			tenant.quotationPrefix || tenant.bookingReferencePrefix
+		);
 		[quotation] = await db()
 			.insert(schema.quotations)
 			.values({

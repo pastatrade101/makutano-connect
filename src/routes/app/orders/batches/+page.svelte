@@ -8,6 +8,14 @@
 	let { data, form } = $props();
 	// Opened from "+ New batch": the form is the reason they came, so it is already open.
 	let showForm = $state(data.batches.length === 0 || page.url.searchParams.get('new') === '1');
+	// A selling round needs a name, an item and a price. The rest is for the rounds
+	// that need it — and comes back open if the server rejected something inside it.
+	let batchMethod = $state('');
+	let batchDescription = $state('');
+	let batchMoreOpen = $state(false);
+	const batchMore = $derived(
+		batchMoreOpen || (Boolean(form?.message) && Boolean(batchMethod || batchDescription.trim()))
+	);
 
 	const fmtDate = (d: string | Date | null) =>
 		d ? new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '—';
@@ -26,10 +34,12 @@
 			<a href="/app/orders" class="text-xs text-slate-500 hover:underline">← Orders</a>
 			<h1 class="text-base font-semibold text-slate-800">Batches</h1>
 		</div>
-		<button class="btn-primary" onclick={() => (showForm = !showForm)}>New batch</button>
+		{#if data.canWrite}
+			<button class="btn-primary" onclick={() => (showForm = !showForm)}>New batch</button>
+		{/if}
 	</div>
 
-	{#if showForm}
+	{#if showForm && data.canWrite}
 		<form method="POST" action="?/create" use:enhance class="card grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
 			{#if form?.message}
 				<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger sm:col-span-2 lg:col-span-3">{form.message}</p>
@@ -57,17 +67,23 @@
 				<label class="label" for="b-price">Price per unit ({data.tenant.currency})</label>
 				<input id="b-price" name="unitPrice" inputmode="decimal" class="input" placeholder="14000" />
 			</div>
-			<div>
-				<label class="label" for="b-method">Delivery / pickup</label>
-				<select id="b-method" name="deliveryMethod" class="input">
-					<option value="">—</option><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option>
-				</select>
-			</div>
-			<div class="sm:col-span-2">
-				<label class="label" for="b-desc">Description <span class="font-normal text-slate-400">(optional)</span></label>
-				<input id="b-desc" name="description" class="input" placeholder="Orders from the neighbourhood WhatsApp group" />
-			</div>
-			<div class="flex items-end"><button class="btn-primary w-full">Create batch</button></div>
+			{#if !batchMore}
+				<button type="button" class="text-left text-[13px] font-medium text-brand-600 hover:underline sm:col-span-2 lg:col-span-3" onclick={() => (batchMoreOpen = true)}>
+					More options — delivery or pickup, description
+				</button>
+			{:else}
+				<div>
+					<label class="label" for="b-method">How are people getting it?</label>
+					<select id="b-method" name="deliveryMethod" bind:value={batchMethod} class="input">
+						<option value="">Not decided yet</option><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option>
+					</select>
+				</div>
+				<div class="sm:col-span-2">
+					<label class="label" for="b-desc">Description <span class="font-normal text-slate-400">(optional)</span></label>
+					<input id="b-desc" name="description" bind:value={batchDescription} class="input" placeholder="Orders from the neighbourhood WhatsApp group" />
+				</div>
+			{/if}
+			<div class="flex items-end sm:col-span-2 lg:col-span-3"><button class="btn-primary w-full sm:w-auto sm:px-6">Create batch</button></div>
 		</form>
 	{/if}
 

@@ -206,7 +206,10 @@
 		{/if}
 	</aside>
 
-	<div class="flex min-w-0 flex-1 flex-col {inConversationThread ? 'h-dvh overflow-hidden pb-0 lg:h-auto lg:overflow-visible' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'} lg:pb-0 {collapsed ? 'lg:pl-[70px]' : 'lg:pl-60'} transition-[padding] duration-200">
+	<!-- A thread is a fixed frame on every screen: the message list scrolls, the header
+	     and composer do not. Desktop used to fall back to page height, which pushed the
+	     composer below the fold once a thread carried context strips. -->
+	<div class="flex min-w-0 flex-1 flex-col {inConversationThread ? 'h-dvh overflow-hidden pb-0' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'} lg:pb-0 {collapsed ? 'lg:pl-[70px]' : 'lg:pl-60'} transition-[padding] duration-200">
 		<!-- Topbar -->
 		<header class="sticky top-0 z-20 {inConversationThread ? 'hidden' : 'flex'} h-14 items-center justify-between gap-3 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur lg:flex lg:h-[70px] lg:bg-white lg:px-6">
 			<div class="flex min-w-0 items-center gap-3">

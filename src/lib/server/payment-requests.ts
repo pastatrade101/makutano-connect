@@ -772,11 +772,22 @@ export async function paymentNotFound(
 		{ type: 'payment_request', id: requestId }
 	);
 
-	// Session message (inside the 24h window after their button press this is allowed;
-	// the compliance gate — not this code — makes that call and fails quietly if not).
+	// Telling the customer matters more than which channel carries it. A template
+	// reaches them whenever this happens; the plain session message only works inside
+	// the 24h window, so it is the fallback rather than the only attempt.
 	void (async () => {
 		const customer = await customerFor(tenantId, request.customerId);
 		if (!customer?.whatsappPhone) return;
+		const { to, ctx } = await requestContext(tenantId, request);
+		const viaTemplate = await sendEventTemplate(
+			tenantId,
+			'PAYMENT_NOT_FOUND',
+			to,
+			ctx,
+			`payreq-notfound-tpl:${requestId}:${request.reportedAt?.toISOString() ?? 'claim'}`,
+			{ quickReplyPayloads: [`connect:payment_proof:${request.id}`] }
+		);
+		if (viaTemplate) return;
 		await queueMessage({
 			tenantId,
 			to: customer.whatsappPhone,

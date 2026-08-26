@@ -1,4 +1,5 @@
 <script lang="ts">
+	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import { sourceLabel, statusLabel } from '$lib/labels';
 	// Record an order the way a WhatsApp seller thinks about it: who, what, how many,
 	// how it reaches them. Catalog quick-pick fills names and prices; free-text rows
@@ -8,6 +9,9 @@
 	let { data, form } = $props();
 
 	type Row = { catalogItemId: string | null; title: string; variant: string; quantity: number; unit: string; unitPrice: string };
+	// Variants are the exception, not the rule: a row shows one when it has one, or
+	// when this person asks for it.
+	let variantRows = $state(new Set<number>());
 	let rows = $state<Row[]>([{ catalogItemId: null, title: '', variant: '', quantity: 1, unit: '', unitPrice: '' }]);
 	let discount = $state('');
 	let deliveryFee = $state('');
@@ -15,7 +19,36 @@
 	let deliveryDate = $state('');
 	let newCustomerName = $state('');
 	let newCustomerPhone = $state('');
-	let moreOptions = $state(false);
+	let deliveryMethod = $state('');
+	let paymentMethod = $state('');
+	let deliveryLocation = $state('');
+	let notes = $state('');
+	// Advanced values entered before a failed submit must not vanish behind a closed
+	// section — anything already filled in forces its section back open.
+	const advancedFilled = $derived(
+		Boolean(discount.trim() || deliveryFee.trim() || paymentMethod || notes.trim())
+	);
+	let moreOptionsOpen = $state(false);
+	// A rejected field the person cannot see is a dead end: if the server named one
+	// that lives in here, or anything advanced is already filled in, the section opens.
+	const ADVANCED_FIELDS = ['discount', 'deliveryFee', 'paymentMethod', 'source', 'notes'];
+	const moreOptions = $derived(
+		moreOptionsOpen ||
+			(Boolean(form?.message) && advancedFilled) ||
+			ADVANCED_FIELDS.includes(String(form?.field ?? ''))
+	);
+	$effect(() => {
+		const field = String(form?.field ?? '');
+		if (!field || !moreOptions) return;
+		// Let the section render, then put the cursor on the thing that was wrong.
+		requestAnimationFrame(() => document.querySelector<HTMLElement>(`[name="${field}"]`)?.focus());
+	});
+
+	// A pickup has no delivery address. Clearing it here means the server is never sent
+	// a location the person has just said does not apply.
+	$effect(() => {
+		if (deliveryMethod !== 'DELIVERY') deliveryLocation = '';
+	});
 
 	/** Selecting a batch fills the first empty row and the delivery details (§27). */
 	function applyBatch(id: string) {
@@ -48,6 +81,9 @@
 
 <FormToast {form} successTitle="Order saved" />
 
+{#if !data.workspaceRelevant}
+	<WorkspaceNotice module="Orders" />
+{:else}
 <div class="mx-auto max-w-4xl space-y-3">
 	<div>
 		<a href="/app/orders" class="text-xs text-slate-500 hover:underline">← Orders</a>
@@ -81,14 +117,6 @@
 						</div>
 					</div>
 				{/if}
-				<div>
-					<label class="label" for="source">Source</label>
-					<select id="source" name="source" class="input">
-						{#each ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'PHONE', 'WALK_IN', 'INSTAGRAM', 'FACEBOOK', 'WEBSITE', 'MANUAL', 'OTHER'] as s (s)}
-							<option value={s} selected={data.conversation ? s === 'WHATSAPP_DIRECT' : s === 'MANUAL'}>{sourceLabel(s)}</option>
-						{/each}
-					</select>
-				</div>
 				{#if data.batches.length}
 					<div class="sm:col-span-2">
 						<label class="label" for="batchId">Batch <span class="font-normal text-slate-400">(optional — fills item, price and delivery day)</span></label>
@@ -102,6 +130,13 @@
 				{/if}
 			</div>
 		</section>
+
+		{#if form?.message}
+			<p class="rounded-panel border border-danger/25 bg-danger/5 px-3 py-2.5 text-[13px] text-danger" role="alert">
+				<b>Could not save this order.</b>
+				{form.message}
+			</p>
+		{/if}
 
 		<section class="card p-3">
 			<div class="mb-2 flex items-center justify-between">
@@ -117,7 +152,11 @@
 				{#each rows as row, i (i)}
 					<div class="relative grid grid-cols-2 gap-2 rounded-xl border border-slate-100 p-2 sm:grid-cols-12 sm:rounded-none sm:border-0 sm:p-0">
 						<input placeholder="Item (e.g. Fresh Fish)" bind:value={row.title} class="input col-span-2 pr-10 sm:col-span-4 sm:pr-3" />
-						<input placeholder="Variant (optional)" bind:value={row.variant} class="input col-span-2 sm:col-span-2" />
+						{#if row.variant || variantRows.has(i)}
+							<input placeholder="Variant (e.g. large)" bind:value={row.variant} class="input col-span-2 sm:col-span-2" />
+						{:else}
+							<button type="button" class="col-span-2 self-center text-left text-[12.5px] text-brand-600 hover:underline sm:col-span-2" onclick={() => { variantRows.add(i); variantRows = new Set(variantRows); }}>+ variant</button>
+						{/if}
 						<input type="number" min="1" inputmode="numeric" bind:value={row.quantity} class="input col-span-1 sm:col-span-1" aria-label="Quantity" placeholder="Qty" />
 						<input placeholder="Unit" list="unit-options" bind:value={row.unit} class="input col-span-1 sm:col-span-2" aria-label="Unit" />
 						<input placeholder="Unit price" inputmode="decimal" bind:value={row.unitPrice} class="input col-span-2 sm:col-span-2" />
@@ -130,27 +169,49 @@
 
 		<section class="card grid gap-3 p-3 sm:grid-cols-4">
 			<div>
-				<label class="label" for="deliveryMethod">Delivery / pickup</label>
-				<select id="deliveryMethod" name="deliveryMethod" class="input"><option value="">—</option><option value="DELIVERY">Delivery</option><option value="PICKUP">Pickup</option></select>
-			</div>
-			<div><label class="label" for="deliveryDate">Delivery date</label><input id="deliveryDate" name="deliveryDate" type="date" bind:value={deliveryDate} class="input" /></div>
-			<div>
-				<label class="label" for="paymentMethod">Payment method</label>
-				<select id="paymentMethod" name="paymentMethod" class="input">
-					<option value="">—</option>
-					{#each ['Cash on Delivery', 'Mobile Payment', 'Bank Transfer', 'Other'] as m (m)}<option value={m}>{m}</option>{/each}
+				<label class="label" for="deliveryMethod">How are they getting it?</label>
+				<select id="deliveryMethod" name="deliveryMethod" bind:value={deliveryMethod} class="input">
+					<option value="">Not decided yet</option>
+					<option value="DELIVERY">Delivery</option>
+					<option value="PICKUP">Pickup</option>
 				</select>
 			</div>
-			<div><label class="label" for="deliveryLocation">Location</label><input id="deliveryLocation" name="deliveryLocation" placeholder="Mikocheni, near…" class="input" /></div>
+			<div>
+				<label class="label" for="deliveryDate">{deliveryMethod === 'PICKUP' ? 'Pickup date' : 'Delivery date'}</label>
+				<input id="deliveryDate" name="deliveryDate" type="date" bind:value={deliveryDate} class="input" />
+			</div>
+
+			<!-- Only a delivery needs somewhere to go. -->
+			{#if deliveryMethod === 'DELIVERY'}
+				<div class="sm:col-span-2">
+					<label class="label" for="deliveryLocation">Where to?</label>
+					<input id="deliveryLocation" name="deliveryLocation" bind:value={deliveryLocation} placeholder="Mikocheni, near the mosque" class="input" />
+				</div>
+			{/if}
 
 			{#if !moreOptions}
-				<button type="button" class="text-left text-xs text-brand-600 hover:underline sm:col-span-4" onclick={() => (moreOptions = true)}>
-					More options — discount, delivery fee, notes
+				<button type="button" class="text-left text-[13px] font-medium text-brand-600 hover:underline sm:col-span-4" onclick={() => (moreOptionsOpen = true)}>
+					More options — discount, delivery fee, payment method, notes
 				</button>
 			{:else}
 				<div><label class="label" for="discount">Discount</label><input id="discount" name="discount" bind:value={discount} placeholder="0.00" inputmode="decimal" class="input" /></div>
 				<div><label class="label" for="deliveryFee">Delivery fee</label><input id="deliveryFee" name="deliveryFee" bind:value={deliveryFee} placeholder="0.00" inputmode="decimal" class="input" /></div>
-				<div class="sm:col-span-2"><label class="label" for="notes">Notes</label><textarea id="notes" name="notes" rows="2" class="input" placeholder="Call before delivery."></textarea></div>
+				<div>
+					<label class="label" for="paymentMethod">Payment method</label>
+					<select id="paymentMethod" name="paymentMethod" bind:value={paymentMethod} class="input">
+						<option value="">—</option>
+						{#each ['Cash on Delivery', 'Mobile Payment', 'Bank Transfer', 'Other'] as m (m)}<option value={m}>{m}</option>{/each}
+					</select>
+				</div>
+				<div>
+					<label class="label" for="source">Where did this order come from?</label>
+					<select id="source" name="source" class="input">
+						{#each ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'PHONE', 'WALK_IN', 'INSTAGRAM', 'FACEBOOK', 'WEBSITE', 'MANUAL', 'OTHER'] as s (s)}
+							<option value={s} selected={data.conversation ? s === 'WHATSAPP_DIRECT' : s === 'MANUAL'}>{sourceLabel(s)}</option>
+						{/each}
+					</select>
+				</div>
+				<div class="sm:col-span-4"><label class="label" for="notes">Notes</label><textarea id="notes" name="notes" bind:value={notes} rows="2" class="input" placeholder="Call before delivery."></textarea></div>
 			{/if}
 			<datalist id="unit-options">{#each data.units as u (u)}<option value={u}></option>{/each}</datalist>
 		</section>
@@ -166,3 +227,4 @@
 		</div>
 	</form>
 </div>
+{/if}

@@ -91,6 +91,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		centre,
 		attention: attention.items,
+		context: attention.context,
 		persona: attention.persona,
 		today: attention.today,
 		myWork: mine,

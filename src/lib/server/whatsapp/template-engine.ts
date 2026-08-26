@@ -114,7 +114,12 @@ export const NOTIFY_EVENTS = [
 	'ORDER_CONFIRMED',
 	'ORDER_READY',
 	'ORDER_DISPATCHED',
-	'ORDER_DELIVERED'
+	'ORDER_DELIVERED',
+	// V6 — moments the journeys reach but nobody was told about.
+	'QUOTATION_ACCEPTED',
+	'QUOTATION_REMINDER',
+	'PAYMENT_NOT_FOUND',
+	'BOOKING_CANCELLED'
 ] as const;
 
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number];

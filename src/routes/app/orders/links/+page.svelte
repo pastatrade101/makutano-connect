@@ -14,6 +14,45 @@
 	let copied = $state<string | null>(null);
 
 	const editLink = $derived(data.links.find((l) => l.id === editing) ?? null);
+
+	// Publishing an offer needs four answers; the other eighteen fields are for the
+	// times you want them. They stay one tap away, and open themselves when they matter.
+	let moreOpen = $state(false);
+	let unitChoice = $state('');
+	let deliveryOn = $state(true);
+	let pickupOn = $state(true);
+	let deliveryFee = $state('0');
+
+	const advancedOf = (l: (typeof data.links)[number] | null) => {
+		if (!l) return [] as string[];
+		const set: string[] = [];
+		if (l.description) set.push('description');
+		if (l.imageUrl) set.push('image');
+		if (l.deadline) set.push('closing time');
+		if (l.deliveryDate) set.push('delivery date');
+		if (l.capacityTotal) set.push('capacity');
+		if (l.batchId) set.push('batch');
+		if (l.maxQuantity) set.push('maximum quantity');
+		if ((l.shareTags as Array<unknown> | undefined)?.length) set.push('share tags');
+		if (l.paymentTiming === 'IMMEDIATE') set.push('immediate payment');
+		return set;
+	};
+	/** Editing something that already carries advanced settings: never hide them. */
+	const editingAdvanced = $derived(advancedOf(editLink));
+
+	$effect(() => {
+		const l = editLink;
+		unitChoice = l ? (data.unitPresets.includes(l.unit as never) ? l.unit : 'CUSTOM') : data.unitPresets[0] ?? '';
+		deliveryOn = l?.deliveryEnabled ?? true;
+		pickupOn = l?.pickupEnabled ?? true;
+		deliveryFee = l ? String(l.deliveryFee) : '0';
+		moreOpen = advancedOf(l).length > 0;
+	});
+
+	// A link with no delivery must not carry a delivery fee to the server.
+	$effect(() => {
+		if (!deliveryOn) deliveryFee = '0';
+	});
 	const publicUrl = (publicId: string, tag?: string) => `${data.origin}/o/${publicId}${tag ? `?s=${tag}` : ''}`;
 
 	const STATUS_TONE: Record<string, string> = {
@@ -126,15 +165,36 @@
 			{#if l}<input type="hidden" name="id" value={l.id} /><input type="hidden" name="catalogItemId" value={l.catalogItemId ?? ''} />{/if}
 			<div class="sm:col-span-2"><label class="label" for="ol-title">What are you selling?</label><input id="ol-title" name="title" required value={l?.title ?? ''} placeholder="Fresh Fish" class="input" /></div>
 			<div>
-				<label class="label" for="ol-unit">Unit</label>
-				<select id="ol-unit" name="unit" class="input">
-					{#each data.unitPresets as u (u)}<option value={u} selected={l?.unit === u}>{u}</option>{/each}
-					<option value="CUSTOM" selected={!!l && !data.unitPresets.includes(l.unit as never)}>Custom…</option>
+				<label class="label" for="ol-unit">Sold by</label>
+				<select id="ol-unit" name="unit" bind:value={unitChoice} class="input">
+					{#each data.unitPresets as u (u)}<option value={u}>{u}</option>{/each}
+					<option value="CUSTOM">Something else…</option>
 				</select>
 			</div>
-			<div><label class="label" for="ol-custom-unit">Custom unit <span class="font-normal text-slate-400">(if chosen)</span></label><input id="ol-custom-unit" name="customUnit" value={l && !data.unitPresets.includes(l.unit as never) ? l.unit : ''} placeholder="Crate" class="input" /></div>
+			<!-- Only asked when the presets do not cover it. -->
+			{#if unitChoice === 'CUSTOM'}
+				<div><label class="label" for="ol-custom-unit">What do you call it?</label><input id="ol-custom-unit" name="customUnit" value={l && !data.unitPresets.includes(l.unit as never) ? l.unit : ''} placeholder="Crate" class="input" required /></div>
+			{/if}
 			<div><label class="label" for="ol-price">Price per unit</label><input id="ol-price" name="unitPrice" required inputmode="decimal" value={l ? String(l.unitPrice) : ''} placeholder="14000" class="input" /></div>
 			<div><label class="label" for="ol-currency">Currency</label><input id="ol-currency" name="currency" maxlength="3" value={l?.currency ?? data.tenant.currency} class="input font-mono uppercase" /></div>
+			<div class="flex flex-wrap items-center gap-4 sm:col-span-2">
+				<label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="pickupEnabled" bind:checked={pickupOn} class="rounded border-slate-300" /> Pickup</label>
+				<label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="deliveryEnabled" bind:checked={deliveryOn} class="rounded border-slate-300" /> Delivery</label>
+				{#if deliveryOn}
+					<div class="flex items-center gap-2"><span class="text-xs text-slate-500">Delivery fee</span><input name="deliveryFee" inputmode="decimal" bind:value={deliveryFee} class="input w-28 py-1.5" /></div>
+				{:else}
+					<input type="hidden" name="deliveryFee" value="0" />
+				{/if}
+			</div>
+
+			{#if !moreOpen}
+				<button type="button" class="text-left text-[13px] font-medium text-brand-600 hover:underline sm:col-span-2 lg:col-span-4" onclick={() => (moreOpen = true)}>
+					More options — quantities, description, closing time, capacity, payment timing, share tags
+				</button>
+			{:else}
+				{#if editingAdvanced.length}
+					<p class="text-[12.5px] text-slate-500 sm:col-span-2 lg:col-span-4">This link already sets: {editingAdvanced.join(', ')}.</p>
+				{/if}
 			<div><label class="label" for="ol-min">Minimum qty</label><input id="ol-min" name="minQuantity" inputmode="numeric" value={l?.minQuantity ?? 1} class="input" /></div>
 			<div><label class="label" for="ol-max">Maximum qty <span class="font-normal text-slate-400">(optional)</span></label><input id="ol-max" name="maxQuantity" inputmode="numeric" value={l?.maxQuantity ?? ''} class="input" /></div>
 			<div class="sm:col-span-2"><label class="label" for="ol-desc">Description <span class="font-normal text-slate-400">(optional)</span></label><input id="ol-desc" name="description" value={l?.description ?? ''} placeholder="Fresh fish available for Saturday delivery." class="input" /></div>
@@ -147,12 +207,6 @@
 					<option value="">No batch</option>
 					{#each data.batches as b (b.id)}<option value={b.id} selected={l?.batchId === b.id}>{b.name}</option>{/each}
 				</select>
-			</div>
-
-			<div class="flex flex-wrap items-center gap-4 sm:col-span-2">
-				<label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="pickupEnabled" checked={l?.pickupEnabled ?? true} class="rounded border-slate-300" /> Pickup</label>
-				<label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="deliveryEnabled" checked={l?.deliveryEnabled ?? true} class="rounded border-slate-300" /> Delivery</label>
-				<div class="flex items-center gap-2"><span class="text-xs text-slate-500">Delivery fee</span><input name="deliveryFee" inputmode="decimal" value={l ? String(l.deliveryFee) : '0'} class="input w-28 py-1.5" /></div>
 			</div>
 
 			<div class="sm:col-span-2">
@@ -182,6 +236,8 @@
 			</div>
 
 			<div class="sm:col-span-2"><label class="label" for="ol-tags">Share tags <span class="font-normal text-slate-400">(optional, comma-separated — each gets its own trackable link)</span></label><input id="ol-tags" name="shareTags" value={(l?.shareTags as Array<{ label: string }> | undefined)?.map((t) => t.label).join(', ') ?? ''} placeholder="WhatsApp Group A, Status, Instagram" class="input" /></div>
+			{/if}
+
 
 			<div class="flex items-end gap-3 sm:col-span-2 lg:col-span-4">
 				<button class="btn-primary">{l ? 'Save changes' : 'Create link'}</button>
