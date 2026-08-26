@@ -127,6 +127,7 @@
 	const KIND_LABEL: Record<string, string> = { enquiry: 'Enquiry' };
 	let showContext = $state(false);
 	let showChatActions = $state(false);
+	let confirmDelete = $state(false);
 	let batchQty = $state('');
 	let others = $state<Array<{ name: string; typing: boolean }>>([]);
 	let composerText = $state('');
@@ -219,15 +220,16 @@
 			</button>
 		{/if}
 	</div>
-	<button class="flex size-10 shrink-0 items-center justify-center rounded-full wa-text-muted hover:bg-black/5 lg:hidden" onclick={() => (showChatActions = true)} aria-label="Conversation actions">
+	<button class="flex size-10 shrink-0 items-center justify-center rounded-full wa-text-muted hover:bg-black/5" onclick={() => (showChatActions = true)} aria-label="Conversation actions">
 		<svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="10" cy="16" r="1.5" /></svg>
 	</button>
 </header>
 
 {#if showChatActions}
-	<div class="fixed inset-0 z-50 flex items-end bg-slate-900/40 lg:hidden">
+	<!-- A sheet on a phone, a centred panel on a desktop: same actions, same code. -->
+	<div class="fixed inset-0 z-50 flex items-end bg-slate-900/40 lg:items-center lg:justify-center">
 		<button class="absolute inset-0" onclick={() => (showChatActions = false)} aria-label="Close conversation actions" tabindex="-1"></button>
-		<section class="mobile-sheet relative z-10 w-full rounded-t-3xl bg-white p-4 shadow-xl">
+		<section class="mobile-sheet relative z-10 w-full rounded-t-3xl bg-white p-4 shadow-xl lg:max-w-sm lg:rounded-2xl">
 			<div class="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200"></div>
 			<div class="mb-3 flex items-center justify-between"><div><h2 class="font-semibold text-slate-800">{who}</h2><p class="text-xs text-slate-400">Conversation actions</p></div><button class="rounded-full bg-slate-50 p-2 text-slate-500" onclick={() => (showChatActions = false)} aria-label="Close"><svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 5 10 10M15 5 5 15" /></svg></button></div>
 			<div class="grid gap-2">
@@ -237,6 +239,34 @@
 				{#if data.conversation.bookingRequestId}<a href="/app/booking-requests/{data.conversation.bookingRequestId}" class="btn-secondary w-full justify-start">Open enquiry</a>{/if}
 				{#if moduleRelevant(data.tenant.capabilities, 'enquiries') && data.permissions?.includes('booking_requests:write')}<a href="/app/booking-requests/new?conversation={data.conversation.id}" class="btn-primary w-full justify-start">Create enquiry</a>{/if}
 				{#if moduleRelevant(data.tenant.capabilities, 'orders') && data.permissions?.includes('orders:write')}<a href="/app/orders/new?conversation={data.conversation.id}" class="btn-primary w-full justify-start">Create order</a>{/if}
+
+				{#if data.permissions?.includes('conversations:write')}
+					<form method="POST" action="?/setOpen" use:enhance={() => async ({ update }) => { await update(); showChatActions = false; }}>
+						<input type="hidden" name="isOpen" value={data.conversation.isOpen ? 'false' : 'true'} />
+						<button class="btn-secondary w-full justify-start">{data.conversation.isOpen ? 'Close chat' : 'Reopen chat'}</button>
+					</form>
+				{/if}
+
+				<!-- Deleting a customer's message history is an owner/admin act, and it is
+				     irreversible — so it asks once, in plain words, before it happens. -->
+				{#if data.permissions?.includes('conversations:delete')}
+					{#if confirmDelete}
+						<div class="rounded-panel border border-danger/25 bg-danger/5 p-3">
+							<p class="text-[13px] text-slate-700">
+								Delete this chat and its {data.messages.length === 1 ? 'message' : `${data.messages.length} messages`}?
+								Orders, enquiries, quotations and payments stay — only the conversation goes. This cannot be undone.
+							</p>
+							<div class="mt-3 flex gap-2">
+								<form method="POST" action="?/deleteConversation" use:enhance class="flex-1">
+									<button class="btn-danger w-full">Delete chat</button>
+								</form>
+								<button type="button" class="btn-secondary flex-1" onclick={() => (confirmDelete = false)}>Keep it</button>
+							</div>
+						</div>
+					{:else}
+						<button class="btn-danger w-full justify-start" onclick={() => (confirmDelete = true)}>Delete chat</button>
+					{/if}
+				{/if}
 			</div>
 		</section>
 	</div>

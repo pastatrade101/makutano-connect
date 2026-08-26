@@ -48,6 +48,8 @@ export const PERMISSIONS = [
 	'conversations:view_all',
 	'conversations:view_private',
 	'conversations:assign',
+	// Erasing a customer's message history is an owner/admin act, not a daily one.
+	'conversations:delete',
 	// High-risk payment capabilities, deliberately separate from payments:write.
 	'payments:request',
 	'payments:verify',
@@ -107,6 +109,7 @@ const BOOKING_AGENT: Permission[] = [
 
 const ADMIN: Permission[] = [
 	...BOOKING_AGENT,
+	'conversations:delete',
 	'forms:write',
 	'tenant:write',
 	'members:write',
@@ -139,10 +142,7 @@ export function permissionsForRole(role: Role): Permission[] {
  * owners: an owner can never lock themselves out of their own tenant (§12). Plan
  * entitlements are checked separately at every point of use and always win (§6).
  */
-export function effectivePermissions(
-	role: Role,
-	overrides: Record<string, boolean> | null | undefined
-): Permission[] {
+export function effectivePermissions(role: Role, overrides: Record<string, boolean> | null | undefined): Permission[] {
 	const base = new Set(permissionsForRole(role));
 	if (role === 'OWNER' || role === 'SUPER_ADMIN' || !overrides) return [...base];
 	for (const [key, granted] of Object.entries(overrides)) {

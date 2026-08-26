@@ -1,11 +1,13 @@
-import { error, fail, type Actions } from '@sveltejs/kit';
+import { error, fail, redirect, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { and, eq, sql } from 'drizzle-orm';
 import { requirePermission } from '$lib/server/auth/permissions';
 import {
+	deleteConversation,
 	getConversation,
 	listMessages,
 	markConversationRead,
+	setConversationOpen,
 	updateConversationAccess
 } from '$lib/server/conversations';
 import { db, schema } from '$lib/server/db';
@@ -174,6 +176,39 @@ export const actions: Actions = {
 	 * Read one customer message and suggest an order. Returns a DRAFT only — nothing
 	 * is written, nothing is sent. The staff member edits it and presses create.
 	 */
+	/** Everyday tidy-up: the thread leaves the open list, nothing is lost. */
+	setOpen: async ({ locals, params, request }) => {
+		if (!locals.permissions?.includes('conversations:write')) {
+			return fail(403, { message: 'You do not have permission to change this chat.' });
+		}
+		const data = await request.formData();
+		try {
+			await setConversationOpen(requireTenant(locals).id, idOf(params), data.get('isOpen') === 'true', {
+				userId: locals.user!.id
+			});
+			return { success: true, notice: data.get('isOpen') === 'true' ? 'Chat reopened' : 'Chat closed' };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
+	/**
+	 * Delete the chat and its messages. Orders, enquiries, quotations and payment
+	 * requests survive — they simply stop pointing at it. Owner/admin only.
+	 */
+	deleteConversation: async ({ locals, params }) => {
+		if (!locals.permissions?.includes('conversations:delete')) {
+			return fail(403, { message: 'Only an owner or admin can delete a chat.' });
+		}
+		const tenantId = requireTenant(locals).id;
+		try {
+			await deleteConversation(tenantId, idOf(params), { userId: locals.user!.id });
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+		redirect(303, '/app/conversations?deleted=1');
+	},
+
 	suggestOrder: async ({ locals, params, request }) => {
 		requirePermission(locals.permissions, 'orders:write');
 		const tenantId = requireTenant(locals).id;

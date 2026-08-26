@@ -215,6 +215,73 @@ export async function updateConversationAccess(
 	return updated;
 }
 
+/**
+ * Close or reopen a thread. Closing is the everyday tidy-up — the conversation and
+ * everything attached to it stays exactly where it is, it simply leaves the open list.
+ */
+export async function setConversationOpen(
+	tenantId: string,
+	id: string,
+	isOpen: boolean,
+	actor: { userId: string }
+): Promise<schema.Conversation> {
+	const before = await getConversation(tenantId, id);
+	if (before.isOpen === isOpen) return before;
+	const [updated] = await db()
+		.update(schema.conversations)
+		.set({ isOpen, updatedAt: new Date() })
+		.where(and(eq(schema.conversations.id, id), eq(schema.conversations.tenantId, tenantId)))
+		.returning();
+	await audit(
+		tenantId,
+		isOpen ? 'conversation.reopened' : 'conversation.closed',
+		{ type: 'user', userId: actor.userId },
+		{ type: 'conversation', id }
+	);
+	return updated;
+}
+
+/**
+ * Delete a thread and its messages, for good.
+ *
+ * What survives: every business record the thread produced. Orders, enquiries,
+ * quotations and payment requests hold the conversation with ON DELETE SET NULL, so
+ * they keep their money, their status and their history — they just stop pointing at
+ * a chat that no longer exists. What goes: the messages themselves (ON DELETE CASCADE).
+ *
+ * Irreversible, so it is audited with enough detail to say afterwards what was removed
+ * and by whom, and it is gated on conversations:delete at every call site.
+ */
+export async function deleteConversation(
+	tenantId: string,
+	id: string,
+	actor: { userId: string }
+): Promise<{ messagesDeleted: number }> {
+	const conversation = await getConversation(tenantId, id);
+	const [{ value: messageCount }] = await db()
+		.select({ value: count() })
+		.from(schema.messages)
+		.where(and(eq(schema.messages.tenantId, tenantId), eq(schema.messages.conversationId, id)));
+
+	await db()
+		.delete(schema.conversations)
+		.where(and(eq(schema.conversations.id, id), eq(schema.conversations.tenantId, tenantId)));
+
+	await audit(
+		tenantId,
+		'conversation.deleted',
+		{ type: 'user', userId: actor.userId },
+		{ type: 'conversation', id },
+		{
+			channel: conversation.channel,
+			externalId: conversation.externalId,
+			customerId: conversation.customerId,
+			messagesDeleted: Number(messageCount)
+		}
+	);
+	return { messagesDeleted: Number(messageCount) };
+}
+
 export async function listConversations(
 	tenantId: string,
 	p: Pagination,

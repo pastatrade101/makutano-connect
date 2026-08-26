@@ -110,6 +110,56 @@ suite('team access & conversation visibility', () => {
 		expect(finance).not.toContain('whatsapp:connect');
 	});
 
+	it('deleting a chat takes its messages and leaves the business records', async () => {
+		const { db, schema } = ctx.db;
+		const { eq } = await import('drizzle-orm');
+		const convo = await ctx.conv.findOrCreateConversation({
+			tenantId,
+			channel: 'WHATSAPP',
+			externalId: `delete-me-${stamp}`
+		});
+		await db()
+			.insert(schema.messages)
+			.values({
+				tenantId,
+				conversationId: convo.id,
+				direction: 'INBOUND' as never,
+				channel: 'WHATSAPP' as never,
+				body: 'This message goes with the chat.',
+				status: 'DELIVERED' as never
+			});
+		// An enquiry raised from that chat — the kind of record that must outlive it.
+		const [request] = await db()
+			.insert(schema.bookingRequests)
+			.values({
+				tenantId,
+				reference: `KEEP-${stamp}`,
+				conversationId: convo.id,
+				status: 'NEW' as never,
+				currency: 'USD'
+			})
+			.returning();
+
+		const { messagesDeleted } = await ctx.conv.deleteConversation(tenantId, convo.id, { userId: ownerId });
+		expect(messagesDeleted).toBeGreaterThanOrEqual(1);
+
+		// The chat and its messages are gone...
+		await expect(ctx.conv.getConversation(tenantId, convo.id)).rejects.toBeTruthy();
+		const orphanMessages = await db()
+			.select()
+			.from(schema.messages)
+			.where(eq(schema.messages.conversationId, convo.id));
+		expect(orphanMessages).toHaveLength(0);
+
+		// ...and the enquiry is still there, simply no longer pointing at a chat.
+		const [survivor] = await db()
+			.select()
+			.from(schema.bookingRequests)
+			.where(eq(schema.bookingRequests.id, request.id));
+		expect(survivor.reference).toBe(request.reference);
+		expect(survivor.conversationId).toBeNull();
+	});
+
 	it('a brand-new conversation lands with the account owner, not in an unowned pile', async () => {
 		const convo = await ctx.conv.findOrCreateConversation({
 			tenantId,
