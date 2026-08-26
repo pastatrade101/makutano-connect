@@ -96,7 +96,11 @@
 	<div class="card overflow-hidden">
 		<FilterBar statuses={STATUSES} placeholder="Search payment reference…" />
 		{#if data.items.length === 0}
-			<EmptyState title="No payments recorded" description="Record a payment from a booking, or take one through a provider." />
+			<EmptyState
+					title="No payments yet"
+					description="Ask for money from the order or booking itself — open it and choose Request payment. The customer gets instructions on WhatsApp, and what they report lands here for you to verify."
+					action={{ href: '/app/settings#payments', label: 'Set up how customers pay' }}
+				/>
 		{:else}
 			<div>
 				<table class="mobile-record-table min-w-full divide-y divide-slate-100">

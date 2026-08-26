@@ -38,13 +38,37 @@
 			if (c?.open_batch_id) items.push({ href: `/app/orders/batches/${c.open_batch_id}`, label: `Open batch: ${String(c.open_batch_name ?? '').slice(0, 26)}` });
 			items.push({ href: '/app/orders/new', label: 'New order' });
 		}
-		if (rel('enquiries') && can('booking_requests:write')) items.push({ href: '/app/booking-requests', label: 'New enquiry' });
-		if (rel('quotations') && data.entitlements?.['quotations.enabled'] === true && can('quotations:write')) {
-			items.push({ href: '/app/quotations', label: 'New quotation' });
-		}
+		if (rel('enquiries') && can('booking_requests:write')) items.push({ href: '/app/booking-requests/new', label: 'New enquiry' });
 		items.push({ href: '/app/conversations', label: 'Open inbox' });
 		if (can('customers:write')) items.push({ href: '/app/customers?new=1', label: 'New customer' });
 		return items.slice(0, 4);
+	});
+
+	// "Where does work come from?" — the question a new account cannot answer, and the
+	// one Connect never used to answer. Shown until the first enquiry or order lands.
+	// "Started" means started at the work THIS business does: a seller with one stray
+	// enquiry has still never taken an order, and still needs to be told how.
+	const started = $derived((rel('enquiries') ? n('enquiries_total') : 0) + (rel('orders') ? n('orders_total') : 0) > 0);
+	const routesIn = $derived.by(() => {
+		const can = (perm: string) => data.permissions?.includes(perm as never);
+		const routes: Array<{ title: string; body: string; href: string; label: string }> = [];
+		if (rel('orders') && data.entitlements?.['orders.enabled'] === true && can('orders:write')) {
+			routes.push({ title: 'Share an order link', body: 'One offer, one link. Post it in a WhatsApp group or status and orders arrive here already structured.', href: '/app/orders/links', label: 'Create an order link' });
+			routes.push({ title: 'Take it in the chat', body: 'A customer writes what they want; you record the order from the conversation without leaving it.', href: '/app/conversations', label: 'Open inbox' });
+			routes.push({ title: 'Write one down', body: 'Someone orders by phone or in person — record it yourself in a few seconds.', href: '/app/orders/new', label: 'New order' });
+		} else if (rel('enquiries')) {
+			routes.push({ title: 'From WhatsApp', body: 'A traveller writes to your number. Open the message and turn it into an enquiry in one step.', href: '/app/conversations', label: 'Open inbox' });
+			routes.push({ title: 'From your website', body: 'Keep your site as it is — send its enquiries into Connect through a form, widget or the API.', href: '/app/forms', label: 'Set up a form' });
+			if (can('booking_requests:write')) routes.push({ title: 'By phone or in person', body: 'Log what they asked for while you are still talking to them.', href: '/app/booking-requests/new', label: 'Log an enquiry' });
+		}
+		return routes;
+	});
+
+	const greeting = $derived.by(() => {
+		const hour = Number(new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: data.tenant.timezone }).format(new Date()));
+		const part = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+		const first = (data.user.fullName || '').trim().split(/\s+/)[0];
+		return first ? `${part}, ${first}` : part;
 	});
 	// ?welcome=1 arrives once, straight after signup — it only changes the wording.
 	const justSignedUp = $derived(page.url.searchParams.get('welcome') === '1');
@@ -73,13 +97,11 @@
 <svelte:head><title>Overview · {data.tenant.name}</title></svelte:head>
 
 <div class="space-y-4">
-	<div class="flex items-center justify-between">
-		<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Home</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Your business today</p></div>
-		{#if rel('orders') && !rel('enquiries')}
-			<a href="/app/orders/batches" class="btn-secondary">Batches</a>
-		{:else}
-			<a href="/app/booking-requests" class="btn-secondary">All enquiries</a>
-		{/if}
+	<div>
+		<h1 class="text-xl font-bold tracking-tight text-slate-900">{greeting}</h1>
+		<p class="mt-0.5 text-[13px] text-slate-500">
+			{attention.length ? "Here's what needs your attention." : 'Nothing is waiting on you right now.'}
+		</p>
 	</div>
 
 	{#if data.onboarding}
@@ -109,6 +131,29 @@
 		</section>
 	{/if}
 
+	<!-- §5 Quick actions — what I can do right now, in this business -->
+	<div class="flex flex-wrap gap-2">
+		{#each quickActions as action, i (action.href)}
+			<a href={action.href} class={i === 0 ? 'btn-primary' : 'btn-secondary'}>{action.label}</a>
+		{/each}
+	</div>
+
+	{#if !started && routesIn.length}
+		<section class="card p-4 sm:p-5">
+			<h2 class="text-sm font-semibold text-slate-800">{rel('orders') && !rel('enquiries') ? 'How do you want to receive orders?' : 'How enquiries reach you'}</h2>
+			<p class="mt-1 text-[13px] text-slate-500">Pick whichever fits how you already work — you can use all three.</p>
+			<div class="mt-4 grid gap-2 sm:grid-cols-3">
+				{#each routesIn as route (route.href)}
+					<div class="flex flex-col rounded-xl border border-slate-200 p-3.5">
+						<p class="text-[13.5px] font-semibold text-slate-800">{route.title}</p>
+						<p class="mt-1 flex-1 text-[12px] leading-5 text-slate-500">{route.body}</p>
+						<a href={route.href} class="btn-secondary mt-3 !py-1.5 text-xs">{route.label}</a>
+					</div>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
 	<!-- §5 Today -->
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">New chats today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('chats_today')}</div></div>
@@ -119,13 +164,6 @@
 			<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Enquiries today</div><div class="text-lg font-bold tabular-nums text-slate-800">{n('enquiries_today')}</div></div>
 		{/if}
 		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Received today</div><div class="text-lg font-bold tabular-nums text-success"><Money amount={String(c?.received_today ?? '0')} currency={data.tenant.currency} /></div></div>
-	</div>
-
-	<!-- §5 Quick actions -->
-	<div class="flex flex-wrap gap-2">
-		{#each quickActions as action, i (action.href)}
-			<a href={action.href} class={i === 0 ? 'btn-primary' : 'btn-secondary'}>{action.label}</a>
-		{/each}
 	</div>
 
 	{#if !data.whatsapp || data.whatsapp.status !== 'CONNECTED'}
@@ -147,15 +185,6 @@
 	</div>
 	{/if}
 
-	<section class="card">
-		<header class="card-header">
-			<h2 class="card-title">Activity — last 14 days</h2>
-		</header>
-		<div class="px-2 pt-2">
-			<Chart options={chartOptions} />
-		</div>
-	</section>
-
 	<div class="grid gap-4 lg:grid-cols-3">
 		{#if rel('enquiries')}
 		<section class="card lg:col-span-2">
@@ -164,7 +193,7 @@
 				<a href="/app/booking-requests" class="text-xs text-brand-600 hover:underline">View all</a>
 			</header>
 			{#if data.recentRequests.length === 0}
-				<p class="px-3 py-8 text-center text-xs text-slate-500">No booking requests yet.</p>
+				<p class="px-3 py-8 text-center text-xs text-slate-500">No enquiries yet.</p>
 			{:else}
 				<div>
 					<table class="mobile-record-table min-w-full divide-y divide-slate-100">
@@ -228,6 +257,15 @@
 			{/if}
 		</section>
 	</div>
+
+	<section class="card">
+		<header class="card-header">
+			<h2 class="card-title">Activity — last 14 days</h2>
+		</header>
+		<div class="px-2 pt-2">
+			<Chart options={chartOptions} />
+		</div>
+	</section>
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 		<StatTile label="Customers" value={s.customers.total} hint="{s.customers.last30Days} new in 30 days" href="/app/customers" />

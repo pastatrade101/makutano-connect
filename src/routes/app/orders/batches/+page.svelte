@@ -1,11 +1,13 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import { enhance } from '$lib/forms';
 	import EmptyState from '$components/EmptyState.svelte';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	let { data, form } = $props();
-	let showForm = $state(data.batches.length === 0);
+	// Opened from "+ New batch": the form is the reason they came, so it is already open.
+	let showForm = $state(data.batches.length === 0 || page.url.searchParams.get('new') === '1');
 
 	const fmtDate = (d: string | Date | null) =>
 		d ? new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '—';

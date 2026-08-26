@@ -42,6 +42,8 @@ async function actionCentre(tenantId: string) {
 			(select count(*)::int from conversations c where c.tenant_id = ${tenantId}::uuid and c.created_at::date = current_date) as chats_today,
 			(select count(*)::int from orders o where o.tenant_id = ${tenantId}::uuid and o.created_at::date = current_date) as orders_today,
 			(select count(*)::int from booking_requests r where r.tenant_id = ${tenantId}::uuid and r.created_at::date = current_date) as enquiries_today,
+			(select count(*)::int from booking_requests r where r.tenant_id = ${tenantId}::uuid) as enquiries_total,
+			(select count(*)::int from orders o where o.tenant_id = ${tenantId}::uuid) as orders_total,
 			(select coalesce(sum(p.amount), 0)::numeric(14,2) from payments p
 				where p.tenant_id = ${tenantId}::uuid and p.status = 'SUCCEEDED' and p.created_at::date = current_date) as received_today,
 			(select ob.id::text from order_batches ob
@@ -64,7 +66,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		customerStats(tenantId),
 		paymentStats(tenantId),
 		listBookingRequests(tenantId, pagination),
-		listConversations(tenantId, pagination, { open: true }, { userId: locals.user!.id, permissions: locals.permissions }),
+		listConversations(
+			tenantId,
+			pagination,
+			{ open: true },
+			{ userId: locals.user!.id, permissions: locals.permissions }
+		),
 		getConnectionForTenant(tenantId),
 		dailySeries(tenantId),
 		actionCentre(tenantId)

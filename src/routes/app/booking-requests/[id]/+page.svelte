@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { statusLabel } from '$lib/labels';
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$lib/forms';
@@ -32,10 +33,27 @@
 
 <FormToast {form} successTitle="Saved" />
 
+<!-- Created just now: say what happened, then hand over the next move rather than
+     leaving a green tick and a page the operator has to interpret. -->
+{#if page.url.searchParams.get('created') === '1'}
+	<div class="mb-3 flex flex-wrap items-center gap-2 rounded-panel border border-success/25 bg-success/5 px-4 py-3">
+		<span class="text-sm font-semibold text-slate-800">Enquiry created</span>
+		<span class="text-[13px] text-slate-500">What next?</span>
+		<div class="ml-auto flex flex-wrap gap-1.5">
+			{#if canQuote}
+				<form method="POST" action="?/createQuote" use:enhance><button class="btn-primary !py-1.5 text-xs">Create quotation</button></form>
+			{/if}
+			{#if data.request.conversationId}
+				<a href="/app/conversations/{data.request.conversationId}" class="btn-secondary !py-1.5 text-xs">Reply on WhatsApp</a>
+			{/if}
+		</div>
+	</div>
+{/if}
+
 <div class="space-y-3">
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div>
-			<a href="/app/booking-requests" class="text-xs text-slate-500 hover:underline">← Booking requests</a>
+			<a href="/app/booking-requests" class="text-xs text-slate-500 hover:underline">← Enquiries</a>
 			<h1 class="flex items-center gap-2 text-base font-semibold text-slate-900">
 				{data.request.reference}
 				<StatusBadge value={data.request.status} />

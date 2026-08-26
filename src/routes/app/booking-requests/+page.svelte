@@ -22,7 +22,10 @@
 	<WorkspaceNotice module="Enquiries" />
 {:else}
 <div class="space-y-3">
-	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Booking requests</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">New enquiries and trip requests</p></div>
+	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Enquiries</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Who is asking, and what happens next</p></div>
+	{#if data.permissions?.includes('booking_requests:write')}
+		<a href="/app/booking-requests/new" class="btn-primary">New enquiry</a>
+	{/if}
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
 		<StatTile label="Total" value={data.stats.total} />
@@ -37,7 +40,12 @@
 		<FilterBar statuses={STATUSES} sources={SOURCES} showTour placeholder="Search reference, traveller, email…" />
 
 		{#if data.items.length === 0}
-			<EmptyState title="No booking requests match this view" description="Requests arrive from your website form, the API or WhatsApp." />
+			<EmptyState
+					title="No enquiries yet"
+					description="Enquiries arrive on their own from your website form, the API and WhatsApp conversations. Log one yourself when a customer phones or walks in."
+					action={data.permissions?.includes('booking_requests:write') ? { href: '/app/booking-requests/new', label: 'Log an enquiry' } : undefined}
+					secondary={{ href: '/app/conversations', label: 'Open inbox' }}
+				/>
 		{:else}
 			<div>
 				<table class="mobile-record-table min-w-full divide-y divide-slate-100">

@@ -54,7 +54,6 @@
 			label: 'More',
 			items: [
 				{ href: '/app/whatsapp', label: 'WhatsApp', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.enabled' },
-				{ href: '/app/whatsapp/templates', label: 'Message templates', icon: 'M4 4h12v4H4V4Zm0 6h12v2H4v-2Zm0 4h8v2H4v-2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.templatesEnabled' },
 				{ href: '/app/forms', label: 'Forms & widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read', entitlement: 'forms.hostedEnabled' },
 				{ href: '/app/catalog', label: 'Catalog', icon: 'M4 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v11l-3-1.8L10 16l-3-1.8L4 16V5Z', permission: 'catalog:read', module: 'catalog' },
 				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read', module: 'leads' },
@@ -94,17 +93,17 @@
 		// Workspace relevance AND entitlement AND permission — the §9 triple, in order.
 		if (moduleRelevant(ws, 'orders') && ent('orders.enabled') && can('orders:write')) {
 			items.push({ href: '/app/orders/new', label: 'New order', hint: 'Record a customer order' });
-			items.push({ href: '/app/orders/batches', label: 'New batch', hint: 'A selling round with shared price' });
+			items.push({ href: '/app/orders/links', label: 'Order link', hint: 'One offer, one link to share' });
+			items.push({ href: '/app/orders/batches?new=1', label: 'New batch', hint: 'A selling round with shared price' });
 		}
 		if (moduleRelevant(ws, 'enquiries') && can('booking_requests:write')) {
-			items.push({ href: '/app/booking-requests', label: 'New enquiry', hint: ws === 'SERVICE' ? 'Log a customer enquiry' : 'Log a booking enquiry' });
-		}
-		if (moduleRelevant(ws, 'quotations') && ent('quotations.enabled') && can('quotations:write')) {
-			items.push({ href: '/app/quotations', label: 'New quotation', hint: 'Draft a quote to send' });
+			items.push({ href: '/app/booking-requests/new', label: 'New enquiry', hint: ws === 'SERVICE' ? 'Log a customer enquiry' : 'Log a booking enquiry' });
 		}
 		if (can('customers:write')) {
 			items.push({ href: '/app/customers?new=1', label: 'New customer', hint: 'Add someone manually' });
 		}
+		// Quotations are deliberately absent: one always starts from an enquiry, so a
+		// "New quotation" button could only ever drop someone on a list.
 		return items;
 	});
 	let quickOpen = $state(false);

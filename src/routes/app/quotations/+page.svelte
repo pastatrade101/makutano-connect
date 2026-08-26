@@ -16,7 +16,11 @@
 	<div class="card overflow-hidden">
 		<FilterBar statuses={STATUSES} placeholder="Search quotation reference…" />
 		{#if data.items.length === 0}
-			<EmptyState title="No quotations yet" description="Create a quotation from a booking request, a lead or a WhatsApp conversation." />
+			<EmptyState
+					title="No quotations yet"
+					description="A quotation starts from an enquiry — open the enquiry you want to price and choose Create quotation. It keeps the customer, dates and party size attached."
+					action={{ href: '/app/booking-requests', label: 'Go to enquiries' }}
+				/>
 		{:else}
 			<div>
 				<table class="mobile-record-table min-w-full divide-y divide-slate-100">

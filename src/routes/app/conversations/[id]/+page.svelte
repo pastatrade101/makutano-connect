@@ -88,6 +88,29 @@
 	const who = $derived([data.customer?.firstName, data.customer?.lastName].filter(Boolean).join(' ') || `+${data.conversation.externalId ?? ''}`);
 	const initials = $derived(who.replace(/^\+/, '').split(/\s+/).map((p: string) => p[0]).join('').slice(0, 2).toUpperCase() || '#');
 
+	// §12/§18 — the thread is where staff live, so it carries the next move rather than
+	// making them remember the workflow. Derived from what this customer already has.
+	const nextAction = $derived.by(() => {
+		const perm = (p: string) => data.permissions?.includes(p as never);
+		const ctx = data.context ?? [];
+		const find = (kind: string, status?: string) =>
+			ctx.find((t) => t.kind === kind && (!status || t.status === status));
+		if (data.paymentRequest?.status === 'REPORTED' && perm('payments:verify')) {
+			return { label: 'Verify payment', href: '/app/payments?verify=1' };
+		}
+		const order = find('order', 'PENDING_CONFIRMATION');
+		if (order && perm('orders:write')) return { label: 'Confirm order', href: `/app/orders/${order.id}` };
+		const sentQuote = find('quotation', 'SENT');
+		if (sentQuote && !data.paymentRequest && perm('payments:write')) {
+			return { label: 'Request payment', href: `/app/quotations/${sentQuote.id}` };
+		}
+		const enquiry = find('enquiry');
+		if (enquiry && !find('quotation') && perm('quotations:write') && data.entitlements?.['quotations.enabled'] === true) {
+			return { label: 'Create quotation', href: `/app/booking-requests/${enquiry.id}` };
+		}
+		return null;
+	});
+
 	const KIND_HREF: Record<string, string> = {
 		order: '/app/orders',
 		booking: '/app/bookings',
@@ -335,6 +358,13 @@
 				Owes <Money amount={data.outstanding} currency={data.context[0]?.currency ?? data.tenant.currency} />
 			</span>
 		{/if}
+	</div>
+{/if}
+
+{#if nextAction}
+	<div class="flex items-center gap-2 border-b border-slate-100 bg-brand-50/40 px-4 py-2">
+		<span class="text-[12.5px] font-medium text-slate-500">Next</span>
+		<a href={nextAction.href} class="btn-primary !px-3 !py-1 text-[12.5px]">{nextAction.label}</a>
 	</div>
 {/if}
 

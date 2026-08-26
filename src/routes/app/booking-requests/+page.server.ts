@@ -28,5 +28,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	]);
 
 	return {
-		workspaceRelevant, items, total, pagination, stats };
+		workspaceRelevant,
+		items,
+		total,
+		pagination,
+		stats
+	};
 };

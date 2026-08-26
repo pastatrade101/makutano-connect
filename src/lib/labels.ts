@@ -41,8 +41,8 @@ const STATUS: Record<string, string> = {
 	REJECTED: 'Needs changes',
 	PAUSED: 'Paused',
 	SUBMITTED: 'Awaiting approval',
-	REQUESTED: 'Requested',
-	REPORTED: 'Reported — verify'
+	REQUESTED: 'Waiting for payment',
+	REPORTED: "Customer says they've paid"
 };
 
 /** "PENDING_CONFIRMATION" → "Awaiting confirmation". Unknown values degrade gracefully. */

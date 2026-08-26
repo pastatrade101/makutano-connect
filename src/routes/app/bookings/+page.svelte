@@ -33,7 +33,12 @@
 	<div class="card overflow-hidden">
 		<FilterBar statuses={STATUSES} payments={PAYMENTS} placeholder="Search booking reference…" />
 		{#if data.items.length === 0}
-			<EmptyState title="No bookings in this view" description="Bookings are created when a traveller accepts a quotation or an agent converts a request." />
+			<EmptyState
+					title="No bookings in this view"
+					description="A booking appears when a traveller accepts a quotation, or when you convert one yourself. Start from the enquiry, quote it, and accept it on their behalf."
+					action={{ href: '/app/quotations', label: 'Go to quotations' }}
+					secondary={{ href: '/app/booking-requests', label: 'Enquiries' }}
+				/>
 		{:else}
 			<div>
 				<table class="mobile-record-table min-w-full divide-y divide-slate-100">
