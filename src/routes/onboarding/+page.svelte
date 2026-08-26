@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$lib/forms';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import AuthShell from '$lib/components/AuthShell.svelte';
 
 	let { data, form } = $props();
@@ -63,6 +63,36 @@
 		step = Math.min(3, Math.max(1, next));
 		window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 	}
+
+	// All three steps live in one form, and the inactive ones are display:none. A
+	// browser will not submit a form holding an invalid control it cannot focus — it
+	// refuses in silence, which is exactly what a dead button feels like. So the form
+	// carries `novalidate` and we do the checking here, where we can always show the
+	// field that is actually wrong.
+	let formEl: HTMLFormElement | null = $state(null);
+
+	const fieldsOf = (n: number) =>
+		[...(formEl?.querySelectorAll<HTMLInputElement>(`[data-step="${n}"] input, [data-step="${n}"] select`) ?? [])];
+
+	function firstInvalid(fields: HTMLInputElement[]): HTMLInputElement | null {
+		return fields.find((el) => !el.checkValidity()) ?? null;
+	}
+
+	/** Move forward only once this step's own fields are good, and say why if not. */
+	function forward(next: number) {
+		const bad = firstInvalid(fieldsOf(step));
+		if (bad) {
+			bad.reportValidity();
+			return;
+		}
+		go(next);
+	}
+
+	/** A website typed as "example.com" is a valid intention and an invalid URL. */
+	function normalizeWebsite() {
+		const value = websiteUrl.trim();
+		websiteUrl = value && !/^https?:\/\//i.test(value) ? `https://${value}` : value;
+	}
 </script>
 
 <svelte:head><title>Set up your workspace · Makutano Connect</title></svelte:head>
@@ -74,8 +104,19 @@
 >
 	<form
 		method="POST"
+		novalidate
+		bind:this={formEl}
 		class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_70px_rgba(50,58,70,0.10)] lg:grid lg:grid-cols-[220px_minmax(0,1fr)]"
-		use:enhance={() => {
+		use:enhance={({ cancel }) => {
+			const bad = firstInvalid([...(formEl?.querySelectorAll<HTMLInputElement>('input, select') ?? [])]);
+			if (bad) {
+				// Take the person to the step the bad field is on, then let the browser
+				// explain it. Never a click that does nothing.
+				go(Number(bad.closest('[data-step]')?.getAttribute('data-step') ?? step));
+				tick().then(() => bad.reportValidity());
+				cancel();
+				return;
+			}
 			submitting = true;
 			return async ({ update }) => {
 				await update({ reset: false });
@@ -110,7 +151,7 @@
 				<p class="mb-5 rounded-lg border border-danger/15 bg-danger/5 px-3 py-2.5 text-xs text-danger" role="alert">{form.message}</p>
 			{/if}
 
-			<section class:hidden={step !== 1} aria-labelledby="shape-title">
+			<section data-step="1" class:hidden={step !== 1} aria-labelledby="shape-title">
 				<div class="mb-7"><p class="text-[10px] font-bold tracking-[0.16em] text-brand-600 uppercase">Step 1 of 3</p><h2 id="shape-title" class="mt-2 text-xl font-bold tracking-tight text-slate-900">What will you mainly use Connect for?</h2><p class="mt-1.5 text-xs leading-5 text-slate-500">This controls the everyday navigation and dashboard—not what your plan allows.</p></div>
 
 				<div class="grid gap-2.5 sm:grid-cols-2">
@@ -134,17 +175,17 @@
 					</div>
 				</div>
 
-				<div class="mt-8 flex justify-end"><button type="button" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={!stepOneReady} onclick={() => go(2)}>Continue →</button></div>
+				<div class="mt-8 flex justify-end"><button type="button" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={!stepOneReady} onclick={() => forward(2)}>Continue →</button></div>
 			</section>
 
-			<section class:hidden={step !== 2} aria-labelledby="profile-title">
+			<section data-step="2" class:hidden={step !== 2} aria-labelledby="profile-title">
 				<div class="mb-7"><p class="text-[10px] font-bold tracking-[0.16em] text-brand-600 uppercase">Step 2 of 3</p><h2 id="profile-title" class="mt-2 text-xl font-bold tracking-tight text-slate-900">Tell us about the operation.</h2><p class="mt-1.5 text-xs leading-5 text-slate-500">Only the details Connect needs to create a credible workspace.</p></div>
 
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="sm:col-span-2"><label class="label" for="businessName">Business name</label><input id="businessName" name="businessName" required bind:value={businessName} class="input min-h-11 !rounded-lg" placeholder="Goldfinch Adventures" /></div>
 					<div><label class="label" for="country">Country</label><select id="country" name="country" required class="input min-h-11 !rounded-lg" bind:value={country}>{#each data.countries as item (item.code)}<option value={item.code}>{item.name}</option>{/each}</select></div>
 					<div><label class="label" for="businessPhone">Business phone</label><input id="businessPhone" name="businessPhone" required bind:value={businessPhone} class="input min-h-11 !rounded-lg" placeholder="+255 712 345 678" /></div>
-					<div class="sm:col-span-2"><label class="label" for="websiteUrl">Website <span class="font-normal text-slate-400">(optional)</span></label><input id="websiteUrl" name="websiteUrl" type="url" bind:value={websiteUrl} class="input min-h-11 !rounded-lg" placeholder="https://yourbusiness.com" /></div>
+					<div class="sm:col-span-2"><label class="label" for="websiteUrl">Website <span class="font-normal text-slate-400">(optional)</span></label><input id="websiteUrl" name="websiteUrl" type="url" bind:value={websiteUrl} onblur={normalizeWebsite} class="input min-h-11 !rounded-lg" placeholder="https://yourbusiness.com" /></div>
 				</div>
 
 				{#if needsSystemSource}
@@ -159,10 +200,10 @@
 					</div>
 				{/if}
 
-				<div class="mt-8 flex items-center justify-between gap-3"><button type="button" class="btn-secondary min-h-11 !rounded-lg" onclick={() => go(1)}>← Back</button><button type="button" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={!stepTwoReady} onclick={() => go(3)}>Continue →</button></div>
+				<div class="mt-8 flex items-center justify-between gap-3"><button type="button" class="btn-secondary min-h-11 !rounded-lg" onclick={() => go(1)}>← Back</button><button type="button" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={!stepTwoReady} onclick={() => forward(3)}>Continue →</button></div>
 			</section>
 
-			<section class:hidden={step !== 3} aria-labelledby="plan-title">
+			<section data-step="3" class:hidden={step !== 3} aria-labelledby="plan-title">
 				<div class="mb-7"><p class="text-[10px] font-bold tracking-[0.16em] text-brand-600 uppercase">Step 3 of 3</p><h2 id="plan-title" class="mt-2 text-xl font-bold tracking-tight text-slate-900">Choose how you want to start.</h2><p class="mt-1.5 text-xs leading-5 text-slate-500">Plans remain authoritative. Your workspace choices only simplify the experience.</p></div>
 
 				{#if data.plans.length}
@@ -184,7 +225,7 @@
 				</div>
 
 				{#if data.trialDays > 0}<p class="mt-5 text-center text-[11px] font-medium text-success">{data.trialDays}-day free trial · No card required · Upgrade when Connect becomes part of your operation</p>{/if}
-				<div class="mt-7 flex items-center justify-between gap-3"><button type="button" class="btn-secondary min-h-11 !rounded-lg" onclick={() => go(2)}>← Back</button><button type="submit" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={submitting || !selectedPlan}>{submitting ? 'Creating your workspace…' : 'Create my workspace'}</button></div>
+				<div class="mt-7 flex items-center justify-between gap-3"><button type="button" class="btn-secondary min-h-11 !rounded-lg" onclick={() => go(2)}>← Back</button><button type="submit" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={submitting || (data.plans.length > 0 && !selectedPlan)}>{submitting ? 'Creating your workspace…' : 'Create my workspace'}</button></div>
 			</section>
 		</div>
 	</form>
