@@ -22,8 +22,12 @@ function serviceAccount(): { projectId: string; clientEmail: string; privateKey:
 	const live = liveEnv();
 	const raw = String(live.FCM_SERVICE_ACCOUNT ?? env().FCM_SERVICE_ACCOUNT ?? '').trim();
 	if (!raw) return null;
+	// A service-account JSON blob does not survive a .env file intact — it carries
+	// quotes, spaces and escaped newlines. Base64 is accepted for that reason, and
+	// is what the deployment notes recommend; raw JSON still works locally.
+	const text = raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8');
 	try {
-		const parsed = JSON.parse(raw) as { project_id?: string; client_email?: string; private_key?: string };
+		const parsed = JSON.parse(text) as { project_id?: string; client_email?: string; private_key?: string };
 		if (!parsed.project_id || !parsed.client_email || !parsed.private_key) return null;
 		return {
 			projectId: parsed.project_id,

@@ -200,6 +200,32 @@ export async function updateConversationAccess(
 			}
 		);
 	}
+	// Handing a thread to someone is the one moment they must hear about immediately:
+	// they now owe a customer an answer, and they may not have the portal open.
+	if (
+		patch.assignedToUserId &&
+		patch.assignedToUserId !== before.assignedToUserId &&
+		patch.assignedToUserId !== actor.userId
+	) {
+		void (async () => {
+			const { pushToUsers } = await import('./push');
+			const [customer] = before.customerId
+				? await db()
+						.select({ firstName: schema.customers.firstName, lastName: schema.customers.lastName })
+						.from(schema.customers)
+						.where(eq(schema.customers.id, before.customerId))
+						.limit(1)
+				: [];
+			const name =
+				[customer?.firstName, customer?.lastName].filter(Boolean).join(' ') ||
+				(before.externalId ? `+${before.externalId}` : 'A customer');
+			await pushToUsers(tenantId, [patch.assignedToUserId!], {
+				title: 'Assigned to you',
+				body: `${name} is now yours to answer.`,
+				data: { type: 'assignment', conversationId: id }
+			});
+		})().catch(() => undefined);
+	}
 	if (patch.visibility !== undefined && patch.visibility !== before.visibility) {
 		await audit(
 			tenantId,
