@@ -546,17 +546,13 @@ export async function continueWorking(tenantId: string, viewer: Viewer, workspac
 						br.adults, br.notes, br.updated_at, null::text as converted_booking_id,
 						null::text as active_request_status, br.assignee_user_id::text
 					from booking_requests br
-					where br.tenant_id = ${tenantId}::uuid and br.customer_id in ${sql.raw(
-						`(${customerIds.map((id) => `'${id}'::uuid`).join(',')})`
-					)}
+					where br.tenant_id = ${tenantId}::uuid and br.customer_id::text in ${customerIds}
 						and br.status in ('NEW','UNDER_REVIEW','CONTACTED','QUOTED')
 					union all
 					select 'quotation', q.id::text, q.customer_id::text, q.reference, q.status::text, q.total::text, '0', q.currency,
 						q.adults, q.notes, q.updated_at, q.converted_booking_id::text, null, null
 					from quotations q
-					where q.tenant_id = ${tenantId}::uuid and q.customer_id in ${sql.raw(
-						`(${customerIds.map((id) => `'${id}'::uuid`).join(',')})`
-					)}
+					where q.tenant_id = ${tenantId}::uuid and q.customer_id::text in ${customerIds}
 						and q.status in ('DRAFT','SENT','VIEWED','ACCEPTED')
 					union all
 					select 'booking', b.id::text, b.customer_id::text, b.booking_reference, b.status::text, b.total::text,
@@ -565,9 +561,7 @@ export async function continueWorking(tenantId: string, viewer: Viewer, workspac
 							and pr.status in ('REQUESTED','REPORTED','PARTIALLY_PAID') order by pr.created_at desc limit 1),
 						null
 					from bookings b
-					where b.tenant_id = ${tenantId}::uuid and b.customer_id in ${sql.raw(
-						`(${customerIds.map((id) => `'${id}'::uuid`).join(',')})`
-					)}
+					where b.tenant_id = ${tenantId}::uuid and b.customer_id::text in ${customerIds}
 						and b.status not in ('COMPLETED','CANCELLED','REFUNDED')
 					union all
 					select 'order', o.id::text, o.customer_id::text, o.order_number, o.status::text, o.total::text,
@@ -576,9 +570,7 @@ export async function continueWorking(tenantId: string, viewer: Viewer, workspac
 							and pr.status in ('REQUESTED','REPORTED','PARTIALLY_PAID') order by pr.created_at desc limit 1),
 						null
 					from orders o
-					where o.tenant_id = ${tenantId}::uuid and o.customer_id in ${sql.raw(
-						`(${customerIds.map((id) => `'${id}'::uuid`).join(',')})`
-					)}
+					where o.tenant_id = ${tenantId}::uuid and o.customer_id::text in ${customerIds}
 						and o.status not in ('DELIVERED','CANCELLED','REFUNDED')
 				) t
 				order by updated_at desc
