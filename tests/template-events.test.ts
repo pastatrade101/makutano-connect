@@ -25,6 +25,14 @@ describe('template events follow the workspace', () => {
 		expect(service).toContain('PAYMENT_RECEIVED');
 	});
 
+	it('keeps an event that is already mapped, so it can still be cleared', () => {
+		// A tenant that moved ORDERS → SERVICE must not be left with a live mapping
+		// the dropdown refuses to show.
+		const service = eventsForWorkspace('SERVICE', ['ORDER_DISPATCHED']);
+		expect(service).toContain('ORDER_DISPATCHED');
+		expect(service).not.toContain('ORDER_READY');
+	});
+
 	it('hybrid still sees everything', () => {
 		expect(eventsForWorkspace('HYBRID')).toHaveLength(16);
 	});

@@ -154,8 +154,13 @@ const EVENT_MODULE: Partial<Record<NotifyEvent, Module>> = {
  * product. Existing mappings are never touched by this; it only decides what is
  * offered next.
  */
-export function eventsForWorkspace(workspace: Workspace): NotifyEvent[] {
+export function eventsForWorkspace(workspace: Workspace, keep: Array<string | null> = []): NotifyEvent[] {
+	// Anything already mapped stays in the list even when the workspace has moved
+	// on. Hiding it would leave a live mapping nobody can see or clear — which is
+	// exactly what happened to a tenant whose workspace changed from ORDERS.
+	const mapped = new Set(keep.filter(Boolean) as string[]);
 	return NOTIFY_EVENTS.filter((event) => {
+		if (mapped.has(event)) return true;
 		const module = EVENT_MODULE[event];
 		return module === undefined || moduleRelevant(workspace, module);
 	});

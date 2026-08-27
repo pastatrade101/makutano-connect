@@ -26,7 +26,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		templates,
 		// Only the moments this kind of business actually reaches — a shop is never
 		// going to send a trip reminder.
-		events: eventsForWorkspace(workspace),
+		events: eventsForWorkspace(
+			workspace,
+			templates.map((tpl) => tpl.eventKey)
+		),
 		variables: Object.entries(TEMPLATE_VARIABLES).map(([key, v]) => ({ key, label: v.label }))
 	};
 };
