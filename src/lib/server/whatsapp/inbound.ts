@@ -7,6 +7,7 @@
 import { db, schema } from '../db';
 import { recordUsage } from '../billing';
 import { findOrCreateConversation, touchConversation } from '../conversations';
+import { pushToUsers, recipientsForConversation } from '../push';
 import { findOrCreateCustomer } from '../customers';
 import { emit } from '../events';
 import { log } from '../logger';
@@ -120,6 +121,21 @@ export async function processInboundEvent(event: WebhookEvent): Promise<void> {
 	await applyInboundCompliance({ tenantId, customerId: customer.id, text: event.text, receivedAt: new Date() });
 	await touchConversation(conversation.id, { incrementUnread: true });
 	void recordUsage(tenantId, 'whatsapp_inbound');
+	// The phone in someone's pocket, not just the browser tab nobody has open. Sent to
+	// whoever holds the thread — or, if nobody does, to the people who can pick it up.
+	void (async () => {
+		const who = await recipientsForConversation(tenantId, {
+			assignedToUserId: conversation.assignedToUserId,
+			visibility: conversation.visibility
+		});
+		const name = [customer.firstName, customer.lastName].filter(Boolean).join(' ') || `+${event.from}`;
+		await pushToUsers(tenantId, who, {
+			title: name,
+			body: (event.text ?? '').slice(0, 140) || 'Sent you a message',
+			data: { type: 'message', conversationId: conversation.id }
+		});
+	})().catch(() => undefined);
+
 	await emit(tenantId, 'message.received', {
 		messageId: message.id,
 		conversationId: conversation.id,

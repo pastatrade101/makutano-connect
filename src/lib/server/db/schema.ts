@@ -286,6 +286,27 @@ export const tenantMemberships = pgTable(
 	]
 );
 
+/**
+ * Push targets. One row per device per user: a phone that signs out or reinstalls
+ * gets a new token, and Firebase tells us when an old one dies so it can be pruned.
+ */
+export const deviceTokens = pgTable(
+	'device_tokens',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+		token: text('token').notNull().unique(),
+		platform: text('platform').notNull().default('android'),
+		deviceName: text('device_name'),
+		lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow(),
+		createdAt: createdAt()
+	},
+	(t) => [index('device_tokens_user_idx').on(t.userId), index('device_tokens_tenant_idx').on(t.tenantId)]
+);
+
 export const sessions = pgTable(
 	'sessions',
 	{

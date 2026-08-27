@@ -27,6 +27,8 @@ const schema = z.object({
 
 	// --- AI assist (§ai) — optional; every AI surface is off without a key ---
 	ANTHROPIC_API_KEY: z.string().default(''),
+	// Firebase service-account JSON, one line. Absent = no push, no error.
+	FCM_SERVICE_ACCOUNT: z.string().default(''),
 	// Model is configurable so the platform can trade cost for capability without a
 	// deploy-time code change. Extraction runs at low effort, which is where most of
 	// the saving comes from.

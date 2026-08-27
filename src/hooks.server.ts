@@ -45,6 +45,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const path = event.url.pathname;
 	const isExternalApi = path.startsWith('/api/v1');
 	const isMetaWebhook = path.startsWith('/webhooks/');
+	// The mobile app is a person, not a machine: it carries the SAME session a browser
+	// would, over a bearer header instead of a cookie. Every visibility rule, permission
+	// and tenant resolution below therefore applies to it unchanged — and a session
+	// revoked in one place is revoked everywhere.
+	const isMobileApi = path.startsWith('/api/mobile');
 
 	if (isExternalApi) {
 		try {
@@ -69,7 +74,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 			return withSecurityHeaders(errorResponse(appError, event.locals.requestId), event.url);
 		}
 	} else if (!isMetaWebhook) {
-		const token = event.cookies.get(SESSION_COOKIE);
+		const bearer = isMobileApi ? (event.request.headers.get('authorization') ?? '') : '';
+		const token = bearer.toLowerCase().startsWith('bearer ')
+			? bearer.slice(7).trim()
+			: event.cookies.get(SESSION_COOKIE);
 		const session = await resolveSession(token);
 		if (session) {
 			event.locals.session = session;
