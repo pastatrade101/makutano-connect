@@ -156,7 +156,8 @@ export async function attentionFor(
 	items: AttentionItem[];
 	/** True and worth knowing, but somebody else's move. Never in "Needs you". */
 	context: AttentionItem[];
-	today: Array<{ label: string; value: string }>;
+	/** `money` carries an amount and should be shown with the tenant's currency. */
+	today: Array<{ label: string; value: string; kind: 'count' | 'money' }>;
 }> {
 	const persona = personaFor(viewer.permissions);
 	const can = (p: string) => viewer.permissions.includes(p);
@@ -340,12 +341,12 @@ export async function attentionFor(
 	});
 
 	// Today, scoped to what this person is responsible for.
-	const today: Array<{ label: string; value: string }> = [];
+	const today: Array<{ label: string; value: string; kind: 'count' | 'money' }> = [];
 	if (persona === 'finance') {
 		if (can('payments:read')) {
-			today.push({ label: 'Verified today', value: String(ops.verifiedToday) });
-			today.push({ label: 'Received today', value: ops.receivedToday });
-			today.push({ label: 'Still unpaid', value: String(ops.paymentsOutstanding) });
+			today.push({ label: 'Verified today', value: String(ops.verifiedToday), kind: 'count' });
+			today.push({ label: 'Received today', value: ops.receivedToday, kind: 'money' });
+			today.push({ label: 'Still unpaid', value: String(ops.paymentsOutstanding), kind: 'count' });
 		}
 	} else {
 		if (can('conversations:read')) {
@@ -353,17 +354,17 @@ export async function attentionFor(
 			// gets a label that says so rather than borrowing the owner's.
 			today.push(
 				persona === 'agent'
-					? { label: 'Waiting on you', value: String(chats.mineUnread) }
-					: { label: 'New chats today', value: String(chats.today) }
+					? { label: 'Waiting on you', value: String(chats.mineUnread), kind: 'count' as const }
+					: { label: 'New chats today', value: String(chats.today), kind: 'count' as const }
 			);
 		}
 		if (rel('enquiries') && can('booking_requests:read')) {
-			today.push({ label: 'Enquiries today', value: String(ops.enquiriesToday) });
+			today.push({ label: 'Enquiries today', value: String(ops.enquiriesToday), kind: 'count' });
 		}
 		if (rel('orders') && can('orders:read')) {
-			today.push({ label: 'Orders today', value: String(ops.ordersToday) });
+			today.push({ label: 'Orders today', value: String(ops.ordersToday), kind: 'count' });
 		}
-		if (can('payments:read')) today.push({ label: 'Received today', value: ops.receivedToday });
+		if (can('payments:read')) today.push({ label: 'Received today', value: ops.receivedToday, kind: 'money' });
 	}
 
 	return { persona, items: items.slice(0, 6), context: context.slice(0, 3), today };
