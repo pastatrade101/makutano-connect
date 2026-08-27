@@ -24,6 +24,9 @@ export const GET: RequestHandler = async (event) =>
 				// How many values a caller must supply. Without this an integration
 				// can only discover the count by having Meta reject the send.
 				variableCount: countVariables(t.bodyText),
+				// The approved text itself, so a caller can show what it is about to
+				// send instead of asking someone to picture it from a name.
+				body: t.bodyText,
 				lastSyncedAt: t.lastSyncedAt
 			}))
 		);
