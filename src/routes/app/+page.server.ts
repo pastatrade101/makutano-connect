@@ -1,4 +1,4 @@
-import { attentionFor, myWork } from '$lib/server/attention';
+import { attentionFor, continueWorking } from '$lib/server/attention';
 import { normalizeWorkspace } from '$lib/workspace';
 import { bookingRequestStats } from '$lib/server/booking-requests';
 import { requireTenant } from '$lib/server/guards';
@@ -65,7 +65,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const viewer = { userId: locals.user!.id, permissions: locals.permissions };
 	const workspace = normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities);
 
-	const [requests, bookings, customers, payments, recent, inbox, connection, activity, centre, attention, mine] =
+	const [requests, bookings, customers, payments, recent, inbox, connection, activity, centre, attention, continuing] =
 		await Promise.all([
 			bookingRequestStats(tenantId),
 			bookingStats(tenantId),
@@ -83,7 +83,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			actionCentre(tenantId),
 			// Who is looking, and what is waiting for THEM — visibility-scoped on the server.
 			attentionFor(tenantId, viewer, workspace),
-			myWork(tenantId, viewer)
+			// Where each customer actually stands, not a second copy of the inbox.
+			continueWorking(tenantId, viewer, workspace)
 		]);
 
 	const onboarding = await onboardingState(tenantId);
@@ -94,7 +95,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		context: attention.context,
 		persona: attention.persona,
 		today: attention.today,
-		myWork: mine,
+		continueWorking: continuing,
 		stats: { requests, bookings, customers, payments },
 		recentRequests: recent.items,
 		inbox: inbox.items,

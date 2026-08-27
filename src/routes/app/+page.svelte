@@ -144,22 +144,30 @@
 		</section>
 	{/if}
 
-	{#if persona === 'agent' && data.myWork?.length}
+	<!-- What you were in the middle of, as business: who, where it stands, and the
+	     one fact that makes it actionable. Deliberately not a list of recent chats. -->
+	{#if data.continueWorking?.length}
 		<section class="card">
 			<header class="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
-				<h2 class="text-sm font-semibold text-slate-800">Your work</h2>
-				<a href="/app/conversations?filter=mine" class="text-xs text-brand-600 hover:underline">Your chats</a>
+				<h2 class="text-sm font-semibold text-slate-800">Continue working</h2>
+				{#if can('conversations:read')}
+					<a href="/app/conversations?filter=mine" class="text-xs text-brand-600 hover:underline">Your chats</a>
+				{/if}
 			</header>
 			<ul class="divide-y divide-slate-100">
-				{#each data.myWork as item (item.kind + item.id)}
+				{#each data.continueWorking as item (item.kind + (item.recordId ?? item.conversationId))}
 					<li>
-						<a href={item.href} class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
+						<a
+							href={item.conversationId ? `/app/conversations/${item.conversationId}` : '/app/conversations'}
+							class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50"
+						>
 							<span class="min-w-0 flex-1">
-								<span class="block truncate text-sm text-slate-800">{item.title}</span>
-								{#if item.detail}<span class="block truncate text-[12.5px] text-slate-500">{item.detail}</span>{/if}
+								<span class="block truncate text-sm font-medium text-slate-800">{item.customer}</span>
+								<span class="block truncate text-[12.5px] text-slate-500">{item.state}</span>
+								{#if item.detail}<span class="block truncate text-[12.5px] text-slate-400">{item.detail}</span>{/if}
 							</span>
-							{#if item.unread > 0}
-								<span class="shrink-0 rounded-full bg-brand-500 px-1.5 text-[11.5px] font-semibold text-white">{item.unread}</span>
+							{#if item.mine}
+								<span class="shrink-0 rounded-full bg-brand-50 px-1.5 py-px text-[10px] font-semibold text-brand-600">yours</span>
 							{/if}
 							<span class="shrink-0 text-[12.5px] text-slate-400"><TimeAgo value={item.at} timezone={tz} /></span>
 						</a>
