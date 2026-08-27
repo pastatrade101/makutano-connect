@@ -3,6 +3,12 @@ import { handle, ok, requireApiScope } from '$lib/server/http';
 import { listTemplates } from '$lib/server/whatsapp/templates';
 import { enqueue } from '$lib/server/jobs/queue';
 
+/** Distinct {{n}} / {{name}} placeholders in a template body. */
+function countVariables(body: string | null): number {
+	if (!body) return 0;
+	return new Set(Array.from(body.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g), (m) => m[1])).size;
+}
+
 export const GET: RequestHandler = async (event) =>
 	handle(event, async () => {
 		const ctx = requireApiScope(event, 'whatsapp:read');
@@ -15,6 +21,9 @@ export const GET: RequestHandler = async (event) =>
 				category: t.category,
 				status: t.status,
 				eventKey: t.eventKey,
+				// How many values a caller must supply. Without this an integration
+				// can only discover the count by having Meta reject the send.
+				variableCount: countVariables(t.bodyText),
 				lastSyncedAt: t.lastSyncedAt
 			}))
 		);
