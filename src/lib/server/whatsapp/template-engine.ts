@@ -14,6 +14,7 @@
 import { and, eq } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { AppError } from '../errors';
+import { moduleRelevant, type Module, type Workspace } from '$lib/workspace';
 import { log } from '../logger';
 import { graphRequest } from './client';
 import { resolveCredentials } from './connections';
@@ -123,6 +124,42 @@ export const NOTIFY_EVENTS = [
 ] as const;
 
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number];
+
+/**
+ * Which module each event belongs to. Payment events are deliberately absent:
+ * money is asked for in every workspace, so they are always offered.
+ */
+const EVENT_MODULE: Partial<Record<NotifyEvent, Module>> = {
+	BOOKING_REQUEST_RECEIVED: 'enquiries',
+	BOOKING_CONFIRMED: 'bookings',
+	BOOKING_CANCELLED: 'bookings',
+	TRIP_REMINDER: 'bookings',
+	QUOTATION_READY: 'quotations',
+	QUOTATION_ACCEPTED: 'quotations',
+	QUOTATION_REMINDER: 'quotations',
+	ORDER_RECEIVED: 'orders',
+	ORDER_CONFIRMED: 'orders',
+	ORDER_READY: 'orders',
+	ORDER_DISPATCHED: 'orders',
+	ORDER_DELIVERED: 'orders'
+};
+
+/**
+ * The events this kind of business can actually reach.
+ *
+ * A shop is never going to send TRIP REMINDER, and a business that only pushes
+ * notifications through the API has no use for any of them. Offering the full
+ * list to everyone makes the mapping look broken — seventeen options, none of
+ * which apply — so the list follows the same relevance rule as the rest of the
+ * product. Existing mappings are never touched by this; it only decides what is
+ * offered next.
+ */
+export function eventsForWorkspace(workspace: Workspace): NotifyEvent[] {
+	return NOTIFY_EVENTS.filter((event) => {
+		const module = EVENT_MODULE[event];
+		return module === undefined || moduleRelevant(workspace, module);
+	});
+}
 
 /* ------------------------------------------------- authoring lifecycle ---- */
 

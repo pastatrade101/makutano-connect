@@ -8,10 +8,11 @@ import { enqueue } from '$lib/server/jobs/queue';
 import { listTemplates } from '$lib/server/whatsapp/templates';
 import {
 	createTemplateDraft,
-	NOTIFY_EVENTS,
+	eventsForWorkspace,
 	submitTemplateToMeta,
 	TEMPLATE_VARIABLES
 } from '$lib/server/whatsapp/template-engine';
+import { normalizeWorkspace } from '$lib/workspace';
 import { applyTemplatePack, packState } from '$lib/server/whatsapp/template-packs';
 import type { PageServerLoad } from './$types';
 
@@ -19,10 +20,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 	requireTenantPermission(locals, 'whatsapp:read');
 	const templates = await listTemplates(requireTenant(locals).id);
 	const pack = packState(requireTenant(locals).settings as Record<string, unknown>);
+	const workspace = normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities);
 	return {
 		templatePack: pack,
 		templates,
-		events: NOTIFY_EVENTS,
+		// Only the moments this kind of business actually reaches — a shop is never
+		// going to send a trip reminder.
+		events: eventsForWorkspace(workspace),
 		variables: Object.entries(TEMPLATE_VARIABLES).map(([key, v]) => ({ key, label: v.label }))
 	};
 };
@@ -32,7 +36,13 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'whatsapp:templates');
 		try {
 			const result = await applyTemplatePack(requireTenant(locals).id, { userId: locals.user!.id });
-			return { pack: { submitted: result.submitted.length, skipped: result.skippedExisting.length, failed: result.failed.length } };
+			return {
+				pack: {
+					submitted: result.submitted.length,
+					skipped: result.skippedExisting.length,
+					failed: result.failed.length
+				}
+			};
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}
@@ -89,7 +99,12 @@ export const actions: Actions = {
 		await db()
 			.update(schema.whatsappTemplates)
 			.set({ eventKey: String(data.get('eventKey') ?? '') || null, updatedAt: new Date() })
-			.where(and(eq(schema.whatsappTemplates.id, String(data.get('id') ?? '')), eq(schema.whatsappTemplates.tenantId, requireTenant(locals).id)));
+			.where(
+				and(
+					eq(schema.whatsappTemplates.id, String(data.get('id') ?? '')),
+					eq(schema.whatsappTemplates.tenantId, requireTenant(locals).id)
+				)
+			);
 		return { success: true };
 	},
 
@@ -99,13 +114,22 @@ export const actions: Actions = {
 		await db()
 			.update(schema.whatsappTemplates)
 			.set({ enabled: String(data.get('enabled')) === 'true', updatedAt: new Date() })
-			.where(and(eq(schema.whatsappTemplates.id, String(data.get('id') ?? '')), eq(schema.whatsappTemplates.tenantId, requireTenant(locals).id)));
+			.where(
+				and(
+					eq(schema.whatsappTemplates.id, String(data.get('id') ?? '')),
+					eq(schema.whatsappTemplates.tenantId, requireTenant(locals).id)
+				)
+			);
 		return { success: true };
 	},
 
 	sync: async ({ locals }) => {
 		requirePermission(locals.permissions, 'whatsapp:templates');
-		await enqueue('whatsapp.templates.sync', { tenantId: requireTenant(locals).id }, { tenantId: requireTenant(locals).id });
+		await enqueue(
+			'whatsapp.templates.sync',
+			{ tenantId: requireTenant(locals).id },
+			{ tenantId: requireTenant(locals).id }
+		);
 		return { success: true };
 	}
 };
