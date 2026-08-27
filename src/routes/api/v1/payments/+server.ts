@@ -56,8 +56,12 @@ export const GET: RequestHandler = async (event) =>
  */
 export const POST: RequestHandler = async (event) =>
 	handle(event, async () => {
+		// Recording money is a WRITE, and it has nothing to do with bookings — a
+		// subscription business has no booking to attach one to. `payments:write`
+		// is the right scope and is now accepted on its own; the old pairing is
+		// still honoured so existing integrations keep working untouched.
 		const ctx = requireApiScope(event, 'payments:read');
-		requireScope(ctx.scopes, 'bookings:write');
+		if (!ctx.scopes.includes('payments:write')) requireScope(ctx.scopes, 'bookings:write');
 		await assertFeature(ctx.tenantId, 'payments.enabled');
 		const body = await parseBody(event, createSchema);
 		const outcome = await withIdempotency(
