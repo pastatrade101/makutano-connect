@@ -85,6 +85,35 @@ export function buildMessagePayload(to: string, content: OutboundContent): Recor
 	}
 }
 
+/**
+ * The template's approved text with the caller's values dropped in.
+ *
+ * Without this a thread records `[template:payment_received]`, and nobody — not
+ * the agent replying, not the owner reviewing months later — can see what the
+ * customer was actually told. The stored body should read exactly as the message
+ * on their handset does.
+ */
+async function renderTemplate(
+	tenantId: string,
+	templateName: string,
+	components: unknown[] | undefined
+): Promise<string | null> {
+	const [row] = await db()
+		.select({ bodyText: schema.whatsappTemplates.bodyText })
+		.from(schema.whatsappTemplates)
+		.where(and(eq(schema.whatsappTemplates.tenantId, tenantId), eq(schema.whatsappTemplates.name, templateName)))
+		.limit(1);
+	if (!row?.bodyText) return null;
+
+	const body = (components ?? []).find((c) => (c as { type?: string })?.type?.toLowerCase() === 'body') as
+		{ parameters?: Array<{ text?: string }> } | undefined;
+	const values = (body?.parameters ?? []).map((p) => String(p?.text ?? ''));
+
+	// Named placeholders resolve at send time elsewhere; only the positional ones
+	// carry values a caller supplied, so only those are substituted here.
+	return row.bodyText.replace(/\{\{\s*(\d+)\s*\}\}/g, (match, n) => values[Number(n) - 1] ?? match);
+}
+
 function previewOf(content: OutboundContent): string {
 	if (content.type === 'text') return content.text;
 	if (content.type === 'template') return content.preview?.trim() || `[template:${content.templateName}]`;
@@ -145,7 +174,11 @@ export async function queueMessage(params: SendParams): Promise<schema.Message> 
 			channel: 'WHATSAPP',
 			status: 'QUEUED',
 			type: params.content.type,
-			body: previewOf(params.content),
+			body:
+				params.content.type === 'template'
+					? ((await renderTemplate(params.tenantId, params.content.templateName, params.content.components)) ??
+						previewOf(params.content))
+					: previewOf(params.content),
 			payload: params.content as unknown as Record<string, unknown>,
 			toAddress: to,
 			sentByUserId: params.sentByUserId ?? null
