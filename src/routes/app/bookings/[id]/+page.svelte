@@ -52,6 +52,9 @@
 	const canVerify = $derived(data.permissions?.includes('payments:verify') ?? false);
 	const BOOKING_KEY: Record<string, string> = {
 		CONFIRMED: 'confirm_booking',
+		// The booking-level "Start trip" only ever flipped a commercial status. Where
+		// trips are in use the handover is the real next step and the trip owns
+		// departure, so nothing here should highlight this transition.
 		IN_PROGRESS: 'start_trip',
 		COMPLETED: 'complete_booking'
 	};
@@ -61,9 +64,15 @@
 				id: data.booking.id,
 				status: data.booking.status,
 				outstanding: balance,
-				activeRequestStatus: activeRequest?.status ?? null
+				activeRequestStatus: activeRequest?.status ?? null,
+				hasTrip: Boolean(data.trip)
 			},
-			{ payments: canPay, verifyPayments: canVerify, bookingsWrite: canWrite }
+			{
+				payments: canPay,
+				verifyPayments: canVerify,
+				bookingsWrite: canWrite,
+				tripsWrite: data.permissions?.includes('trips:write') ?? false
+			}
 		)
 	);
 	const cls = (key: string) => (next?.key === key ? 'btn-primary' : 'btn-secondary');

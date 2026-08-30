@@ -130,6 +130,8 @@ export type BookingLike = {
 	status: string;
 	outstanding: number;
 	activeRequestStatus?: string | null;
+	/** Whether this sale has already been handed to operations. */
+	hasTrip?: boolean;
 };
 
 export function nextForBooking(booking: BookingLike, can: NextActionAbility): NextAction | null {
@@ -161,8 +163,23 @@ export function nextForBooking(booking: BookingLike, can: NextActionAbility): Ne
 	if (booking.outstanding > 0 && !booking.activeRequestStatus && can.payments) {
 		return { key: 'request_payment', label: 'Request payment', href, hint: 'Send them how to pay, on WhatsApp.' };
 	}
+	// Once trips exist, a confirmed booking's next step is the handover, not a
+	// booking-level "Start trip" — that button only ever flipped a commercial
+	// status, and having it sit next to a real Trip domain is the kind of
+	// near-synonym that makes staff guess. Departure belongs to the trip.
+	if (can.tripsWrite && !booking.hasTrip && booking.status === 'CONFIRMED') {
+		return {
+			key: 'hand_over_to_operations',
+			label: 'Hand over to operations',
+			href,
+			hint: 'Sold. Now somebody has to get it out of the door.'
+		};
+	}
 	if (!can.bookingsWrite) return null;
 	if (booking.status === 'CONFIRMED') {
+		// Kept for tenants not running trips at all. Where a trip exists it owns
+		// departure, so the booking stops offering it.
+		if (booking.hasTrip || can.tripsWrite) return null;
 		return { key: 'start_trip', label: 'Start trip', href, hint: 'They are travelling — mark the trip under way.' };
 	}
 	if (booking.status === 'IN_PROGRESS') return { key: 'complete_booking', label: 'Complete', href };
