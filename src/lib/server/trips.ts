@@ -464,13 +464,20 @@ export async function listTripsWithReadiness(
 	// listTrips already ordered these; preserve it rather than the join's order.
 	const rows = items.map((trip) => {
 		const j = byTrip.get(trip.id);
-		if (!j) return { trip, readiness: null, bookingReference: null, customerName: null };
+		if (!j) return { trip, readiness: null, bookingReference: null, customerName: null, money: null };
 		const held = passports.get(trip.bookingId) ?? 0;
 		return {
 			trip,
 			readiness: readinessFor(trip, j.booking, Array.from({ length: held }, () => ({ passportNumber: 'x' }))),
 			bookingReference: j.booking.bookingReference,
-			customerName: [j.customerFirstName, j.customerLastName].filter(Boolean).join(' ').trim() || null
+			customerName: [j.customerFirstName, j.customerLastName].filter(Boolean).join(' ').trim() || null,
+			// ONE rule about money on a trip, applied by every surface: whoever can
+			// see trips learns the balance still owed, because an unpaid balance
+			// before a departure is operational. Pricing — total, subtotal, discount,
+			// tax, what has been paid — stays with the booking. Returning the whole
+			// booking row here would ship all of it to the browser, since a load's
+			// return value is serialised to the client.
+			money: { currency: j.booking.currency, balanceDue: j.booking.balanceDue }
 		};
 	});
 	return { rows, total };
