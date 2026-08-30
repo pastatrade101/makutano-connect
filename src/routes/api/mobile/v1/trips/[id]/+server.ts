@@ -7,6 +7,7 @@ import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { audit } from '$lib/server/audit';
 import { getTripDetail, updateTrip } from '$lib/server/trips';
+import { listTeam, roleLabel } from '$lib/server/team';
 import { blockerLabel, statusLabel } from '$lib/labels';
 import { ok, problem, requirePermissionOrThrow, requireViewer } from '$lib/server/mobile';
 
@@ -31,6 +32,11 @@ export const GET: RequestHandler = async (event) => {
 
 		const sensitive = viewer.permissions.includes('travelers:read_sensitive');
 		const commercial = viewer.permissions.includes('bookings:read');
+
+		// Who this trip can be handed to. Only fetched for somebody who may assign
+		// it, and only people who are actually here — handing a departure to a
+		// deactivated account is a quiet way to lose it.
+		const team = viewer.permissions.includes('trips:assign') ? await listTeam(viewer.tenantId) : [];
 
 		return ok({
 			trip: {
@@ -116,6 +122,9 @@ export const GET: RequestHandler = async (event) => {
 					)
 				]
 			},
+			members: team
+				.filter((m) => m.status === 'Active')
+				.map((m) => ({ id: m.userId, name: m.fullName || m.email, role: roleLabel(m.role) })),
 			can: {
 				write: viewer.permissions.includes('trips:write'),
 				assign: viewer.permissions.includes('trips:assign'),
