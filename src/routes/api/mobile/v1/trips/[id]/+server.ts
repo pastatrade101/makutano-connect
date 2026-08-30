@@ -94,6 +94,28 @@ export const GET: RequestHandler = async (event) => {
 				passportNumber: sensitive ? t.passportNumber : null,
 				hasPassport: Boolean(t.passportNumber)
 			})),
+			// What Connect already knows about this trip, offered as choices rather
+			// than made somebody retype it. The hotel is usually already on the
+			// booking — it was sold to the traveller — so the operations person
+			// picking accommodation should be picking, not transcribing.
+			suggestions: {
+				accommodation: [
+					...new Set(
+						detail.items
+							.filter((i) => i.type === 'HOTEL' || i.type === 'ROOM')
+							.map((i) => i.title.trim())
+							.filter(Boolean)
+					)
+				],
+				transfer: [
+					...new Set(
+						detail.items
+							.filter((i) => i.type === 'TRANSFER')
+							.map((i) => i.title.trim())
+							.filter(Boolean)
+					)
+				]
+			},
 			can: {
 				write: viewer.permissions.includes('trips:write'),
 				assign: viewer.permissions.includes('trips:assign'),
