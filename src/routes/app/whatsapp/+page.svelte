@@ -30,17 +30,29 @@
 		</header>
 
 		{#if c && c.status === 'CONNECTED'}
-			{#if !data.templatePack.version && canConnect}
-				<!-- Finish setup: one tap submits the workspace's notification pack -->
+			{#if (!data.templatePack.version || data.templatePack.version < data.packVersion) && canConnect}
+				<!-- Set up, or catch up.
+				     This used to be gated on `!version`, so it vanished the moment a
+				     tenant applied a pack once and never came back — leaving no way
+				     in the product to pick up templates added since, which is the
+				     whole point of the pack being versioned. -->
 				<div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-brand-50/50 px-4 py-3">
 					<div class="min-w-0">
-						<p class="text-sm font-semibold text-slate-800">Finish WhatsApp setup</p>
+						<p class="text-sm font-semibold text-slate-800">
+							{data.templatePack.version ? 'New notifications available' : 'Finish WhatsApp setup'}
+						</p>
 						<p class="text-xs text-slate-500">
-							We'll prepare the recommended {packFlavour} notifications for your business and send them to WhatsApp for approval — usually done within hours.
+							{#if data.templatePack.version}
+								Newer {packFlavour} notifications have been added since you set this up. Sending them for approval leaves
+								every template you already have untouched.
+							{:else}
+								We'll prepare the recommended {packFlavour} notifications for your business and send them to WhatsApp for
+								approval — usually done within hours.
+							{/if}
 						</p>
 					</div>
 					<form method="POST" action="?/setupTemplates" use:enhance={() => { settingUp = true; return async ({ update }) => { await update(); settingUp = false; }; }}>
-						<button class="btn-primary" disabled={settingUp}>{settingUp ? 'Setting up…' : 'Set up notifications'}</button>
+						<button class="btn-primary" disabled={settingUp}>{settingUp ? 'Sending…' : data.templatePack.version ? 'Send for approval' : 'Set up notifications'}</button>
 					</form>
 				</div>
 			{:else if form?.pack}

@@ -8,7 +8,7 @@ import { embeddedSignupReady } from '$lib/server/env';
 import { enqueue } from '$lib/server/jobs/queue';
 import { disconnect, getConnectionForTenant, toSafeConnection } from '$lib/server/whatsapp/connections';
 import { listTemplates, setTemplateEvent, TEMPLATE_EVENTS } from '$lib/server/whatsapp/templates';
-import { applyTemplatePack, packState } from '$lib/server/whatsapp/template-packs';
+import { applyTemplatePack, packState, PACK_VERSION } from '$lib/server/whatsapp/template-packs';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -23,6 +23,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const pack = packState(tenant.settings as Record<string, unknown>);
 	return {
 		templatePack: pack,
+		// The version the code ships, so the page can tell "never set up" from
+		// "set up, but there are newer templates since".
+		packVersion: PACK_VERSION,
 		connection: connection ? toSafeConnection(connection) : null,
 		templates: templates.map((t) => ({
 			id: t.id,

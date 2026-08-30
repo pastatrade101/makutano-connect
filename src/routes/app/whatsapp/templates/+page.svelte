@@ -7,6 +7,8 @@
 	import StatusBadge from '$components/StatusBadge.svelte';
 	let { data, form } = $props();
 	const canWrite = $derived(data.permissions?.includes('whatsapp:connect'));
+	/** Never set up, or set up against an older pack than the one shipping now. */
+	const behindPack = $derived(!data.templatePack.version || data.templatePack.version < data.packVersion);
 	let showCreate = $state(false);
 	let bodyDraft = $state('Hello {{customer.first_name}}, your order {{order.number}} has been confirmed. Total: {{order.total}}.');
 	let bodyEl: HTMLTextAreaElement | undefined = $state();
@@ -35,9 +37,15 @@
 		</div>
 		{#if canWrite}
 			<div class="hidden gap-2 sm:flex">
-				{#if !data.templatePack.version}
+				<!-- Shown while the tenant is BEHIND the shipped pack, not only when
+				     they have never applied one. Gating on `!version` hid this the
+				     moment somebody used it once, so templates added later were
+				     unreachable — which defeats the pack being versioned at all. -->
+				{#if behindPack}
 					<form method="POST" action="?/setupPack" use:enhance>
-						<button class="btn-primary">Set up recommended templates</button>
+						<button class="btn-primary">
+							{data.templatePack.version ? 'Send new templates for approval' : 'Set up recommended templates'}
+						</button>
 					</form>
 				{/if}
 				<form method="POST" action="?/sync" use:enhance><button class="btn-secondary">Sync from Meta</button></form>
@@ -100,7 +108,7 @@
 		<details class="card sm:hidden">
 			<summary class="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold text-slate-700">Template actions <span class="text-brand-500">Open</span></summary>
 			<div class="grid gap-2 border-t border-slate-100 p-3">
-				{#if !data.templatePack.version}<form method="POST" action="?/setupPack" use:enhance><button class="btn-primary w-full">Set up recommended templates</button></form>{/if}
+				{#if behindPack}<form method="POST" action="?/setupPack" use:enhance><button class="btn-primary w-full">{data.templatePack.version ? 'Send new templates for approval' : 'Set up recommended templates'}</button></form>{/if}
 				<form method="POST" action="?/sync" use:enhance><button class="btn-secondary w-full">Sync from Meta</button></form>
 				<button class="btn-secondary w-full" onclick={() => (showCreate = !showCreate)}>New template</button>
 			</div>

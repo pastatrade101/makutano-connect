@@ -13,7 +13,7 @@ import {
 	TEMPLATE_VARIABLES
 } from '$lib/server/whatsapp/template-engine';
 import { normalizeWorkspace } from '$lib/workspace';
-import { applyTemplatePack, packState } from '$lib/server/whatsapp/template-packs';
+import { applyTemplatePack, packState, PACK_VERSION } from '$lib/server/whatsapp/template-packs';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -23,6 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const workspace = normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities);
 	return {
 		templatePack: pack,
+		packVersion: PACK_VERSION,
 		templates,
 		// Only the moments this kind of business actually reaches — a shop is never
 		// going to send a trip reminder.
