@@ -5,6 +5,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: ['tests/**/*.{test,spec}.ts'],
+		// Runs before any test file, so no suite can reach a database other than
+		// TEST_DATABASE_URL — see the comment in that file for what went wrong
+		// without it.
+		setupFiles: ['./tests/pin-database.ts'],
 		environment: 'node',
 		globals: false,
 		// The integration suite can run against a REMOTE Postgres (Supabase, eu-west-1),
