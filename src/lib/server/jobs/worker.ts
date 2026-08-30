@@ -46,7 +46,12 @@ export function startWorker(): void {
 				sweepCounter = 0;
 				const requeued = await requeueStalled();
 				if (requeued) log.warn('jobs_requeued', { count: requeued });
-				await enqueue('maintenance.cleanup', {}, { dedupeKey: `cleanup:${Math.floor(Date.now() / 3_600_000)}` });
+				const hour = Math.floor(Date.now() / 3_600_000);
+				await enqueue('maintenance.cleanup', {}, { dedupeKey: `cleanup:${hour}` });
+				// Hourly, and idempotent by the hour bucket: a catalogue that only
+				// somebody remembering to run a script keeps current is a catalogue
+				// that drifts.
+				await enqueue('catalog.sync.sweep', {}, { dedupeKey: `catalog-sweep:${hour}` });
 			}
 		} catch (err) {
 			log.error('job_worker_tick_failed', { error: (err as Error)?.message });

@@ -19,7 +19,11 @@ export type JobKind =
 	| 'email.send'
 	| 'payment.reconcile'
 	| 'usage.aggregate'
-	| 'maintenance.cleanup';
+	| 'maintenance.cleanup'
+	// Pull each tenant's own catalogue. The sweep fans out; the sync does one
+	// tenant, so a slow or broken source cannot hold up anybody else's.
+	| 'catalog.sync.sweep'
+	| 'catalog.sync';
 
 export type EnqueueOptions = {
 	tenantId?: string | null;

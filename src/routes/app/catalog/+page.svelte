@@ -9,6 +9,10 @@
 	let { data, form } = $props();
 	const canWrite = $derived(data.permissions?.includes('catalog:write'));
 	let showForm = $state(false);
+	let showSync = $state(false);
+	// The one source the tour operators actually have. More can be configured;
+	// the form keeps to one so the common case is a single field.
+	const lodges = $derived(data.sync.sources.find((x) => x.source === 'lodges') ?? null);
 	const copy = $derived(catalogCopy(data.tenant.capabilities));
 	// Item types ordered by what this kind of business actually adds; first = default.
 	const TYPE_ORDER: Record<string, string[]> = {
@@ -51,6 +55,73 @@
 			<div class="flex items-end"><button class="btn-primary w-full">Save</button></div>
 		</form>
 	{/if}
+
+	<!-- Where this catalogue comes from, when it comes from somewhere. -->
+	<div class="card p-3">
+		<div class="flex flex-wrap items-center justify-between gap-2">
+			<div class="min-w-0">
+				<h2 class="text-sm font-semibold text-slate-900">Synced from your own system</h2>
+				<p class="mt-0.5 text-xs text-slate-500">
+					{#if lodges}
+						Pulled hourly from <span class="font-mono text-[11px]">{lodges.url}</span>. Items that disappear there are
+						deactivated here, never deleted.
+					{:else}
+						Nothing configured — this list is maintained by hand. If your website already holds these, point Connect at
+						it and stop keeping the same list twice.
+					{/if}
+				</p>
+			</div>
+			{#if data.canWrite}
+				<div class="flex shrink-0 gap-2">
+					{#if lodges}
+						<form method="POST" action="?/syncNow" use:enhance>
+							<button class="btn-ghost">Sync now</button>
+						</form>
+					{/if}
+					<button type="button" class="btn-ghost" onclick={() => (showSync = !showSync)}>
+						{lodges ? 'Change' : 'Set up'}
+					</button>
+				</div>
+			{/if}
+		</div>
+
+		{#if form?.results}
+			<p class="mt-2 rounded-lg bg-success/5 px-3 py-2 text-xs text-success">
+				{#each form.results as r (r.source)}
+					{r.source}: {r.added} added, {r.updated} updated, {r.retired} retired.
+				{/each}
+			</p>
+		{/if}
+
+		{#if showSync && data.canWrite}
+			<form
+				method="POST"
+				action="?/saveSync"
+				use:enhance={() => async ({ update }) => {
+					await update({ reset: false });
+					showSync = false;
+				}}
+				class="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-200 pt-3"
+			>
+				<input type="hidden" name="source" value="lodges" />
+				<input type="hidden" name="type" value="ACCOMMODATION" />
+				<label class="block min-w-0 flex-1">
+					<span class="label">Address of the list</span>
+					<input
+						name="url"
+						value={lodges?.url ?? ''}
+						placeholder="https://your-site.example/api/lodges"
+						class="input w-full font-mono text-xs"
+					/>
+				</label>
+				<button class="btn-primary">Save</button>
+				<button type="button" class="btn-ghost" onclick={() => (showSync = false)}>Cancel</button>
+				<p class="w-full text-xs text-slate-400">
+					Must be a public https address. Leave it empty to stop syncing and go back to maintaining this by hand.
+				</p>
+			</form>
+		{/if}
+	</div>
 
 	<div class="card overflow-hidden">
 		<table class="mobile-record-table min-w-full divide-y divide-slate-100">

@@ -19,8 +19,7 @@
 		"db:migrate": "node --experimental-strip-types scripts/migrate.ts",
 		"db:studio": "drizzle-kit studio",
 		"db:seed": "node --experimental-strip-types scripts/seed.ts",
-		"db:check": "node --experimental-strip-types scripts/check-migrations.ts",
-		"sync:lodges": "node --experimental-strip-types scripts/sync-lodges.ts"
+		"db:check": "node --experimental-strip-types scripts/check-migrations.ts"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.120.0",
