@@ -1158,6 +1158,11 @@ export const quotations = pgTable(
 			.$type<Record<string, unknown>>()
 			.notNull()
 			.default(sql`'{}'::jsonb`),
+		// Soft delete: a quotation can be the provenance of a booking, so it is
+		// hidden rather than destroyed. Also the only way a deletion in the
+		// source system can be expressed here — the mirror only pushes what
+		// still exists (0025).
+		deletedAt: timestamp('deleted_at', { withTimezone: true }),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
 	},

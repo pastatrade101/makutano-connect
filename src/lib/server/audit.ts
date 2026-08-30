@@ -73,6 +73,8 @@ export type AuditAction =
 	| 'booking.restored'
 	| 'booking_request.deleted'
 	| 'booking_request.restored'
+	| 'quotation.deleted'
+	| 'quotation.restored'
 	| 'quotation.created'
 	| 'quotation.sent'
 	| 'quotation.accepted'

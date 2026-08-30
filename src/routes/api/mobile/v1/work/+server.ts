@@ -49,7 +49,7 @@ export const GET: RequestHandler = async (event) => {
 					q.updated_at, q.converted_booking_id::text, null
 				from quotations q
 				left join customers cu on cu.id = q.customer_id
-				where q.tenant_id = ${viewer.tenantId}::uuid and q.status in ('DRAFT', 'SENT', 'VIEWED', 'ACCEPTED')
+				where q.tenant_id = ${viewer.tenantId}::uuid and q.deleted_at is null and q.status in ('DRAFT', 'SENT', 'VIEWED', 'ACCEPTED')
 				union all
 				select 'booking', b.id::text, b.booking_reference, b.status::text, b.total::text, b.amount_paid::text, b.currency,
 					trim(coalesce(cu.first_name, '') || ' ' || coalesce(cu.last_name, '')),

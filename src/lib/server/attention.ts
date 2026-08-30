@@ -107,7 +107,7 @@ async function operationalCounts(tenantId: string, userId: string) {
 			(select count(*)::int from bookings b
 				where b.tenant_id = ${tenantId}::uuid and b.deleted_at is null and b.status = 'AWAITING_PAYMENT') as bookings_unpaid,
 			(select count(*)::int from quotations q
-				where q.tenant_id = ${tenantId}::uuid and q.status = 'SENT') as quotes_waiting,
+				where q.tenant_id = ${tenantId}::uuid and q.deleted_at is null and q.status = 'SENT') as quotes_waiting,
 			(select count(*)::int from payment_requests pr
 				where pr.tenant_id = ${tenantId}::uuid and pr.status = 'REPORTED') as payments_reported,
 			(select count(*)::int from payment_requests pr
@@ -553,7 +553,7 @@ export async function continueWorking(tenantId: string, viewer: Viewer, workspac
 					select 'quotation', q.id::text, q.customer_id::text, q.reference, q.status::text, q.total::text, '0', q.currency,
 						q.adults, q.notes, q.updated_at, q.converted_booking_id::text, null, null
 					from quotations q
-					where q.tenant_id = ${tenantId}::uuid and q.customer_id::text in ${customerIds}
+					where q.tenant_id = ${tenantId}::uuid and q.deleted_at is null and q.customer_id::text in ${customerIds}
 						and q.status in ('DRAFT','SENT','VIEWED','ACCEPTED')
 					union all
 					select 'booking', b.id::text, b.customer_id::text, b.booking_reference, b.status::text, b.total::text,

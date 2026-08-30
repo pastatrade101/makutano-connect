@@ -5,7 +5,7 @@
 // acceptQuotation() is the piece that matters commercially: accepting converts to a
 // booking carrying the customer, trip dates and line items across, so nothing is
 // retyped and the numbers cannot drift between the quote and the booking.
-import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { nextReference } from './db/references';
 import { recordUsage } from './billing';
@@ -157,7 +157,7 @@ export async function getQuotation(tenantId: string, id: string): Promise<schema
 	const rows = await db()
 		.select()
 		.from(schema.quotations)
-		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
+		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId), isNull(schema.quotations.deletedAt)))
 		.limit(1);
 	if (!rows[0]) throw new AppError('QUOTATION_NOT_FOUND', 'Quotation could not be found.');
 	return rows[0];
@@ -186,9 +186,11 @@ export async function getQuotationDetail(tenantId: string, id: string) {
 export async function listQuotations(
 	tenantId: string,
 	p: Pagination,
-	filters: { status?: schema.Quotation['status'] } = {}
+	filters: { status?: schema.Quotation['status']; includeDeleted?: boolean; onlyDeleted?: boolean } = {}
 ) {
 	const conditions: SQL[] = [eq(schema.quotations.tenantId, tenantId)];
+	if (!filters.includeDeleted) conditions.push(isNull(schema.quotations.deletedAt));
+	if (filters.onlyDeleted) conditions.push(sql`${schema.quotations.deletedAt} is not null`);
 	if (filters.status) conditions.push(eq(schema.quotations.status, filters.status));
 	if (p.q) conditions.push(sql`${schema.quotations.reference} ilike ${`%${p.q}%`}`);
 	const where = and(...conditions);
@@ -578,3 +580,50 @@ export async function upsertQuotationMirror(tenantId: string, input: QuotationMi
 	return quotation;
 }
 
+
+
+/**
+ * Hide a quotation. Never destroy one.
+ *
+ * quotation_versions and payment_requests cascade from this row, and an
+ * accepted quotation is the provenance of a booking — the record of what was
+ * agreed and at what price. So this hides it and nothing more.
+ */
+export async function softDeleteQuotation(tenantId: string, id: string): Promise<schema.Quotation> {
+	await getQuotation(tenantId, id);
+	const [row] = await db()
+		.update(schema.quotations)
+		.set({ deletedAt: new Date(), updatedAt: new Date() })
+		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
+		.returning();
+	return row;
+}
+
+export async function restoreQuotation(tenantId: string, id: string): Promise<schema.Quotation> {
+	const [row] = await db()
+		.update(schema.quotations)
+		.set({ deletedAt: null, updatedAt: new Date() })
+		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
+		.returning();
+	if (!row) throw new AppError('NOT_FOUND', 'Quotation could not be found.');
+	return row;
+}
+
+/**
+ * The source system says one of its quotations is gone.
+ *
+ * Keyed on the SOURCE's id, because that is the only identifier Goldfinch
+ * holds — it has never seen Connect's uuid. Idempotent and quiet about a
+ * reference it does not know: a delete notification replayed twice, or sent for
+ * something that was never mirrored, is not an error worth failing a webhook
+ * over.
+ */
+export async function deleteMirroredQuotation(
+	tenantId: string,
+	externalReference: string
+): Promise<{ deleted: boolean; reference: string | null }> {
+	const existing = await findQuotationByExternalReference(tenantId, externalReference);
+	if (!existing || existing.deletedAt) return { deleted: false, reference: existing?.reference ?? null };
+	const row = await softDeleteQuotation(tenantId, existing.id);
+	return { deleted: true, reference: row.reference };
+}
