@@ -124,6 +124,13 @@
 					<td class="table-cell mobile-record-title">
 						<div class="font-mono text-[14.5px] font-medium text-slate-700">{t.name} <span class="text-slate-400">· {t.language}</span></div>
 						{#if t.bodyText}<div class="mt-0.5 max-w-md truncate text-[12.5px] text-slate-400">{t.bodyText}</div>{/if}
+						<!-- Meta's own words. "Needs changes" with no reason is a
+						     24-hour review cycle per guess. -->
+						{#if t.status === 'REJECTED' && t.rejectedReason}
+							<div class="mt-1 max-w-md text-[12.5px] text-danger">
+								WhatsApp says: {t.rejectedReason.replace(/_/g, ' ').toLowerCase()}
+							</div>
+						{/if}
 						<div class="mt-1 sm:hidden"><StatusBadge value={t.status} /></div>
 					</td>
 					<td class="table-cell mobile-hide" data-label="Status"><StatusBadge value={t.status} /></td>

@@ -538,6 +538,10 @@ export const whatsappTemplates = pgTable(
 			.default(sql`'[]'::jsonb`),
 		enabled: boolean('enabled').notNull().default(true),
 		lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+		// Meta's own words when it rejects one. Without this a REJECTED template
+		// is a dead end: the tenant sees "Needs changes" and guesses, at a
+		// 24-hour review cycle per guess.
+		rejectedReason: text('rejected_reason'),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
 	},

@@ -123,12 +123,13 @@ export async function syncTemplates(tenantId: string): Promise<number> {
 			category?: string;
 			status?: string;
 			components?: unknown[];
+			rejected_reason?: string;
 		}>;
 	}>({
 		credentials,
 		path: `${credentials.wabaId}/message_templates`,
 		method: 'GET',
-		query: { fields: 'id,name,language,category,status,components', limit: '200' }
+		query: { fields: 'id,name,language,category,status,components,rejected_reason', limit: '200' }
 	});
 
 	const templates = result?.data ?? [];
@@ -145,6 +146,7 @@ export async function syncTemplates(tenantId: string): Promise<number> {
 				category: t.category ?? null,
 				status,
 				components: t.components ?? [],
+				rejectedReason: rejectionOf(t.rejected_reason, status),
 				lastSyncedAt: now
 			})
 			.onConflictDoUpdate({
@@ -154,6 +156,7 @@ export async function syncTemplates(tenantId: string): Promise<number> {
 					category: t.category ?? null,
 					status,
 					components: t.components ?? [],
+					rejectedReason: rejectionOf(t.rejected_reason, status),
 					lastSyncedAt: now,
 					updatedAt: now
 				}
@@ -219,4 +222,18 @@ function mapStatus(metaStatus?: string): schema.WhatsappTemplate['status'] {
 		default:
 			return 'PENDING';
 	}
+}
+
+
+/**
+ * Meta's reason, kept only while the template is actually rejected.
+ *
+ * Clearing it on any other status matters: a template that was rejected, fixed
+ * and approved must not go on showing the objection it no longer has.
+ * NONE is Meta's own placeholder for "no reason given" and is not worth showing.
+ */
+function rejectionOf(reason: string | undefined, status: string): string | null {
+	if (status !== 'REJECTED') return null;
+	const text = (reason ?? '').trim();
+	return text && text.toUpperCase() !== 'NONE' ? text : null;
 }

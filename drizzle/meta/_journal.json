@@ -183,6 +183,13 @@
       "when": 1788100000000,
       "tag": "0025_soft_delete_quotations",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788120600000,
+      "tag": "0026_template_rejected_reason",
+      "breakpoints": true
     }
   ]
 }
