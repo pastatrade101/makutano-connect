@@ -38,7 +38,9 @@
 		verifyPayments: can('payments:verify'),
 		quotations: can('quotations:write') && data.entitlements?.['quotations.enabled'] === true,
 		bookings: can('bookings:read'),
-		bookingsWrite: can('bookings:write')
+		bookingsWrite: can('bookings:write'),
+		trips: can('trips:read'),
+		tripsWrite: can('trips:write')
 	});
 
 	/** Only the kinds this business actually runs on ever reach the page. */

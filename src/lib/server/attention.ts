@@ -584,7 +584,13 @@ export async function continueWorking(tenantId: string, viewer: Viewer, workspac
 		verifyPayments: can('payments:verify'),
 		quotations: can('quotations:write'),
 		bookings: can('bookings:read'),
-		bookingsWrite: can('bookings:write')
+		bookingsWrite: can('bookings:write'),
+		// Without these the inbox would still recommend the retired booking-level
+		// "Start trip" while the booking page recommends the handover. hasTrip is not
+		// known here, and an unknown reads as not-handed-over on purpose: the action
+		// is a link to the booking, which then shows the truth.
+		trips: can('trips:read'),
+		tripsWrite: can('trips:write')
 	};
 	const READABLE = {
 		enquiry: 'booking_requests:read',

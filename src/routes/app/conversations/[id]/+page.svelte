@@ -99,7 +99,9 @@
 		quotations:
 			(data.permissions?.includes('quotations:write') ?? false) &&
 			data.entitlements?.['quotations.enabled'] === true,
-		bookings: data.permissions?.includes('bookings:read') ?? false
+		bookings: data.permissions?.includes('bookings:read') ?? false,
+		trips: data.permissions?.includes('trips:read') ?? false,
+		tripsWrite: data.permissions?.includes('trips:write') ?? false
 	});
 	const nextAction = $derived.by(() => {
 		const ctx = data.context ?? [];

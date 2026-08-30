@@ -21,8 +21,29 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// Who a trip can be handed to. Anyone who can prepare one.
 	const members = can(locals.permissions, 'trips:assign') ? await listTeam(tenantId) : [];
 
+	// The same projection the public API applies. getTripDetail returns the whole
+	// booking (subtotal, discount, tax, metadata) and the whole customer (email,
+	// phone, notes); a trips:read holder gets the fact of a balance, not the sale.
+	const commercial = can(locals.permissions, 'bookings:read');
+	const booking = commercial
+		? detail.booking
+		: {
+				id: detail.booking.id,
+				bookingReference: detail.booking.bookingReference,
+				status: detail.booking.status,
+				currency: detail.booking.currency,
+				balanceDue: detail.booking.balanceDue
+			};
+	const customer = !detail.customer
+		? null
+		: can(locals.permissions, 'customers:read')
+			? detail.customer
+			: { id: detail.customer.id, firstName: detail.customer.firstName, lastName: detail.customer.lastName };
+
 	return {
 		...detail,
+		booking,
+		customer,
 		travelers: detail.travelers.map((t) =>
 			sensitive ? t : { ...t, passportNumber: null, passportExpiry: null, dateOfBirth: null }
 		),
@@ -56,6 +77,10 @@ export const actions: Actions = {
 			const s = String(v).trim();
 			return s.length ? s : null;
 		};
+
+		// Reassigning is a different act from editing set-up. The select is already
+		// hidden without this permission; hidden is not authorization.
+		if (form.has('operationsUserId')) requireTenantPermission(locals, 'trips:assign');
 
 		const patch = {
 			title: text('title') ?? undefined,

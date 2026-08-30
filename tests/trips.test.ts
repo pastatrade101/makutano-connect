@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { liftLimits, provisionTestTenant } from './support';
 import { nextForTrip, handoverForBooking } from '../src/lib/next-action';
-import { readinessFor } from '../src/lib/server/trips';
+import { criticalMissing, readinessFor } from '../src/lib/server/trips';
 import type { Booking, Trip } from '../src/lib/server/db/schema';
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
@@ -87,6 +87,47 @@ describe('trip readiness', () => {
 	});
 });
 
+describe('readiness has exactly one definition', () => {
+	// The whole point of the refactor: the mobile work feed used to recompute the
+	// critical count in SQL. Two copies of a rule are two rules, and the failure is
+	// silent — the phone says a trip can leave and the portal says it cannot.
+	// These tests fail the moment the cheap path and the full one disagree.
+	const cases: Array<[string, Partial<Trip>, Partial<Booking>]> = [
+		['everything present', {}, {}],
+		['no driver', { driver: null }, {}],
+		['no vehicle or driver', { vehicle: null, driver: null }, {}],
+		['no accommodation', { accommodation: null }, {}],
+		['no dates', { startDate: null }, {}],
+		['unconfirmed booking', {}, { status: 'AWAITING_PAYMENT' }],
+		['no deposit', {}, { amountPaid: '0.00' }],
+		['balance owing only', {}, { balanceDue: '900.00' }],
+		['guide missing only', { guide: null }, {}],
+		['hotel unconfirmed only', { hotelConfirmed: false }, {}],
+		['nothing at all', { vehicle: null, driver: null, guide: null, accommodation: null, startDate: null, hotelConfirmed: false }, { status: 'DRAFT', amountPaid: '0.00', balanceDue: '5000.00' }]
+	];
+
+	for (const [name, overTrip, overBooking] of cases) {
+		it(`agrees with the full check: ${name}`, () => {
+			const tr = trip(overTrip);
+			const bk = booking(overBooking);
+			const full = readinessFor(tr, bk, passports(2));
+			const cheap = criticalMissing(tr, bk);
+			expect(cheap).toBe(full.missing.filter((c) => c.critical).length);
+			expect(cheap === 0).toBe(full.canBeReady);
+		});
+	}
+
+	it('never lets a traveller-dependent check become critical', () => {
+		// criticalMissing answers without loading traveller rows, which is only
+		// sound while no critical check needs them. trips.ts throws at import if
+		// that stops being true; this asserts the property it protects.
+		const withPassports = readinessFor(trip(), booking(), passports(2));
+		const without = readinessFor(trip(), booking(), []);
+		expect(withPassports.canBeReady).toBe(without.canBeReady);
+		expect(criticalMissing(trip(), booking())).toBe(0);
+	});
+});
+
 describe('what operations should do next', () => {
 	const can = { tripsWrite: true, trips: true };
 
@@ -125,6 +166,28 @@ describe('what operations should do next', () => {
 		const action = nextForTrip({ id: 't1', status: 'PREPARING', missingCritical: 1 }, { trips: true });
 		expect(action?.label).toBe('Open trip');
 		expect(nextForTrip({ id: 't1', status: 'PREPARING', missingCritical: 1 }, {})).toBeNull();
+	});
+});
+
+describe('the Operations role is actually usable', () => {
+	// The role was added to the enum, given permissions and offered in the team UI,
+	// but both server write paths gate on a separate list that nobody updated — so
+	// it could be selected and never assigned. This guards the whole class: a role
+	// the UI offers must be a role the server accepts.
+	it('offers no role the server will refuse', async () => {
+		const { ROLE_OPTIONS, assignableRoles } = await import('../src/lib/server/team');
+		for (const option of ROLE_OPTIONS) {
+			expect(assignableRoles()).toContain(option.value);
+		}
+	});
+
+	it('gives Operations trips but never money', async () => {
+		const { permissionsForRole } = await import('../src/lib/server/auth/permissions');
+		const ops = permissionsForRole('OPERATIONS');
+		expect(ops).toEqual(expect.arrayContaining(['trips:read', 'trips:write', 'travelers:read_sensitive']));
+		for (const forbidden of ['payments:write', 'payments:verify', 'payments:refund', 'bookings:write']) {
+			expect(ops).not.toContain(forbidden);
+		}
 	});
 });
 
@@ -235,6 +298,128 @@ suite('trips against the database', () => {
 		});
 		await expect(createTripFromBooking(tenantId, draft.id, {})).rejects.toThrow(/cannot be handed over/i);
 	}, 60_000);
+
+	it('stands the trip down when the booking is cancelled', async () => {
+		// Without this a cancelled sale leaves a trip in Upcoming, still telling
+		// operations to confirm a hotel for travellers who are not coming.
+		const { createBooking, changeBookingStatus } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, getTrip } = await import('../src/lib/server/trips');
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const t = await createTripFromBooking(tenantId, b.id, {});
+		expect((await getTrip(tenantId, t.id)).status).toBe('PREPARING');
+
+		await changeBookingStatus(tenantId, b.id, 'CANCELLED', {}, 'Traveller pulled out');
+		expect((await getTrip(tenantId, t.id)).status).toBe('CANCELLED');
+	}, 90_000);
+
+	it('leaves a trip already under way alone when the booking is cancelled', async () => {
+		// People are on the ground. That is a conversation, not a status flip.
+		const { createBooking, changeBookingStatus } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, getTrip, updateTrip, changeTripStatus } = await import('../src/lib/server/trips');
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			startDate: '2026-10-12T00:00:00.000Z',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		await changeBookingStatus(tenantId, b.id, 'CONFIRMED');
+		const t = await createTripFromBooking(tenantId, b.id, {});
+		await updateTrip(tenantId, t.id, {
+			accommodation: 'Serena',
+			vehicle: 'T 123 ABC',
+			driver: 'Michael'
+		});
+		// Deposit is the last critical gap. Set it directly rather than driving the
+		// whole payment pipeline — this test is about the trip, not about money.
+		const { db, schema } = await import('../src/lib/server/db');
+		const { eq } = await import('drizzle-orm');
+		await db().update(schema.bookings).set({ amountPaid: '100.00', balanceDue: '0.00' }).where(eq(schema.bookings.id, b.id));
+		await changeTripStatus(tenantId, t.id, 'READY');
+		await changeTripStatus(tenantId, t.id, 'IN_PROGRESS');
+
+		await changeBookingStatus(tenantId, b.id, 'CANCELLED', {}, 'Cancelled mid-trip');
+		expect((await getTrip(tenantId, t.id)).status).toBe('IN_PROGRESS');
+	}, 120_000);
+
+	it('lets a booking be handed over again after its trip was cancelled', async () => {
+		// The first cut made booking_id unique outright, which meant one cancelled
+		// trip locked the sale out of operations forever.
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, changeTripStatus } = await import('../src/lib/server/trips');
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const first = await createTripFromBooking(tenantId, b.id, {});
+		await changeTripStatus(tenantId, first.id, 'CANCELLED', {}, 'Hotel fell through');
+
+		const second = await createTripFromBooking(tenantId, b.id, {});
+		expect(second.id).not.toBe(first.id);
+		expect(second.status).toBe('PREPARING');
+	}, 90_000);
+
+	it('refuses to hand a trip to somebody who is not a member here', async () => {
+		// Any user id that is not an active membership of THIS tenant must be
+		// rejected — that covers a stale id, a deactivated colleague, and a user
+		// belonging to another business.
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip } = await import('../src/lib/server/trips');
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const trip = await createTripFromBooking(tenantId, b.id, {});
+		await expect(
+			updateTrip(tenantId, trip.id, { operationsUserId: '00000000-0000-4000-8000-000000000000' })
+		).rejects.toThrow(/not an active member/i);
+	}, 90_000);
+
+	it('demotes a READY trip when the thing that made it ready is taken away', async () => {
+		// READY is a claim about the world, and the world moves. A driver quitting
+		// the morning before departure must not leave the trip still saying it can go.
+		const { createBooking, changeBookingStatus } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip, changeTripStatus, getTrip } = await import('../src/lib/server/trips');
+		const { db, schema } = await import('../src/lib/server/db');
+		const { eq } = await import('drizzle-orm');
+
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			startDate: '2026-11-01T00:00:00.000Z',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		await changeBookingStatus(tenantId, b.id, 'CONFIRMED');
+		await db().update(schema.bookings).set({ amountPaid: '100.00', balanceDue: '0.00' }).where(eq(schema.bookings.id, b.id));
+
+		const trip = await createTripFromBooking(tenantId, b.id, {});
+		await updateTrip(tenantId, trip.id, { accommodation: 'Serena', vehicle: 'T 1 ABC', driver: 'Michael' });
+		await changeTripStatus(tenantId, trip.id, 'READY');
+		expect((await getTrip(tenantId, trip.id)).status).toBe('READY');
+
+		await updateTrip(tenantId, trip.id, { driver: null });
+		expect((await getTrip(tenantId, trip.id)).status).toBe('PREPARING');
+	}, 120_000);
+
+	it('will not let a trip depart if it could not have been marked ready', async () => {
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, changeTripStatus } = await import('../src/lib/server/trips');
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const trip = await createTripFromBooking(tenantId, b.id, {});
+		// PREPARING -> IN_PROGRESS is not a legal transition, and even the legal
+		// route through READY is gated, so there is no path to departure.
+		await expect(changeTripStatus(tenantId, trip.id, 'IN_PROGRESS')).rejects.toThrow(/cannot move from PREPARING/i);
+		await expect(changeTripStatus(tenantId, trip.id, 'READY')).rejects.toThrow(/not ready yet/i);
+	}, 90_000);
 
 	it('keeps trips invisible across tenants', async () => {
 		const other = await provisionTestTenant({ name: 'Other Safari', slug: `test-trips-b-${Date.now()}` });

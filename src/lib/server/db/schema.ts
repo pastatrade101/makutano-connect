@@ -29,7 +29,10 @@ export const tenantStatusEnum = pgEnum('tenant_status', [
 ]);
 /** How a tenant came into existence — Platform Admin, the public signup, or a legacy import. */
 export const provisioningSourceEnum = pgEnum('provisioning_source', ['ADMIN', 'SELF_SERVICE', 'IMPORT']);
-export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'OPERATIONS', 'VIEWER']);
+// Order matters: it must match the order the labels were added in the database,
+// because ALTER TYPE ... ADD VALUE appends. OPERATIONS came last (0016), so it
+// goes last here — a divergence would make any generated diff wrong.
+export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'VIEWER', 'OPERATIONS']);
 export const apiKeyEnvEnum = pgEnum('api_key_environment', ['live', 'test']);
 export const verificationPurposeEnum = pgEnum('verification_purpose', [
 	'EMAIL_VERIFICATION',
@@ -977,9 +980,13 @@ export const trips = pgTable(
 	},
 	(t) => [
 		uniqueIndex('trips_tenant_reference_key').on(t.tenantId, t.tripReference),
-		// One trip per booking. Two trips for one sale is always a mistake, and a
-		// constraint is cheaper than the code that would have to detect it.
-		uniqueIndex('trips_booking_key').on(t.bookingId),
+		// At most one LIVE trip per booking. Two departures for one sale is always a
+		// mistake, and a constraint is cheaper than the code that would have to
+		// detect it — but a cancelled trip must not block the sale from being handed
+		// over again, so the index is partial (see 0017).
+		uniqueIndex('trips_booking_live_key')
+			.on(t.bookingId)
+			.where(sql`${t.status} <> 'CANCELLED'`),
 		index('trips_tenant_status_idx').on(t.tenantId, t.status, t.startDate),
 		// The operations home screen's only query: my trips, soonest first.
 		index('trips_operations_idx').on(t.tenantId, t.operationsUserId, t.startDate)

@@ -297,6 +297,17 @@ export async function changeBookingStatus(
 		});
 	}
 
+	// A dead sale must not leave a live departure behind. Without this a cancelled
+	// booking leaves its trip in Upcoming, still telling operations to confirm a
+	// hotel for travellers who are not coming. Imported lazily: bookings is the
+	// lower layer and must not take a hard dependency on the operational one.
+	if (['CANCELLED', 'REFUNDED'].includes(toStatus)) {
+		const { cancelTripForBooking } = await import('./trips');
+		await cancelTripForBooking(tenantId, id, `Booking ${toStatus.toLowerCase()}`, actor).catch((error: unknown) => {
+			console.error('[trips] could not stand down the trip:', error instanceof Error ? error.message : error);
+		});
+	}
+
 	// "Request payment" means REQUEST it: moving to AWAITING_PAYMENT sends the mapped
 	// payment reminder with the outstanding amount. Fire-and-forget, compliance-gated.
 	// Skipped when a payment request drove this transition — createPaymentRequest has
@@ -420,6 +431,17 @@ export async function applyPaymentTotals(
 			return changeBookingStatus(tenantId, bookingId, target, actor, 'Updated automatically from payment');
 		}
 	}
+
+	// A refund can take the deposit back to zero under a trip that has already
+	// been declared READY. Readiness is judged at the moment it is claimed, so
+	// without re-checking here the trip would go on asserting it can depart.
+	void (async () => {
+		const { revalidateTripForBooking } = await import('./trips');
+		await revalidateTripForBooking(tenantId, bookingId);
+	})().catch((error: unknown) => {
+		console.error('[trips] could not re-check readiness:', error instanceof Error ? error.message : error);
+	});
+
 	return updated;
 }
 

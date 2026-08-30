@@ -216,7 +216,14 @@ async function isLastActiveOwner(tenantId: string, membershipId: string): Promis
 
 /* ------------------------------------------------------------------ invite ---- */
 
-const INVITABLE_ROLES: schema.Role[] = ['ADMIN', 'BOOKING_AGENT', 'SALES', 'VIEWER'];
+// Every role the team UI offers must appear here, or it is a dead option: both
+// inviteMember and changeRole gate on this list.
+const INVITABLE_ROLES: schema.Role[] = ['ADMIN', 'BOOKING_AGENT', 'OPERATIONS', 'SALES', 'VIEWER'];
+
+/** Exposed so a test can assert the UI never offers a role the server refuses. */
+export function assignableRoles(): schema.Role[] {
+	return [...INVITABLE_ROLES];
+}
 
 export type InviteInput = {
 	fullName: string;

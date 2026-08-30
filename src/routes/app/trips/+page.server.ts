@@ -1,6 +1,5 @@
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
-import { listTrips, readinessFor, tripStats } from '$lib/server/trips';
-import { getBookingDetail } from '$lib/server/bookings';
+import { listTripsWithReadiness, tripStats } from '$lib/server/trips';
 import { paginationFrom } from '$lib/server/http';
 import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import type { PageServerLoad } from './$types';
@@ -29,8 +28,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// scoped, is exactly what both an owner and an ops person need.
 	const mine = url.searchParams.get('mine') === '1';
 
-	const [{ items, total }, stats] = await Promise.all([
-		listTrips(
+	const [{ rows, total }, stats] = await Promise.all([
+		listTripsWithReadiness(
 			tenantId,
 			{
 				status: [...TABS[tab]] as Trip['status'][],
@@ -40,22 +39,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		),
 		tripStats(tenantId)
 	]);
-
-	// Readiness needs the booking behind each trip. Only the visible page is
-	// resolved — a hundred trips would otherwise be a hundred round trips for a
-	// number nobody is looking at.
-	const rows = await Promise.all(
-		items.map(async (trip) => {
-			try {
-				const { booking, travelers } = await getBookingDetail(tenantId, trip.bookingId);
-				return { trip, readiness: readinessFor(trip, booking, travelers), bookingReference: booking.bookingReference };
-			} catch {
-				// A trip whose booking has gone is a data fault, not a reason to fail
-				// the whole page. Show it without a readiness verdict.
-				return { trip, readiness: null, bookingReference: null };
-			}
-		})
-	);
 
 	return { workspaceRelevant, rows, total, pagination, stats, tab, mine };
 };

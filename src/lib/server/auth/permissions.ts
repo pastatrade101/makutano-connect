@@ -229,6 +229,8 @@ export const API_SCOPES = [
 	// no business assigning drivers.
 	'trips:read',
 	'trips:write',
+	// Deciding whose problem a departure is, separately from preparing it.
+	'trips:assign',
 	// Passport data over the API is opt-in, never a default.
 	'travelers:read_sensitive'
 ] as const;

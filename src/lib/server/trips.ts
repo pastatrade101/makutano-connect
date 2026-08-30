@@ -9,10 +9,11 @@
 // A trip is CREATED FROM a booking, copying what operations needs, and then
 // diverges. Operations may move a day, swap a hotel or add a transfer without
 // touching what the customer was quoted. Nothing here writes to the booking.
-import { and, asc, count, desc, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { nextReference } from './db/references';
 import { emit } from './events';
+import { assertAllowed } from './entitlements';
 import { AppError } from './errors';
 import { getTenantById } from './tenants';
 import { getBookingDetail } from './bookings';
@@ -36,13 +37,29 @@ export async function createTripFromBooking(
 	input: { operationsUserId?: string | null; title?: string | null; notes?: string | null } = {},
 	actor: TripActor = {}
 ) {
+	// Gated like every other creating domain. A trip is the operational half of a
+	// booking, so it lives or dies with the bookings feature rather than needing a
+	// plan key of its own that no existing plan would carry. assertAllowed also
+	// refuses a suspended tenant, which is the part that matters most here.
+	await assertAllowed(tenantId, { feature: 'bookings.enabled' });
+	await assertAssignable(tenantId, input.operationsUserId);
+
 	const tenant = await getTenantById(tenantId);
 	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant could not be found.');
 
+	// Idempotent on LIVE trips only. A cancelled one is history, not the current
+	// answer — returning it would tell the caller the sale is already in
+	// operations when nobody is preparing anything.
 	const existing = await db()
 		.select()
 		.from(schema.trips)
-		.where(and(eq(schema.trips.tenantId, tenantId), eq(schema.trips.bookingId, bookingId)))
+		.where(
+			and(
+				eq(schema.trips.tenantId, tenantId),
+				eq(schema.trips.bookingId, bookingId),
+				inArray(schema.trips.status, ['PREPARING', 'READY', 'IN_PROGRESS', 'COMPLETED'])
+			)
+		)
 		.limit(1);
 	if (existing[0]) return existing[0];
 
@@ -176,14 +193,88 @@ export async function getTripDetail(tenantId: string, id: string) {
 //
 // The checks are deliberately few and all operational. A trip is not "unready"
 // because someone has not written notes; it is unready because it cannot leave.
+//
+// THE CHECKS ARE DECLARED ONCE, HERE. An earlier cut computed the critical count
+// a second time in SQL for the mobile work feed, and two copies of a rule are
+// two rules: add a check to one and the phone and the portal quietly disagree
+// about whether a trip can leave. Everything that needs readiness — the portal,
+// the API, the phone — derives it from this list.
 
-export type ReadinessCheck = {
+/** The minimum a check needs to make its judgement. */
+export type ReadinessInput = {
+	trip: Pick<
+		schema.Trip,
+		'adults' | 'children' | 'startDate' | 'accommodation' | 'vehicle' | 'driver' | 'guide' | 'hotelConfirmed'
+	>;
+	booking: Pick<schema.Booking, 'status' | 'amountPaid' | 'balanceDue'>;
+	/** How many travellers have a passport on file. */
+	passportsHeld: number;
+};
+
+type CheckDef = {
 	key: string;
-	label: string;
-	done: boolean;
+	label: (i: ReadinessInput) => string;
+	done: (i: ReadinessInput) => boolean;
 	/** A trip must not depart without this. Drives the "blocked" verdict. */
 	critical: boolean;
+	/** Needs traveller rows, which the cheap critical-only path does not load. */
+	needsTravelers?: boolean;
 };
+
+const CHECKS: CheckDef[] = [
+	{
+		key: 'booking_confirmed',
+		label: () => 'Booking confirmed',
+		done: (i) => ['CONFIRMED', 'IN_PROGRESS', 'COMPLETED'].includes(i.booking.status),
+		critical: true
+	},
+	{ key: 'deposit', label: () => 'Deposit received', done: (i) => Number(i.booking.amountPaid ?? 0) > 0, critical: true },
+	{ key: 'dates', label: () => 'Travel dates set', done: (i) => Boolean(i.trip.startDate), critical: true },
+	{
+		key: 'accommodation',
+		label: () => 'Accommodation booked',
+		done: (i) => Boolean(i.trip.accommodation?.trim()),
+		critical: true
+	},
+	{ key: 'hotel_confirmed', label: () => 'Hotel confirmed', done: (i) => i.trip.hotelConfirmed, critical: false },
+	{ key: 'vehicle', label: () => 'Vehicle assigned', done: (i) => Boolean(i.trip.vehicle?.trim()), critical: true },
+	{ key: 'driver', label: () => 'Driver assigned', done: (i) => Boolean(i.trip.driver?.trim()), critical: true },
+	{ key: 'guide', label: () => 'Guide assigned', done: (i) => Boolean(i.trip.guide?.trim()), critical: false },
+	{
+		key: 'passports',
+		label: (i) => {
+			const expected = i.trip.adults + i.trip.children;
+			return expected > 0 ? `Passports (${i.passportsHeld}/${expected})` : 'Passports';
+		},
+		done: (i) => {
+			const expected = i.trip.adults + i.trip.children;
+			return expected > 0 && i.passportsHeld >= expected;
+		},
+		critical: false,
+		needsTravelers: true
+	},
+	// Money still owed does not stop a trip departing — plenty of operators run
+	// the trip and collect on arrival — so this is visible but not blocking.
+	{
+		key: 'balance',
+		label: () => 'Balance settled',
+		done: (i) => Number(i.booking.balanceDue ?? 0) <= 0,
+		critical: false
+	}
+];
+
+// The cheap path below answers "can this leave?" without loading traveller rows,
+// which is only sound while no CRITICAL check needs them. Fail loudly at import
+// rather than silently under-reporting blockers in production.
+const TRAVELER_DEPENDENT_CRITICAL = CHECKS.filter((c) => c.critical && c.needsTravelers);
+if (TRAVELER_DEPENDENT_CRITICAL.length) {
+	throw new Error(
+		`Critical readiness checks cannot depend on traveller rows: ${TRAVELER_DEPENDENT_CRITICAL.map((c) => c.key).join(', ')}. ` +
+			'Either make the check non-critical, or change criticalMissing() to load travellers.'
+	);
+}
+
+export type ReadinessCheck = { key: string; label: string; done: boolean; critical: boolean };
 
 export type Readiness = {
 	percent: number;
@@ -194,40 +285,21 @@ export type Readiness = {
 };
 
 export function readinessFor(
-	trip: schema.Trip,
-	booking: schema.Booking,
+	trip: ReadinessInput['trip'],
+	booking: ReadinessInput['booking'],
 	travelers: Array<{ passportNumber?: string | null }>
 ): Readiness {
-	const paid = Number(booking.amountPaid ?? 0);
-	const outstanding = Number(booking.balanceDue ?? 0);
-	const expected = trip.adults + trip.children;
-	const withPassport = travelers.filter((t) => Boolean(t.passportNumber)).length;
-
-	const checks: ReadinessCheck[] = [
-		{
-			key: 'booking_confirmed',
-			label: 'Booking confirmed',
-			done: ['CONFIRMED', 'IN_PROGRESS', 'COMPLETED'].includes(booking.status),
-			critical: true
-		},
-		{ key: 'deposit', label: 'Deposit received', done: paid > 0, critical: true },
-		{ key: 'dates', label: 'Travel dates set', done: Boolean(trip.startDate), critical: true },
-		{ key: 'accommodation', label: 'Accommodation booked', done: Boolean(trip.accommodation), critical: true },
-		{ key: 'hotel_confirmed', label: 'Hotel confirmed', done: trip.hotelConfirmed, critical: false },
-		{ key: 'vehicle', label: 'Vehicle assigned', done: Boolean(trip.vehicle), critical: true },
-		{ key: 'driver', label: 'Driver assigned', done: Boolean(trip.driver), critical: true },
-		{ key: 'guide', label: 'Guide assigned', done: Boolean(trip.guide), critical: false },
-		{
-			key: 'passports',
-			label: expected > 0 ? `Passports (${withPassport}/${expected})` : 'Passports',
-			done: expected > 0 && withPassport >= expected,
-			critical: false
-		},
-		// Money still owed does not stop a trip departing — plenty of operators run
-		// the trip and collect on arrival — so this is visible but not blocking.
-		{ key: 'balance', label: 'Balance settled', done: outstanding <= 0, critical: false }
-	];
-
+	const input: ReadinessInput = {
+		trip,
+		booking,
+		passportsHeld: travelers.filter((t) => Boolean(t.passportNumber)).length
+	};
+	const checks = CHECKS.map((c) => ({
+		key: c.key,
+		label: c.label(input),
+		done: c.done(input),
+		critical: c.critical
+	}));
 	const done = checks.filter((c) => c.done).length;
 	return {
 		percent: Math.round((done / checks.length) * 100),
@@ -235,6 +307,82 @@ export function readinessFor(
 		missing: checks.filter((c) => !c.done),
 		canBeReady: checks.every((c) => c.done || !c.critical)
 	};
+}
+
+/**
+ * How many things still stop this trip leaving — without loading travellers.
+ *
+ * For list surfaces (the work feed, the trips list) that need the blocker count
+ * for many trips at once and must not pay a traveller query per row.
+ */
+export function criticalMissing(trip: ReadinessInput['trip'], booking: ReadinessInput['booking']): number {
+	const input: ReadinessInput = { trip, booking, passportsHeld: 0 };
+	return CHECKS.filter((c) => c.critical && !c.done(input)).length;
+}
+
+/**
+ * Trips with the booking behind them, in ONE query.
+ *
+ * The list surfaces need a readiness verdict per row, and the naive version —
+ * getBookingDetail() per trip — costs six queries a row, so a page of 25 trips
+ * was ~150 round trips, most of them fetching payments and notes no list ever
+ * renders. This selects only the columns the readiness CHECKS actually read.
+ */
+async function tripsWithBooking(tenantId: string, where: SQL, page?: { limit: number }) {
+	const q = db()
+		.select({
+			trip: schema.trips,
+			booking: {
+				id: schema.bookings.id,
+				bookingReference: schema.bookings.bookingReference,
+				status: schema.bookings.status,
+				amountPaid: schema.bookings.amountPaid,
+				balanceDue: schema.bookings.balanceDue,
+				total: schema.bookings.total,
+				currency: schema.bookings.currency
+			},
+			customerFirstName: schema.customers.firstName,
+			customerLastName: schema.customers.lastName
+		})
+		.from(schema.trips)
+		.innerJoin(schema.bookings, eq(schema.bookings.id, schema.trips.bookingId))
+		.leftJoin(schema.customers, eq(schema.customers.id, schema.trips.customerId))
+		.where(where);
+	// Bounded in SQL, not in Node. Live trips accumulate — nothing leaves
+	// PREPARING on its own — so fetching them all to return forty would grow
+	// without limit against a pool the WhatsApp webhook shares.
+	return page ? q.orderBy(desc(schema.trips.updatedAt)).limit(page.limit) : q;
+}
+
+/** Live trips for the mobile work feed, already joined to what readiness needs. */
+export async function listTripsForWork(tenantId: string, limit = 40) {
+	const rows = await tripsWithBooking(
+		tenantId,
+		and(
+			eq(schema.trips.tenantId, tenantId),
+			inArray(schema.trips.status, ['PREPARING', 'READY', 'IN_PROGRESS'])
+		)!,
+		{ limit }
+	);
+	const day = 24 * 60 * 60 * 1000;
+	const today = new Date();
+	const midnight = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+	return rows.map((r) => ({
+			trip: r.trip,
+			booking: r.booking,
+			customerName: [r.customerFirstName, r.customerLastName].filter(Boolean).join(' ').trim() || null,
+			daysToDeparture: r.trip.startDate
+				? Math.round(
+						(Date.UTC(
+							r.trip.startDate.getUTCFullYear(),
+							r.trip.startDate.getUTCMonth(),
+							r.trip.startDate.getUTCDate()
+						) -
+							midnight) /
+							day
+					)
+				: null
+		}));
 }
 
 export async function listTrips(
@@ -269,6 +417,65 @@ export async function listTrips(
 	return { items, total: Number(total) };
 }
 
+/**
+ * A page of trips, each already scored. Two queries, whatever the page size.
+ *
+ * Passport counts come from one grouped query rather than a traveller fetch per
+ * trip, which is the difference between two round trips and fifty.
+ */
+export async function listTripsWithReadiness(
+	tenantId: string,
+	filters: Parameters<typeof listTrips>[1] = {},
+	page: Pagination = { limit: 25, page: 1, order: 'asc' }
+) {
+	const { items, total } = await listTrips(tenantId, filters, page);
+	if (!items.length) return { rows: [], total };
+
+	const bookingIds = items.map((t) => t.bookingId);
+	const [joined, passportRows] = await Promise.all([
+		tripsWithBooking(
+			tenantId,
+			and(
+				eq(schema.trips.tenantId, tenantId),
+				inArray(
+					schema.trips.id,
+					items.map((t) => t.id)
+				)
+			)!
+		),
+		db()
+			.select({
+				bookingId: schema.bookingTravelers.bookingId,
+				held: sql<number>`count(*) filter (where ${schema.bookingTravelers.passportNumber} is not null)::int`
+			})
+			.from(schema.bookingTravelers)
+			.where(
+				and(
+					eq(schema.bookingTravelers.tenantId, tenantId),
+					inArray(schema.bookingTravelers.bookingId, bookingIds)
+				)
+			)
+			.groupBy(schema.bookingTravelers.bookingId)
+	]);
+
+	const byTrip = new Map(joined.map((j) => [j.trip.id, j]));
+	const passports = new Map(passportRows.map((r) => [r.bookingId, Number(r.held)]));
+
+	// listTrips already ordered these; preserve it rather than the join's order.
+	const rows = items.map((trip) => {
+		const j = byTrip.get(trip.id);
+		if (!j) return { trip, readiness: null, bookingReference: null, customerName: null };
+		const held = passports.get(trip.bookingId) ?? 0;
+		return {
+			trip,
+			readiness: readinessFor(trip, j.booking, Array.from({ length: held }, () => ({ passportNumber: 'x' }))),
+			bookingReference: j.booking.bookingReference,
+			customerName: [j.customerFirstName, j.customerLastName].filter(Boolean).join(' ').trim() || null
+		};
+	});
+	return { rows, total };
+}
+
 /** Legal transitions, enforced server-side rather than by hiding buttons. */
 const TRANSITIONS: Record<schema.Trip['status'], schema.Trip['status'][]> = {
 	PREPARING: ['READY', 'CANCELLED'],
@@ -288,6 +495,7 @@ export async function changeTripStatus(
 	actor: TripActor = {},
 	reason?: string
 ): Promise<schema.Trip> {
+	await assertAllowed(tenantId);
 	const trip = await getTrip(tenantId, id);
 	if (trip.status === toStatus) return trip;
 	if (!TRANSITIONS[trip.status].includes(toStatus)) {
@@ -297,18 +505,24 @@ export async function changeTripStatus(
 	// READY is a promise that the trip can leave. Let the readiness model decide
 	// that rather than the person clicking, or the number on the screen becomes
 	// decoration.
-	if (toStatus === 'READY') {
+	// Departure is a stronger claim than readiness, not a weaker one — a trip that
+	// could not be marked ready must not be able to leave by skipping past it.
+	if (toStatus === 'READY' || toStatus === 'IN_PROGRESS') {
 		const { readiness } = await getTripDetail(tenantId, id);
 		if (!readiness.canBeReady) {
 			const missing = readiness.missing
 				.filter((c) => c.critical)
 				.map((c) => c.label.toLowerCase())
 				.join(', ');
-			throw new AppError('CONFLICT', `This trip is not ready yet — still missing: ${missing}.`);
+			const verb = toStatus === 'READY' ? 'is not ready yet' : 'cannot depart yet';
+			throw new AppError('CONFLICT', `This trip ${verb} — still missing: ${missing}.`);
 		}
 	}
 
 	const now = new Date();
+	// Compare-and-set on the status we validated against. Two people clicking
+	// "Mark ready" at once would otherwise both pass the gate and both write, and
+	// the second would overwrite a transition it never actually checked.
 	const [updated] = await db()
 		.update(schema.trips)
 		.set({
@@ -319,8 +533,13 @@ export async function changeTripStatus(
 			...(toStatus === 'CANCELLED' ? { cancelledAt: now } : {}),
 			updatedAt: now
 		})
-		.where(and(eq(schema.trips.id, id), eq(schema.trips.tenantId, tenantId)))
+		.where(
+			and(eq(schema.trips.id, id), eq(schema.trips.tenantId, tenantId), eq(schema.trips.status, trip.status))
+		)
 		.returning();
+	if (!updated) {
+		throw new AppError('CONFLICT', 'Somebody else moved this trip while you were working on it. Reload and try again.');
+	}
 
 	await db().insert(schema.tripStatusHistory).values({
 		tenantId,
@@ -349,6 +568,29 @@ export async function changeTripStatus(
 }
 
 /** Set-up fields operations owns. Money and customer identity are not among them. */
+/**
+ * A trip can only be handed to somebody who actually works here.
+ *
+ * Without this an operationsUserId from another tenant — or a deactivated
+ * account — can be written straight in, which is both a quiet cross-tenant
+ * reference and a good way to lose a trip to a mailbox nobody reads.
+ */
+async function assertAssignable(tenantId: string, userId: string | null | undefined): Promise<void> {
+	if (!userId) return;
+	const [member] = await db()
+		.select({ id: schema.tenantMemberships.id })
+		.from(schema.tenantMemberships)
+		.where(
+			and(
+				eq(schema.tenantMemberships.tenantId, tenantId),
+				eq(schema.tenantMemberships.userId, userId),
+				isNull(schema.tenantMemberships.disabledAt)
+			)
+		)
+		.limit(1);
+	if (!member) throw new AppError('VALIDATION_ERROR', 'That person is not an active member of this business.');
+}
+
 export type UpdateTripInput = {
 	title?: string;
 	operationsUserId?: string | null;
@@ -368,6 +610,8 @@ export async function updateTrip(
 	input: UpdateTripInput,
 	actor: TripActor = {}
 ): Promise<schema.Trip> {
+	await assertAllowed(tenantId);
+	if (input.operationsUserId !== undefined) await assertAssignable(tenantId, input.operationsUserId);
 	const trip = await getTrip(tenantId, id);
 	if (['COMPLETED', 'CANCELLED'].includes(trip.status)) {
 		throw new AppError('CONFLICT', `A ${trip.status.toLowerCase()} trip can no longer be edited.`);
@@ -391,6 +635,9 @@ export async function updateTrip(
 		.where(and(eq(schema.trips.id, id), eq(schema.trips.tenantId, tenantId)))
 		.returning();
 
+	// Editing a READY trip can take away the very thing that made it ready.
+	if (trip.status === 'READY') await revalidateTrip(tenantId, id);
+
 	// A handover is worth telling someone about; changing a vehicle is not.
 	if (input.operationsUserId !== undefined && input.operationsUserId !== trip.operationsUserId) {
 		await emit(tenantId, 'trip.assigned', {
@@ -402,6 +649,74 @@ export async function updateTrip(
 	}
 
 	return updated;
+}
+
+/**
+ * A booking has been cancelled or refunded — take its trip off the road.
+ *
+ * Without this, cancelling a sale leaves a trip sitting in Upcoming, still
+ * telling an operations person to book a hotel for travellers who are not
+ * coming. The booking is the commercial truth; when it dies the departure dies
+ * with it. A trip already IN_PROGRESS is left alone: people are on the ground,
+ * and that is a conversation, not a status flip.
+ */
+export async function cancelTripForBooking(
+	tenantId: string,
+	bookingId: string,
+	reason: string,
+	actor: TripActor = {}
+): Promise<void> {
+	const [trip] = await db()
+		.select()
+		.from(schema.trips)
+		.where(and(eq(schema.trips.tenantId, tenantId), eq(schema.trips.bookingId, bookingId)))
+		.limit(1);
+	if (!trip) return;
+	if (!['PREPARING', 'READY'].includes(trip.status)) return;
+	await changeTripStatus(tenantId, trip.id, 'CANCELLED', actor, reason);
+}
+
+/**
+ * Something changed on the booking that a READY trip was relying on.
+ *
+ * Readiness is evaluated at the moment READY is claimed, so a refund that takes
+ * amountPaid back to zero, or dates being cleared, would otherwise leave a trip
+ * asserting it can depart when it no longer can. Re-check and quietly drop it
+ * back to PREPARING, which is recoverable, rather than letting it lie.
+ */
+export async function revalidateTripForBooking(tenantId: string, bookingId: string): Promise<void> {
+	const [trip] = await db()
+		.select({ id: schema.trips.id, status: schema.trips.status })
+		.from(schema.trips)
+		.where(and(eq(schema.trips.tenantId, tenantId), eq(schema.trips.bookingId, bookingId)))
+		.limit(1);
+	if (!trip) return;
+	await revalidateTrip(tenantId, trip.id);
+}
+
+/**
+ * READY is a claim about the world, and the world moves.
+ *
+ * The gate runs when READY is asserted, so anything that removes a critical fact
+ * afterwards — a driver quitting, a refund clearing the deposit, dates cleared —
+ * would otherwise leave the trip still saying it can depart. Demote it, with the
+ * reason written to history so the change is legible rather than mysterious.
+ */
+export async function revalidateTrip(tenantId: string, tripId: string): Promise<void> {
+	const trip = await getTrip(tenantId, tripId);
+	if (trip.status !== 'READY') return;
+	const { readiness } = await getTripDetail(tenantId, tripId);
+	if (readiness.canBeReady) return;
+	await changeTripStatus(
+		tenantId,
+		tripId,
+		'PREPARING',
+		{},
+		`No longer ready: ${readiness.missing
+			.filter((c) => c.critical)
+			.map((c) => c.label.toLowerCase())
+			.join(', ')}`
+	);
 }
 
 /** Counts for the operations dashboard, in one round trip. */
