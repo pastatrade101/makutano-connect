@@ -344,7 +344,8 @@ export async function provisionTenant(input: ProvisionTenantInput): Promise<Prov
 				websiteUrl: input.websiteUrl ?? null,
 				provisioningSource: input.source,
 				bookingReferencePrefix: prefix,
-				quotationPrefix: input.quotationPrefix ?? 'QT',
+				// Not 'QT': that is the document kind nextReference already adds.
+				quotationPrefix: input.quotationPrefix ?? null,
 				// Safe defaults. Nothing here grants a capability — every module is still
 				// gated by the plan's entitlements at the point of use.
 				settings: {

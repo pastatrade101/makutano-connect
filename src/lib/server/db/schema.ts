@@ -233,7 +233,10 @@ export const tenants = pgTable(
 		country: text('country'),
 		locale: text('locale').notNull().default('en'),
 		bookingReferencePrefix: text('booking_reference_prefix').notNull().default('MKT'),
-		quotationPrefix: text('quotation_prefix').notNull().default('QT'),
+		// Nullable and defaultless on purpose: nextReference already contributes the
+		// 'QT' kind, so a default of 'QT' here produced QT-QT-2026-00001 and lost
+		// the tenant's own identity. NULL means "use the booking prefix" (0022).
+		quotationPrefix: text('quotation_prefix'),
 		// Business profile — collected during onboarding, editable in Settings afterwards.
 		industry: text('industry'),
 		businessPhone: text('business_phone'),
@@ -1141,6 +1144,10 @@ export const quotations = pgTable(
 		terms: text('terms'),
 		sentAt: timestamp('sent_at', { withTimezone: true }),
 		viewedAt: timestamp('viewed_at', { withTimezone: true }),
+		// Minted on first send, never at creation: a draft nobody has seen has no
+		// business having a live URL. Unguessable, and the only key the public
+		// page accepts — the quotation's own id is never exposed.
+		publicToken: text('public_token'),
 		acceptedAt: timestamp('accepted_at', { withTimezone: true }),
 		declinedAt: timestamp('declined_at', { withTimezone: true }),
 		convertedBookingId: uuid('converted_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
@@ -1154,6 +1161,7 @@ export const quotations = pgTable(
 	},
 	(t) => [
 		uniqueIndex('quotations_tenant_reference_key').on(t.tenantId, t.reference),
+		uniqueIndex('quotations_public_token_key').on(t.publicToken).where(sql`${t.publicToken} is not null`),
 		index('quotations_tenant_status_idx').on(t.tenantId, t.status, t.createdAt)
 	]
 );
