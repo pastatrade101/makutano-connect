@@ -160,7 +160,7 @@ const ADMIN: Permission[] = [
 ];
 
 /**
- * Crew: a driver or guide who has been given the app.
+ * Crew: a driver, guide or specialist who has been given the app.
  *
  * The narrowest role there is, and narrow in a way the others are not — it is
  * the only role whose READS are row-limited. Everyone else sees the whole

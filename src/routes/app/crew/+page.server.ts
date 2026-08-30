@@ -58,7 +58,7 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * Give a driver or guide the app.
+	 * Give a driver, guide or specialist the app.
 	 *
 	 * They become a CREW member — the one role whose reads are row-limited, so
 	 * they see the trips they are personally on and nothing else. Requires an

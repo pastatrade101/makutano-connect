@@ -981,6 +981,11 @@ export const trips = pgTable(
 		driverCrewId: uuid('driver_crew_id').references(() => crew.id, { onDelete: 'set null' }),
 		guide: text('guide'),
 		guideCrewId: uuid('guide_crew_id').references(() => crew.id, { onDelete: 'set null' }),
+		// A seat of its own, not a guide by another name: a Kilimanjaro climb
+		// carries a mountain guide AND a driver-guide, and a trip sheet that
+		// called one of them "Guide" would be lying about who did what.
+		specialist: text('specialist'),
+		specialistCrewId: uuid('specialist_crew_id').references(() => crew.id, { onDelete: 'set null' }),
 		accommodation: text('accommodation'),
 		accommodationItemId: uuid('accommodation_item_id'),
 		hotelConfirmed: boolean('hotel_confirmed').notNull().default(false),
@@ -1008,7 +1013,13 @@ export const trips = pgTable(
 			.where(sql`${t.status} <> 'CANCELLED'`),
 		index('trips_tenant_status_idx').on(t.tenantId, t.status, t.startDate),
 		// The operations home screen's only query: my trips, soonest first.
-		index('trips_operations_idx').on(t.tenantId, t.operationsUserId, t.startDate)
+		index('trips_operations_idx').on(t.tenantId, t.operationsUserId, t.startDate),
+		// One per link column: the crew scope ORs across all three, and Postgres
+		// cannot serve an OR from a single composite index. Partial, because most
+		// trips leave these null and indexing nulls buys nothing (see 0020).
+		index('trips_driver_crew_idx').on(t.driverCrewId).where(sql`${t.driverCrewId} is not null`),
+		index('trips_guide_crew_idx').on(t.guideCrewId).where(sql`${t.guideCrewId} is not null`),
+		index('trips_specialist_crew_idx').on(t.specialistCrewId).where(sql`${t.specialistCrewId} is not null`)
 	]
 );
 

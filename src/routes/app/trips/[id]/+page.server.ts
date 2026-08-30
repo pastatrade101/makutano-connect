@@ -99,11 +99,13 @@ export const actions: Actions = {
 		const patch = {
 			driverCrewId: pickId('driverCrewId'),
 			guideCrewId: pickId('guideCrewId'),
+			specialistCrewId: pickId('specialistCrewId'),
 			accommodationItemId: pickId('accommodationItemId'),
 			title: text('title') ?? undefined,
 			vehicle: text('vehicle'),
 			driver: text('driver'),
 			guide: text('guide'),
+			specialist: text('specialist'),
 			accommodation: text('accommodation'),
 			notes: text('notes'),
 			hotelConfirmed: form.has('hotelConfirmed') ? form.get('hotelConfirmed') === 'on' : undefined,

@@ -528,6 +528,118 @@ suite('trips against the database', () => {
 		expect(visible.items).toHaveLength(0);
 	}, 60_000);
 
+	it('gives a specialist their own seat, separate from the guide', async () => {
+		// A Kilimanjaro climb carries a mountain guide AND a driver-guide. Before
+		// the specialist seat existed, naming one meant overwriting the other.
+		const { createCrew } = await import('../src/lib/server/crew');
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip, getTrip } = await import('../src/lib/server/trips');
+
+		const guide = await createCrew(tenantId, { type: 'GUIDE', name: 'Regular Guide' });
+		const specialist = await createCrew(tenantId, { type: 'SPECIALIST', name: 'Mountain Specialist' });
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Kilimanjaro', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const trip = await createTripFromBooking(tenantId, b.id, {});
+
+		await updateTrip(tenantId, trip.id, { guideCrewId: guide.id });
+		await updateTrip(tenantId, trip.id, { specialistCrewId: specialist.id });
+
+		const after = await getTrip(tenantId, trip.id);
+		expect(after.guide).toBe('Regular Guide');
+		expect(after.guideCrewId).toBe(guide.id);
+		expect(after.specialist).toBe('Mountain Specialist');
+		expect(after.specialistCrewId).toBe(specialist.id);
+	}, 90_000);
+
+	it('keeps the two seats from swapping', async () => {
+		// Each seat takes its own kind. A specialist in the guide slot would mean
+		// the trip claims a guide it has not got.
+		const { createCrew } = await import('../src/lib/server/crew');
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip } = await import('../src/lib/server/trips');
+
+		const guide = await createCrew(tenantId, { type: 'GUIDE', name: 'Only A Guide' });
+		const specialist = await createCrew(tenantId, { type: 'SPECIALIST', name: 'Only A Specialist' });
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const trip = await createTripFromBooking(tenantId, b.id, {});
+
+		await expect(updateTrip(tenantId, trip.id, { guideCrewId: specialist.id })).rejects.toThrow(
+			/not registered as a guide/i
+		);
+		await expect(updateTrip(tenantId, trip.id, { specialistCrewId: guide.id })).rejects.toThrow(
+			/not registered as a specialist/i
+		);
+	}, 90_000);
+
+	it('clears the specialist link when a name is typed in instead', async () => {
+		const { createCrew } = await import('../src/lib/server/crew');
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip, getTrip } = await import('../src/lib/server/trips');
+
+		const specialist = await createCrew(tenantId, { type: 'SPECIALIST', name: 'Registered Specialist' });
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const trip = await createTripFromBooking(tenantId, b.id, {});
+		await updateTrip(tenantId, trip.id, { specialistCrewId: specialist.id });
+		await updateTrip(tenantId, trip.id, { specialist: 'A freelancer nobody registered' });
+
+		const after = await getTrip(tenantId, trip.id);
+		expect(after.specialist).toBe('A freelancer nobody registered');
+		expect(after.specialistCrewId).toBeNull();
+	}, 90_000);
+
+	it('shows a specialist the trips they are on', async () => {
+		// The seat is worthless if the person sitting in it logs in and is told
+		// they are on nothing — which is what happened while the scope only knew
+		// about drivers and guides.
+		const { createCrew } = await import('../src/lib/server/crew');
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip, listTrips, getTrip, tripScope } = await import(
+			'../src/lib/server/trips'
+		);
+
+		const specialist = await createCrew(tenantId, { type: 'SPECIALIST', name: 'Scoped Specialist' });
+		const mk = async () => {
+			const b = await createBooking(tenantId, {
+				customerId,
+				status: 'AWAITING_PAYMENT',
+				items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+			});
+			return createTripFromBooking(tenantId, b.id, {});
+		};
+		const mine = await mk();
+		const theirs = await mk();
+		await updateTrip(tenantId, mine.id, { specialistCrewId: specialist.id });
+
+		const scope = tripScope({ role: 'CREW', crewId: specialist.id });
+		const visible = await listTrips(tenantId, { scope });
+		expect(visible.items.map((t) => t.id)).toContain(mine.id);
+		expect(visible.items.map((t) => t.id)).not.toContain(theirs.id);
+		await expect(getTrip(tenantId, theirs.id, scope)).rejects.toThrow(/could not be found/i);
+	}, 120_000);
+
+	it('offers guides and specialists as separate picker lists', async () => {
+		const { createCrew, crewForPicker } = await import('../src/lib/server/crew');
+		await createCrew(tenantId, { type: 'GUIDE', name: 'Picker Guide' });
+		await createCrew(tenantId, { type: 'SPECIALIST', name: 'Picker Specialist' });
+
+		const picker = await crewForPicker(tenantId);
+		expect(picker.guides.map((g) => g.name)).toContain('Picker Guide');
+		expect(picker.guides.map((g) => g.name)).not.toContain('Picker Specialist');
+		expect(picker.specialists.map((s) => s.name)).toContain('Picker Specialist');
+		expect(picker.specialists.map((s) => s.name)).not.toContain('Picker Guide');
+	}, 60_000);
+
 	it('gives crew trips but never money or passports', async () => {
 		const { permissionsForRole } = await import('../src/lib/server/auth/permissions');
 		const crew = permissionsForRole('CREW');

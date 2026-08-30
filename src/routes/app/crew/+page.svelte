@@ -67,7 +67,7 @@
 		<div class="card">
 			<EmptyState
 				title="Nobody on the crew list yet"
-				description="Add the drivers and guides you dispatch. A trip then picks from this list instead of somebody typing a name — which is how a driver nobody can reach ends up on a departure."
+				description="Add the drivers, guides and specialists you dispatch. A trip then picks from this list instead of somebody typing a name — which is how a driver nobody can reach ends up on a departure."
 			/>
 		</div>
 	{:else}
@@ -115,7 +115,7 @@
 									<button type="button" class="btn-ghost" onclick={() => (inviting = null)}>Cancel</button>
 								</form>
 								<p class="mt-2 text-xs text-slate-500">
-									They will see only the trips they are driving or guiding, and can update those. No bookings, no
+									They will see only the trips they are driving, guiding or specialising on, and can update those. No bookings, no
 									payments, no passports. This uses one of your plan's seats.
 								</p>
 							</li>

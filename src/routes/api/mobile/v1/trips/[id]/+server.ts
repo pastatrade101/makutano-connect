@@ -19,11 +19,13 @@ const updateSchema = z
 		vehicle: z.string().max(200).nullable(),
 		driver: z.string().max(200).nullable(),
 		guide: z.string().max(200).nullable(),
+		specialist: z.string().max(200).nullable(),
 		accommodation: z.string().max(500).nullable(),
 		// Registry picks. The service resolves each to a link plus the name it
 		// snapshots, and refuses one that is inactive or the wrong kind.
 		driverCrewId: z.string().uuid().nullable(),
 		guideCrewId: z.string().uuid().nullable(),
+		specialistCrewId: z.string().uuid().nullable(),
 		accommodationItemId: z.string().uuid().nullable(),
 		hotelConfirmed: z.boolean(),
 		notes: z.string().max(4000).nullable()
@@ -67,7 +69,12 @@ export const GET: RequestHandler = async (event) => {
 				accommodation: detail.trip.accommodation,
 				vehicle: detail.trip.vehicle,
 				driver: detail.trip.driver,
+				driverCrewId: detail.trip.driverCrewId,
 				guide: detail.trip.guide,
+				guideCrewId: detail.trip.guideCrewId,
+				specialist: detail.trip.specialist,
+				specialistCrewId: detail.trip.specialistCrewId,
+				accommodationItemId: detail.trip.accommodationItemId,
 				hotelConfirmed: detail.trip.hotelConfirmed,
 				operationsUserId: detail.trip.operationsUserId,
 				notes: detail.trip.notes

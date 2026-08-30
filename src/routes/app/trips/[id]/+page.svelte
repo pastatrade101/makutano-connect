@@ -15,6 +15,15 @@
 	// Which set-up row is open for editing. Only one at a time: this is a phone-first
 	// pattern lifted onto the desktop, and it keeps every row a single decision.
 	let editing = $state<string | null>(null);
+	// What the open row's picker is showing. FREE is the escape hatch: a driver
+	// who is not registered yet must not block a departure on bookkeeping nobody
+	// has done, so every picker can fall back to a typed name.
+	const FREE = '__free__';
+	let pick = $state<string>('');
+	function openRow(key: string, selected: string | null | undefined) {
+		editing = key;
+		pick = selected ?? '';
+	}
 
 	const guests = $derived(data.trip.adults + data.trip.children);
 	const days = $derived(
@@ -48,14 +57,19 @@
 	const options = $derived({
 		accommodation: { field: 'accommodationItemId', list: data.accommodations, selected: data.trip.accommodationItemId },
 		driver: { field: 'driverCrewId', list: data.crew.drivers, selected: data.trip.driverCrewId },
-		guide: { field: 'guideCrewId', list: data.crew.guides, selected: data.trip.guideCrewId }
+		guide: { field: 'guideCrewId', list: data.crew.guides, selected: data.trip.guideCrewId },
+		specialist: { field: 'specialistCrewId', list: data.crew.specialists, selected: data.trip.specialistCrewId }
 	} as Record<string, { field: string; list: Array<{ id: string; name: string }>; selected: string | null } | undefined>);
 
 	const rows = $derived([
 		{ key: 'accommodation', label: 'Accommodation', icon: 'M3 9l7-5 7 5v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9Z', value: data.trip.accommodation, placeholder: 'Which lodge or hotel', critical: true },
 		{ key: 'vehicle', label: 'Vehicle', icon: 'M3 12h14M5 12V8l2-3h6l2 3v4M6 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z', value: data.trip.vehicle, placeholder: 'e.g. T 123 ABC — Land Cruiser', critical: true },
 		{ key: 'driver', label: 'Driver', icon: 'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 6a6 6 0 0 1 12 0', value: data.trip.driver, placeholder: 'Who is driving', critical: true },
-		{ key: 'guide', label: 'Guide', icon: 'M10 3 3 6.5v4c0 3.6 2.9 6 7 6.5 4.1-.5 7-2.9 7-6.5v-4L10 3Z', value: data.trip.guide, placeholder: 'Who is guiding', critical: false }
+		{ key: 'guide', label: 'Guide', icon: 'M10 3 3 6.5v4c0 3.6 2.9 6 7 6.5 4.1-.5 7-2.9 7-6.5v-4L10 3Z', value: data.trip.guide, placeholder: 'Who is guiding', critical: false },
+		// Deliberately NOT a readiness check: most game drives never need one, and
+		// a permanently unticked "Specialist assigned" would train people to ignore
+		// the list. It is a seat you fill when the trip calls for it.
+		{ key: 'specialist', label: 'Specialist', icon: 'M10 2.5 12 7l4.5.5-3.4 3.1.9 4.6L10 13l-4 2.2.9-4.6L3.5 7.5 8 7l2-4.5Z', value: data.trip.specialist, placeholder: 'Mountain guide, birding expert…', critical: false }
 	]);
 </script>
 
@@ -152,15 +166,29 @@
 								class="flex flex-wrap items-center gap-2">
 								<label class="w-32 shrink-0 text-sm text-slate-500" for="f-{row.key}">{row.label}</label>
 								{#if picker && picker.list.length}
-									<!-- Pick from the tenant's own list. Free text stays available
-									     below it: a driver who is not registered yet must not block a
-									     departure on bookkeeping nobody has done. -->
-									<select id="f-{row.key}" name={picker.field} class="input min-w-0 flex-1">
+									<!-- Pick from the tenant's own list, or type a name. Choosing
+									     "Someone else" drops the select's NAME so only the free text
+									     posts — the server treats a typed name as explicitly not the
+									     registered person and clears the link. -->
+									<select
+										id="f-{row.key}"
+										name={pick === FREE ? undefined : picker.field}
+										bind:value={pick}
+										class="input min-w-0 flex-1">
 										<option value="">Nobody yet</option>
 										{#each picker.list as option (option.id)}
-											<option value={option.id} selected={picker.selected === option.id}>{option.name}</option>
+											<option value={option.id}>{option.name}</option>
 										{/each}
+										<option value={FREE}>Someone else…</option>
 									</select>
+									{#if pick === FREE}
+										<input
+											name={row.key}
+											value={row.value ?? ''}
+											placeholder={row.placeholder}
+											class="input min-w-0 flex-1"
+											required />
+									{/if}
 								{:else}
 									<input
 										id="f-{row.key}"
@@ -200,7 +228,7 @@
 									</div>
 								</div>
 								{#if data.canWrite}
-									<button type="button" class="btn-ghost shrink-0" onclick={() => (editing = row.key)}>
+									<button type="button" class="btn-ghost shrink-0" onclick={() => openRow(row.key, options[row.key]?.selected)}>
 										{row.value ? 'Change' : 'Set'}
 									</button>
 								{/if}

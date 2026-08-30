@@ -106,7 +106,11 @@ export async function crewForPicker(tenantId: string) {
 	const rows = await listCrew(tenantId, { activeOnly: true });
 	return {
 		drivers: rows.filter((r) => r.type === 'DRIVER').map(pick),
-		guides: rows.filter((r) => r.type === 'GUIDE' || r.type === 'SPECIALIST').map(pick)
+		// Guides and specialists are separate seats on a trip, so they are separate
+		// lists here. Offering a birding expert in the guide dropdown is how you end
+		// up with a trip that names her as the guide and has no guide.
+		guides: rows.filter((r) => r.type === 'GUIDE').map(pick),
+		specialists: rows.filter((r) => r.type === 'SPECIALIST').map(pick)
 	};
 }
 

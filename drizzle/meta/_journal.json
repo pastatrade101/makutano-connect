@@ -141,6 +141,13 @@
       "when": 1787930000000,
       "tag": "0019_crew_users",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788093300000,
+      "tag": "0020_trip_specialist",
+      "breakpoints": true
     }
   ]
 }

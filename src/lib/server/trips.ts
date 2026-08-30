@@ -444,7 +444,10 @@ export function tripScope(viewer: { role?: string | null; crewId?: string | null
 	// A crew account with no crew record is a misconfiguration, and it must fail
 	// CLOSED — an unlinked driver sees nothing, never everything.
 	if (!viewer.crewId) return sql`false`;
-	return sql`(${schema.trips.driverCrewId} = ${viewer.crewId}::uuid or ${schema.trips.guideCrewId} = ${viewer.crewId}::uuid)`;
+	// All three seats, or a specialist would log in and be told they are on
+	// nothing. Each column is indexed (0020) because this OR runs on every list
+	// a crew member loads.
+	return sql`(${schema.trips.driverCrewId} = ${viewer.crewId}::uuid or ${schema.trips.guideCrewId} = ${viewer.crewId}::uuid or ${schema.trips.specialistCrewId} = ${viewer.crewId}::uuid)`;
 }
 
 /**
@@ -738,12 +741,14 @@ export type UpdateTripInput = {
 	/** Free text, still accepted — not every driver is in the registry yet. */
 	driver?: string | null;
 	guide?: string | null;
+	specialist?: string | null;
 	accommodation?: string | null;
 	hotelConfirmed?: boolean;
 	notes?: string | null;
 	/** Assign from the registry. Sets the link AND the name in one go. */
 	driverCrewId?: string | null;
 	guideCrewId?: string | null;
+	specialistCrewId?: string | null;
 	accommodationItemId?: string | null;
 };
 
@@ -809,13 +814,26 @@ export async function updateTrip(
 		patch.driverCrewId = null;
 	}
 
+	// Strictly a GUIDE now that specialists have a seat of their own. Before
+	// 0020 this also accepted a SPECIALIST, because there was nowhere else to
+	// put one; accepting it still would mean the same person could occupy both
+	// seats and the trip would claim two people it has one of.
 	if (input.guideCrewId !== undefined) {
-		const resolved = await resolveCrew(tenantId, input.guideCrewId, ['GUIDE', 'SPECIALIST']);
+		const resolved = await resolveCrew(tenantId, input.guideCrewId, ['GUIDE']);
 		patch.guideCrewId = resolved.id;
 		patch.guide = resolved.name;
 	} else if (input.guide !== undefined) {
 		patch.guide = input.guide;
 		patch.guideCrewId = null;
+	}
+
+	if (input.specialistCrewId !== undefined) {
+		const resolved = await resolveCrew(tenantId, input.specialistCrewId, ['SPECIALIST']);
+		patch.specialistCrewId = resolved.id;
+		patch.specialist = resolved.name;
+	} else if (input.specialist !== undefined) {
+		patch.specialist = input.specialist;
+		patch.specialistCrewId = null;
 	}
 
 	if (input.accommodationItemId !== undefined) {
