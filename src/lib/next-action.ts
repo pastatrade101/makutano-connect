@@ -21,6 +21,11 @@ export type NextActionKey =
 	| 'confirm_booking'
 	| 'start_trip'
 	| 'complete_booking'
+	| 'hand_over_to_operations'
+	| 'complete_trip_setup'
+	| 'mark_trip_ready'
+	| 'depart_trip'
+	| 'complete_trip'
 	| 'mark_ready'
 	| 'dispatch_order'
 	| 'mark_delivered'
@@ -47,6 +52,14 @@ const RANK: Record<NextActionKey, number> = {
 	send_quotation: 50,
 	accept_quotation: 55,
 	confirm_booking: 25,
+	// Operations outranks the tail of the commercial flow: a trip that cannot leave
+	// is more urgent than a booking waiting to be marked complete. It sits below
+	// money, because a customer waiting to be believed still outranks a driver.
+	hand_over_to_operations: 32,
+	complete_trip_setup: 34,
+	mark_trip_ready: 36,
+	depart_trip: 38,
+	complete_trip: 78,
 	start_trip: 65,
 	complete_booking: 75,
 	mark_ready: 60,
@@ -65,6 +78,10 @@ export type NextActionAbility = {
 	bookings?: boolean;
 	/** May move a booking along (write). */
 	bookingsWrite?: boolean;
+	/** May see trips. */
+	trips?: boolean;
+	/** May prepare and move a trip. */
+	tripsWrite?: boolean;
 };
 
 const OVER = ['CANCELLED', 'REFUNDED', 'COMPLETED', 'DELIVERED'];
@@ -188,6 +205,69 @@ export function nextForEnquiry(enquiry: EnquiryLike, can: NextActionAbility): Ne
 		label: 'Create quotation',
 		href: `/app/booking-requests/${enquiry.id}`,
 		hint: 'Price what they asked for and send it.'
+	};
+}
+
+export type TripLike = {
+	id: string;
+	status: string;
+	/** Critical checks still outstanding, from readinessFor(). */
+	missingCritical: number;
+	/** Days until departure; negative once it has passed. Null when undated. */
+	daysToDeparture?: number | null;
+};
+
+/**
+ * What operations should do next with a trip.
+ *
+ * Note what is NOT here: nothing about money. A trip with an outstanding balance
+ * is the booking's problem, and pointing operations at a payment screen they
+ * cannot act on is the dead end this module exists to prevent.
+ */
+export function nextForTrip(trip: TripLike, can: NextActionAbility): NextAction | null {
+	if (['COMPLETED', 'CANCELLED'].includes(trip.status)) return null;
+	const href = `/app/trips/${trip.id}`;
+	if (!can.tripsWrite) return can.trips ? { key: 'complete_trip_setup', label: 'Open trip', href } : null;
+
+	if (trip.status === 'PREPARING') {
+		return trip.missingCritical > 0
+			? {
+					key: 'complete_trip_setup',
+					label: 'Complete setup',
+					href,
+					hint: `${trip.missingCritical} thing${trip.missingCritical === 1 ? '' : 's'} still stopping this trip leaving.`
+				}
+			: { key: 'mark_trip_ready', label: 'Mark ready', href, hint: 'Everything is in place — say so.' };
+	}
+	if (trip.status === 'READY') {
+		// Only offer departure once it is actually due. "Start trip" on a trip three
+		// weeks out is an invitation to a mistake nobody can undo cleanly.
+		const due = trip.daysToDeparture == null || trip.daysToDeparture <= 0;
+		return due ? { key: 'depart_trip', label: 'Start trip', href, hint: 'They are on their way.' } : null;
+	}
+	if (trip.status === 'IN_PROGRESS') {
+		return { key: 'complete_trip', label: 'Complete trip', href, hint: 'They are home — close it off.' };
+	}
+	return null;
+}
+
+/**
+ * A confirmed booking with no trip behind it is the handover this whole domain
+ * exists for, so it is asked for on the BOOKING, where the person who closed the
+ * sale is already standing.
+ */
+export function handoverForBooking(
+	booking: { id: string; status: string; hasTrip?: boolean },
+	can: NextActionAbility
+): NextAction | null {
+	if (!can.tripsWrite) return null;
+	if (booking.hasTrip) return null;
+	if (!['CONFIRMED', 'PARTIALLY_PAID', 'AWAITING_PAYMENT', 'IN_PROGRESS'].includes(booking.status)) return null;
+	return {
+		key: 'hand_over_to_operations',
+		label: 'Hand over to operations',
+		href: `/app/bookings/${booking.id}`,
+		hint: 'Sold. Now somebody has to get it out of the door.'
 	};
 }
 

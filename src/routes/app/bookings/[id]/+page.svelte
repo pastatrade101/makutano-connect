@@ -223,6 +223,33 @@
 		<div class="card px-3 py-2"><div class="text-[12.5px] uppercase text-slate-500">Travellers</div><div class="text-lg font-semibold tabular-nums">{data.booking.adults + data.booking.children}</div></div>
 	</div>
 
+	<!-- The handover. A sale is not finished when the money arrives; it is finished
+	     when somebody is preparing the departure. -->
+	{#if data.trip}
+		<section class="card flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+			<div class="min-w-0">
+				<div class="text-[12.5px] uppercase text-slate-500">Operations</div>
+				<a href="/app/trips/{data.trip.id}" class="text-sm font-semibold text-brand-600 hover:underline">
+					{data.trip.title}
+				</a>
+				<span class="ml-2 text-xs text-slate-400">{data.trip.tripReference} · {data.trip.status.replace(/_/g, ' ').toLowerCase()}</span>
+			</div>
+			<a href="/app/trips/{data.trip.id}" class="btn-ghost">Open trip</a>
+		</section>
+	{:else if data.handover}
+		<section class="card px-4 py-3">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div class="min-w-0">
+					<div class="text-sm font-semibold text-slate-900">{data.handover.label}</div>
+					<p class="text-xs text-slate-500">{data.handover.hint}</p>
+				</div>
+				<form method="POST" action="?/handOver" use:enhance class="flex items-center gap-2">
+					<button class="btn-primary">Hand over</button>
+				</form>
+			</div>
+		</section>
+	{/if}
+
 	<div class="grid gap-3 lg:grid-cols-3">
 		<div class="space-y-3 lg:col-span-2">
 			<section class="card">

@@ -38,6 +38,12 @@ export const PERMISSIONS = [
 	'forms:read',
 	'forms:write',
 	'travelers:read_sensitive', // §15 passport data
+	// Operations. Deliberately separate from bookings:* — the person confirming a
+	// hotel has no reason to see or move money, and the person who sold the trip
+	// has no reason to reassign a driver.
+	'trips:read',
+	'trips:write',
+	'trips:assign',
 	'webhooks:read',
 	'webhooks:write',
 	'billing:read',
@@ -64,6 +70,7 @@ const ALL: Permission[] = [...PERMISSIONS];
 
 const READ_ONLY: Permission[] = [
 	'orders:read',
+	'trips:read',
 	'order_links:read',
 	'catalog:read',
 	'forms:read',
@@ -104,7 +111,28 @@ const BOOKING_AGENT: Permission[] = [
 	'conversations:view_all',
 	'conversations:assign',
 	'payments:request',
-	'payments:verify'
+	'payments:verify',
+	// A manager may run a trip and hand one over. Sales deliberately may not:
+	// closing a sale and preparing a departure are different jobs.
+	'trips:write',
+	'trips:assign'
+];
+
+/**
+ * Operations: prepares trips and nothing else.
+ *
+ * The narrowest role in the product, and narrow on purpose. Someone confirming a
+ * hotel needs traveller passports and the trip; they do not need to see revenue,
+ * price a quotation or verify a payment. Everything commercial is read-only here.
+ */
+const OPERATIONS: Permission[] = [
+	...READ_ONLY,
+	'trips:write',
+	'trips:assign',
+	'travelers:read_sensitive',
+	'customers:write',
+	'conversations:write',
+	'whatsapp:send'
 ];
 
 const ADMIN: Permission[] = [
@@ -129,6 +157,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 	OWNER: ALL,
 	ADMIN,
 	BOOKING_AGENT,
+	OPERATIONS,
 	SALES,
 	VIEWER: READ_ONLY
 };
@@ -194,7 +223,14 @@ export const API_SCOPES = [
 	'whatsapp:send',
 	'quotations:read',
 	'quotations:write',
-	'payments:read'
+	'payments:read',
+	// Operations, so a tour operator's own ops tooling can read and prepare trips.
+	// Deliberately NOT in DEFAULT_API_SCOPES: a key minted for a website form has
+	// no business assigning drivers.
+	'trips:read',
+	'trips:write',
+	// Passport data over the API is opt-in, never a default.
+	'travelers:read_sensitive'
 ] as const;
 
 export type ApiScope = (typeof API_SCOPES)[number];

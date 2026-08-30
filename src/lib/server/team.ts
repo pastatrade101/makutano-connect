@@ -31,6 +31,7 @@ export const ROLE_OPTIONS: ReadonlyArray<{ value: schema.Role; label: string; hi
 	{ value: 'ADMIN', label: 'Admin', hint: 'Runs the business: team, settings, templates, refunds' },
 	{ value: 'BOOKING_AGENT', label: 'Manager', hint: 'Full inbox, assigns conversations, verifies payments' },
 	{ value: 'SALES', label: 'Agent', hint: 'Inbox and day-to-day transactions' },
+	{ value: 'OPERATIONS', label: 'Operations', hint: 'Prepares trips: hotels, vehicles, guides, passports. No money.' },
 	{ value: 'VIEWER', label: 'Viewer', hint: 'Read-only access' }
 ];
 

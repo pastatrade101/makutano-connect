@@ -27,7 +27,16 @@ export const EVENTS = [
 	'order.dispatched',
 	'order.delivered',
 	'order.cancelled',
-	'order.refunded'
+	'order.refunded',
+	// Operations. trip.created is the handover; trip.assigned is a person being
+	// given the work, which is what the push notification hangs off.
+	'trip.created',
+	'trip.assigned',
+	'trip.ready',
+	'trip.in_progress',
+	'trip.completed',
+	'trip.cancelled',
+	'trip.preparing'
 ] as const;
 
 export type DomainEvent = (typeof EVENTS)[number];

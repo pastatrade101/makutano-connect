@@ -21,19 +21,20 @@ export type Module =
 	| 'orders' // includes batches
 	| 'quotations'
 	| 'catalog'
-	| 'leads';
+	| 'leads'
+	| 'trips'; // the operational half of a booking
 
 const RELEVANCE: Record<Workspace, ReadonlySet<Module>> = {
 	// Tour operator: enquiry → quote → booking → payment. Orders never appear.
 	// Catalog is reachable as an optional tool (see catalogRecommended) — their
 	// website stays the source of truth for tours; Connect never asks to recreate them.
-	BOOKINGS: new Set<Module>(['enquiries', 'bookings', 'quotations', 'catalog', 'leads']),
+	BOOKINGS: new Set<Module>(['enquiries', 'bookings', 'quotations', 'catalog', 'leads', 'trips']),
 	// WhatsApp seller: conversation → order → payment. Booking flows never appear.
 	ORDERS: new Set<Module>(['orders', 'catalog']),
 	// Service business: enquiry → conversation → quote → payment. Neither orders nor bookings.
 	SERVICE: new Set<Module>(['enquiries', 'quotations', 'catalog', 'leads']),
 	// Genuinely both — e.g. a lodge with rooms AND a shop. Never the default for simplicity.
-	HYBRID: new Set<Module>(['enquiries', 'bookings', 'orders', 'quotations', 'catalog', 'leads'])
+	HYBRID: new Set<Module>(['enquiries', 'bookings', 'orders', 'quotations', 'catalog', 'leads', 'trips'])
 };
 
 /** Is this module part of this kind of business's world? (Relevance, not access.) */

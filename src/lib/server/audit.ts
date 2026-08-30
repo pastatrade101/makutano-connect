@@ -41,6 +41,13 @@ export type AuditAction =
 	| 'user.reactivated'
 	| 'user.removed'
 	| 'permission.changed'
+	// Operations. The handover and the readiness verdict are both worth being able
+	// to reconstruct later: "who said this trip could depart" is a real question
+	// after something goes wrong on the ground.
+	| 'trip.created'
+	| 'trip.updated'
+	| 'trip.status_changed'
+	| 'trip.assigned'
 	| 'conversation.visibility_changed'
 	| 'conversation.assigned'
 	| 'conversation.closed'

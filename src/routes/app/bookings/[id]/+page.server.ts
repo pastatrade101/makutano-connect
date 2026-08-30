@@ -3,6 +3,11 @@ import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { changeBookingStatus, getBooking, getBookingDetail } from '$lib/server/bookings';
 import { createPayment } from '$lib/server/payments';
+import { createTripFromBooking } from '$lib/server/trips';
+import { db, schema } from '$lib/server/db';
+import { and, eq } from 'drizzle-orm';
+import { audit } from '$lib/server/audit';
+import { handoverForBooking } from '$lib/next-action';
 import {
 	createPaymentRequest,
 	isUsablePaymentMethod,
@@ -34,6 +39,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		]);
 		// §15: passport fields carry stricter access controls than the rest of a booking.
 		const canSeeSensitive = locals.permissions.includes('travelers:read_sensitive');
+		const [trip] = locals.permissions.includes('trips:read')
+			? await db()
+					.select()
+					.from(schema.trips)
+					.where(and(eq(schema.trips.tenantId, tenant.id), eq(schema.trips.bookingId, idOf(params))))
+					.limit(1)
+			: [];
 		return {
 			...detail,
 			payMethods: methods,
@@ -42,7 +54,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			travelers: detail.travelers.map((t) =>
 				canSeeSensitive ? t : { ...t, passportNumber: null, passportExpiry: null }
 			),
-			canSeeSensitive
+			canSeeSensitive,
+			// The operational half, if it has been handed over. A booking that already
+			// has a trip links to it; one that does not offers the handover.
+			trip: trip ?? null,
+			handover: handoverForBooking(
+				{ id: detail.booking.id, status: detail.booking.status, hasTrip: Boolean(trip) },
+				{ tripsWrite: locals.permissions.includes('trips:write') }
+			)
 		};
 	} catch {
 		error(404, 'Booking not found');
@@ -50,6 +69,34 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 };
 
 export const actions: Actions = {
+	/**
+	 * Hand the sale over to operations.
+	 *
+	 * This is where the commercial record stops and the operational one starts. It
+	 * is offered on the BOOKING because that is where the person who closed the
+	 * sale is already standing — making them navigate to a Trips screen to create
+	 * the thing they just sold is the friction this whole domain exists to remove.
+	 */
+	handOver: async ({ locals, params, request }) => {
+		requirePermission(locals.permissions, 'trips:write');
+		const tenantId = requireTenant(locals).id;
+		const data = await request.formData();
+		const operationsUserId = String(data.get('operationsUserId') ?? '').trim() || null;
+		try {
+			const trip = await createTripFromBooking(tenantId, idOf(params), { operationsUserId }, { userId: locals.user?.id });
+			await audit(
+				tenantId,
+				'trip.created',
+				{ type: 'user', userId: locals.user?.id },
+				{ type: 'trip', id: trip.id },
+				{ after: { bookingId: idOf(params), operationsUserId } }
+			);
+			return { success: true, tripId: trip.id };
+		} catch (error) {
+			return fail(400, { error: toAppError(error).message });
+		}
+	},
+
 	/** The confirm-step "Request payment": creates the request (which messages the
 	 *  customer with instructions) and moves the booking to AWAITING_PAYMENT. */
 	requestPayment: async ({ locals, params, request }) => {

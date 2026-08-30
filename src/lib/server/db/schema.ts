@@ -29,7 +29,7 @@ export const tenantStatusEnum = pgEnum('tenant_status', [
 ]);
 /** How a tenant came into existence — Platform Admin, the public signup, or a legacy import. */
 export const provisioningSourceEnum = pgEnum('provisioning_source', ['ADMIN', 'SELF_SERVICE', 'IMPORT']);
-export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'VIEWER']);
+export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'OPERATIONS', 'VIEWER']);
 export const apiKeyEnvEnum = pgEnum('api_key_environment', ['live', 'test']);
 export const verificationPurposeEnum = pgEnum('verification_purpose', [
 	'EMAIL_VERIFICATION',
@@ -86,6 +86,22 @@ export const bookingStatusEnum = pgEnum('booking_status', [
 	'CANCELLED',
 	'REFUNDED'
 ]);
+/**
+ * A trip's OPERATIONAL life, which is not the booking's commercial life.
+ *
+ * A booking can be CONFIRMED and fully paid while the trip still has no driver; a
+ * trip can be IN_PROGRESS while a balance is outstanding. Sharing one status
+ * between them is what forces operations staff to read commercial fields to find
+ * out whether a vehicle is assigned, so they are kept apart on purpose.
+ */
+export const tripStatusEnum = pgEnum('trip_status', [
+	'PREPARING',
+	'READY',
+	'IN_PROGRESS',
+	'COMPLETED',
+	'CANCELLED'
+]);
+
 export const bookingItemTypeEnum = pgEnum('booking_item_type', [
 	'TOUR',
 	'HOTEL',
@@ -906,6 +922,122 @@ export const bookingStatusHistory = pgTable(
 	(t) => [index('booking_status_history_booking_idx').on(t.bookingId, t.createdAt)]
 );
 
+// ── trips ─────────────────────────────────────────────────────────────────────
+//
+// The operational half of a sale. A booking answers "what did they buy and have
+// they paid"; a trip answers "can this actually depart". They are separate tables
+// because they are separate jobs done by separate people at separate times — the
+// agent who closed the sale is usually not the person confirming the hotel.
+//
+// A trip is CREATED FROM a booking and then diverges: operations may move a day,
+// change a hotel or add a transfer without touching what the customer was sold.
+
+export const trips = pgTable(
+	'trips',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		tripReference: text('trip_reference').notNull(), // EMN-TR-2026-00001
+		// The commercial record this came from. Kept for money and customer identity,
+		// which the trip never duplicates.
+		bookingId: uuid('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'set null' }),
+		status: tripStatusEnum('status').notNull().default('PREPARING'),
+		title: text('title').notNull(),
+		// The handover. Whoever owns getting this trip out of the door.
+		operationsUserId: uuid('operations_user_id').references(() => users.id, { onDelete: 'set null' }),
+		startDate: timestamp('start_date', { withTimezone: true }),
+		endDate: timestamp('end_date', { withTimezone: true }),
+		adults: integer('adults').notNull().default(1),
+		children: integer('children').notNull().default(0),
+		// Phase 1 keeps the crew as free text rather than as entities. A tenant's first
+		// trips teach us the shape; promoting these to real records later is a
+		// migration, whereas guessing the shape now and being wrong is a rewrite.
+		vehicle: text('vehicle'),
+		driver: text('driver'),
+		guide: text('guide'),
+		accommodation: text('accommodation'),
+		hotelConfirmed: boolean('hotel_confirmed').notNull().default(false),
+		notes: text('notes'),
+		metadata: jsonb('metadata')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		readyAt: timestamp('ready_at', { withTimezone: true }),
+		startedAt: timestamp('started_at', { withTimezone: true }),
+		completedAt: timestamp('completed_at', { withTimezone: true }),
+		cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+		createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('trips_tenant_reference_key').on(t.tenantId, t.tripReference),
+		// One trip per booking. Two trips for one sale is always a mistake, and a
+		// constraint is cheaper than the code that would have to detect it.
+		uniqueIndex('trips_booking_key').on(t.bookingId),
+		index('trips_tenant_status_idx').on(t.tenantId, t.status, t.startDate),
+		// The operations home screen's only query: my trips, soonest first.
+		index('trips_operations_idx').on(t.tenantId, t.operationsUserId, t.startDate)
+	]
+);
+
+/** What actually happens on the ground, copied forward from the booking's items. */
+export const tripItems = pgTable(
+	'trip_items',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		tripId: uuid('trip_id')
+			.notNull()
+			.references(() => trips.id, { onDelete: 'cascade' }),
+		// Same vocabulary as booking items — TOUR, HOTEL, ROOM, TRANSFER, ACTIVITY,
+		// PARK_FEE — so a copied line keeps its meaning.
+		type: bookingItemTypeEnum('type').notNull().default('TOUR'),
+		title: text('title').notNull(),
+		description: text('description'),
+		// Deliberately NO price. The moment operations can change a number the customer
+		// was quoted, the booking stops being the truth about what was sold.
+		dayNumber: integer('day_number'),
+		sortOrder: integer('sort_order').notNull().default(0),
+		startDate: timestamp('start_date', { withTimezone: true }),
+		endDate: timestamp('end_date', { withTimezone: true }),
+		confirmed: boolean('confirmed').notNull().default(false),
+		metadata: jsonb('metadata')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		createdAt: createdAt()
+	},
+	(t) => [index('trip_items_trip_idx').on(t.tripId, t.dayNumber, t.sortOrder)]
+);
+
+export const tripStatusHistory = pgTable(
+	'trip_status_history',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		tripId: uuid('trip_id')
+			.notNull()
+			.references(() => trips.id, { onDelete: 'cascade' }),
+		fromStatus: tripStatusEnum('from_status'),
+		toStatus: tripStatusEnum('to_status').notNull(),
+		reason: text('reason'),
+		changedByUserId: uuid('changed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		changedByApiKeyId: uuid('changed_by_api_key_id').references(() => apiKeys.id, { onDelete: 'set null' }),
+		createdAt: createdAt()
+	},
+	(t) => [index('trip_status_history_trip_idx').on(t.tripId, t.createdAt)]
+);
+
 /* ------------------------------------------------------- §16 quotations ---- */
 
 export const quotations = pgTable(
@@ -1491,6 +1623,8 @@ export type Conversation = typeof conversations.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type BookingRequest = typeof bookingRequests.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
+export type Trip = typeof trips.$inferSelect;
+export type TripItem = typeof tripItems.$inferSelect;
 export type Quotation = typeof quotations.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type PaymentRequest = typeof paymentRequests.$inferSelect;
