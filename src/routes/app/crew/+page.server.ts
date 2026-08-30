@@ -6,6 +6,9 @@ import { createCrew, getCrew, listCrew, updateCrew } from '$lib/server/crew';
 import { inviteMember } from '$lib/server/team';
 import { AppError } from '$lib/server/errors';
 import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
+import { sendEventTemplate } from '$lib/server/whatsapp/template-engine';
+import { normalizePhone } from '$lib/server/phone';
+import { log } from '$lib/server/logger';
 import type { Actions, PageServerLoad } from './$types';
 import type { Crew } from '$lib/server/db/schema';
 
@@ -24,6 +27,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// is a different decision from writing down who drives.
 		canInvite: can(locals.permissions, 'members:write')
 	};
+};
+
+/** How a crew role reads in a message to the person themselves. */
+const CREW_ROLE_LABEL: Record<Crew['type'], string> = {
+	DRIVER: 'a driver',
+	GUIDE: 'a guide',
+	SPECIALIST: 'a specialist'
 };
 
 const asFailure = (error: unknown) =>
@@ -90,7 +100,50 @@ export const actions: Actions = {
 				{ type: 'crew', id },
 				{ after: { invitedAs: 'CREW', email } }
 			);
-			return { success: true };
+			// Then WhatsApp, which is where these people actually are.
+			//
+			// This is best-effort on purpose: the account already exists and the
+			// link is already returned below, so a WABA that is not connected, a
+			// crew_invite template Meta has not approved yet, or a number that is
+			// not on WhatsApp must not turn a successful invite into an error.
+			// The UI says which of those happened rather than claiming a send.
+			const tenant = requireTenant(locals);
+			const phone = normalizePhone(person.phone, (tenant.settings as Record<string, unknown>)?.country as string);
+			let whatsapp: 'sent' | 'no_phone' | 'not_delivered' = phone ? 'not_delivered' : 'no_phone';
+			if (phone) {
+				try {
+					const sent = await sendEventTemplate(
+						tenantId,
+						'CREW_INVITE',
+						phone,
+						{
+							business: { name: tenant.name },
+							crew: { name: person.name, roleLabel: CREW_ROLE_LABEL[person.type] },
+							invite: { link: invited.inviteLink }
+						},
+						// One send per issued invite: re-inviting mints a new token and
+						// so deserves a new message, but a double-submit must not.
+						`crew-invite:${id}:${invited.userId}`
+					);
+					if (sent) whatsapp = 'sent';
+				} catch (err) {
+					log.warn('crew_invite_whatsapp_failed', { tenantId, error: (err as Error)?.message });
+				}
+			}
+
+			// Hand the link back regardless. WhatsApp is the best channel, not a
+			// guaranteed one, and a link nobody can copy is a dead end.
+			return {
+				success: true,
+				invite: {
+					name: person.name,
+					phone: person.phone,
+					link: invited.inviteLink,
+					emailed: invited.emailed,
+					email,
+					whatsapp
+				}
+			};
 		} catch (error) {
 			return asFailure(error);
 		}

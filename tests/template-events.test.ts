@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventsForWorkspace } from '../src/lib/server/whatsapp/template-engine';
+import { eventsForWorkspace, NOTIFY_EVENTS } from '../src/lib/server/whatsapp/template-engine';
 
 describe('template events follow the workspace', () => {
 	it('a shop is never offered a trip reminder', () => {
@@ -34,6 +34,9 @@ describe('template events follow the workspace', () => {
 	});
 
 	it('hybrid still sees everything', () => {
-		expect(eventsForWorkspace('HYBRID')).toHaveLength(16);
+		// Derived, not a literal: a hard-coded count means every new event fails a
+		// test that has nothing to say about it, and the failure teaches nobody
+		// anything except which number to retype.
+		expect(eventsForWorkspace('HYBRID')).toHaveLength(NOTIFY_EVENTS.length);
 	});
 });

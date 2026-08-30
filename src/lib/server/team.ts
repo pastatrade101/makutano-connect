@@ -18,7 +18,7 @@ import {
 import { issueToken } from './auth/verification';
 import { db, schema } from './db';
 import { getLimit } from './entitlements';
-import { env } from './env';
+import { emailReady, env } from './env';
 import { AppError } from './errors';
 import { enqueue } from './jobs/queue';
 import { log } from './logger';
@@ -350,7 +350,15 @@ export async function inviteMember(tenantId: string, input: InviteInput) {
 		}
 	);
 	log.info('team_member_invited', { tenantId, role: input.role });
-	return { userId: user.id };
+	// The link comes back to the caller as well as going out by email.
+	//
+	// Email is the wrong and only channel for half the people this invites: a
+	// safari driver in Arusha has WhatsApp, not an inbox he checks — and a
+	// deployment with no mail provider configured drops the invite entirely
+	// (sendEmail withholds the body from production logs on purpose, so it is
+	// not recoverable afterwards). Handing the link back lets whoever issued the
+	// invite pass it on however they actually reach that person.
+	return { userId: user.id, inviteLink: link, emailed: emailReady() };
 }
 
 /* --------------------------------------------------------------- mutations ---- */

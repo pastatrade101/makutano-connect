@@ -36,6 +36,9 @@ export type TemplateContext = {
 	/** Generic transaction descriptor so one template serves bookings, orders and quotes. */
 	transaction?: { typeLabel?: string | null; reference?: string | null } | null;
 	quotation?: { reference?: string | null; total?: string | null; link?: string | null } | null;
+	/** Staff-facing: the crew member being given the app, and their one-time link. */
+	crew?: { name?: string | null; roleLabel?: string | null } | null;
+	invite?: { link?: string | null } | null;
 	payment?: {
 		amount?: string | null;
 		amountDue?: string | null;
@@ -76,7 +79,10 @@ export const TEMPLATE_VARIABLES: Record<string, { label: string; resolve: (ctx: 
 		label: 'Transaction type (booking/order/quotation)',
 		resolve: (c) => c.transaction?.typeLabel || ''
 	},
-	'transaction.reference': { label: 'Transaction reference', resolve: (c) => c.transaction?.reference || '' }
+	'transaction.reference': { label: 'Transaction reference', resolve: (c) => c.transaction?.reference || '' },
+	'crew.name': { label: 'Crew member name', resolve: (c) => c.crew?.name || 'there' },
+	'crew.role': { label: 'Crew role (driver/guide/specialist)', resolve: (c) => c.crew?.roleLabel || '' },
+	'invite.link': { label: 'Invite link', resolve: (c) => c.invite?.link || '' }
 };
 
 const VARIABLE_PATTERN = /\{\{\s*([a-z_]+\.[a-z_]+)\s*\}\}/g;
@@ -120,7 +126,11 @@ export const NOTIFY_EVENTS = [
 	'QUOTATION_ACCEPTED',
 	'QUOTATION_REMINDER',
 	'PAYMENT_NOT_FOUND',
-	'BOOKING_CANCELLED'
+	'BOOKING_CANCELLED',
+	// The first event addressed to STAFF rather than a customer: the driver,
+	// guide or specialist you just gave the app to. Email is the wrong channel
+	// for most of them — a safari driver has WhatsApp, not an inbox.
+	'CREW_INVITE'
 ] as const;
 
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number];
@@ -134,6 +144,7 @@ const EVENT_MODULE: Partial<Record<NotifyEvent, Module>> = {
 	BOOKING_CONFIRMED: 'bookings',
 	BOOKING_CANCELLED: 'bookings',
 	TRIP_REMINDER: 'bookings',
+	CREW_INVITE: 'bookings',
 	QUOTATION_READY: 'quotations',
 	QUOTATION_ACCEPTED: 'quotations',
 	QUOTATION_REMINDER: 'quotations',

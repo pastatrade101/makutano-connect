@@ -22,7 +22,7 @@ import { createTemplateDraft, submitTemplateToMeta, type NotifyEvent } from './t
 import { resolveCredentials } from './connections';
 import { log } from '../logger';
 
-export const PACK_VERSION = 6;
+export const PACK_VERSION = 7;
 
 type PackTemplate = {
 	name: string;
@@ -53,6 +53,17 @@ const PACK: PackTemplate[] = [
 		module: 'bookings',
 		bodyText:
 			'Hello {{customer.first_name}}, your booking is confirmed. Reference: {{booking.reference}}. We will follow up with your itinerary and joining instructions.'
+	},
+	{
+		// UTILITY, staff-facing: the person has just been granted an account by
+		// the business, so the message is expected and specific. The link is a
+		// single-use, 7-day token — it is the whole point of the message, which
+		// is why it is a body variable rather than a static URL button.
+		name: 'crew_invite',
+		eventKey: 'CREW_INVITE',
+		module: 'bookings',
+		bodyText:
+			'Hi {{crew.name}}, {{business.name}} has given you access to their trips app as {{crew.role}}. Open this link to set your password: {{invite.link}} It can only be used once and expires in 7 days.'
 	},
 	{
 		name: 'trip_reminder',

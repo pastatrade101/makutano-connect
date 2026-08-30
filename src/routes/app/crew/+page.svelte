@@ -4,6 +4,32 @@
 	import EmptyState from '$components/EmptyState.svelte';
 	let { data, form } = $props();
 	let inviting = $state<string | null>(null);
+	let copied = $state(false);
+
+	// An issued invite closes the form it came from — leaving it open reads as
+	// though the invite had not been sent.
+	$effect(() => {
+		if (form?.invite) inviting = null;
+	});
+
+	/** wa.me wants digits only, no +, no spaces. */
+	const waNumber = (phone: string | null | undefined) => (phone ?? '').replace(/\D/g, '');
+
+	const waLink = (invite: { name: string; phone?: string | null; link: string }) =>
+		`https://wa.me/${waNumber(invite.phone)}?text=` +
+		encodeURIComponent(
+			`Hi ${invite.name}, here is your access to our trips app. Open this link to set your password:\n${invite.link}\n\nIt works once and expires in 7 days.`
+		);
+
+	async function copyLink(link: string) {
+		try {
+			await navigator.clipboard.writeText(link);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
+		} catch {
+			copied = false;
+		}
+	}
 
 	const TYPES = [
 		{ value: 'DRIVER', label: 'Driver' },
@@ -32,6 +58,54 @@
 
 	{#if form?.error}
 		<div class="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{form.error}</div>
+	{/if}
+
+	{#if form?.invite}
+		{@const invite = form.invite}
+		<div class="card space-y-3 border-brand-200 bg-brand-50/50 p-4">
+			<div>
+				<h2 class="text-sm font-semibold text-slate-900">
+					{#if invite.whatsapp === 'sent'}
+						Sent to {invite.name} on WhatsApp
+					{:else}
+						{invite.name} can sign in — send them the link
+					{/if}
+				</h2>
+				<p class="mt-0.5 text-xs text-slate-500">
+					{#if invite.whatsapp === 'sent'}
+						They have the link on {invite.phone}. It sets their password, works once, and expires in 7 days.
+					{:else if invite.whatsapp === 'no_phone'}
+						They have no phone number on file, so WhatsApp could not be used. Add one and the next invite goes out
+						automatically.
+					{:else}
+						WhatsApp did not send — either this workspace has no WhatsApp connected, or Meta has not approved the
+						<b>crew_invite</b> template yet. Check
+						<a href="/app/whatsapp/templates" class="text-brand-600 hover:underline">Message templates</a>.
+					{/if}
+				</p>
+			</div>
+
+			{#if invite.whatsapp !== 'sent'}
+				<div class="flex flex-wrap items-center gap-2">
+					<code class="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+						{invite.link}
+					</code>
+					<button type="button" class="btn-ghost" onclick={() => copyLink(invite.link)}>
+						{copied ? 'Copied' : 'Copy'}
+					</button>
+					{#if waNumber(invite.phone)}
+						<a class="btn-primary" href={waLink(invite)} target="_blank" rel="noreferrer noopener">
+							Send on WhatsApp
+						</a>
+					{/if}
+				</div>
+			{/if}
+
+			<p class="text-xs text-slate-400">
+				{#if invite.emailed}An email also went to {invite.email}.{/if}{' '}Once they set a password they sign in at
+				the same address you do — on the web or in the app — and see only the trips they are on.
+			</p>
+		</div>
 	{/if}
 
 	{#if data.canWrite}
