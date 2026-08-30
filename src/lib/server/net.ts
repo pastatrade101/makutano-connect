@@ -12,7 +12,6 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { AppError } from './errors';
-import { env } from './env';
 
 const BLOCKED_V4 = [
 	{ label: 'loopback', test: (p: number[]) => p[0] === 127 },
@@ -66,7 +65,11 @@ export async function assertFetchableUrl(raw: string): Promise<URL> {
 	if (url.username || url.password) {
 		throw new AppError('VALIDATION_ERROR', 'Put credentials in the API key field, not in the URL.');
 	}
-	if ((env() as Record<string, unknown>).CATALOG_SYNC_ALLOW_PRIVATE === 'on') return url;
+	// process.env directly, NOT env(): that is a zod z.object() parse, which
+	// strips keys the schema does not declare — so reading this through it would
+	// have silently returned undefined and the escape hatch would never open.
+	// It is also cached, which a test toggling the flag would have to work around.
+	if (process.env.CATALOG_SYNC_ALLOW_PRIVATE === 'on') return url;
 
 	const literal = isIP(url.hostname) ? [url.hostname] : [];
 	let resolved: string[] = literal;

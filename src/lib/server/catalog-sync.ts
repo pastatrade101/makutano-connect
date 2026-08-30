@@ -7,7 +7,7 @@
 //
 // Configuration is per TENANT, not per deployment: one Connect serves several
 // businesses and they do not share an endpoint.
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { db, schema } from './db';
 import { getTenantById } from './tenants';
 import { assertFetchableUrl } from './net';
@@ -164,7 +164,12 @@ export async function syncCatalogSource(tenantId: string, source: CatalogSource)
 				eq(schema.catalogItems.tenantId, tenantId),
 				eq(schema.catalogItems.externalSource, source.source),
 				eq(schema.catalogItems.isActive, true),
-				sql`${schema.catalogItems.externalReference} <> all(${seen})`
+				// notInArray, NOT a hand-written `<> all(${seen})`: drizzle's sql
+				// template does not serialise a JS array into a Postgres array, so
+				// that form threw "op ANY/ALL (array) requires array on right side"
+				// on every run — and the error was swallowed (see below), so the
+				// job reported SUCCEEDED while nothing was ever retired.
+				notInArray(schema.catalogItems.externalReference, seen)
 			)
 		)
 		.returning({ id: schema.catalogItems.id });
@@ -178,15 +183,23 @@ export async function syncTenantCatalog(tenantId: string): Promise<SyncResult[]>
 	if (!tenant) throw new AppError('NOT_FOUND', 'Tenant not found.');
 	const { sources } = catalogSyncSettings(tenant.settings as Record<string, unknown>);
 	const results: SyncResult[] = [];
+	const failures: string[] = [];
 	for (const source of sources.filter((s) => s.enabled)) {
 		try {
 			const result = await syncCatalogSource(tenantId, source);
 			results.push(result);
 			log.info('catalog_sync_done', { tenantId, ...result });
 		} catch (error) {
-			log.error('catalog_sync_failed', { tenantId, source: source.source, error: (error as Error)?.message });
+			const message = (error as Error)?.message ?? 'unknown';
+			log.error('catalog_sync_failed', { tenantId, source: source.source, error: message });
+			failures.push(`${source.source}: ${message}`);
 		}
 	}
+	// Every source is attempted — one broken endpoint must not stop the others —
+	// but the job still FAILS if any of them did. Swallowing this is how a sync
+	// that has never once worked goes on reporting SUCCEEDED: the first version
+	// of this did exactly that, and only the container log knew.
+	if (failures.length) throw new AppError('INTERNAL_ERROR', `Catalogue sync failed — ${failures.join('; ')}`);
 	return results;
 }
 
