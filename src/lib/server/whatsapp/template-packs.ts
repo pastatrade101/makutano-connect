@@ -39,6 +39,17 @@ type PackTemplate = {
  * quotation_ready is deliberately link-free in the pack: not every tenant has a
  * public quote page, and a template that always sends beats one that skips.
  */
+// crew_invite is deliberately NOT here. Meta rejects it as INCORRECT_CATEGORY:
+// handing somebody app access is not tied to a transaction, so it reads as
+// MARKETING, and MARKETING needs opt-in and per-user limits nobody wants on a
+// one-off message to their own driver. The portal already shows the invite link
+// with Copy and a wa.me button, which needs no approval and lets the owner send
+// it from their own WhatsApp. Shipping a template that reliably fails review
+// only leaves every tenant a "Needs changes" row they cannot act on.
+//
+// PACK_VERSION is deliberately NOT bumped for the removal: tenants on 8 have
+// nothing new to fetch, and bumping would show them an upgrade button with
+// nothing behind it.
 const PACK: PackTemplate[] = [
 	{
 		name: 'booking_request_received',
@@ -53,17 +64,6 @@ const PACK: PackTemplate[] = [
 		module: 'bookings',
 		bodyText:
 			'Hello {{customer.first_name}}, your booking is confirmed. Reference: {{booking.reference}}. We will follow up with your itinerary and joining instructions.'
-	},
-	{
-		// UTILITY, staff-facing: the person has just been granted an account by
-		// the business, so the message is expected and specific. The link is a
-		// single-use, 7-day token — it is the whole point of the message, which
-		// is why it is a body variable rather than a static URL button.
-		name: 'crew_invite',
-		eventKey: 'CREW_INVITE',
-		module: 'bookings',
-		bodyText:
-			'Hi {{crew.name}}, {{business.name}} has given you access to their trips app as {{crew.role}}. Open this link to set your password: {{invite.link}} It can only be used once and expires in 7 days.'
 	},
 	{
 		// The traveller's booking changed after they confirmed it. UTILITY, and
