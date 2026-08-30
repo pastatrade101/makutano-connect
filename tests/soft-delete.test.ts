@@ -104,6 +104,55 @@ suite('deleting is hiding, not destroying', () => {
 		expect((await listBookingRequests(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.request.id)).toContain(enquiry.id);
 	}, 120_000);
 
+	it('clears an enquiry when the source says it deleted it', async () => {
+		// The source holds its own reference and has never seen Connect's uuid,
+		// so the mirror delete is keyed on external_reference.
+		const { createBookingRequest, deleteMirroredBookingRequest, listBookingRequests } = await import(
+			'../src/lib/server/booking-requests'
+		);
+		const { request } = await createBookingRequest(tenantId, {
+			customer: { firstName: 'Mirrored', lastName: 'Enquiry' },
+			source: 'WEBSITE',
+			currency: 'USD',
+			externalReference: 'GF-BK-9001',
+			externalSource: 'goldfinch',
+			sendAcknowledgement: false
+		});
+
+		const hit = await deleteMirroredBookingRequest(tenantId, 'GF-BK-9001');
+		expect(hit.deleted).toBe(true);
+		expect((await listBookingRequests(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.request.id)).not.toContain(request.id);
+
+		// Idempotent: a replayed delete is not an error, and does not claim a
+		// second deletion.
+		expect((await deleteMirroredBookingRequest(tenantId, 'GF-BK-9001')).deleted).toBe(false);
+		// And a reference we never mirrored is quiet rather than throwing.
+		expect((await deleteMirroredBookingRequest(tenantId, 'GF-BK-NEVER-SEEN')).deleted).toBe(false);
+	}, 120_000);
+
+	it('clears a quotation when the source says it deleted it', async () => {
+		const { upsertQuotationMirror, deleteMirroredQuotation, listQuotations } = await import(
+			'../src/lib/server/quotations'
+		);
+		const mirrored = await upsertQuotationMirror(tenantId, {
+			externalReference: 'GFQ-TEST01',
+			externalSource: 'goldfinch',
+			customer: { firstName: 'Mirrored', lastName: 'Quote' },
+			status: 'SENT',
+			currency: 'USD',
+			total: '1200.00'
+		} as never);
+
+		expect((await listQuotations(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.quotation.id)).toContain(mirrored.id);
+
+		const hit = await deleteMirroredQuotation(tenantId, 'GFQ-TEST01');
+		expect(hit.deleted).toBe(true);
+		expect((await listQuotations(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.quotation.id)).not.toContain(mirrored.id);
+
+		expect((await deleteMirroredQuotation(tenantId, 'GFQ-TEST01')).deleted).toBe(false);
+		expect((await deleteMirroredQuotation(tenantId, 'GFQ-NEVER-SEEN')).deleted).toBe(false);
+	}, 120_000);
+
 	it('can still be found when something asks for the deleted ones', async () => {
 		const { listBookings, softDeleteBooking } = await import('../src/lib/server/bookings');
 		const booking = await newBooking();

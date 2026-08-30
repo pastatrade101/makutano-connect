@@ -465,3 +465,35 @@ export async function bookingRequestStats(tenantId: string) {
 		last7Days: Number(r.last_7_days ?? 0)
 	};
 }
+
+
+/**
+ * The source system says one of its enquiries is gone.
+ *
+ * Keyed on the SOURCE's own reference — the only identifier it holds; it has
+ * never seen Connect's uuid. Idempotent, and quiet about a reference it does
+ * not know: a delete replayed twice, or sent for something never mirrored, is
+ * not worth failing a webhook over.
+ *
+ * Deliberately does NOT touch a booking this enquiry was converted into. The
+ * source deleting its enquiry says nothing about the sale that came out of it,
+ * and Connect owns everything after acceptance.
+ */
+export async function deleteMirroredBookingRequest(
+	tenantId: string,
+	externalReference: string
+): Promise<{ deleted: boolean; reference: string | null }> {
+	const [existing] = await db()
+		.select({ id: schema.bookingRequests.id, reference: schema.bookingRequests.reference, deletedAt: schema.bookingRequests.deletedAt })
+		.from(schema.bookingRequests)
+		.where(
+			and(
+				eq(schema.bookingRequests.tenantId, tenantId),
+				eq(schema.bookingRequests.externalReference, externalReference)
+			)
+		)
+		.limit(1);
+	if (!existing || existing.deletedAt) return { deleted: false, reference: existing?.reference ?? null };
+	const row = await softDeleteBookingRequest(tenantId, existing.id);
+	return { deleted: true, reference: row.reference };
+}
