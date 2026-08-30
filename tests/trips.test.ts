@@ -483,6 +483,67 @@ suite('trips against the database', () => {
 		expect(after.driverCrewId).toBeNull();
 	}, 90_000);
 
+	it('shows a crew member only the trips they are on', async () => {
+		// The one row-limited read in the product. Everyone else sees the tenant;
+		// a driver sees their own departures and nothing else.
+		const { createCrew } = await import('../src/lib/server/crew');
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip, listTrips, getTrip, tripScope } = await import(
+			'../src/lib/server/trips'
+		);
+
+		const mine = await createCrew(tenantId, { type: 'DRIVER', name: 'Scoped Driver' });
+		const theirs = await createCrew(tenantId, { type: 'DRIVER', name: 'Other Driver' });
+
+		const mk = async () => {
+			const b = await createBooking(tenantId, {
+				customerId,
+				status: 'AWAITING_PAYMENT',
+				items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+			});
+			return createTripFromBooking(tenantId, b.id, {});
+		};
+		const a = await mk();
+		const b = await mk();
+		await updateTrip(tenantId, a.id, { driverCrewId: mine.id });
+		await updateTrip(tenantId, b.id, { driverCrewId: theirs.id });
+
+		const scope = tripScope({ role: 'CREW', crewId: mine.id });
+		const visible = await listTrips(tenantId, { scope });
+		expect(visible.items.map((t) => t.id)).toContain(a.id);
+		expect(visible.items.map((t) => t.id)).not.toContain(b.id);
+
+		// And the DETAIL route must agree — otherwise the list is honest and a
+		// direct id lookup quietly is not.
+		await expect(getTrip(tenantId, b.id, scope)).rejects.toThrow(/could not be found/i);
+		expect((await getTrip(tenantId, a.id, scope)).id).toBe(a.id);
+	}, 120_000);
+
+	it('shows a crew account with no crew record nothing at all', async () => {
+		// Fails CLOSED. An unlinked driver seeing everything is the failure mode
+		// that matters, and it is the one a null check would produce.
+		const { listTrips, tripScope } = await import('../src/lib/server/trips');
+		const scope = tripScope({ role: 'CREW', crewId: null });
+		const visible = await listTrips(tenantId, { scope });
+		expect(visible.items).toHaveLength(0);
+	}, 60_000);
+
+	it('gives crew trips but never money or passports', async () => {
+		const { permissionsForRole } = await import('../src/lib/server/auth/permissions');
+		const crew = permissionsForRole('CREW');
+		expect(crew).toEqual(expect.arrayContaining(['trips:read', 'trips:write']));
+		for (const forbidden of [
+			'bookings:read',
+			'payments:read',
+			'quotations:read',
+			'customers:read',
+			'travelers:read_sensitive',
+			'conversations:read'
+		]) {
+			expect(crew).not.toContain(forbidden);
+		}
+	});
+
 	it('keeps trips invisible across tenants', async () => {
 		const other = await provisionTestTenant({ name: 'Other Safari', slug: `test-trips-b-${Date.now()}` });
 		const { createTripFromBooking, getTrip, listTrips } = await import('../src/lib/server/trips');

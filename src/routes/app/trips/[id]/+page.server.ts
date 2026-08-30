@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { audit } from '$lib/server/audit';
-import { changeTripStatus, getTripDetail, updateTrip } from '$lib/server/trips';
+import { changeTripStatus, getTripDetail, scopeFor, updateTrip } from '$lib/server/trips';
 import { listAssignableMembers } from '$lib/server/team';
 import { accommodationsForPicker, crewForPicker } from '$lib/server/crew';
 import { can } from '$lib/server/auth/permissions';
@@ -12,7 +12,8 @@ import type { Trip } from '$lib/server/db/schema';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	requireTenantPermission(locals, 'trips:read');
 	const tenantId = requireTenant(locals).id;
-	const detail = await getTripDetail(tenantId, params.id);
+	const scope = await scopeFor(tenantId, { userId: locals.user?.id, role: locals.role });
+	const detail = await getTripDetail(tenantId, params.id, scope);
 
 	// Passports are gated on the trip exactly as they are on the booking. More
 	// people see a trip than see a booking, so relaxing it here would quietly
@@ -110,7 +111,8 @@ export const actions: Actions = {
 		};
 
 		try {
-			await updateTrip(tenantId, params.id, patch, { userId: locals.user?.id });
+			const scope = await scopeFor(tenantId, { userId: locals.user?.id, role: locals.role });
+			await updateTrip(tenantId, params.id, patch, { userId: locals.user?.id }, scope);
 			await audit(
 				tenantId,
 				'trip.updated',
@@ -132,7 +134,8 @@ export const actions: Actions = {
 		const reason = String(form.get('reason') ?? '').trim() || undefined;
 
 		try {
-			await changeTripStatus(tenantId, params.id, status, { userId: locals.user?.id }, reason);
+			const scope = await scopeFor(tenantId, { userId: locals.user?.id, role: locals.role });
+			await changeTripStatus(tenantId, params.id, status, { userId: locals.user?.id }, reason, scope);
 			await audit(
 				tenantId,
 				'trip.status_changed',

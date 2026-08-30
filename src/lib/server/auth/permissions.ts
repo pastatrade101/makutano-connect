@@ -159,12 +159,28 @@ const ADMIN: Permission[] = [
 	'order_links:archive'
 ];
 
+/**
+ * Crew: a driver or guide who has been given the app.
+ *
+ * The narrowest role there is, and narrow in a way the others are not — it is
+ * the only role whose READS are row-limited. Everyone else sees the whole
+ * tenant; crew see the trips they are personally on, enforced in listTrips
+ * rather than by hiding anything. They can update the set-up of those trips,
+ * because a guide confirming a hotel from the field is the point.
+ *
+ * Deliberately absent: bookings, quotations, payments, customers, the inbox.
+ * A driver has no reason to see what a trip was sold for, and passports stay
+ * behind travelers:read_sensitive, which crew do not get.
+ */
+const CREW: Permission[] = ['trips:read', 'trips:write', 'crew:read'];
+
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 	SUPER_ADMIN: ALL,
 	OWNER: ALL,
 	ADMIN,
 	BOOKING_AGENT,
 	OPERATIONS,
+	CREW,
 	SALES,
 	VIEWER: READ_ONLY
 };

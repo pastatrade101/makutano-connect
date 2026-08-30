@@ -181,18 +181,23 @@ async function bookingForTrip(tenantId: string, bookingId: string) {
 	return { booking, travelers, customer: customer[0] ?? null };
 }
 
-export async function getTrip(tenantId: string, id: string): Promise<schema.Trip> {
+export async function getTrip(tenantId: string, id: string, scope?: SQL | null): Promise<schema.Trip> {
+	// The scope belongs here as well as on the list. Without it a crew member who
+	// knows any trip id could open it — the list would be honest and the detail
+	// route would quietly not be.
+	const clauses: SQL[] = [eq(schema.trips.id, id), eq(schema.trips.tenantId, tenantId)];
+	if (scope) clauses.push(scope);
 	const rows = await db()
 		.select()
 		.from(schema.trips)
-		.where(and(eq(schema.trips.id, id), eq(schema.trips.tenantId, tenantId)))
+		.where(and(...clauses))
 		.limit(1);
 	if (!rows[0]) throw new AppError('NOT_FOUND', 'Trip could not be found.');
 	return rows[0];
 }
 
-export async function getTripDetail(tenantId: string, id: string) {
-	const trip = await getTrip(tenantId, id);
+export async function getTripDetail(tenantId: string, id: string, scope?: SQL | null) {
+	const trip = await getTrip(tenantId, id, scope);
 	const [items, history, bookingDetail] = await Promise.all([
 		db()
 			.select()
@@ -423,6 +428,49 @@ export async function listTripsForWork(tenantId: string, limit = 40) {
 		}));
 }
 
+/**
+ * Which trips a viewer may see AT ALL.
+ *
+ * Everyone else sees their tenant's trips; a CREW member sees the ones they are
+ * personally driving or guiding. Enforced as a WHERE clause rather than by
+ * hiding rows after the fact, because filtering in the UI is not authorization —
+ * and this predicate is applied by every read path, so there is one answer to
+ * the question rather than one per screen.
+ *
+ * Returns null when the viewer is unrestricted.
+ */
+export function tripScope(viewer: { role?: string | null; crewId?: string | null }): SQL | null {
+	if (viewer.role !== 'CREW') return null;
+	// A crew account with no crew record is a misconfiguration, and it must fail
+	// CLOSED — an unlinked driver sees nothing, never everything.
+	if (!viewer.crewId) return sql`false`;
+	return sql`(${schema.trips.driverCrewId} = ${viewer.crewId}::uuid or ${schema.trips.guideCrewId} = ${viewer.crewId}::uuid)`;
+}
+
+/**
+ * The scope for whoever is making this request. One call, used by every trip
+ * read on both platforms — the alternative is each route deciding for itself,
+ * and one of them eventually deciding wrong.
+ */
+export async function scopeFor(
+	tenantId: string,
+	viewer: { userId?: string | null; role?: string | null }
+): Promise<SQL | null> {
+	if (viewer.role !== 'CREW') return null;
+	const crewId = viewer.userId ? await crewIdForUser(tenantId, viewer.userId) : null;
+	return tripScope({ role: 'CREW', crewId });
+}
+
+/** The crew record behind a user, if they are one. */
+export async function crewIdForUser(tenantId: string, userId: string): Promise<string | null> {
+	const [row] = await db()
+		.select({ id: schema.crew.id })
+		.from(schema.crew)
+		.where(and(eq(schema.crew.tenantId, tenantId), eq(schema.crew.userId, userId), eq(schema.crew.isActive, true)))
+		.limit(1);
+	return row?.id ?? null;
+}
+
 export async function listTrips(
 	tenantId: string,
 	filters: {
@@ -430,6 +478,8 @@ export async function listTrips(
 		operationsUserId?: string;
 		bookingId?: string;
 		customerId?: string;
+		/** From tripScope(). Applied to every read so scoping cannot be skipped. */
+		scope?: SQL | null;
 	} = {},
 	page: Pagination = { limit: 25, page: 1, order: 'asc' }
 ) {
@@ -438,6 +488,7 @@ export async function listTrips(
 	if (filters.operationsUserId) clauses.push(eq(schema.trips.operationsUserId, filters.operationsUserId));
 	if (filters.bookingId) clauses.push(eq(schema.trips.bookingId, filters.bookingId));
 	if (filters.customerId) clauses.push(eq(schema.trips.customerId, filters.customerId));
+	if (filters.scope) clauses.push(filters.scope);
 	const where = and(...clauses);
 
 	const [items, [{ value: total }]] = await Promise.all([
@@ -466,6 +517,9 @@ export async function listTripsWithReadiness(
 	filters: Parameters<typeof listTrips>[1] = {},
 	page: Pagination = { limit: 25, page: 1, order: 'asc' }
 ) {
+	// The scope is already applied by listTrips, and the join below is keyed on
+	// the ids it returned — so a scoped viewer cannot widen the result by way of
+	// the second query.
 	const { items, total } = await listTrips(tenantId, filters, page);
 	if (!items.length) return { rows: [], total };
 
@@ -576,10 +630,11 @@ export async function changeTripStatus(
 	id: string,
 	toStatus: schema.Trip['status'],
 	actor: TripActor = {},
-	reason?: string
+	reason?: string,
+	scope?: SQL | null
 ): Promise<schema.Trip> {
 	await assertAllowed(tenantId);
-	const trip = await getTrip(tenantId, id);
+	const trip = await getTrip(tenantId, id, scope);
 	if (trip.status === toStatus) return trip;
 	if (!TRANSITIONS[trip.status].includes(toStatus)) {
 		throw new AppError('VALIDATION_ERROR', `A trip cannot move from ${trip.status} to ${toStatus}.`);
@@ -723,11 +778,14 @@ export async function updateTrip(
 	tenantId: string,
 	id: string,
 	input: UpdateTripInput,
-	actor: TripActor = {}
+	actor: TripActor = {},
+	scope?: SQL | null
 ): Promise<schema.Trip> {
 	await assertAllowed(tenantId);
 	if (input.operationsUserId !== undefined) await assertAssignable(tenantId, input.operationsUserId);
-	const trip = await getTrip(tenantId, id);
+	// Scoped read first: a crew member must not be able to edit a trip they
+	// cannot see, and the guard belongs on the write, not only on the list.
+	const trip = await getTrip(tenantId, id, scope);
 	if (['COMPLETED', 'CANCELLED'].includes(trip.status)) {
 		throw new AppError('CONFLICT', `A ${trip.status.toLowerCase()} trip can no longer be edited.`);
 	}
@@ -794,6 +852,7 @@ export async function updateTrip(
 		.returning();
 
 	// Editing a READY trip can take away the very thing that made it ready.
+	// System re-check: unscoped on purpose, it acts on behalf of nobody.
 	if (trip.status === 'READY') await revalidateTrip(tenantId, id);
 
 	// A handover is worth telling someone about; changing a vehicle is not.

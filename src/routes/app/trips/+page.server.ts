@@ -1,5 +1,5 @@
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
-import { blockedTripCount, listTripsWithReadiness } from '$lib/server/trips';
+import { blockedTripCount, listTripsWithReadiness, scopeFor } from '$lib/server/trips';
 import { paginationFrom } from '$lib/server/http';
 import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import type { PageServerLoad } from './$types';
@@ -28,9 +28,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// scoped, is exactly what both an owner and an ops person need.
 	const mine = url.searchParams.get('mine') === '1';
 
+	const scope = await scopeFor(tenantId, { userId: locals.user?.id, role: locals.role });
 	const filters = {
 		status: [...TABS[tab]] as Trip['status'][],
-		operationsUserId: mine ? locals.user?.id : undefined
+		operationsUserId: mine ? locals.user?.id : undefined,
+		scope
 	};
 	// tripStats was fetched here and rendered nowhere — a full-history aggregate
 	// on every page load for a value nothing read.

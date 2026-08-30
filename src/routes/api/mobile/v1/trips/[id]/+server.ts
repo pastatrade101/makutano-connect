@@ -6,7 +6,7 @@
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { audit } from '$lib/server/audit';
-import { getTripDetail, updateTrip } from '$lib/server/trips';
+import { getTripDetail, scopeFor, updateTrip } from '$lib/server/trips';
 import { listAssignableMembers } from '$lib/server/team';
 import { accommodationsForPicker, crewForPicker } from '$lib/server/crew';
 import { blockerLabel, statusLabel } from '$lib/labels';
@@ -34,7 +34,10 @@ export const GET: RequestHandler = async (event) => {
 	try {
 		const viewer = requireViewer(event);
 		requirePermissionOrThrow(viewer, 'trips:read');
-		const detail = await getTripDetail(viewer.tenantId, event.params.id!);
+		// Scoped on the DETAIL too: without it a crew member who knows any trip id
+		// could open it, and the list would be honest while this route was not.
+		const scope = await scopeFor(viewer.tenantId, { userId: viewer.userId, role: event.locals.role });
+		const detail = await getTripDetail(viewer.tenantId, event.params.id!, scope);
 
 		const sensitive = viewer.permissions.includes('travelers:read_sensitive');
 		const commercial = viewer.permissions.includes('bookings:read');
@@ -157,7 +160,8 @@ export const PATCH: RequestHandler = async (event) => {
 		// Deciding whose problem a departure is, separately from preparing it.
 		if (body.operationsUserId !== undefined) requirePermissionOrThrow(viewer, 'trips:assign');
 
-		const trip = await updateTrip(viewer.tenantId, event.params.id!, body, { userId: viewer.userId });
+		const scope = await scopeFor(viewer.tenantId, { userId: viewer.userId, role: event.locals.role });
+		const trip = await updateTrip(viewer.tenantId, event.params.id!, body, { userId: viewer.userId }, scope);
 		await audit(
 			viewer.tenantId,
 			'trip.updated',
@@ -166,7 +170,7 @@ export const PATCH: RequestHandler = async (event) => {
 			{ after: body, via: 'mobile' }
 		);
 		// Return the fresh verdict: the app should never recompute readiness itself.
-		const detail = await getTripDetail(viewer.tenantId, trip.id);
+		const detail = await getTripDetail(viewer.tenantId, trip.id, scope);
 		return ok({
 			trip: { id: trip.id, status: detail.trip.status, statusLabel: statusLabel(detail.trip.status) },
 			readiness: {

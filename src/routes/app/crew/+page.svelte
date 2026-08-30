@@ -3,6 +3,7 @@
 	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import EmptyState from '$components/EmptyState.svelte';
 	let { data, form } = $props();
+	let inviting = $state<string | null>(null);
 
 	const TYPES = [
 		{ value: 'DRIVER', label: 'Driver' },
@@ -87,6 +88,13 @@
 									{[person.phone, person.licenceNumber].filter(Boolean).join(' · ') || 'No contact details'}
 								</div>
 							</div>
+							{#if person.userId}
+								<span class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
+									Has the app
+								</span>
+							{:else if data.canWrite && data.canInvite && person.isActive}
+								<button type="button" class="btn-ghost" onclick={() => (inviting = person.id)}>Give app access</button>
+							{/if}
 							{#if data.canWrite}
 								<form method="POST" action="?/toggle" use:enhance>
 									<input type="hidden" name="id" value={person.id} />
@@ -95,6 +103,23 @@
 								</form>
 							{/if}
 						</li>
+						{#if inviting === person.id}
+							<li class="bg-brand-50/40 px-4 py-3">
+								<form method="POST" action="?/invite" use:enhance class="flex flex-wrap items-end gap-2">
+									<input type="hidden" name="id" value={person.id} />
+									<label class="block flex-1">
+										<span class="label">Email for {person.name}</span>
+										<input name="email" type="email" required placeholder="name@example.com" class="input w-full" />
+									</label>
+									<button class="btn-primary">Send invite</button>
+									<button type="button" class="btn-ghost" onclick={() => (inviting = null)}>Cancel</button>
+								</form>
+								<p class="mt-2 text-xs text-slate-500">
+									They will see only the trips they are driving or guiding, and can update those. No bookings, no
+									payments, no passports. This uses one of your plan's seats.
+								</p>
+							</li>
+						{/if}
 					{/each}
 				</ul>
 			</section>

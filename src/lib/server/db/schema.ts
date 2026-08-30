@@ -32,7 +32,7 @@ export const provisioningSourceEnum = pgEnum('provisioning_source', ['ADMIN', 'S
 // Order matters: it must match the order the labels were added in the database,
 // because ALTER TYPE ... ADD VALUE appends. OPERATIONS came last (0016), so it
 // goes last here — a divergence would make any generated diff wrong.
-export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'VIEWER', 'OPERATIONS']);
+export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'VIEWER', 'OPERATIONS', 'CREW']);
 export const apiKeyEnvEnum = pgEnum('api_key_environment', ['live', 'test']);
 export const verificationPurposeEnum = pgEnum('verification_purpose', [
 	'EMAIL_VERIFICATION',
@@ -1061,6 +1061,12 @@ export const crew = pgTable(
 		notes: text('notes'),
 		/** Optional: the same person as a portal user, once they need the app. */
 		userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+		// Where this person came from. A synced record is keyed on the source id so
+		// re-syncing updates rather than duplicates; a record added by hand in the
+		// portal has neither, and a sync must never touch it — somebody typed that
+		// person in precisely because the source did not have them.
+		externalReference: text('external_reference'),
+		externalSource: text('external_source'),
 		// Deactivated rather than deleted: a trip that ran last year still names
 		// the driver who ran it, and deleting the row would rewrite that history.
 		isActive: boolean('is_active').notNull().default(true),
@@ -1069,7 +1075,8 @@ export const crew = pgTable(
 	},
 	(t) => [
 		index('crew_tenant_type_idx').on(t.tenantId, t.type, t.isActive),
-		index('crew_user_idx').on(t.userId)
+		index('crew_user_idx').on(t.userId),
+		index('crew_source_idx').on(t.tenantId, t.externalSource, t.externalReference)
 	]
 );
 

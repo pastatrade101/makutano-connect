@@ -7,7 +7,7 @@
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { audit } from '$lib/server/audit';
-import { changeTripStatus, getTripDetail } from '$lib/server/trips';
+import { changeTripStatus, getTripDetail, scopeFor } from '$lib/server/trips';
 import { blockerLabel, statusLabel } from '$lib/labels';
 import { ok, problem, requirePermissionOrThrow, requireViewer } from '$lib/server/mobile';
 
@@ -22,12 +22,14 @@ export const PATCH: RequestHandler = async (event) => {
 		requirePermissionOrThrow(viewer, 'trips:write');
 		const body = schema.parse(await event.request.json());
 
+		const scope = await scopeFor(viewer.tenantId, { userId: viewer.userId, role: event.locals.role });
 		const trip = await changeTripStatus(
 			viewer.tenantId,
 			event.params.id!,
 			body.status,
 			{ userId: viewer.userId },
-			body.reason
+			body.reason,
+			scope
 		);
 		await audit(
 			viewer.tenantId,
@@ -37,7 +39,7 @@ export const PATCH: RequestHandler = async (event) => {
 			{ after: { status: body.status }, reason: body.reason ?? null, via: 'mobile' }
 		);
 
-		const detail = await getTripDetail(viewer.tenantId, trip.id);
+		const detail = await getTripDetail(viewer.tenantId, trip.id, scope);
 		return ok({
 			trip: { id: trip.id, status: trip.status, statusLabel: statusLabel(trip.status) },
 			readiness: {

@@ -32,6 +32,7 @@ export const ROLE_OPTIONS: ReadonlyArray<{ value: schema.Role; label: string; hi
 	{ value: 'BOOKING_AGENT', label: 'Manager', hint: 'Full inbox, assigns conversations, verifies payments' },
 	{ value: 'SALES', label: 'Agent', hint: 'Inbox and day-to-day transactions' },
 	{ value: 'OPERATIONS', label: 'Operations', hint: 'Prepares trips: hotels, vehicles, guides, passports. No money.' },
+	{ value: 'CREW', label: 'Driver / Guide', hint: 'Sees only the trips they are on, and can update those' },
 	{ value: 'VIEWER', label: 'Viewer', hint: 'Read-only access' }
 ];
 
@@ -244,7 +245,7 @@ async function isLastActiveOwner(tenantId: string, membershipId: string): Promis
 
 // Every role the team UI offers must appear here, or it is a dead option: both
 // inviteMember and changeRole gate on this list.
-const INVITABLE_ROLES: schema.Role[] = ['ADMIN', 'BOOKING_AGENT', 'OPERATIONS', 'SALES', 'VIEWER'];
+const INVITABLE_ROLES: schema.Role[] = ['ADMIN', 'BOOKING_AGENT', 'OPERATIONS', 'CREW', 'SALES', 'VIEWER'];
 
 /** Exposed so a test can assert the UI never offers a role the server refuses. */
 export function assignableRoles(): schema.Role[] {

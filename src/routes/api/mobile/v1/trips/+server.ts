@@ -5,7 +5,7 @@
 // leave — and so the app never reimplements a business rule it would then have to
 // keep in step through an app-store release.
 import type { RequestHandler } from './$types';
-import { blockedTripCount, listTripsWithReadiness } from '$lib/server/trips';
+import { blockedTripCount, listTripsWithReadiness, scopeFor } from '$lib/server/trips';
 import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import { nextForTrip } from '$lib/next-action';
 import { statusLabel } from '$lib/labels';
@@ -37,9 +37,13 @@ export const GET: RequestHandler = async (event) => {
 		const tab = TABS[tabKey] ? tabKey : 'upcoming';
 		const mine = event.url.searchParams.get('mine') === '1';
 
+		// A crew member sees only the trips they are on. Resolved here and passed
+		// into every query below, so no read path can forget it.
+		const scope = await scopeFor(viewer.tenantId, { userId: viewer.userId, role: event.locals.role });
 		const filters = {
 			status: [...TABS[tab]] as Trip['status'][],
-			operationsUserId: mine ? viewer.userId : undefined
+			operationsUserId: mine ? viewer.userId : undefined,
+			scope
 		};
 		const page = Math.max(1, Number(event.url.searchParams.get('page') ?? '1') || 1);
 		const LIMIT = 30;
