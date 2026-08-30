@@ -94,3 +94,28 @@ export function messagePreview(body: string | null | undefined, type?: string | 
 	}
 	return raw || `[${type ?? 'message'}]`;
 }
+
+/**
+ * A readiness check, worded as the thing that is MISSING.
+ *
+ * The checks are named for the state they assert — "Driver assigned", "Hotel
+ * confirmed" — which reads correctly in a checklist and exactly backwards in a
+ * list of blockers, where "still needs Driver assigned" says the opposite of
+ * what is meant. One helper so the card and the workspace cannot drift.
+ */
+export function blockerLabel(check: { key: string; label: string }): string {
+	const SPECIAL: Record<string, string> = {
+		booking_confirmed: 'the booking to be confirmed',
+		deposit: 'a deposit',
+		dates: 'travel dates',
+		balance: 'the balance settled',
+		passports: 'passports'
+	};
+	if (SPECIAL[check.key]) return SPECIAL[check.key];
+	return check.label.replace(/\s+(assigned|booked|received|set|confirmed)$/i, '').toLowerCase();
+}
+
+/** "1 thing" / "3 things" — the plural nobody should be writing inline. */
+export function plural(n: number, one: string, many = `${one}s`): string {
+	return `${n} ${n === 1 ? one : many}`;
+}

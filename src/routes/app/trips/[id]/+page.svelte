@@ -2,7 +2,8 @@
 	import { enhance } from '$lib/forms';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
-	import ReadinessBar from '$components/ReadinessBar.svelte';
+	import ReadinessRing from '$components/ReadinessRing.svelte';
+	import { blockerLabel, plural } from '$lib/labels';
 	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data, form } = $props();
 
@@ -24,12 +25,30 @@
 	const fmt = (v: string | Date | null) =>
 		v ? new Date(v).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
-	/** The set-up rows. Each is one field, one sheet, one decision. */
+	const daysOut = $derived.by(() => {
+		if (!data.trip.startDate) return null;
+		const d = new Date(data.trip.startDate);
+		const day = 86_400_000;
+		const now = new Date();
+		return Math.round(
+			(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) -
+				Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) /
+				day
+		);
+	});
+
+	/**
+	 * The set-up rows. Each is one field, one sheet, one decision.
+	 *
+	 * `critical` mirrors the server's readiness CHECKS: a row the trip cannot leave
+	 * without reads differently from one that is merely nice to have, so nobody
+	 * hunts through four identical "Missing" labels to find the blocking one.
+	 */
 	const rows = $derived([
-		{ key: 'accommodation', label: 'Accommodation', value: data.trip.accommodation, placeholder: 'Which lodge or hotel' },
-		{ key: 'vehicle', label: 'Vehicle', value: data.trip.vehicle, placeholder: 'e.g. T 123 ABC — Land Cruiser' },
-		{ key: 'driver', label: 'Driver', value: data.trip.driver, placeholder: 'Who is driving' },
-		{ key: 'guide', label: 'Guide', value: data.trip.guide, placeholder: 'Who is guiding' }
+		{ key: 'accommodation', label: 'Accommodation', icon: 'M3 9l7-5 7 5v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9Z', value: data.trip.accommodation, placeholder: 'Which lodge or hotel', critical: true },
+		{ key: 'vehicle', label: 'Vehicle', icon: 'M3 12h14M5 12V8l2-3h6l2 3v4M6 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z', value: data.trip.vehicle, placeholder: 'e.g. T 123 ABC — Land Cruiser', critical: true },
+		{ key: 'driver', label: 'Driver', icon: 'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 6a6 6 0 0 1 12 0', value: data.trip.driver, placeholder: 'Who is driving', critical: true },
+		{ key: 'guide', label: 'Guide', icon: 'M10 3 3 6.5v4c0 3.6 2.9 6 7 6.5 4.1-.5 7-2.9 7-6.5v-4L10 3Z', value: data.trip.guide, placeholder: 'Who is guiding', critical: false }
 	]);
 </script>
 
@@ -47,7 +66,7 @@
 		</div>
 		<div class="flex items-center gap-3">
 			<StatusBadge value={data.trip.status} />
-			<ReadinessBar readiness={data.readiness} />
+			<ReadinessRing readiness={data.readiness} status={data.trip.status} daysToDeparture={daysOut} size={56} />
 		</div>
 	</div>
 
@@ -65,10 +84,10 @@
 					<p class="text-xs text-slate-500">Mark it ready so the rest of the team knows it can leave.</p>
 				{:else if data.trip.status === 'PREPARING'}
 					<p class="text-sm font-semibold text-slate-900">
-						{data.readiness.missing.filter((c) => c.critical).length} thing(s) still stopping this trip leaving
+						{plural(data.readiness.missing.filter((c) => c.critical).length, 'thing')} still stopping this trip leaving
 					</p>
 					<p class="text-xs text-slate-500">
-						{data.readiness.missing.filter((c) => c.critical).map((c) => c.label).join(', ')}
+						Still needs {data.readiness.missing.filter((c) => c.critical).map(blockerLabel).join(', ')}
 					</p>
 				{:else if data.trip.status === 'READY'}
 					<p class="text-sm font-semibold text-slate-900">Ready to go.</p>
@@ -135,17 +154,25 @@
 							</form>
 						{:else}
 							<div class="flex items-center gap-3">
-								<span class="w-32 shrink-0 text-sm text-slate-500">{row.label}</span>
-								<span class="min-w-0 flex-1 truncate text-sm {row.value ? 'text-slate-900' : 'text-slate-400'}">
-									{row.value ?? 'Not set'}
+								<span
+									class="grid size-8 shrink-0 place-items-center rounded-lg {row.value
+										? 'bg-success/10 text-success'
+										: row.critical
+											? 'bg-danger/10 text-danger'
+											: 'bg-slate-100 text-slate-400'}"
+								>
+									<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4">
+										<path d={row.icon} stroke-linecap="round" stroke-linejoin="round" />
+									</svg>
 								</span>
-								{#if row.value}
-									<span class="text-success" aria-label="Set">✓</span>
-								{:else}
-									<span class="text-xs font-medium text-danger">Missing</span>
-								{/if}
+								<div class="min-w-0 flex-1">
+									<div class="text-xs text-slate-500">{row.label}</div>
+									<div class="truncate text-sm {row.value ? 'font-medium text-slate-900' : 'text-slate-400'}">
+										{row.value ?? (row.critical ? 'Required before departure' : 'Not set')}
+									</div>
+								</div>
 								{#if data.canWrite}
-									<button type="button" class="btn-ghost" onclick={() => (editing = row.key)}>
+									<button type="button" class="btn-ghost shrink-0" onclick={() => (editing = row.key)}>
 										{row.value ? 'Change' : 'Set'}
 									</button>
 								{/if}
@@ -155,12 +182,23 @@
 				{/each}
 
 				<li class="flex items-center gap-3 px-4 py-3">
-					<span class="w-32 shrink-0 text-sm text-slate-500">Hotel confirmed</span>
-					<span class="min-w-0 flex-1 text-sm {data.trip.hotelConfirmed ? 'text-slate-900' : 'text-slate-400'}">
-						{data.trip.hotelConfirmed ? 'Confirmed with the property' : 'Not confirmed yet'}
+					<span
+						class="grid size-8 shrink-0 place-items-center rounded-lg {data.trip.hotelConfirmed
+							? 'bg-success/10 text-success'
+							: 'bg-slate-100 text-slate-400'}"
+					>
+						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4">
+							<path d="m4 10 4 4 8-8" stroke-linecap="round" stroke-linejoin="round" />
+						</svg>
 					</span>
+					<div class="min-w-0 flex-1">
+						<div class="text-xs text-slate-500">Hotel confirmed</div>
+						<div class="truncate text-sm {data.trip.hotelConfirmed ? 'font-medium text-slate-900' : 'text-slate-400'}">
+							{data.trip.hotelConfirmed ? 'Confirmed with the property' : 'Not confirmed yet'}
+						</div>
+					</div>
 					{#if data.canWrite}
-						<form method="POST" action="?/update" use:enhance>
+						<form method="POST" action="?/update" use:enhance class="shrink-0">
 							{#if data.trip.hotelConfirmed}
 								<input type="hidden" name="hotelConfirmed" value="off" />
 								<button class="btn-ghost">Undo</button>
@@ -173,28 +211,43 @@
 				</li>
 
 				<li class="flex items-center gap-3 px-4 py-3">
-					<span class="w-32 shrink-0 text-sm text-slate-500">Operations owner</span>
-					{#if data.canAssign}
-						<form method="POST" action="?/update" use:enhance class="flex min-w-0 flex-1 items-center gap-2">
-							<select name="operationsUserId" class="input min-w-0 flex-1">
-								<option value="" selected={!data.trip.operationsUserId}>Nobody yet</option>
-								{#each data.members as m (m.id)}
-									<option value={m.id} selected={data.trip.operationsUserId === m.id}>{m.name} · {m.role}</option>
-								{/each}
-							</select>
-							<button class="btn-ghost">Assign</button>
-						</form>
-					{:else}
-						<span class="min-w-0 flex-1 text-sm text-slate-900">
-							{data.members.find((m) => m.id === data.trip.operationsUserId)?.name ?? 'Unassigned'}
-						</span>
-					{/if}
+					<span
+						class="grid size-8 shrink-0 place-items-center rounded-lg {data.trip.operationsUserId
+							? 'bg-brand-50 text-brand-600'
+							: 'bg-slate-100 text-slate-400'}"
+					>
+						<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" class="size-4">
+							<path
+								d="M7 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-5 7a5 5 0 0 1 10 0M13 5.5a2 2 0 1 1 0 4M14 16a4.5 4.5 0 0 0-1.2-3"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+						</svg>
+					</span>
+					<div class="min-w-0 flex-1">
+						<div class="text-xs text-slate-500">Operations owner</div>
+						{#if data.canAssign}
+							<form method="POST" action="?/update" use:enhance class="mt-1 flex items-center gap-2">
+								<select name="operationsUserId" class="input min-w-0 flex-1 py-1 text-sm">
+									<option value="" selected={!data.trip.operationsUserId}>Nobody yet</option>
+									{#each data.members as m (m.id)}
+										<option value={m.id} selected={data.trip.operationsUserId === m.id}>{m.name} · {m.role}</option>
+									{/each}
+								</select>
+								<button class="btn-ghost shrink-0">Assign</button>
+							</form>
+						{:else}
+							<div class="truncate text-sm {data.trip.operationsUserId ? 'font-medium text-slate-900' : 'text-slate-400'}">
+								{data.members.find((m) => m.id === data.trip.operationsUserId)?.name ?? 'Nobody yet'}
+							</div>
+						{/if}
+					</div>
 				</li>
 
 				<!-- Money is shown, never edited. Operations needs to know a balance is
 				     outstanding before a departure; changing it is the booking's job. -->
-				<li class="flex items-center gap-3 bg-slate-50/60 px-4 py-3">
-					<span class="w-32 shrink-0 text-sm text-slate-500">Payment</span>
+				<li class="flex items-center gap-3 border-t border-slate-200 bg-slate-50/60 px-4 py-3">
+					<span class="w-32 shrink-0 text-xs uppercase tracking-wide text-slate-400">Payment</span>
 					<span class="min-w-0 flex-1 text-sm">
 						{#if Number(data.booking.balanceDue) > 0}
 							<span class="font-medium text-danger">

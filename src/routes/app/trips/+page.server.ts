@@ -40,5 +40,43 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		tripStats(tenantId)
 	]);
 
-	return { workspaceRelevant, rows, total, pagination, stats, tab, mine };
+	// Grouped by WHEN, because that is how an operations day is ordered — not by
+	// when a trip happened to be created. The buckets are computed on the server so
+	// the phone can reuse exactly these when it gets a Trips screen.
+	const day = 86_400_000;
+	const now = new Date();
+	const midnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+	const daysOut = (d: Date | null) =>
+		d ? Math.round((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - midnight) / day) : null;
+
+	const withTiming = rows.map((r) => ({ ...r, daysToDeparture: daysOut(r.trip.startDate) }));
+	const bucketOf = (n: number | null) => {
+		if (n === null) return 'undated';
+		if (n < 0) return 'under_way';
+		if (n <= 7) return 'this_week';
+		if (n <= 30) return 'this_month';
+		return 'later';
+	};
+	const ORDER = ['under_way', 'this_week', 'this_month', 'later', 'undated'] as const;
+	const LABEL: Record<string, string> = {
+		under_way: 'Under way',
+		this_week: 'Departing this week',
+		this_month: 'Next 30 days',
+		later: 'Later',
+		undated: 'No dates yet'
+	};
+	const groups = ORDER.map((key) => ({
+		key,
+		label: LABEL[key],
+		rows: withTiming.filter((r) => bucketOf(r.daysToDeparture) === key)
+	})).filter((g) => g.rows.length);
+
+	// What is actually wrong, counted once. A row of zeroes teaches nobody
+	// anything; the number worth showing is how many trips cannot currently leave.
+	const blocked = withTiming.filter((r) => r.readiness && !r.readiness.canBeReady).length;
+	const leavingSoon = withTiming.filter(
+		(r) => r.daysToDeparture !== null && r.daysToDeparture >= 0 && r.daysToDeparture <= 7
+	).length;
+
+	return { workspaceRelevant, groups, total, pagination, stats, tab, mine, blocked, leavingSoon };
 };
