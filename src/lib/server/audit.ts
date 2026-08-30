@@ -48,6 +48,8 @@ export type AuditAction =
 	| 'trip.updated'
 	| 'trip.status_changed'
 	| 'trip.assigned'
+	| 'crew.created'
+	| 'crew.updated'
 	| 'conversation.visibility_changed'
 	| 'conversation.assigned'
 	| 'conversation.closed'

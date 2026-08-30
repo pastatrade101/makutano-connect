@@ -3,6 +3,7 @@ import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { audit } from '$lib/server/audit';
 import { changeTripStatus, getTripDetail, updateTrip } from '$lib/server/trips';
 import { listAssignableMembers } from '$lib/server/team';
+import { accommodationsForPicker, crewForPicker } from '$lib/server/crew';
 import { can } from '$lib/server/auth/permissions';
 import { AppError } from '$lib/server/errors';
 import type { Actions, PageServerLoad } from './$types';
@@ -19,7 +20,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const sensitive = can(locals.permissions, 'travelers:read_sensitive');
 
 	// Who a trip can be handed to. Anyone who can prepare one.
-	const members = can(locals.permissions, 'trips:assign') ? await listAssignableMembers(tenantId) : [];
+	const [members, crew, accommodations] = await Promise.all([
+		can(locals.permissions, 'trips:assign') ? listAssignableMembers(tenantId) : Promise.resolve([]),
+		crewForPicker(tenantId),
+		accommodationsForPicker(tenantId)
+	]);
 
 	// The same projection the public API applies. getTripDetail returns the whole
 	// booking (subtotal, discount, tax, metadata) and the whole customer (email,
@@ -51,7 +56,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		canAssign: can(locals.permissions, 'trips:assign'),
 		canSeeSensitive: sensitive,
 		// Already filtered to active members and shaped for the picker.
-		members
+		members,
+		// Who and what a trip can be assigned: the tenant's own crew list and the
+		// accommodations in its catalog. Free text stays available — not every
+		// driver is registered yet, and a trip must never be blocked on
+		// bookkeeping somebody has not done.
+		crew,
+		accommodations
 	};
 };
 
@@ -79,7 +90,15 @@ export const actions: Actions = {
 		// hidden without this permission; hidden is not authorization.
 		if (form.has('operationsUserId')) requireTenantPermission(locals, 'trips:assign');
 
+		// A registry pick and free text are mutually exclusive: the service clears
+		// the link when free text arrives, so the trip never claims a registered
+		// person it does not actually have.
+		const pickId = (k: string) => (form.has(k) ? String(form.get(k) ?? '') || null : undefined);
+
 		const patch = {
+			driverCrewId: pickId('driverCrewId'),
+			guideCrewId: pickId('guideCrewId'),
+			accommodationItemId: pickId('accommodationItemId'),
 			title: text('title') ?? undefined,
 			vehicle: text('vehicle'),
 			driver: text('driver'),

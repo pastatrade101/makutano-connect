@@ -44,6 +44,10 @@ export const PERMISSIONS = [
 	'trips:read',
 	'trips:write',
 	'trips:assign',
+	// The crew list itself. Reading it is part of preparing a trip; editing who
+	// works here is an office decision, not a field one.
+	'crew:read',
+	'crew:write',
 	'webhooks:read',
 	'webhooks:write',
 	'billing:read',
@@ -71,6 +75,7 @@ const ALL: Permission[] = [...PERMISSIONS];
 const READ_ONLY: Permission[] = [
 	'orders:read',
 	'trips:read',
+	'crew:read',
 	'order_links:read',
 	'catalog:read',
 	'forms:read',
@@ -115,7 +120,8 @@ const BOOKING_AGENT: Permission[] = [
 	// A manager may run a trip and hand one over. Sales deliberately may not:
 	// closing a sale and preparing a departure are different jobs.
 	'trips:write',
-	'trips:assign'
+	'trips:assign',
+	'crew:write'
 ];
 
 /**
@@ -129,6 +135,7 @@ const OPERATIONS: Permission[] = [
 	...READ_ONLY,
 	'trips:write',
 	'trips:assign',
+	'crew:write',
 	'travelers:read_sensitive',
 	'customers:write',
 	'conversations:write',
@@ -231,6 +238,8 @@ export const API_SCOPES = [
 	'trips:write',
 	// Deciding whose problem a departure is, separately from preparing it.
 	'trips:assign',
+	'crew:read',
+	'crew:write',
 	// Passport data over the API is opt-in, never a default.
 	'travelers:read_sensitive'
 ] as const;

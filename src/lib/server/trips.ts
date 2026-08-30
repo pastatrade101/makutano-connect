@@ -680,12 +680,44 @@ export type UpdateTripInput = {
 	startDate?: string | null;
 	endDate?: string | null;
 	vehicle?: string | null;
+	/** Free text, still accepted — not every driver is in the registry yet. */
 	driver?: string | null;
 	guide?: string | null;
 	accommodation?: string | null;
 	hotelConfirmed?: boolean;
 	notes?: string | null;
+	/** Assign from the registry. Sets the link AND the name in one go. */
+	driverCrewId?: string | null;
+	guideCrewId?: string | null;
+	accommodationItemId?: string | null;
 };
+
+/**
+ * Resolve a registry pick into the link and the name it should snapshot.
+ *
+ * The name is copied onto the trip deliberately. A trip that ran last year must
+ * still say who drove it after that person leaves the company, and every
+ * readiness check reads the text column — so the registry is adopted without
+ * changing what "ready" means.
+ */
+async function resolveCrew(
+	tenantId: string,
+	id: string | null | undefined,
+	expect: schema.Crew['type'][]
+): Promise<{ id: string | null; name: string | null }> {
+	if (!id) return { id: null, name: null };
+	const [row] = await db()
+		.select({ id: schema.crew.id, name: schema.crew.name, type: schema.crew.type, isActive: schema.crew.isActive })
+		.from(schema.crew)
+		.where(and(eq(schema.crew.id, id), eq(schema.crew.tenantId, tenantId)))
+		.limit(1);
+	if (!row) throw new AppError('VALIDATION_ERROR', 'That person is not on your crew list.');
+	if (!row.isActive) throw new AppError('VALIDATION_ERROR', `${row.name} is no longer active.`);
+	if (!expect.includes(row.type)) {
+		throw new AppError('VALIDATION_ERROR', `${row.name} is not registered as a ${expect[0].toLowerCase()}.`);
+	}
+	return { id: row.id, name: row.name };
+}
 
 export async function updateTrip(
 	tenantId: string,
@@ -706,9 +738,52 @@ export async function updateTrip(
 	if (input.startDate !== undefined) patch.startDate = toDate(input.startDate);
 	if (input.endDate !== undefined) patch.endDate = toDate(input.endDate);
 	if (input.vehicle !== undefined) patch.vehicle = input.vehicle;
-	if (input.driver !== undefined) patch.driver = input.driver;
-	if (input.guide !== undefined) patch.guide = input.guide;
-	if (input.accommodation !== undefined) patch.accommodation = input.accommodation;
+
+	// A registry pick wins over free text and sets both columns; free text alone
+	// clears the link, because a typed-in name is explicitly NOT the registered
+	// person and leaving a stale id would make the trip claim otherwise.
+	if (input.driverCrewId !== undefined) {
+		const resolved = await resolveCrew(tenantId, input.driverCrewId, ['DRIVER']);
+		patch.driverCrewId = resolved.id;
+		patch.driver = resolved.name;
+	} else if (input.driver !== undefined) {
+		patch.driver = input.driver;
+		patch.driverCrewId = null;
+	}
+
+	if (input.guideCrewId !== undefined) {
+		const resolved = await resolveCrew(tenantId, input.guideCrewId, ['GUIDE', 'SPECIALIST']);
+		patch.guideCrewId = resolved.id;
+		patch.guide = resolved.name;
+	} else if (input.guide !== undefined) {
+		patch.guide = input.guide;
+		patch.guideCrewId = null;
+	}
+
+	if (input.accommodationItemId !== undefined) {
+		if (input.accommodationItemId) {
+			const [item] = await db()
+				.select({ id: schema.catalogItems.id, name: schema.catalogItems.name })
+				.from(schema.catalogItems)
+				.where(
+					and(
+						eq(schema.catalogItems.id, input.accommodationItemId),
+						eq(schema.catalogItems.tenantId, tenantId),
+						eq(schema.catalogItems.type, 'ACCOMMODATION')
+					)
+				)
+				.limit(1);
+			if (!item) throw new AppError('VALIDATION_ERROR', 'That accommodation is not in your catalog.');
+			patch.accommodationItemId = item.id;
+			patch.accommodation = item.name;
+		} else {
+			patch.accommodationItemId = null;
+			patch.accommodation = null;
+		}
+	} else if (input.accommodation !== undefined) {
+		patch.accommodation = input.accommodation;
+		patch.accommodationItemId = null;
+	}
 	if (input.hotelConfirmed !== undefined) patch.hotelConfirmed = input.hotelConfirmed;
 	if (input.notes !== undefined) patch.notes = input.notes;
 

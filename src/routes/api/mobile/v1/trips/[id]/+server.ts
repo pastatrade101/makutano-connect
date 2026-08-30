@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { audit } from '$lib/server/audit';
 import { getTripDetail, updateTrip } from '$lib/server/trips';
 import { listAssignableMembers } from '$lib/server/team';
+import { accommodationsForPicker, crewForPicker } from '$lib/server/crew';
 import { blockerLabel, statusLabel } from '$lib/labels';
 import { ok, problem, requirePermissionOrThrow, requireViewer } from '$lib/server/mobile';
 
@@ -19,6 +20,11 @@ const updateSchema = z
 		driver: z.string().max(200).nullable(),
 		guide: z.string().max(200).nullable(),
 		accommodation: z.string().max(500).nullable(),
+		// Registry picks. The service resolves each to a link plus the name it
+		// snapshots, and refuses one that is inactive or the wrong kind.
+		driverCrewId: z.string().uuid().nullable(),
+		guideCrewId: z.string().uuid().nullable(),
+		accommodationItemId: z.string().uuid().nullable(),
 		hotelConfirmed: z.boolean(),
 		notes: z.string().max(4000).nullable()
 	})
@@ -36,7 +42,13 @@ export const GET: RequestHandler = async (event) => {
 		// Who this trip can be handed to. Only fetched for somebody who may assign
 		// it, and only people who are actually here — handing a departure to a
 		// deactivated account is a quiet way to lose it.
-		const team = viewer.permissions.includes('trips:assign') ? await listAssignableMembers(viewer.tenantId) : [];
+		const [team, crew, accommodations] = await Promise.all([
+			viewer.permissions.includes('trips:assign')
+				? listAssignableMembers(viewer.tenantId)
+				: Promise.resolve([]),
+			crewForPicker(viewer.tenantId),
+			accommodationsForPicker(viewer.tenantId)
+		]);
 
 		return ok({
 			trip: {
@@ -100,10 +112,13 @@ export const GET: RequestHandler = async (event) => {
 				passportNumber: sensitive ? t.passportNumber : null,
 				hasPassport: Boolean(t.passportNumber)
 			})),
-			// What Connect already knows about this trip, offered as choices rather
-			// than made somebody retype it. The hotel is usually already on the
-			// booking — it was sold to the traveller — so the operations person
-			// picking accommodation should be picking, not transcribing.
+			// The tenant's own lists: who they dispatch and where they put people.
+			// Picking from these beats retyping a name — a typo here is a driver
+			// nobody can reach and a hotel nobody confirmed.
+			crew,
+			accommodations,
+			// What this particular booking already carries, as a shortcut on top of
+			// the lists above.
 			suggestions: {
 				accommodation: [
 					...new Set(

@@ -97,6 +97,17 @@ export const bookingStatusEnum = pgEnum('booking_status', [
  * between them is what forces operations staff to read commercial fields to find
  * out whether a vehicle is assigned, so they are kept apart on purpose.
  */
+/**
+ * The people who actually run a trip.
+ *
+ * Deliberately NOT roles on a user account. A safari driver usually has no
+ * company email and no reason to log in, and every membership consumes a plan
+ * seat — so requiring an invite to record who is driving would price the
+ * feature out of the job it exists for. Crew can be linked to a user later,
+ * when one of them genuinely needs the app.
+ */
+export const crewTypeEnum = pgEnum('crew_type', ['DRIVER', 'GUIDE', 'SPECIALIST']);
+
 export const tripStatusEnum = pgEnum('trip_status', [
 	'PREPARING',
 	'READY',
@@ -961,9 +972,17 @@ export const trips = pgTable(
 		// trips teach us the shape; promoting these to real records later is a
 		// migration, whereas guessing the shape now and being wrong is a rewrite.
 		vehicle: text('vehicle'),
+		// The NAME stays on the trip as a snapshot, and the id links to the
+		// registry. Two reasons for keeping both: a trip that ran last year must
+		// still say who drove it even if that person has since left, and every
+		// readiness check already reads these columns — so the registry can be
+		// adopted without rewriting what "ready" means.
 		driver: text('driver'),
+		driverCrewId: uuid('driver_crew_id').references(() => crew.id, { onDelete: 'set null' }),
 		guide: text('guide'),
+		guideCrewId: uuid('guide_crew_id').references(() => crew.id, { onDelete: 'set null' }),
 		accommodation: text('accommodation'),
+		accommodationItemId: uuid('accommodation_item_id'),
 		hotelConfirmed: boolean('hotel_confirmed').notNull().default(false),
 		notes: text('notes'),
 		metadata: jsonb('metadata')
@@ -1023,6 +1042,35 @@ export const tripItems = pgTable(
 		createdAt: createdAt()
 	},
 	(t) => [index('trip_items_trip_idx').on(t.tripId, t.dayNumber, t.sortOrder)]
+);
+
+/** A tenant's drivers, guides and specialists. */
+export const crew = pgTable(
+	'crew',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		type: crewTypeEnum('type').notNull().default('DRIVER'),
+		name: text('name').notNull(),
+		phone: text('phone'),
+		email: text('email'),
+		/** Driving licence, guiding licence, or whatever the tenant tracks. */
+		licenceNumber: text('licence_number'),
+		notes: text('notes'),
+		/** Optional: the same person as a portal user, once they need the app. */
+		userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+		// Deactivated rather than deleted: a trip that ran last year still names
+		// the driver who ran it, and deleting the row would rewrite that history.
+		isActive: boolean('is_active').notNull().default(true),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		index('crew_tenant_type_idx').on(t.tenantId, t.type, t.isActive),
+		index('crew_user_idx').on(t.userId)
+	]
 );
 
 export const tripStatusHistory = pgTable(
@@ -1631,6 +1679,7 @@ export type Message = typeof messages.$inferSelect;
 export type BookingRequest = typeof bookingRequests.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type Trip = typeof trips.$inferSelect;
+export type Crew = typeof crew.$inferSelect;
 export type TripItem = typeof tripItems.$inferSelect;
 export type Quotation = typeof quotations.$inferSelect;
 export type Payment = typeof payments.$inferSelect;

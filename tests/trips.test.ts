@@ -421,6 +421,68 @@ suite('trips against the database', () => {
 		await expect(changeTripStatus(tenantId, trip.id, 'READY')).rejects.toThrow(/not ready yet/i);
 	}, 90_000);
 
+	it('assigns a driver from the registry, keeping the name as a snapshot', async () => {
+		// Both columns on purpose: the link says who is registered, the name keeps
+		// saying who drove even after that person leaves.
+		const { createCrew } = await import('../src/lib/server/crew');
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip, getTrip } = await import('../src/lib/server/trips');
+
+		const driver = await createCrew(tenantId, { type: 'DRIVER', name: 'Michael Mwakalinga', phone: '255700000222' });
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const trip = await createTripFromBooking(tenantId, b.id, {});
+		await updateTrip(tenantId, trip.id, { driverCrewId: driver.id });
+
+		const after = await getTrip(tenantId, trip.id);
+		expect(after.driverCrewId).toBe(driver.id);
+		expect(after.driver).toBe('Michael Mwakalinga');
+	}, 90_000);
+
+	it('refuses a guide in the driver slot, and an inactive person anywhere', async () => {
+		const { createCrew, updateCrew } = await import('../src/lib/server/crew');
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip } = await import('../src/lib/server/trips');
+
+		const guide = await createCrew(tenantId, { type: 'GUIDE', name: 'Neema K.' });
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const trip = await createTripFromBooking(tenantId, b.id, {});
+
+		await expect(updateTrip(tenantId, trip.id, { driverCrewId: guide.id })).rejects.toThrow(/not registered as a driver/i);
+
+		await updateCrew(tenantId, guide.id, { isActive: false });
+		await expect(updateTrip(tenantId, trip.id, { guideCrewId: guide.id })).rejects.toThrow(/no longer active/i);
+	}, 90_000);
+
+	it('clears the registry link when a name is typed in instead', async () => {
+		// Otherwise the trip would keep claiming a registered driver it does not
+		// have — the link would point at somebody the name no longer names.
+		const { createCrew } = await import('../src/lib/server/crew');
+		const { createBooking } = await import('../src/lib/server/bookings');
+		const { createTripFromBooking, updateTrip, getTrip } = await import('../src/lib/server/trips');
+
+		const driver = await createCrew(tenantId, { type: 'DRIVER', name: 'Registered Driver' });
+		const b = await createBooking(tenantId, {
+			customerId,
+			status: 'AWAITING_PAYMENT',
+			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
+		});
+		const trip = await createTripFromBooking(tenantId, b.id, {});
+		await updateTrip(tenantId, trip.id, { driverCrewId: driver.id });
+		await updateTrip(tenantId, trip.id, { driver: 'A stand-in nobody registered' });
+
+		const after = await getTrip(tenantId, trip.id);
+		expect(after.driver).toBe('A stand-in nobody registered');
+		expect(after.driverCrewId).toBeNull();
+	}, 90_000);
+
 	it('keeps trips invisible across tenants', async () => {
 		const other = await provisionTestTenant({ name: 'Other Safari', slug: `test-trips-b-${Date.now()}` });
 		const { createTripFromBooking, getTrip, listTrips } = await import('../src/lib/server/trips');

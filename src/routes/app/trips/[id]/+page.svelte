@@ -44,6 +44,13 @@
 	 * without reads differently from one that is merely nice to have, so nobody
 	 * hunts through four identical "Missing" labels to find the blocking one.
 	 */
+	/** Which rows pick from a list, and what that list is. */
+	const options = $derived({
+		accommodation: { field: 'accommodationItemId', list: data.accommodations, selected: data.trip.accommodationItemId },
+		driver: { field: 'driverCrewId', list: data.crew.drivers, selected: data.trip.driverCrewId },
+		guide: { field: 'guideCrewId', list: data.crew.guides, selected: data.trip.guideCrewId }
+	} as Record<string, { field: string; list: Array<{ id: string; name: string }>; selected: string | null } | undefined>);
+
 	const rows = $derived([
 		{ key: 'accommodation', label: 'Accommodation', icon: 'M3 9l7-5 7 5v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9Z', value: data.trip.accommodation, placeholder: 'Which lodge or hotel', critical: true },
 		{ key: 'vehicle', label: 'Vehicle', icon: 'M3 12h14M5 12V8l2-3h6l2 3v4M6 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z', value: data.trip.vehicle, placeholder: 'e.g. T 123 ABC — Land Cruiser', critical: true },
@@ -134,6 +141,7 @@
 				{#each rows as row (row.key)}
 					<li class="px-4 py-3">
 						{#if editing === row.key && data.canWrite}
+							{@const picker = options[row.key]}
 							<form
 								method="POST"
 								action="?/update"
@@ -143,15 +151,35 @@
 								}}
 								class="flex flex-wrap items-center gap-2">
 								<label class="w-32 shrink-0 text-sm text-slate-500" for="f-{row.key}">{row.label}</label>
-								<input
-									id="f-{row.key}"
-									name={row.key}
-									value={row.value ?? ''}
-									placeholder={row.placeholder}
-									class="input min-w-0 flex-1" />
+								{#if picker && picker.list.length}
+									<!-- Pick from the tenant's own list. Free text stays available
+									     below it: a driver who is not registered yet must not block a
+									     departure on bookkeeping nobody has done. -->
+									<select id="f-{row.key}" name={picker.field} class="input min-w-0 flex-1">
+										<option value="">Nobody yet</option>
+										{#each picker.list as option (option.id)}
+											<option value={option.id} selected={picker.selected === option.id}>{option.name}</option>
+										{/each}
+									</select>
+								{:else}
+									<input
+										id="f-{row.key}"
+										name={row.key}
+										value={row.value ?? ''}
+										placeholder={row.placeholder}
+										class="input min-w-0 flex-1" />
+								{/if}
 								<button class="btn-primary">Save</button>
 								<button type="button" class="btn-ghost" onclick={() => (editing = null)}>Cancel</button>
 							</form>
+							{#if picker && picker.list.length}
+								<p class="mt-1.5 pl-32 text-xs text-slate-400">
+									Not on the list? Add them under
+									<a href={row.key === 'accommodation' ? '/app/catalog' : '/app/crew'} class="text-brand-600 hover:underline"
+										>{row.key === 'accommodation' ? 'Catalog' : 'Crew'}</a
+									>.
+								</p>
+							{/if}
 						{:else}
 							<div class="flex items-center gap-3">
 								<span
