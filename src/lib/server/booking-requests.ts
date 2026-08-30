@@ -497,3 +497,97 @@ export async function deleteMirroredBookingRequest(
 	const row = await softDeleteBookingRequest(tenantId, existing.id);
 	return { deleted: true, reference: row.reference };
 }
+
+
+/* ------------------------------------------------- the enquiry mirror ------ */
+
+/**
+ * Goldfinch's booking status, in Connect's vocabulary.
+ *
+ * `confirmed` maps to CONVERTED because acceptance PROMOTES the enquiry over
+ * there rather than creating a second record — the enquiry becomes the booking.
+ * `completed` stays CONVERTED: a request has no later life than having become
+ * one, and inventing a status Connect does not otherwise use would put a word
+ * on the board that means nothing to anybody reading it.
+ */
+const SOURCE_STATUS: Record<string, schema.BookingRequest['status']> = {
+	pending: 'NEW',
+	confirmed: 'CONVERTED',
+	completed: 'CONVERTED',
+	cancelled: 'CANCELLED'
+};
+
+export type BookingRequestMirrorInput = {
+	externalReference: string;
+	externalSource?: string;
+	/** Goldfinch's own booking status, lowercase. */
+	status?: string | null;
+	/** unpaid | partially_paid | paid | refunded | failed — no column here, so it lives in metadata. */
+	paymentStatus?: string | null;
+	/** The revised figure after an amendment, if the booking carries one at all. */
+	estimatedTotal?: string | null;
+	currency?: string | null;
+	notes?: string | null;
+	/** What changed, in the words the traveller was given. */
+	amendment?: { summary?: string | null; priceEffect?: string | null; state?: string | null } | null;
+};
+
+/**
+ * Update Connect's copy of an enquiry from the source system.
+ *
+ * Only ever an UPDATE: the enquiry itself arrives through POST /booking-requests
+ * when it is created, and inventing one here would turn a status change for a
+ * record Connect never saw into a brand new lead in somebody's inbox.
+ * Idempotent, and quiet about a reference it does not know — a replayed status
+ * change is not worth failing a webhook over.
+ */
+export async function upsertBookingRequestMirror(
+	tenantId: string,
+	input: BookingRequestMirrorInput
+): Promise<{ updated: boolean; reference: string | null }> {
+	const [existing] = await db()
+		.select()
+		.from(schema.bookingRequests)
+		.where(
+			and(
+				eq(schema.bookingRequests.tenantId, tenantId),
+				eq(schema.bookingRequests.externalReference, input.externalReference)
+			)
+		)
+		.limit(1);
+	if (!existing || existing.deletedAt) return { updated: false, reference: existing?.reference ?? null };
+
+	const patch: Partial<typeof schema.bookingRequests.$inferInsert> = { updatedAt: new Date() };
+	const mapped = input.status ? SOURCE_STATUS[input.status.toLowerCase()] : undefined;
+	if (mapped) patch.status = mapped;
+	if (input.estimatedTotal !== undefined && input.estimatedTotal !== null) patch.estimatedTotal = input.estimatedTotal;
+	if (input.currency) patch.currency = input.currency;
+	if (input.notes !== undefined) patch.notes = input.notes;
+
+	// Payment state and the amendment trail have no columns here, so they live in
+	// metadata — MERGED, because goldfinch_booking_id and the original lead
+	// context are already in there and must survive a status change.
+	const meta = { ...((existing.metadata ?? {}) as Record<string, unknown>) };
+	if (input.paymentStatus) meta.goldfinch_payment_status = input.paymentStatus;
+	if (input.status) meta.goldfinch_booking_status = input.status;
+	if (input.amendment) {
+		const history = Array.isArray(meta.goldfinch_amendments) ? (meta.goldfinch_amendments as unknown[]) : [];
+		meta.goldfinch_amendments = [
+			...history,
+			{
+				summary: input.amendment.summary ?? null,
+				priceEffect: input.amendment.priceEffect ?? null,
+				state: input.amendment.state ?? null,
+				at: new Date().toISOString()
+			}
+		];
+	}
+	patch.metadata = meta;
+
+	const [row] = await db()
+		.update(schema.bookingRequests)
+		.set(patch)
+		.where(and(eq(schema.bookingRequests.id, existing.id), eq(schema.bookingRequests.tenantId, tenantId)))
+		.returning();
+	return { updated: true, reference: row.reference };
+}

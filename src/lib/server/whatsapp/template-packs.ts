@@ -22,7 +22,7 @@ import { createTemplateDraft, submitTemplateToMeta, type NotifyEvent } from './t
 import { resolveCredentials } from './connections';
 import { log } from '../logger';
 
-export const PACK_VERSION = 7;
+export const PACK_VERSION = 8;
 
 type PackTemplate = {
 	name: string;
@@ -64,6 +64,17 @@ const PACK: PackTemplate[] = [
 		module: 'bookings',
 		bodyText:
 			'Hi {{crew.name}}, {{business.name}} has given you access to their trips app as {{crew.role}}. Open this link to set your password: {{invite.link}} It can only be used once and expires in 7 days.'
+	},
+	{
+		// The traveller's booking changed after they confirmed it. UTILITY, and
+		// the variable ORDER matters: a tenant site sending this through the
+		// relay passes [first name, reference, change] positionally, and
+		// toPositional numbers them by first appearance.
+		name: 'booking_amended',
+		eventKey: 'BOOKING_AMENDED',
+		module: 'bookings',
+		bodyText:
+			"Hello {{customer.first_name}}, there's an update to your booking {{booking.reference}}. {{amendment.summary}} Everything else about your trip stays as arranged. Reply here if you have any questions."
 	},
 	{
 		name: 'trip_reminder',

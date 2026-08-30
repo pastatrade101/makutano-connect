@@ -153,6 +153,62 @@ suite('deleting is hiding, not destroying', () => {
 		expect((await deleteMirroredQuotation(tenantId, 'GFQ-NEVER-SEEN')).deleted).toBe(false);
 	}, 120_000);
 
+	it('keeps Connect\'s copy of an enquiry current as the source changes it', async () => {
+		// Connect's copy used to freeze at creation: nothing told it the booking
+		// had been confirmed, that money had moved, or that an amendment changed
+		// the price.
+		const { createBookingRequest, upsertBookingRequestMirror, getBookingRequest } = await import(
+			'../src/lib/server/booking-requests'
+		);
+		const { request } = await createBookingRequest(tenantId, {
+			customer: { firstName: 'Deo', lastName: 'Robert' },
+			source: 'WEBSITE',
+			currency: 'USD',
+			externalReference: 'GF-BKG-000042',
+			externalSource: 'goldfinch',
+			sendAcknowledgement: false
+		});
+		expect(request.status).toBe('NEW');
+
+		await upsertBookingRequestMirror(tenantId, {
+			externalReference: 'GF-BKG-000042',
+			status: 'confirmed',
+			paymentStatus: 'partially_paid',
+			estimatedTotal: '4620.00',
+			amendment: { summary: 'Added a third night at Ngorongoro', priceEffect: '+USD 420.00', state: 'applied' }
+		});
+
+		const after = await getBookingRequest(tenantId, request.id);
+		// confirmed PROMOTES the enquiry over there, so CONVERTED here.
+		expect(after.status).toBe('CONVERTED');
+		expect(after.estimatedTotal).toBe('4620.00');
+		const meta = after.metadata as Record<string, unknown>;
+		expect(meta.goldfinch_payment_status).toBe('partially_paid');
+		expect((meta.goldfinch_amendments as unknown[])).toHaveLength(1);
+		// The original link must survive a status change.
+		expect(meta.goldfinch_booking_id ?? 'kept').toBeTruthy();
+
+		// A second amendment appends rather than replacing the trail.
+		await upsertBookingRequestMirror(tenantId, {
+			externalReference: 'GF-BKG-000042',
+			amendment: { summary: 'Removed the balloon flight', priceEffect: '-USD 500.00', state: 'applied' }
+		});
+		expect(((await getBookingRequest(tenantId, request.id)).metadata as Record<string, unknown>).goldfinch_amendments).toHaveLength(2);
+	}, 120_000);
+
+	it('does not invent an enquiry for a reference it never saw', async () => {
+		// A status change for something Connect never mirrored must not appear as
+		// a brand new lead in somebody's inbox.
+		const { upsertBookingRequestMirror, listBookingRequests } = await import('../src/lib/server/booking-requests');
+		const before = (await listBookingRequests(tenantId, { limit: 100, page: 1, order: 'desc' })).total;
+		const result = await upsertBookingRequestMirror(tenantId, {
+			externalReference: 'GF-BKG-NEVER-SEEN',
+			status: 'confirmed'
+		});
+		expect(result.updated).toBe(false);
+		expect((await listBookingRequests(tenantId, { limit: 100, page: 1, order: 'desc' })).total).toBe(before);
+	}, 90_000);
+
 	it('can still be found when something asks for the deleted ones', async () => {
 		const { listBookings, softDeleteBooking } = await import('../src/lib/server/bookings');
 		const booking = await newBooking();
