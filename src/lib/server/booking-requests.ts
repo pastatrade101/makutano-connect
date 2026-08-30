@@ -544,7 +544,7 @@ export type BookingRequestMirrorInput = {
 export async function upsertBookingRequestMirror(
 	tenantId: string,
 	input: BookingRequestMirrorInput
-): Promise<{ updated: boolean; reference: string | null }> {
+): Promise<{ updated: boolean; reference: string | null; bookingId?: string | null }> {
 	const [existing] = await db()
 		.select()
 		.from(schema.bookingRequests)
@@ -555,7 +555,7 @@ export async function upsertBookingRequestMirror(
 			)
 		)
 		.limit(1);
-	if (!existing || existing.deletedAt) return { updated: false, reference: existing?.reference ?? null };
+	if (!existing || existing.deletedAt) return { updated: false, reference: existing?.reference ?? null, bookingId: null };
 
 	const patch: Partial<typeof schema.bookingRequests.$inferInsert> = { updatedAt: new Date() };
 	const mapped = input.status ? SOURCE_STATUS[input.status.toLowerCase()] : undefined;
@@ -589,5 +589,86 @@ export async function upsertBookingRequestMirror(
 		.set(patch)
 		.where(and(eq(schema.bookingRequests.id, existing.id), eq(schema.bookingRequests.tenantId, tenantId)))
 		.returning();
-	return { updated: true, reference: row.reference };
+
+	// The handover itself. `confirmed` is the moment the source stops owning this
+	// and Connect starts: money, trip and crew all hang off a BOOKING, and none
+	// of them can reach an enquiry — payment_requests has no booking_request_id
+	// and never should, or payments would attach to a lead.
+	let bookingId: string | null = null;
+	if (mapped === 'CONVERTED') {
+		bookingId = await ensureBookingForMirroredEnquiry(tenantId, row, input);
+	}
+
+	return { updated: true, reference: row.reference, bookingId };
+}
+
+/**
+ * The Connect booking behind a confirmed source enquiry, made once.
+ *
+ * Idempotent on the SOURCE's reference, not on anything Connect generates:
+ * confirming twice, a replayed webhook and a retry after a timeout all have to
+ * land on the same booking. The source's code goes on the booking as its
+ * external reference so payment events can carry it home again — the receiver
+ * knows this trip by that code and by nothing else.
+ */
+async function ensureBookingForMirroredEnquiry(
+	tenantId: string,
+	request: schema.BookingRequest,
+	input: BookingRequestMirrorInput
+): Promise<string | null> {
+	const reference = input.externalReference;
+	const [already] = await db()
+		.select({ id: schema.bookings.id })
+		.from(schema.bookings)
+		.where(
+			and(
+				eq(schema.bookings.tenantId, tenantId),
+				eq(schema.bookings.externalReference, reference),
+				isNull(schema.bookings.deletedAt)
+			)
+		)
+		.limit(1);
+	if (already) return already.id;
+	if (!request.customerId) return null;
+
+	const { createBooking } = await import('./bookings');
+	const total = input.estimatedTotal ?? request.estimatedTotal;
+	try {
+		const booking = await createBooking(tenantId, {
+			customerId: request.customerId,
+			bookingRequestId: request.id,
+			currency: input.currency ?? request.currency ?? 'USD',
+			startDate: request.startDate ? request.startDate.toISOString() : null,
+			endDate: request.endDate ? request.endDate.toISOString() : null,
+			adults: request.adults ?? 1,
+			children: request.children ?? 0,
+			status: 'CONFIRMED',
+			source: 'WEBSITE',
+			externalReference: reference,
+			externalSource: input.externalSource ?? 'goldfinch',
+			metadata: { goldfinch_booking_code: reference, promoted_from_request: request.reference },
+			// One line, from the enquiry. The source owns what was sold and its
+			// price; itemising it here would be a second copy free to drift from
+			// the quotation the traveller actually agreed to.
+			items: [
+				{
+					title: `Trip ${reference}`,
+					type: 'TOUR',
+					quantity: 1,
+					unitPrice: total && Number(total) > 0 ? String(total) : '0.00'
+				}
+			]
+		});
+		log.info('mirrored_enquiry_promoted', { tenantId, reference, bookingId: booking.id });
+		return booking.id;
+	} catch (error) {
+		// A failed promotion must not fail the status update: the enquiry is still
+		// correctly marked converted, and this is retried on the next event.
+		log.error('mirrored_enquiry_promotion_failed', {
+			tenantId,
+			reference,
+			error: (error as Error)?.message
+		});
+		return null;
+	}
 }

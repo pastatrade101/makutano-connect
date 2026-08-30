@@ -196,6 +196,58 @@ suite('deleting is hiding, not destroying', () => {
 		expect(((await getBookingRequest(tenantId, request.id)).metadata as Record<string, unknown>).goldfinch_amendments).toHaveLength(2);
 	}, 120_000);
 
+	it('promotes a confirmed enquiry into a real booking, exactly once', async () => {
+		// The handover. Money, trip and crew all hang off a BOOKING and none of
+		// them can reach an enquiry — payment_requests has no booking_request_id.
+		// Idempotency is keyed on the SOURCE's reference because a replayed
+		// webhook, a retry and a second confirm all have to land on one booking.
+		const { createBookingRequest, upsertBookingRequestMirror } = await import('../src/lib/server/booking-requests');
+		const { listBookings } = await import('../src/lib/server/bookings');
+		const ref = `GF-BKG-P${Date.now()}`;
+		await createBookingRequest(tenantId, {
+			customer: { firstName: 'Promote', lastName: 'Me' },
+			source: 'WEBSITE',
+			currency: 'USD',
+			externalReference: ref,
+			externalSource: 'goldfinch',
+			sendAcknowledgement: false
+		});
+
+		const first = await upsertBookingRequestMirror(tenantId, {
+			externalReference: ref,
+			status: 'confirmed',
+			estimatedTotal: '4620.00'
+		});
+		expect(first.bookingId).toBeTruthy();
+
+		const second = await upsertBookingRequestMirror(tenantId, { externalReference: ref, status: 'confirmed' });
+		expect(second.bookingId).toBe(first.bookingId);
+
+		const all = await listBookings(tenantId, { limit: 100, page: 1, order: 'desc' });
+		const mine = all.items.filter((r) => r.booking.externalReference === ref);
+		expect(mine).toHaveLength(1);
+		// The source's code rides on the booking so payment events can carry it home.
+		expect(mine[0].booking.externalReference).toBe(ref);
+		expect(mine[0].booking.status).toBe('CONFIRMED');
+		expect(Number(mine[0].booking.total)).toBe(4620);
+	}, 150_000);
+
+	it('does not promote an enquiry that is only quoted', async () => {
+		const { createBookingRequest, upsertBookingRequestMirror } = await import('../src/lib/server/booking-requests');
+		const ref = `GF-BKG-Q${Date.now()}`;
+		await createBookingRequest(tenantId, {
+			customer: { firstName: 'Still', lastName: 'Talking' },
+			source: 'WEBSITE',
+			currency: 'USD',
+			externalReference: ref,
+			externalSource: 'goldfinch',
+			sendAcknowledgement: false
+		});
+		const result = await upsertBookingRequestMirror(tenantId, { externalReference: ref, status: 'pending' });
+		expect(result.updated).toBe(true);
+		expect(result.bookingId ?? null).toBeNull();
+	}, 120_000);
+
 	it('does not invent an enquiry for a reference it never saw', async () => {
 		// A status change for something Connect never mirrored must not appear as
 		// a brand new lead in somebody's inbox.

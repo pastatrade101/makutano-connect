@@ -243,25 +243,32 @@ export async function setPaymentStatus(
 			})().catch(() => undefined);
 		}
 	}
+	// The source system knows this booking by ITS OWN code, never by Connect's
+	// uuid, so a payment event it cannot match to anything is a payment nobody
+	// records. external_reference is the whole point of the envelope.
+	const externalReference = payment.bookingId ? await bookingExternalReference(tenantId, payment.bookingId) : null;
+	const paymentEventData = {
+		id: payment.id,
+		payment_id: payment.id,
+		external_reference: externalReference,
+		reference: payment.reference,
+		amount: payment.amount,
+		currency: payment.currency,
+		method: payment.provider ? String(payment.provider).toLowerCase() : null,
+		paid_at: (payment.paidAt ?? payment.updatedAt ?? new Date()).toISOString(),
+		bookingId: payment.bookingId,
+		orderId: payment.orderId
+	};
+
 	if (status === 'SUCCEEDED') {
 		if (payment.provider !== 'MANUAL') await applyProviderPaymentToRequest(tenantId, payment);
-		await emit(tenantId, 'payment.succeeded', {
-			id: payment.id,
-			reference: payment.reference,
-			amount: payment.amount,
-			currency: payment.currency,
-			bookingId: payment.bookingId,
-			orderId: payment.orderId
-		});
+		await emit(tenantId, 'payment.succeeded', paymentEventData);
 	}
 	if (status === 'FAILED') {
-		await emit(tenantId, 'payment.failed', {
-			id: payment.id,
-			reference: payment.reference,
-			failureCode: payment.failureCode,
-			bookingId: payment.bookingId,
-			orderId: payment.orderId
-		});
+		await emit(tenantId, 'payment.failed', { ...paymentEventData, failureCode: payment.failureCode });
+	}
+	if (status === 'REFUNDED' || status === 'PARTIALLY_REFUNDED') {
+		await emit(tenantId, 'payment.refunded', { ...paymentEventData, amount: payment.amountRefunded });
 	}
 	return payment;
 }
@@ -418,4 +425,21 @@ export async function paymentStats(tenantId: string) {
 		failed: Number(r.failed ?? 0),
 		collected: Number(r.collected ?? 0)
 	};
+}
+
+
+/**
+ * The code the tenant's own system knows this booking by.
+ *
+ * Null when the booking did not come from anywhere — a payment event for a
+ * Connect-native booking has nothing to match against on the other side, and
+ * saying so is better than sending a uuid the receiver will log as unmatched.
+ */
+async function bookingExternalReference(tenantId: string, bookingId: string): Promise<string | null> {
+	const [row] = await db()
+		.select({ externalReference: schema.bookings.externalReference })
+		.from(schema.bookings)
+		.where(and(eq(schema.bookings.id, bookingId), eq(schema.bookings.tenantId, tenantId)))
+		.limit(1);
+	return row?.externalReference ?? null;
 }

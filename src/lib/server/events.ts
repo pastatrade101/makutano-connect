@@ -1,6 +1,7 @@
 // Domain event bus (§20). Services emit; this module fans out to client webhooks and
 // in-app/WhatsApp notifications. Fan-out is queued, never inline, so a slow client
 // endpoint can never slow down the request that produced the event.
+import crypto from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { db, schema } from './db';
 import { enqueue } from './jobs/queue';
@@ -19,6 +20,7 @@ export const EVENTS = [
 	'quotation.accepted',
 	'payment.succeeded',
 	'payment.failed',
+	'payment.refunded',
 	'message.received',
 	'order.created',
 	'order.confirmed',
@@ -64,13 +66,28 @@ export async function emit(tenantId: string, event: DomainEvent, payload: Record
 			);
 
 		for (const endpoint of endpoints) {
+			// The id is minted HERE rather than taken from the insert, because it
+			// has to be inside the signed body: a receiver recognises a redelivery
+			// by it, and a retry must carry the same one. occurred_at joins the
+			// existing occurredAt rather than replacing it — renaming a field in a
+			// payload other people already parse is not a rename, it is a break.
+			const deliveryId = crypto.randomUUID();
+			const occurredAt = new Date().toISOString();
 			const [delivery] = await db()
 				.insert(schema.webhookDeliveries)
 				.values({
+					id: deliveryId,
 					tenantId,
 					endpointId: endpoint.id,
 					event,
-					payload: { event, tenantId, occurredAt: new Date().toISOString(), data: payload }
+					payload: {
+						id: `evt_${deliveryId}`,
+						event,
+						tenantId,
+						occurredAt,
+						occurred_at: occurredAt,
+						data: payload
+					}
 				})
 				.returning({ id: schema.webhookDeliveries.id });
 			await enqueue('client_webhook.deliver', { deliveryId: delivery.id }, { tenantId });

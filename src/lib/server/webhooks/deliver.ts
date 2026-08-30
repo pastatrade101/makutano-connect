@@ -11,6 +11,11 @@ const MAX_ATTEMPTS = 6;
 const TIMEOUT_MS = 10_000;
 
 /** Stripe-style signature: `t=<unix>,v1=<hex hmac of "t.body">`. */
+/** The bare hex MAC, for receivers that carry the timestamp in its own header. */
+export function rawSignature(secret: string, body: string, timestamp: number): string {
+	return crypto.createHmac('sha256', secret).update(`${timestamp}.${body}`, 'utf8').digest('hex');
+}
+
 export function signPayload(secret: string, body: string, timestamp = Math.floor(Date.now() / 1000)): string {
 	const mac = crypto.createHmac('sha256', secret).update(`${timestamp}.${body}`, 'utf8').digest('hex');
 	return `t=${timestamp},v1=${mac}`;
@@ -37,6 +42,9 @@ export async function deliverPendingWebhook(deliveryId: string): Promise<void> {
 	}
 
 	const body = JSON.stringify(delivery.payload);
+	// One timestamp for both header styles — signing the same bytes twice under
+	// two different clocks would make one of the signatures wrong.
+	const timestamp = Math.floor(Date.now() / 1000);
 	const attempt = delivery.attempts + 1;
 	let secret: string;
 	try {
@@ -60,7 +68,13 @@ export async function deliverPendingWebhook(deliveryId: string): Promise<void> {
 				'user-agent': 'MakutanoConnect/1.0',
 				'x-makutano-event': delivery.event,
 				'x-makutano-delivery': delivery.id,
-				'x-makutano-signature': signPayload(secret, body)
+				'x-makutano-signature': signPayload(secret, body, timestamp),
+				// The same MAC, in the shape the documented contract specifies.
+				// Both are sent: the Stripe-style header is what existing consumers
+				// already verify, and removing it to suit one receiver would break
+				// every other one.
+				'x-connect-timestamp': String(timestamp),
+				'x-connect-signature': `sha256=${rawSignature(secret, body, timestamp)}`
 			},
 			body,
 			signal: controller.signal
