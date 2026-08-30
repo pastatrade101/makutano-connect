@@ -1,7 +1,7 @@
 // Bookings (§14). A booking is the confirmed commercial record; its money fields are
 // derived from its items, never trusted from the caller, and every status change is
 // written to booking_status_history so the lifecycle is auditable.
-import { and, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { nextReference } from './db/references';
 import { recordUsage } from './billing';
@@ -161,14 +161,58 @@ export async function createBooking(tenantId: string, input: CreateBookingInput,
 	return booking;
 }
 
-export async function getBooking(tenantId: string, id: string): Promise<schema.Booking> {
+export async function getBooking(
+	tenantId: string,
+	id: string,
+	{ includeDeleted = false }: { includeDeleted?: boolean } = {}
+): Promise<schema.Booking> {
 	const rows = await db()
 		.select()
 		.from(schema.bookings)
-		.where(and(eq(schema.bookings.id, id), eq(schema.bookings.tenantId, tenantId)))
+		.where(
+			and(
+				eq(schema.bookings.id, id),
+				eq(schema.bookings.tenantId, tenantId),
+				// A deleted booking is gone as far as every caller is concerned —
+				// including anyone who kept its id. Restoring asks for it by name.
+				...(includeDeleted ? [] : [isNull(schema.bookings.deletedAt)])
+			)
+		)
 		.limit(1);
 	if (!rows[0]) throw new AppError('BOOKING_NOT_FOUND', 'Booking could not be found.');
 	return rows[0];
+}
+
+/**
+ * Hide a booking. Never destroy one.
+ *
+ * A hard delete would cascade into booking_items, travellers, notes, status
+ * history, payment_requests and the whole TRIP, and would orphan payments —
+ * money in the ledger with nothing to point at. The trip is CANCELLED rather
+ * than left running, because a departure whose booking has been deleted is not
+ * something anyone should still be preparing.
+ */
+export async function softDeleteBooking(tenantId: string, id: string, actorUserId?: string | null) {
+	const booking = await getBooking(tenantId, id);
+	const [row] = await db()
+		.update(schema.bookings)
+		.set({ deletedAt: new Date(), updatedAt: new Date() })
+		.where(and(eq(schema.bookings.id, id), eq(schema.bookings.tenantId, tenantId)))
+		.returning();
+	const { cancelTripForBooking } = await import('./trips');
+	await cancelTripForBooking(tenantId, id, 'The booking was deleted.', { userId: actorUserId ?? null });
+	return { booking: row, previousStatus: booking.status };
+}
+
+/** Put it back exactly as it was. The status was never changed, so nothing to restore but visibility. */
+export async function restoreBooking(tenantId: string, id: string): Promise<schema.Booking> {
+	await getBooking(tenantId, id, { includeDeleted: true });
+	const [row] = await db()
+		.update(schema.bookings)
+		.set({ deletedAt: null, updatedAt: new Date() })
+		.where(and(eq(schema.bookings.id, id), eq(schema.bookings.tenantId, tenantId)))
+		.returning();
+	return row;
 }
 
 export async function getBookingDetail(tenantId: string, id: string) {
@@ -205,9 +249,16 @@ export async function listBookings(
 		status?: schema.Booking['status'] | schema.Booking['status'][];
 		customerId?: string;
 		unpaid?: boolean;
+		/** The recently-deleted view, and nothing else. */
+		includeDeleted?: boolean;
+		onlyDeleted?: boolean;
 	} = {}
 ) {
 	const conditions: SQL[] = [eq(schema.bookings.tenantId, tenantId)];
+	// Deleted rows are invisible everywhere unless something asks for them by
+	// name. Every surface reads through here, so this is the one place it has to
+	// be right.
+	if (!filters.includeDeleted) conditions.push(isNull(schema.bookings.deletedAt));
 	if (filters.status) {
 		conditions.push(
 			Array.isArray(filters.status)
@@ -217,6 +268,7 @@ export async function listBookings(
 	}
 	if (filters.customerId) conditions.push(eq(schema.bookings.customerId, filters.customerId));
 	if (filters.unpaid) conditions.push(sql`${schema.bookings.balanceDue} > 0`);
+	if (filters.onlyDeleted) conditions.push(sql`${schema.bookings.deletedAt} is not null`);
 	if (p.q) {
 		const term = `%${p.q}%`;
 		conditions.push(sql`${schema.bookings.bookingReference} ilike ${term}`);

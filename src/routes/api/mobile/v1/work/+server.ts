@@ -41,6 +41,7 @@ export const GET: RequestHandler = async (event) => {
 				from booking_requests br
 				left join customers cu on cu.id = br.customer_id
 				where br.tenant_id = ${viewer.tenantId}::uuid
+					and br.deleted_at is null
 					and br.status in ('NEW', 'UNDER_REVIEW', 'CONTACTED', 'QUOTED')
 				union all
 				select 'quotation', q.id::text, q.reference, q.status::text, q.total::text, '0', q.currency,
@@ -59,6 +60,7 @@ export const GET: RequestHandler = async (event) => {
 				from bookings b
 				left join customers cu on cu.id = b.customer_id
 				where b.tenant_id = ${viewer.tenantId}::uuid
+					and b.deleted_at is null
 					and b.status not in ('COMPLETED', 'CANCELLED', 'REFUNDED')
 					-- A booking with a LIVE trip has nothing left to ask for here; its trip
 					-- is in this same list and owns what happens next. Once that trip is

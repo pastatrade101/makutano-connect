@@ -96,16 +96,16 @@ async function operationalCounts(tenantId: string, userId: string) {
 	const rows = (await db().execute(sql`
 		select
 			(select count(*)::int from booking_requests r
-				where r.tenant_id = ${tenantId}::uuid and r.status = 'NEW') as new_enquiries,
+				where r.tenant_id = ${tenantId}::uuid and r.deleted_at is null and r.status = 'NEW') as new_enquiries,
 			(select count(*)::int from booking_requests r
-				where r.tenant_id = ${tenantId}::uuid and r.assignee_user_id = ${userId}::uuid
+				where r.tenant_id = ${tenantId}::uuid and r.deleted_at is null and r.assignee_user_id = ${userId}::uuid
 					and r.status in ('NEW', 'UNDER_REVIEW', 'CONTACTED')) as my_enquiries,
 			(select count(*)::int from orders o
 				where o.tenant_id = ${tenantId}::uuid and o.status = 'PENDING_CONFIRMATION') as orders_to_confirm,
 			(select count(*)::int from orders o
 				where o.tenant_id = ${tenantId}::uuid and o.status = 'READY') as orders_ready,
 			(select count(*)::int from bookings b
-				where b.tenant_id = ${tenantId}::uuid and b.status = 'AWAITING_PAYMENT') as bookings_unpaid,
+				where b.tenant_id = ${tenantId}::uuid and b.deleted_at is null and b.status = 'AWAITING_PAYMENT') as bookings_unpaid,
 			(select count(*)::int from quotations q
 				where q.tenant_id = ${tenantId}::uuid and q.status = 'SENT') as quotes_waiting,
 			(select count(*)::int from payment_requests pr
@@ -118,7 +118,7 @@ async function operationalCounts(tenantId: string, userId: string) {
 			(select count(*)::int from orders o
 				where o.tenant_id = ${tenantId}::uuid and o.created_at::date = current_date) as orders_today,
 			(select count(*)::int from booking_requests r
-				where r.tenant_id = ${tenantId}::uuid and r.created_at::date = current_date) as enquiries_today,
+				where r.tenant_id = ${tenantId}::uuid and r.deleted_at is null and r.created_at::date = current_date) as enquiries_today,
 			(select coalesce(sum(p.amount), 0)::numeric(14,2) from payments p
 				where p.tenant_id = ${tenantId}::uuid and p.status = 'SUCCEEDED'
 					and p.created_at::date = current_date) as received_today,
@@ -547,7 +547,7 @@ export async function continueWorking(tenantId: string, viewer: Viewer, workspac
 						br.adults, br.notes, br.updated_at, null::text as converted_booking_id,
 						null::text as active_request_status, br.assignee_user_id::text
 					from booking_requests br
-					where br.tenant_id = ${tenantId}::uuid and br.customer_id::text in ${customerIds}
+					where br.tenant_id = ${tenantId}::uuid and br.deleted_at is null and br.customer_id::text in ${customerIds}
 						and br.status in ('NEW','UNDER_REVIEW','CONTACTED','QUOTED')
 					union all
 					select 'quotation', q.id::text, q.customer_id::text, q.reference, q.status::text, q.total::text, '0', q.currency,
@@ -562,7 +562,7 @@ export async function continueWorking(tenantId: string, viewer: Viewer, workspac
 							and pr.status in ('REQUESTED','REPORTED','PARTIALLY_PAID') order by pr.created_at desc limit 1),
 						null
 					from bookings b
-					where b.tenant_id = ${tenantId}::uuid and b.customer_id::text in ${customerIds}
+					where b.tenant_id = ${tenantId}::uuid and b.deleted_at is null and b.customer_id::text in ${customerIds}
 						and b.status not in ('COMPLETED','CANCELLED','REFUNDED')
 					union all
 					select 'order', o.id::text, o.customer_id::text, o.order_number, o.status::text, o.total::text,

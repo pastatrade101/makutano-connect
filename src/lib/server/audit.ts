@@ -67,6 +67,12 @@ export type AuditAction =
 	| 'booking.created'
 	| 'booking.confirmed'
 	| 'booking.cancelled'
+	// Soft deletes get their own names. "booking.updated" would bury the one
+	// action anybody searching this log after a row vanished is looking for.
+	| 'booking.deleted'
+	| 'booking.restored'
+	| 'booking_request.deleted'
+	| 'booking_request.restored'
 	| 'quotation.created'
 	| 'quotation.sent'
 	| 'quotation.accepted'

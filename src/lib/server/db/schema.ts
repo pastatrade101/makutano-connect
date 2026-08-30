@@ -721,6 +721,9 @@ export const bookingRequests = pgTable(
 			.notNull()
 			.default(sql`'{}'::jsonb`),
 		convertedBookingId: uuid('converted_booking_id'),
+		// Soft delete. A hard delete cascades into the trip and orphans
+		// payments, so a swipe on a phone hides the row and nothing more.
+		deletedAt: timestamp('deleted_at', { withTimezone: true }),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
 	},
@@ -838,6 +841,9 @@ export const bookings = pgTable(
 			.default(sql`'{}'::jsonb`),
 		confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
 		cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+		// Soft delete. A hard delete cascades into the trip and orphans
+		// payments, so a swipe on a phone hides the row and nothing more.
+		deletedAt: timestamp('deleted_at', { withTimezone: true }),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
 	},

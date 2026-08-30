@@ -8,7 +8,7 @@
 // operation: match/create the customer, create the request, optionally open a lead,
 // link the WhatsApp conversation, send the acknowledgement and emit the event — so a
 // later inbound reply lands on the same customer + request + conversation.
-import { and, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { nextReference } from './db/references';
 import { recordUsage } from './billing';
@@ -272,14 +272,49 @@ async function sendAcknowledgement(
 
 /* ------------------------------------------------------------- queries ---- */
 
-export async function getBookingRequest(tenantId: string, id: string) {
+export async function getBookingRequest(
+	tenantId: string,
+	id: string,
+	{ includeDeleted = false }: { includeDeleted?: boolean } = {}
+) {
 	const rows = await db()
 		.select()
 		.from(schema.bookingRequests)
-		.where(and(eq(schema.bookingRequests.id, id), eq(schema.bookingRequests.tenantId, tenantId)))
+		.where(
+			and(
+				eq(schema.bookingRequests.id, id),
+				eq(schema.bookingRequests.tenantId, tenantId),
+				...(includeDeleted ? [] : [isNull(schema.bookingRequests.deletedAt)])
+			)
+		)
 		.limit(1);
 	if (!rows[0]) throw new AppError('BOOKING_REQUEST_NOT_FOUND', 'Booking request could not be found.');
 	return rows[0];
+}
+
+/**
+ * Hide an enquiry. The conversation it came from is untouched — the customer
+ * still exists and their WhatsApp thread still reads the same; this is about
+ * one row on a work list, not about forgetting a person.
+ */
+export async function softDeleteBookingRequest(tenantId: string, id: string) {
+	await getBookingRequest(tenantId, id);
+	const [row] = await db()
+		.update(schema.bookingRequests)
+		.set({ deletedAt: new Date(), updatedAt: new Date() })
+		.where(and(eq(schema.bookingRequests.id, id), eq(schema.bookingRequests.tenantId, tenantId)))
+		.returning();
+	return row;
+}
+
+export async function restoreBookingRequest(tenantId: string, id: string) {
+	await getBookingRequest(tenantId, id, { includeDeleted: true });
+	const [row] = await db()
+		.update(schema.bookingRequests)
+		.set({ deletedAt: null, updatedAt: new Date() })
+		.where(and(eq(schema.bookingRequests.id, id), eq(schema.bookingRequests.tenantId, tenantId)))
+		.returning();
+	return row;
 }
 
 export async function getBookingRequestDetail(tenantId: string, id: string) {
@@ -304,10 +339,15 @@ export type BookingRequestFilters = {
 	source?: schema.BookingRequest['source'];
 	assigneeUserId?: string;
 	customerId?: string;
+	/** The recently-deleted view, and nothing else. */
+	includeDeleted?: boolean;
+	onlyDeleted?: boolean;
 };
 
 export async function listBookingRequests(tenantId: string, p: Pagination, filters: BookingRequestFilters = {}) {
 	const conditions: SQL[] = [eq(schema.bookingRequests.tenantId, tenantId)];
+	if (!filters.includeDeleted) conditions.push(isNull(schema.bookingRequests.deletedAt));
+	if (filters.onlyDeleted) conditions.push(sql`${schema.bookingRequests.deletedAt} is not null`);
 	if (filters.status) {
 		conditions.push(
 			Array.isArray(filters.status)
@@ -412,7 +452,7 @@ export async function bookingRequestStats(tenantId: string) {
 			count(*) filter (where status = 'CONVERTED')::int as converted,
 			count(*) filter (where status in ('DECLINED','CANCELLED'))::int as closed,
 			count(*) filter (where created_at > now() - interval '7 days')::int as last_7_days
-		from booking_requests where tenant_id = ${tenantId}::uuid
+		from booking_requests where tenant_id = ${tenantId}::uuid and deleted_at is null
 	`)) as unknown as Array<Record<string, number>>;
 	const r = rows[0] ?? {};
 	return {
