@@ -1271,6 +1271,10 @@ export const payments = pgTable(
  * can carry several requests over its life (deposit now, balance later); history is
  * never overwritten.
  */
+// A payment request RESTRICTS its parent rather than cascading from it: a hard
+// delete of the booking, order or quotation must fail loudly instead of taking
+// the money records with it (0027). tenant_id still cascades — removing a
+// tenant is meant to take everything.
 export const paymentRequests = pgTable(
 	'payment_requests',
 	{
@@ -1279,9 +1283,9 @@ export const paymentRequests = pgTable(
 			.notNull()
 			.references(() => tenants.id, { onDelete: 'cascade' }),
 		customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'set null' }),
-		bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'cascade' }),
-		orderId: uuid('order_id').references(() => orders.id, { onDelete: 'cascade' }),
-		quotationId: uuid('quotation_id').references(() => quotations.id, { onDelete: 'cascade' }),
+		bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'restrict' }),
+		orderId: uuid('order_id').references(() => orders.id, { onDelete: 'restrict' }),
+		quotationId: uuid('quotation_id').references(() => quotations.id, { onDelete: 'restrict' }),
 		conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
 		status: paymentRequestStatusEnum('status').notNull().default('REQUESTED'),
 		amountRequested: money('amount_requested').notNull(),
