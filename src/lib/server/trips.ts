@@ -16,6 +16,8 @@ import { emit } from './events';
 import { assertAllowed } from './entitlements';
 import { AppError } from './errors';
 import { getTenantById } from './tenants';
+// createTripFromBooking genuinely needs the booking's ITEMS to copy forward, so
+// it keeps the full detail; getTripDetail does not, and uses bookingForTrip.
 import { getBookingDetail } from './bookings';
 import type { Pagination } from './http';
 
@@ -149,6 +151,36 @@ function dayNumberFor(tripStart: Date | null, itemStart: Date | null): number | 
 	return n >= 1 ? n : null;
 }
 
+/**
+ * Just enough of the booking for a trip screen: the record, its travellers and
+ * the customer.
+ *
+ * getBookingDetail fires seven queries — items, travellers, notes, status
+ * history, payments, customer — and a trip renders three of them. Four tables
+ * were being read and discarded on every trip open, on both platforms.
+ */
+async function bookingForTrip(tenantId: string, bookingId: string) {
+	const [booking] = await db()
+		.select()
+		.from(schema.bookings)
+		.where(and(eq(schema.bookings.id, bookingId), eq(schema.bookings.tenantId, tenantId)))
+		.limit(1);
+	if (!booking) throw new AppError('NOT_FOUND', 'The booking behind this trip could not be found.');
+
+	const [travelers, customer] = await Promise.all([
+		db()
+			.select()
+			.from(schema.bookingTravelers)
+			.where(
+				and(eq(schema.bookingTravelers.tenantId, tenantId), eq(schema.bookingTravelers.bookingId, bookingId))
+			),
+		booking.customerId
+			? db().select().from(schema.customers).where(eq(schema.customers.id, booking.customerId)).limit(1)
+			: Promise.resolve([])
+	]);
+	return { booking, travelers, customer: customer[0] ?? null };
+}
+
 export async function getTrip(tenantId: string, id: string): Promise<schema.Trip> {
 	const rows = await db()
 		.select()
@@ -172,7 +204,7 @@ export async function getTripDetail(tenantId: string, id: string) {
 			.from(schema.tripStatusHistory)
 			.where(and(eq(schema.tripStatusHistory.tenantId, tenantId), eq(schema.tripStatusHistory.tripId, id)))
 			.orderBy(desc(schema.tripStatusHistory.createdAt)),
-		getBookingDetail(tenantId, trip.bookingId)
+		bookingForTrip(tenantId, trip.bookingId)
 	]);
 
 	return {
@@ -351,7 +383,13 @@ async function tripsWithBooking(tenantId: string, where: SQL, page?: { limit: nu
 	// Bounded in SQL, not in Node. Live trips accumulate — nothing leaves
 	// PREPARING on its own — so fetching them all to return forty would grow
 	// without limit against a pool the WhatsApp webhook shares.
-	return page ? q.orderBy(desc(schema.trips.updatedAt)).limit(page.limit) : q;
+	//
+	// Ordered by DEPARTURE, not by when the row was last touched. Two reasons and
+	// they point the same way: soonest-leaving is the right forty for an
+	// operations feed, and it is the only ordering the (tenant, status,
+	// start_date) index can serve — sorting by updated_at would filter on the
+	// index and then sort every live trip in the tenant to take forty.
+	return page ? q.orderBy(asc(schema.trips.startDate)).limit(page.limit) : q;
 }
 
 /** Live trips for the mobile work feed, already joined to what readiness needs. */
@@ -481,6 +519,44 @@ export async function listTripsWithReadiness(
 		};
 	});
 	return { rows, total };
+}
+
+/**
+ * How many live trips cannot currently leave — across the WHOLE tenant, not the
+ * page on screen.
+ *
+ * The header says "4 cannot leave yet". Counting only the visible rows makes
+ * that a lie the moment there is a second page, and it is a lie in the
+ * reassuring direction. One aggregate, and it must stay in step with the
+ * CRITICAL checks in CHECKS above — the same four columns.
+ */
+export async function blockedTripCount(
+	tenantId: string,
+	filters: { status?: schema.Trip['status'][]; operationsUserId?: string } = {}
+): Promise<{ blocked: number; leavingSoon: number }> {
+	const clauses: SQL[] = [eq(schema.trips.tenantId, tenantId)];
+	if (filters.status?.length) clauses.push(inArray(schema.trips.status, filters.status));
+	if (filters.operationsUserId) clauses.push(eq(schema.trips.operationsUserId, filters.operationsUserId));
+
+	const [row] = await db()
+		.select({
+			blocked: sql<number>`count(*) filter (where
+				${schema.bookings.status} not in ('CONFIRMED','IN_PROGRESS','COMPLETED')
+				or coalesce(${schema.bookings.amountPaid}, 0) <= 0
+				or ${schema.trips.startDate} is null
+				or nullif(btrim(coalesce(${schema.trips.accommodation}, '')), '') is null
+				or nullif(btrim(coalesce(${schema.trips.vehicle}, '')), '') is null
+				or nullif(btrim(coalesce(${schema.trips.driver}, '')), '') is null
+			)::int`,
+			leavingSoon: sql<number>`count(*) filter (
+				where ${schema.trips.startDate} between current_date and current_date + 7
+			)::int`
+		})
+		.from(schema.trips)
+		.innerJoin(schema.bookings, eq(schema.bookings.id, schema.trips.bookingId))
+		.where(and(...clauses));
+
+	return { blocked: Number(row?.blocked ?? 0), leavingSoon: Number(row?.leavingSoon ?? 0) };
 }
 
 /** Legal transitions, enforced server-side rather than by hiding buttons. */
@@ -726,7 +802,12 @@ export async function revalidateTrip(tenantId: string, tripId: string): Promise<
 	);
 }
 
-/** Counts for the operations dashboard, in one round trip. */
+/**
+ * Counts by status. NOT called by the trips list — that page renders "N cannot
+ * leave yet", not a row of totals — and deliberately kept for a dashboard that
+ * may want it. It is the one trips query whose cost grows with history, so it
+ * should stay off the hot path.
+ */
 export async function tripStats(tenantId: string) {
 	const rows = await db()
 		.select({ status: schema.trips.status, value: count() })

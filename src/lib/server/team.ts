@@ -6,7 +6,7 @@
 //  - the last active OWNER can never be removed, deactivated or demoted (§12)
 //  - self-signup-grade rules still hold: nothing here can mint a platform admin
 //  - seat limits come from the plan (platform.maxUsers); the plan always wins
-import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { audit } from './audit';
 import {
 	effectivePermissions,
@@ -142,6 +142,32 @@ export async function teamWorkload(tenantId: string) {
 			(select count(*)::int from messages m where m.tenant_id = ${tenantId}::uuid and m.direction = 'OUTBOUND' and m.sent_by_user_id is not null and m.created_at::date = current_date) as replies_today
 	`)) as unknown as Array<{ open_total: number; open_unassigned: number; replies_today: number }>;
 	return rows[0] ?? { open_total: 0, open_unassigned: 0, replies_today: 0 };
+}
+
+/**
+ * Names for a picker. One indexed query, no workload counters.
+ *
+ * listTeam carries two correlated subqueries per member — open conversations
+ * and replies today — which the settings page renders and an assignee dropdown
+ * throws away. Opening a trip should not cost a workload report.
+ */
+export async function listAssignableMembers(tenantId: string) {
+	const rows = await db()
+		.select({
+			userId: schema.users.id,
+			fullName: schema.users.fullName,
+			email: schema.users.email,
+			role: schema.tenantMemberships.role
+		})
+		.from(schema.tenantMemberships)
+		.innerJoin(schema.users, eq(schema.users.id, schema.tenantMemberships.userId))
+		.where(and(eq(schema.tenantMemberships.tenantId, tenantId), isNull(schema.tenantMemberships.disabledAt)))
+		.orderBy(asc(schema.users.fullName));
+	return rows.map((r) => ({
+		id: r.userId,
+		name: r.fullName || r.email,
+		role: roleLabel(r.role)
+	}));
 }
 
 export async function listTeam(tenantId: string) {

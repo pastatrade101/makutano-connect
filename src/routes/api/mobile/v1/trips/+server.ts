@@ -5,7 +5,7 @@
 // leave — and so the app never reimplements a business rule it would then have to
 // keep in step through an app-store release.
 import type { RequestHandler } from './$types';
-import { listTripsWithReadiness } from '$lib/server/trips';
+import { blockedTripCount, listTripsWithReadiness } from '$lib/server/trips';
 import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import { nextForTrip } from '$lib/next-action';
 import { statusLabel } from '$lib/labels';
@@ -37,11 +37,16 @@ export const GET: RequestHandler = async (event) => {
 		const tab = TABS[tabKey] ? tabKey : 'upcoming';
 		const mine = event.url.searchParams.get('mine') === '1';
 
-		const { rows, total } = await listTripsWithReadiness(
-			viewer.tenantId,
-			{ status: [...TABS[tab]] as Trip['status'][], operationsUserId: mine ? viewer.userId : undefined },
-			{ limit: 50, page: 1, order: 'asc' }
-		);
+		const filters = {
+			status: [...TABS[tab]] as Trip['status'][],
+			operationsUserId: mine ? viewer.userId : undefined
+		};
+		const page = Math.max(1, Number(event.url.searchParams.get('page') ?? '1') || 1);
+		const LIMIT = 30;
+		const [{ rows, total }, counts] = await Promise.all([
+			listTripsWithReadiness(viewer.tenantId, filters, { limit: LIMIT, page, order: 'asc' }),
+			blockedTripCount(viewer.tenantId, filters)
+		]);
 
 		const ability = {
 			trips: true,
@@ -108,11 +113,14 @@ export const GET: RequestHandler = async (event) => {
 			mine,
 			total,
 			groups,
-			// The one line the Trips screen leads with, decided server-side so the
-			// phone and the portal say the same thing.
-			blocked: items.filter((i) => i.canBeReady === false).length,
-			leavingSoon: items.filter((i) => i.daysToDeparture !== null && i.daysToDeparture >= 0 && i.daysToDeparture <= 7)
-				.length
+			page,
+			// So the app can load the next slice instead of silently showing the
+			// first N and implying that is everything.
+			hasMore: page * LIMIT < total,
+			// The line the Trips screen leads with, counted across the tenant so the
+			// phone and the portal say the same thing — and so neither understates
+			// the problem by counting only what fits on screen.
+			...counts
 		});
 	} catch (err) {
 		return problem(err, event.locals.requestId);

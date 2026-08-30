@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { audit } from '$lib/server/audit';
 import { changeTripStatus, getTripDetail, updateTrip } from '$lib/server/trips';
-import { listTeam, roleLabel } from '$lib/server/team';
+import { listAssignableMembers } from '$lib/server/team';
 import { can } from '$lib/server/auth/permissions';
 import { AppError } from '$lib/server/errors';
 import type { Actions, PageServerLoad } from './$types';
@@ -19,7 +19,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const sensitive = can(locals.permissions, 'travelers:read_sensitive');
 
 	// Who a trip can be handed to. Anyone who can prepare one.
-	const members = can(locals.permissions, 'trips:assign') ? await listTeam(tenantId) : [];
+	const members = can(locals.permissions, 'trips:assign') ? await listAssignableMembers(tenantId) : [];
 
 	// The same projection the public API applies. getTripDetail returns the whole
 	// booking (subtotal, discount, tax, metadata) and the whole customer (email,
@@ -50,11 +50,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		canWrite: can(locals.permissions, 'trips:write'),
 		canAssign: can(locals.permissions, 'trips:assign'),
 		canSeeSensitive: sensitive,
-		// Only people who are actually here. Handing a trip to a deactivated account
-		// is a silent way to lose it.
-		members: members
-			.filter((m) => m.status === 'Active')
-			.map((m) => ({ id: m.userId, name: m.fullName || m.email, role: roleLabel(m.role) }))
+		// Already filtered to active members and shaped for the picker.
+		members
 	};
 };
 

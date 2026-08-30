@@ -1,5 +1,5 @@
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
-import { listTripsWithReadiness, tripStats } from '$lib/server/trips';
+import { blockedTripCount, listTripsWithReadiness } from '$lib/server/trips';
 import { paginationFrom } from '$lib/server/http';
 import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 import type { PageServerLoad } from './$types';
@@ -28,16 +28,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// scoped, is exactly what both an owner and an ops person need.
 	const mine = url.searchParams.get('mine') === '1';
 
-	const [{ rows, total }, stats] = await Promise.all([
-		listTripsWithReadiness(
-			tenantId,
-			{
-				status: [...TABS[tab]] as Trip['status'][],
-				operationsUserId: mine ? locals.user?.id : undefined
-			},
-			pagination
-		),
-		tripStats(tenantId)
+	const filters = {
+		status: [...TABS[tab]] as Trip['status'][],
+		operationsUserId: mine ? locals.user?.id : undefined
+	};
+	// tripStats was fetched here and rendered nowhere — a full-history aggregate
+	// on every page load for a value nothing read.
+	const [{ rows, total }, counts] = await Promise.all([
+		listTripsWithReadiness(tenantId, filters, pagination),
+		blockedTripCount(tenantId, filters)
 	]);
 
 	// Grouped by WHEN, because that is how an operations day is ordered — not by
@@ -71,12 +70,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		rows: withTiming.filter((r) => bucketOf(r.daysToDeparture) === key)
 	})).filter((g) => g.rows.length);
 
-	// What is actually wrong, counted once. A row of zeroes teaches nobody
-	// anything; the number worth showing is how many trips cannot currently leave.
-	const blocked = withTiming.filter((r) => r.readiness && !r.readiness.canBeReady).length;
-	const leavingSoon = withTiming.filter(
-		(r) => r.daysToDeparture !== null && r.daysToDeparture >= 0 && r.daysToDeparture <= 7
-	).length;
-
-	return { workspaceRelevant, groups, total, pagination, stats, tab, mine, blocked, leavingSoon };
+	// Counted across the whole tenant, not the rows on screen. Deriving it from
+	// the page made the header understate the problem the moment there was a
+	// second page — and understate it in the reassuring direction.
+	return { workspaceRelevant, groups, total, pagination, tab, mine, ...counts };
 };
