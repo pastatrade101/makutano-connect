@@ -16,8 +16,6 @@ import { emit } from './events';
 import { sendEventTemplate } from './whatsapp/template-engine';
 import { AppError } from './errors';
 import { getTenantById } from './tenants';
-import { randomToken } from './encryption';
-import { env } from './env';
 import type { Pagination } from './http';
 import type { BookingRequestItemInput } from './booking-requests';
 import { computeTotals } from './bookings';
@@ -227,14 +225,9 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 		})
 		.onConflictDoNothing();
 
-	// Minted on FIRST send and never rotated: the customer may hold this link for
-	// weeks, and a resend that changed it would silently break the copy already
-	// sitting in their WhatsApp thread.
-	const publicToken = quotation.publicToken ?? `qt_${randomToken(18)}`;
-
 	const [updated] = await db()
 		.update(schema.quotations)
-		.set({ status: 'SENT', sentAt: new Date(), publicToken, updatedAt: new Date() })
+		.set({ status: 'SENT', sentAt: new Date(), updatedAt: new Date() })
 		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
 		.returning();
 
@@ -255,9 +248,19 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 		customerId: updated.customerId
 	});
 
-	// Notify the customer through the Template Center. The view link comes from the
-	// quotation's own metadata (set by the tenant's site/integration); if it is absent
-	// the engine's empty-variable guard skips the send rather than breaking at Meta.
+	// Notify the customer through the Template Center — for a tenant whose own
+	// site does not already do it.
+	//
+	// A tenant running their own website (Goldfinch) sends the quotation from
+	// there, with their own link and their own template. Connect sending a
+	// second one would put two messages and two links in front of the same
+	// customer. That is switched off per tenant by unmapping QUOTATION_READY in
+	// the Template Center, not by deleting this: a tenant with no website of
+	// their own has nothing else to send it.
+	//
+	// The view link comes from the quotation's own metadata (set by the tenant's
+	// site/integration); if it is absent the engine's empty-variable guard skips
+	// the send rather than breaking at Meta.
 	void (async () => {
 		const [customer] = updated.customerId
 			? await db().select().from(schema.customers).where(eq(schema.customers.id, updated.customerId)).limit(1)
@@ -267,7 +270,7 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 		// Anything Connect originated gets Connect's link — which is the whole
 		// reason this template used to be skipped for native quotes.
 		const meta = (updated.metadata ?? {}) as Record<string, unknown>;
-		const link = String(meta.viewUrl ?? meta.publicUrl ?? meta.link ?? quotationPublicUrl(updated.publicToken));
+		const link = String(meta.viewUrl ?? meta.publicUrl ?? meta.link ?? '');
 		await sendEventTemplate(
 			tenantId,
 			'QUOTATION_READY',
@@ -575,105 +578,3 @@ export async function upsertQuotationMirror(tenantId: string, input: QuotationMi
 	return quotation;
 }
 
-
-/* ----------------------------------------------------- the public quote ---- */
-
-/** The customer-facing address of a sent quotation. Empty when never sent. */
-export function quotationPublicUrl(token: string | null | undefined): string {
-	if (!token) return '';
-	return `${env().PUBLIC_APP_URL.replace(/\/+$/, '')}/q/${token}`;
-}
-
-export type PublicQuotation = Awaited<ReturnType<typeof getPublicQuotation>>;
-
-/**
- * Load a quotation for the customer holding its link.
- *
- * The token is the ONLY key — no tenant id, no quotation id, nothing the reader
- * could enumerate. What comes back is a deliberate projection: internal notes,
- * the owning user and the version history stay behind, because this is read by
- * someone outside the business.
- */
-export async function getPublicQuotation(token: string) {
-	if (!token) return null;
-	const [quotation] = await db()
-		.select()
-		.from(schema.quotations)
-		.where(eq(schema.quotations.publicToken, token))
-		.limit(1);
-	if (!quotation) return null;
-
-	const [items, tenant, customer] = await Promise.all([
-		db()
-			.select()
-			.from(schema.quotationItems)
-			.where(eq(schema.quotationItems.quotationId, quotation.id))
-			.orderBy(schema.quotationItems.sortOrder),
-		getTenantById(quotation.tenantId),
-		quotation.customerId
-			? db().select().from(schema.customers).where(eq(schema.customers.id, quotation.customerId)).limit(1)
-			: Promise.resolve([])
-	]);
-
-	// Opening the link is what "viewed" means. Only ever SENT → VIEWED, so a
-	// re-read after acceptance cannot walk the status backwards.
-	if (quotation.status === 'SENT') void markQuotationViewed(quotation.tenantId, quotation.id).catch(() => undefined);
-
-	const expired = Boolean(quotation.validUntil && quotation.validUntil.getTime() < Date.now());
-	// There is no title column — the mirror and the portal both park it in
-	// metadata, so the public page reads it from there and falls back to
-	// something that still reads like a heading.
-	const meta = (quotation.metadata ?? {}) as Record<string, unknown>;
-	return {
-		reference: quotation.reference,
-		title: typeof meta.title === 'string' && meta.title.trim() ? meta.title.trim() : null,
-		status: quotation.status,
-		currency: quotation.currency,
-		total: quotation.total,
-		validUntil: quotation.validUntil,
-		expired,
-		// Decidable only while it is live: an expired, declined or already-accepted
-		// quote is shown, but it is not a thing you can still say yes to.
-		decidable: !expired && ['SENT', 'VIEWED'].includes(quotation.status),
-		business: { name: tenant?.name ?? '' },
-		customerFirstName: customer[0]?.firstName ?? null,
-		items: items.map((i) => ({
-			title: i.title,
-			description: i.description,
-			quantity: i.quantity,
-			unitPrice: i.unitPrice,
-			total: i.total
-		}))
-	};
-}
-
-/** Accept from the public page. Idempotent — acceptQuotation returns the booking it already made. */
-export async function acceptPublicQuotation(token: string) {
-	const [quotation] = await db()
-		.select()
-		.from(schema.quotations)
-		.where(eq(schema.quotations.publicToken, token))
-		.limit(1);
-	if (!quotation) throw new AppError('NOT_FOUND', 'This quotation is no longer available.');
-	if (quotation.validUntil && quotation.validUntil.getTime() < Date.now()) {
-		throw new AppError('CONFLICT', 'This quotation has expired. Please ask us for an updated one.');
-	}
-	if (quotation.status === 'DECLINED') {
-		throw new AppError('CONFLICT', 'This quotation was declined. Please ask us for a new one.');
-	}
-	return acceptQuotation(quotation.tenantId, quotation.id);
-}
-
-/** Decline from the public page. */
-export async function declinePublicQuotation(token: string, reason?: string) {
-	const [quotation] = await db()
-		.select()
-		.from(schema.quotations)
-		.where(eq(schema.quotations.publicToken, token))
-		.limit(1);
-	if (!quotation) throw new AppError('NOT_FOUND', 'This quotation is no longer available.');
-	if (['ACCEPTED', 'CONVERTED'].includes(quotation.status)) {
-		throw new AppError('CONFLICT', 'This quotation has already been accepted.');
-	}
-	return declineQuotation(quotation.tenantId, quotation.id, reason);
-}

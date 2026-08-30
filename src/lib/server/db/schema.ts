@@ -1144,10 +1144,6 @@ export const quotations = pgTable(
 		terms: text('terms'),
 		sentAt: timestamp('sent_at', { withTimezone: true }),
 		viewedAt: timestamp('viewed_at', { withTimezone: true }),
-		// Minted on first send, never at creation: a draft nobody has seen has no
-		// business having a live URL. Unguessable, and the only key the public
-		// page accepts — the quotation's own id is never exposed.
-		publicToken: text('public_token'),
 		acceptedAt: timestamp('accepted_at', { withTimezone: true }),
 		declinedAt: timestamp('declined_at', { withTimezone: true }),
 		convertedBookingId: uuid('converted_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
@@ -1161,7 +1157,6 @@ export const quotations = pgTable(
 	},
 	(t) => [
 		uniqueIndex('quotations_tenant_reference_key').on(t.tenantId, t.reference),
-		uniqueIndex('quotations_public_token_key').on(t.publicToken).where(sql`${t.publicToken} is not null`),
 		index('quotations_tenant_status_idx').on(t.tenantId, t.status, t.createdAt)
 	]
 );
