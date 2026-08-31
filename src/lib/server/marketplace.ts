@@ -90,6 +90,14 @@ export type OperatorCard = {
 	isVerified: boolean;
 	logo: MediaRef | null;
 	cover: MediaRef | null;
+	/*
+	 * Contact the operator chose to publish. NULL means they did not, and the
+	 * page must render nothing rather than falling back to the account's own
+	 * details — those are operational and were never offered to the public.
+	 */
+	websiteUrl: string | null;
+	publicEmail: string | null;
+	publicPhone: string | null;
 };
 
 export type TourCard = {
@@ -248,6 +256,9 @@ type JoinedOperator = {
 	languages: string[] | null;
 	yearsInBusiness: number | null;
 	isVerified: boolean | null;
+	websiteUrl: string | null;
+	publicEmail: string | null;
+	publicPhone: string | null;
 } | null;
 
 const operatorCardOf = (o: JoinedOperator, logo: JoinedMedia, cover: JoinedMedia): OperatorCard | null =>
@@ -262,7 +273,10 @@ const operatorCardOf = (o: JoinedOperator, logo: JoinedMedia, cover: JoinedMedia
 				yearsInBusiness: o.yearsInBusiness,
 				isVerified: o.isVerified ?? false,
 				logo: mediaOf(logo),
-				cover: mediaOf(cover)
+				cover: mediaOf(cover),
+				websiteUrl: o.websiteUrl,
+				publicEmail: o.publicEmail,
+				publicPhone: o.publicPhone
 			}
 		: null;
 
@@ -364,7 +378,10 @@ const tourCardQuery = () =>
 				specialties: schema.operatorProfiles.specialties,
 				languages: schema.operatorProfiles.languages,
 				yearsInBusiness: schema.operatorProfiles.yearsInBusiness,
-				isVerified: schema.operatorProfiles.isVerified
+				isVerified: schema.operatorProfiles.isVerified,
+				websiteUrl: schema.operatorProfiles.websiteUrl,
+				publicEmail: schema.operatorProfiles.publicEmail,
+				publicPhone: schema.operatorProfiles.publicPhone
 			},
 			logo: mediaColumns(operatorLogo),
 			cover: mediaColumns(operatorCover)
@@ -865,7 +882,10 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 				specialties: schema.operatorProfiles.specialties,
 				languages: schema.operatorProfiles.languages,
 				yearsInBusiness: schema.operatorProfiles.yearsInBusiness,
-				isVerified: schema.operatorProfiles.isVerified
+				isVerified: schema.operatorProfiles.isVerified,
+				websiteUrl: schema.operatorProfiles.websiteUrl,
+				publicEmail: schema.operatorProfiles.publicEmail,
+				publicPhone: schema.operatorProfiles.publicPhone
 			},
 			logo: mediaColumns(operatorLogo),
 			cover: mediaColumns(operatorCover)
@@ -1076,6 +1096,9 @@ export async function getOperatorBySlug(slug: string): Promise<{ operator: Opera
 			languages: schema.operatorProfiles.languages,
 			yearsInBusiness: schema.operatorProfiles.yearsInBusiness,
 			isVerified: schema.operatorProfiles.isVerified,
+			websiteUrl: schema.operatorProfiles.websiteUrl,
+			publicEmail: schema.operatorProfiles.publicEmail,
+			publicPhone: schema.operatorProfiles.publicPhone,
 			logo: mediaColumns(operatorLogo),
 			cover: mediaColumns(operatorCover)
 		})

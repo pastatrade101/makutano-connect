@@ -157,7 +157,7 @@
 				<div class="grid gap-2.5 sm:grid-cols-2">
 					{#each goals as goal (goal.value)}
 						<label class="group cursor-pointer rounded-xl border p-4 transition {primaryGoal === goal.value ? 'border-brand-400 bg-brand-50/70 ring-1 ring-brand-300' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/70'} {goal.value === 'HYBRID' ? 'sm:col-span-2' : ''}">
-							<input type="radio" name="primaryGoal" value={goal.value} bind:group={primaryGoal} required class="sr-only" />
+							<input type="radio" name="primaryGoal" value={goal.value} bind:group={primaryGoal} class="sr-only" />
 							<span class="flex items-start gap-3"><span class="flex size-9 shrink-0 items-center justify-center rounded-lg {primaryGoal === goal.value ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-white'}"><svg class="size-4.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={goal.icon} /></svg></span><span><span class="block text-sm font-semibold text-slate-800">{goal.label}</span><span class="mt-1 block text-[11px] leading-4 text-slate-500">{goal.hint}</span></span></span>
 						</label>
 					{/each}
@@ -168,7 +168,7 @@
 					<div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
 						{#each data.industries as item (item.value)}
 							<label class="cursor-pointer rounded-lg border px-3 py-2.5 text-xs font-medium transition {industry === item.value ? 'border-brand-400 bg-brand-50 text-brand-700 ring-1 ring-brand-300' : 'border-slate-200 text-slate-600 hover:border-slate-300'}">
-								<input type="radio" name="industry" value={item.value} bind:group={industry} required class="sr-only" />
+								<input type="radio" name="industry" value={item.value} bind:group={industry} class="sr-only" />
 								{item.label}
 							</label>
 						{/each}
@@ -183,8 +183,12 @@
 
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="sm:col-span-2"><label class="label" for="businessName">Business name</label><input id="businessName" name="businessName" required bind:value={businessName} class="input min-h-11 !rounded-lg" placeholder="Goldfinch Adventures" /></div>
-					<div><label class="label" for="country">Country</label><select id="country" name="country" required class="input min-h-11 !rounded-lg" bind:value={country}>{#each data.countries as item (item.code)}<option value={item.code}>{item.name}</option>{/each}</select></div>
-					<div><label class="label" for="businessPhone">Business phone</label><input id="businessPhone" name="businessPhone" required bind:value={businessPhone} class="input min-h-11 !rounded-lg" placeholder="+255 712 345 678" /></div>
+					<p class="col-span-full -mb-1 text-[12.5px] leading-5 text-slate-400">
+						Only your business name is needed to get started. Anything you skip here
+						can be filled in later under <span class="font-medium text-slate-500">Settings → Business profile</span>.
+					</p>
+					<div><label class="label" for="country">Country <span class="text-slate-400 font-normal">· optional</span></label><select id="country" name="country" class="input min-h-11 !rounded-lg" bind:value={country}>{#each data.countries as item (item.code)}<option value={item.code}>{item.name}</option>{/each}</select></div>
+					<div><label class="label" for="businessPhone">Business phone <span class="text-slate-400 font-normal">· optional</span></label><input id="businessPhone" name="businessPhone" bind:value={businessPhone} class="input min-h-11 !rounded-lg" placeholder="+255 712 345 678" /></div>
 					<div class="sm:col-span-2"><label class="label" for="websiteUrl">Website <span class="font-normal text-slate-400">(optional)</span></label><input id="websiteUrl" name="websiteUrl" type="url" bind:value={websiteUrl} onblur={normalizeWebsite} class="input min-h-11 !rounded-lg" placeholder="https://yourbusiness.com" /></div>
 				</div>
 
@@ -194,7 +198,7 @@
 						<p class="mt-1 text-[11px] leading-4 text-slate-500">We will guide you toward integration when your existing system should remain the source of truth.</p>
 						<div class="mt-3 grid gap-2 sm:grid-cols-2">
 							{#each systemOptions as option (option.value)}
-								<label class="cursor-pointer rounded-lg border bg-white p-3 transition {systemSource === option.value ? 'border-brand-400 ring-1 ring-brand-300' : 'border-slate-200 hover:border-slate-300'}"><input type="radio" name="systemSource" value={option.value} bind:group={systemSource} required={needsSystemSource} class="sr-only" /><span class="block text-xs font-semibold text-slate-700">{option.label}</span><span class="mt-0.5 block text-[10px] text-slate-400">{option.hint}</span></label>
+								<label class="cursor-pointer rounded-lg border bg-white p-3 transition {systemSource === option.value ? 'border-brand-400 ring-1 ring-brand-300' : 'border-slate-200 hover:border-slate-300'}"><input type="radio" name="systemSource" value={option.value} bind:group={systemSource} class="sr-only" /><span class="block text-xs font-semibold text-slate-700">{option.label}</span><span class="mt-0.5 block text-[10px] text-slate-400">{option.hint}</span></label>
 							{/each}
 						</div>
 					</div>

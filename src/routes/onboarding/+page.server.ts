@@ -116,25 +116,35 @@ export const actions: Actions = {
 		const systemSource = String(data.get('systemSource') ?? '').trim();
 		const values = { businessName, industry, country, businessPhone, websiteUrl, planId, primaryGoal, systemSource };
 
+		/*
+		 * Only two answers are genuinely needed to open an account: what the business
+		 * is called, and which plan. provisionTenant requires nothing else — every
+		 * other field here was a survey question standing between an operator and
+		 * the product, and each one is a chance to abandon.
+		 *
+		 * The rest is defaulted and finished later in Settings. A default the
+		 * operator can change beats a question they must answer to continue.
+		 */
 		if (!signupEnabled()) return fail(403, { ...values, message: 'Signup is currently closed.' });
-		if (!mainUse) return fail(400, { ...values, message: 'Choose what you will mainly use Connect for.' });
 		if (!businessName) return fail(400, { ...values, message: 'What is your business called?' });
-		if (!INDUSTRIES.some((i) => i.value === industry))
-			return fail(400, { ...values, message: 'Choose the closest industry.' });
-		if (!COUNTRIES.some((c) => c.code === country)) return fail(400, { ...values, message: 'Choose your country.' });
-		if (!/^\+?[0-9 ()-]{7,20}$/.test(businessPhone)) {
-			return fail(400, { ...values, message: 'Enter a valid business phone number.' });
+
+		// Optional means "may be blank", NEVER "may be malformed" — a broken phone
+		// or URL saved now is a broken link on their public profile later.
+		if (businessPhone && !/^\+?[0-9 ()-]{7,20}$/.test(businessPhone)) {
+			return fail(400, { ...values, message: 'That phone number does not look right — or leave it blank for now.' });
 		}
 		if (websiteUrl && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(websiteUrl)) {
-			return fail(400, { ...values, message: 'Enter the website as a full URL, e.g. https://example.com' });
-		}
-		const needsSystemSource =
-			industry === 'TRAVEL_TOURISM' || industry === 'RETAIL' || industry === 'RESTAURANT_FOOD';
-		if (needsSystemSource && !SYSTEM_SOURCES.has(systemSource)) {
-			return fail(400, { ...values, message: 'Tell us where you currently manage what you sell.' });
+			return fail(400, { ...values, message: 'Enter the website as a full URL, e.g. https://example.com — or leave it blank.' });
 		}
 
-		const defaults = LOCALE_DEFAULTS[country] ?? { currency: 'USD', timezone: 'Africa/Dar_es_Salaam' };
+		// Connect now leads with tour operators, so BOOKINGS — enquiry, quote,
+		// booking, payment — is the right shape to open with. It is a UI preference
+		// only and Settings can change it.
+		const workspace = mainUse ?? 'BOOKINGS';
+		const resolvedIndustry = INDUSTRIES.some((i) => i.value === industry) ? industry : 'TRAVEL_TOURISM';
+		const resolvedCountry = COUNTRIES.some((c) => c.code === country) ? country : 'TZ';
+
+		const defaults = LOCALE_DEFAULTS[resolvedCountry] ?? { currency: 'USD', timezone: 'Africa/Dar_es_Salaam' };
 
 		try {
 			// planId is only a *selector*: provisionTenant looks the plan up and refuses
@@ -145,9 +155,9 @@ export const actions: Actions = {
 				planCode: planId ? undefined : defaultSignupPlanCode(),
 				source: 'SELF_SERVICE',
 				owner: { kind: 'existing', userId: event.locals.user.id },
-				industry,
-				capabilities: mainUse,
-				country,
+				industry: resolvedIndustry,
+				capabilities: workspace,
+				country: resolvedCountry,
 				currency: defaults.currency,
 				timezone: defaults.timezone,
 				businessPhone,

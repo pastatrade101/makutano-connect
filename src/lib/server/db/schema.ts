@@ -2299,7 +2299,28 @@ export const operatorProfiles = pgTable(
 		/** A PLATFORM claim about an operator. A vendor cannot mark themselves verified. */
 		isVerified: boolean('is_verified').notNull().default(false),
 		verifiedAt: timestamp('verified_at', { withTimezone: true }),
+		/**
+		 * Who signed the verification off.
+		 *
+		 * SET NULL, not cascade: an admin leaving must not erase the fact that the
+		 * operator was verified — only the record of who approved it.
+		 */
+		verifiedBy: uuid('verified_by').references(() => users.id, { onDelete: 'set null' }),
 		isActive: boolean('is_active').notNull().default(true),
+
+		/*
+		 * Public contact block.
+		 *
+		 * Deliberately NOT tenants.businessPhone / tenants.websiteUrl. Those are
+		 * operational — how Makutano reaches the business — and reusing them would
+		 * publish a private number the day somebody filled it in for billing.
+		 * NULL here means "do not show it", which is the right default for a page
+		 * that is crawled and scraped.
+		 */
+		websiteUrl: text('website_url'),
+		publicEmail: text('public_email'),
+		publicPhone: text('public_phone'),
+
 		seoTitle: text('seo_title'),
 		seoDescription: text('seo_description'),
 		createdAt: createdAt(),
@@ -2307,7 +2328,8 @@ export const operatorProfiles = pgTable(
 	},
 	(t) => [
 		uniqueIndex('operator_profiles_slug_idx').on(t.slug),
-		uniqueIndex('operator_profiles_tenant_idx').on(t.tenantId)
+		uniqueIndex('operator_profiles_tenant_idx').on(t.tenantId),
+		index('operator_profiles_verified_idx').on(t.verifiedAt).where(sql`${t.isVerified}`)
 	]
 );
 
