@@ -221,7 +221,7 @@ export const load: PageServerLoad = async () => {
 	return {
 		mediaEnabled: mediaEnabled(),
 		maxImageMb: Math.round(MAX_BYTES / 1024 / 1024),
-		destinationTypes: schema.destinationTypeEnum.enumValues,
+		destinationTypes: schema.DESTINATION_TYPES,
 		statuses: schema.contentStatusEnum.enumValues,
 		countries: countryRows.map((r) => ({
 			...r.country,
@@ -376,7 +376,7 @@ export const actions: Actions = {
 					name,
 					slug,
 					destinationType: oneOf(
-						schema.destinationTypeEnum.enumValues,
+						schema.DESTINATION_TYPES,
 						String(data.get('destinationType') ?? ''),
 						'OTHER',
 						'destination type'
@@ -413,7 +413,7 @@ export const actions: Actions = {
 					name,
 					slug,
 					destinationType: oneOf(
-						schema.destinationTypeEnum.enumValues,
+						schema.DESTINATION_TYPES,
 						String(data.get('destinationType') ?? ''),
 						'OTHER',
 						'destination type'

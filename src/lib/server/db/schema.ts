@@ -138,8 +138,13 @@ export const tourStatusEnum = pgEnum('tour_status', [
 	'ARCHIVED'
 ]);
 
-/** Where a place is, never what kind of trip it is. "Luxury" is not a destination. */
-export const destinationTypeEnum = pgEnum('destination_type', [
+/**
+ * Where a place is, never what kind of trip it is. "Luxury" is not a destination.
+ *
+ * Kept in step with the destinations_type_check constraint in 0031 — if you add a
+ * category here, add it there too.
+ */
+export const DESTINATION_TYPES = [
 	'NATIONAL_PARK',
 	'GAME_RESERVE',
 	'CONSERVATION_AREA',
@@ -149,8 +154,13 @@ export const destinationTypeEnum = pgEnum('destination_type', [
 	'CITY',
 	'CULTURAL_AREA',
 	'LAKE',
+	'HERITAGE_SITE',
+	'FOREST',
+	'MARINE_AREA',
 	'OTHER'
-]);
+] as const;
+
+export type DestinationType = (typeof DESTINATION_TYPES)[number];
 
 export const contentStatusEnum = pgEnum('content_status', ['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 
@@ -2201,6 +2211,17 @@ export const media = pgTable(
 		width: integer('width'),
 		height: integer('height'),
 		altText: text('alt_text'),
+		/*
+		 * Where this came from and what it obliges us to say.
+		 *
+		 * Destination photography is sourced from Wikimedia Commons, which is free
+		 * to use but almost always CC BY / CC BY-SA — attribution is a CONDITION,
+		 * not a courtesy. An operator's own photograph needs none of this, so all
+		 * three are nullable.
+		 */
+		attribution: text('attribution'),
+		license: text('license'),
+		sourceUrl: text('source_url'),
 		createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
@@ -2250,7 +2271,15 @@ export const destinations = pgTable(
 		name: text('name').notNull(),
 		/** Unique GLOBALLY: the public URL is /destinations/<slug>, with no country segment. */
 		slug: text('slug').notNull(),
-		destinationType: destinationTypeEnum('destination_type').notNull().default('OTHER'),
+		/**
+		 * Text with a CHECK constraint rather than a pg enum.
+		 *
+		 * Postgres refuses to USE a newly added enum value in the transaction that
+		 * added it, and drizzle applies pending migrations together — so growing
+		 * this taxonomy could not be expressed as migrations while it was an enum.
+		 * The CHECK gives the same integrity; DestinationType keeps it typed here.
+		 */
+		destinationType: text('destination_type').$type<DestinationType>().notNull().default('OTHER'),
 		shortDescription: text('short_description'),
 		description: text('description'),
 		heroMediaId: uuid('hero_media_id').references(() => media.id, { onDelete: 'set null' }),
@@ -2261,6 +2290,15 @@ export const destinations = pgTable(
 		highlights: jsonb('highlights').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 		travelTips: jsonb('travel_tips').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 		status: contentStatusEnum('status').notNull().default('DRAFT'),
+		/**
+		 * Seed broadly, feature selectively.
+		 *
+		 * The directory knows every place a real itinerary needs; these two decide
+		 * the far smaller set the public sees as filters. Which is an editorial
+		 * decision, not a consequence of what happens to be in the table.
+		 */
+		isFeatured: boolean('is_featured').notNull().default(false),
+		sortOrder: integer('sort_order').notNull().default(0),
 		seoTitle: text('seo_title'),
 		seoDescription: text('seo_description'),
 		createdAt: createdAt(),
@@ -2268,6 +2306,9 @@ export const destinations = pgTable(
 	},
 	(t) => [
 		uniqueIndex('destinations_slug_idx').on(t.slug),
+		index('destinations_featured_idx')
+			.on(t.sortOrder, t.name)
+			.where(sql`${t.isFeatured} and ${t.status} = 'PUBLISHED'`),
 		index('destinations_country_idx').on(t.countryId, t.status),
 		index('destinations_type_idx').on(t.destinationType).where(sql`${t.status} = 'PUBLISHED'`)
 	]
@@ -2367,6 +2408,14 @@ export const tours = pgTable(
 		pricingType: text('pricing_type').notNull().default('PER_PERSON'),
 
 		/** Experience, never geography. Safari, Honeymoon, Photography. */
+		/**
+		 * WHAT this tour is. Navigation, SEO titles and the category landing page
+		 * key off this one; tourCategoryLinks carries the full set for filtering.
+		 *
+		 * RESTRICT: a category tours are filed under is deactivated, never deleted.
+		 */
+		primaryCategoryId: uuid('primary_category_id').references(() => tourCategories.id, { onDelete: 'restrict' }),
+		/** @deprecated Superseded by tourCategories + tourTravelStyles. Kept until the composer stops writing it. */
 		travelStyle: text('travel_style'),
 		groupType: text('group_type'),
 		groupSizeMin: integer('group_size_min'),
@@ -2454,6 +2503,126 @@ export const tourDestinations = pgTable(
 );
 
 /**
+ * WHAT the product is — Safari, Beach & Island, Mountain & Trekking.
+ *
+ * Deliberately tiny and deliberately separate from travel styles. A category is
+ * what a tour IS; a style is HOW it is experienced. "Luxury Safari" is those two
+ * facts, not a third thing — treating it as one is how a taxonomy ends up with
+ * forty entries that each match three tours.
+ */
+export const tourCategories = pgTable(
+	'tour_categories',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		name: text('name').notNull(),
+		slug: text('slug').notNull(),
+		shortDescription: text('short_description'),
+		description: text('description'),
+		icon: text('icon'),
+		heroMediaId: uuid('hero_media_id').references(() => media.id, { onDelete: 'set null' }),
+		isActive: boolean('is_active').notNull().default(true),
+		/** The set is small enough that all of it is normally shown. */
+		isFeatured: boolean('is_featured').notNull().default(true),
+		sortOrder: integer('sort_order').notNull().default(0),
+		seoTitle: text('seo_title'),
+		seoDescription: text('seo_description'),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('tour_categories_slug_idx').on(t.slug),
+		index('tour_categories_featured_idx')
+			.on(t.sortOrder, t.name)
+			.where(sql`${t.isFeatured} and ${t.isActive}`)
+	]
+);
+
+/**
+ * Every category a tour spans, including its primary one.
+ *
+ * A safari-and-Zanzibar itinerary genuinely is two categories, so filtering
+ * needs the set while navigation needs the one. Writing the primary in here too
+ * means a category filter is a single join rather than a union of a column and
+ * a table.
+ */
+export const tourCategoryLinks = pgTable(
+	'tour_category_links',
+	{
+		tourId: uuid('tour_id')
+			.notNull()
+			.references(() => tours.id, { onDelete: 'cascade' }),
+		categoryId: uuid('category_id')
+			.notNull()
+			.references(() => tourCategories.id, { onDelete: 'restrict' }),
+		sortOrder: integer('sort_order').notNull().default(0)
+	},
+	(t) => [
+		primaryKey({ name: 'tour_category_links_pkey', columns: [t.tourId, t.categoryId] }),
+		index('tour_category_links_category_idx').on(t.categoryId, t.sortOrder)
+	]
+);
+
+/**
+ * What KIND of trip this is — the second discovery axis beside destination.
+ *
+ * A platform-managed table rather than free text on tours, for exactly the
+ * reason destinations are: left to vendors, "Luxury", "Luxury Safari", "luxury
+ * trip" and "Premium Luxury" all become separate filters that each match a
+ * fraction of the inventory, and the navigation stops working.
+ *
+ * Deliberately small. A taxonomy a traveller can hold in their head beats one
+ * that is technically exhaustive.
+ */
+export const travelStyles = pgTable(
+	'travel_styles',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		name: text('name').notNull(),
+		slug: text('slug').notNull(),
+		shortDescription: text('short_description'),
+		description: text('description'),
+		/** A theme icon name, not an uploaded asset — these render inline in filters. */
+		icon: text('icon'),
+		heroMediaId: uuid('hero_media_id').references(() => media.id, { onDelete: 'set null' }),
+		isActive: boolean('is_active').notNull().default(true),
+		isFeatured: boolean('is_featured').notNull().default(false),
+		sortOrder: integer('sort_order').notNull().default(0),
+		seoTitle: text('seo_title'),
+		seoDescription: text('seo_description'),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('travel_styles_slug_idx').on(t.slug),
+		index('travel_styles_featured_idx')
+			.on(t.sortOrder, t.name)
+			.where(sql`${t.isFeatured} and ${t.isActive}`)
+	]
+);
+
+/**
+ * A tour is legitimately several things at once — a luxury honeymoon safari is
+ * all three — so this is many-to-many rather than a category column.
+ */
+export const tourTravelStyles = pgTable(
+	'tour_travel_styles',
+	{
+		tourId: uuid('tour_id')
+			.notNull()
+			.references(() => tours.id, { onDelete: 'cascade' }),
+		/** RESTRICT: a style tours are tagged with is deactivated, never deleted. */
+		travelStyleId: uuid('travel_style_id')
+			.notNull()
+			.references(() => travelStyles.id, { onDelete: 'restrict' }),
+		sortOrder: integer('sort_order').notNull().default(0)
+	},
+	(t) => [
+		primaryKey({ name: 'tour_travel_styles_pkey', columns: [t.tourId, t.travelStyleId] }),
+		index('tour_travel_styles_style_idx').on(t.travelStyleId, t.sortOrder)
+	]
+);
+
+/**
  * Reusable PACKAGE content — deliberately not `tripItems`, which belong to one
  * operational departure that actually ran. Blurring those two would make a
  * template and a record of a real trip the same row.
@@ -2536,6 +2705,24 @@ export const toursRelations = relations(tours, ({ one, many }) => ({
 	gallery: many(tourMedia)
 }));
 
+export const tourCategoriesRelations = relations(tourCategories, ({ many }) => ({
+	tourLinks: many(tourCategoryLinks)
+}));
+
+export const tourCategoryLinksRelations = relations(tourCategoryLinks, ({ one }) => ({
+	tour: one(tours, { fields: [tourCategoryLinks.tourId], references: [tours.id] }),
+	category: one(tourCategories, { fields: [tourCategoryLinks.categoryId], references: [tourCategories.id] })
+}));
+
+export const travelStylesRelations = relations(travelStyles, ({ many }) => ({
+	tourLinks: many(tourTravelStyles)
+}));
+
+export const tourTravelStylesRelations = relations(tourTravelStyles, ({ one }) => ({
+	tour: one(tours, { fields: [tourTravelStyles.tourId], references: [tours.id] }),
+	style: one(travelStyles, { fields: [tourTravelStyles.travelStyleId], references: [travelStyles.id] })
+}));
+
 export const tourDestinationsRelations = relations(tourDestinations, ({ one }) => ({
 	tour: one(tours, { fields: [tourDestinations.tourId], references: [tours.id] }),
 	destination: one(destinations, { fields: [tourDestinations.destinationId], references: [destinations.id] })
@@ -2557,5 +2744,9 @@ export type Destination = typeof destinations.$inferSelect;
 export type OperatorProfile = typeof operatorProfiles.$inferSelect;
 export type Tour = typeof tours.$inferSelect;
 export type TourDestination = typeof tourDestinations.$inferSelect;
+export type TravelStyle = typeof travelStyles.$inferSelect;
+export type TourCategory = typeof tourCategories.$inferSelect;
+export type TourCategoryLink = typeof tourCategoryLinks.$inferSelect;
+export type TourTravelStyle = typeof tourTravelStyles.$inferSelect;
 export type TourItineraryDay = typeof tourItineraryDays.$inferSelect;
 export type TourMedia = typeof tourMedia.$inferSelect;

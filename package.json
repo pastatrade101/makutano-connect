@@ -20,7 +20,8 @@
 		"db:studio": "drizzle-kit studio",
 		"db:seed": "node --experimental-strip-types scripts/seed.ts",
 		"db:check": "node --experimental-strip-types scripts/check-migrations.ts",
-		"verify:r2": "node --env-file-if-exists=.env --experimental-strip-types scripts/verify-r2.ts"
+		"verify:r2": "node --env-file-if-exists=.env --experimental-strip-types scripts/verify-r2.ts",
+		"media:destinations": "node --experimental-strip-types scripts/fetch-destination-images.ts"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.120.0",

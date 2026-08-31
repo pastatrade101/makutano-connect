@@ -9,6 +9,7 @@ import { CACHE_LISTING, handlePublic, pageMeta, preflight, publicJson, publicPag
 const filterSchema = z.object({
 	country: z.string().trim().max(120).optional(),
 	destination: z.string().trim().max(120).optional(),
+	category: z.string().trim().max(120).optional(),
 	style: z.string().trim().max(80).optional(),
 	group: z.string().trim().max(80).optional(),
 	minDays: z.coerce.number().int().min(1).max(365).optional(),
@@ -40,6 +41,8 @@ export const GET: RequestHandler = async (event) =>
 		const { items, total } = await listPublishedTours(pagination as never, {
 			countrySlug: f.country,
 			destinationSlug: f.destination,
+			categorySlug: f.category,
+			styleSlug: f.style,
 			travelStyle: f.style,
 			groupType: f.group,
 			minDays: f.minDays,

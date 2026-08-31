@@ -79,6 +79,16 @@ export type DestinationDetail = DestinationCard & {
 };
 
 /** Exactly what an operator card may say about a tenant, and not one field more. */
+/** A category or a style, as a discovery card. They render identically. */
+export type TaxonomyCard = {
+	id: string;
+	name: string;
+	slug: string;
+	shortDescription: string | null;
+	hero: MediaRef | null;
+	tourCount: number;
+};
+
 export type OperatorCard = {
 	slug: string;
 	displayName: string;
@@ -178,6 +188,11 @@ export type TourFilters = {
 	 */
 	countrySlug?: string;
 	destinationSlug?: string;
+	/** Product category, matched through tour_category_links. */
+	categorySlug?: string;
+	/** Travel style, matched through tour_travel_styles. */
+	styleSlug?: string;
+	/** @deprecated free-text column; use styleSlug. */
 	travelStyle?: string;
 	groupType?: string;
 	minDays?: number;
@@ -202,6 +217,8 @@ const dayImage = alias(schema.media, 'day_image');
 const galleryImage = alias(schema.media, 'gallery_image');
 const operatorLogo = alias(schema.media, 'operator_logo');
 const operatorCover = alias(schema.media, 'operator_cover');
+const categoryHero = alias(schema.media, 'category_hero');
+const styleHero = alias(schema.media, 'style_hero');
 
 /** A public endpoint needs a ceiling. These are what the pages actually render. */
 const DESTINATION_TOUR_LIMIT = 24;
@@ -346,6 +363,145 @@ const visitsDestination = (slug: string): SQL =>
  * platform and stays on the marketplace. Making it an inner join would take approved
  * listings off the site as a side effect of an operator hiding their own page.
  */
+/**
+ * Category and style filters, built the same way as visitsDestination.
+ *
+ * EXISTS against the link table, never a text match on tours.travel_style. That
+ * column is deprecated precisely because free text is how "Luxury", "luxury" and
+ * "Luxury Safari" become three filters that each find a third of the inventory.
+ */
+const inCategory = (slug: string): SQL =>
+	exists(
+		db()
+			.select({ one: sql`1` })
+			.from(schema.tourCategoryLinks)
+			.innerJoin(schema.tourCategories, eq(schema.tourCategories.id, schema.tourCategoryLinks.categoryId))
+			.where(
+				and(
+					eq(schema.tourCategoryLinks.tourId, schema.tours.id),
+					eq(schema.tourCategories.slug, slug),
+					eq(schema.tourCategories.isActive, true)
+				)
+			)
+	);
+
+const hasStyle = (slug: string): SQL =>
+	exists(
+		db()
+			.select({ one: sql`1` })
+			.from(schema.tourTravelStyles)
+			.innerJoin(schema.travelStyles, eq(schema.travelStyles.id, schema.tourTravelStyles.travelStyleId))
+			.where(
+				and(
+					eq(schema.tourTravelStyles.tourId, schema.tours.id),
+					eq(schema.travelStyles.slug, slug),
+					eq(schema.travelStyles.isActive, true)
+				)
+			)
+	);
+
+/* ------------------------------------------------------------- taxonomy --- */
+
+/**
+ * The places a given set of tours actually visits.
+ *
+ * Used by the category and style landing pages to answer "where do these trips
+ * go" from the inventory itself, rather than guessing at a plausible list.
+ */
+export async function destinationsForTours(tourIds: string[]): Promise<DestinationCard[]> {
+	if (!tourIds.length) return [];
+	const rows = await db()
+		.select({
+			id: schema.destinations.id,
+			name: schema.destinations.name,
+			slug: schema.destinations.slug,
+			destinationType: schema.destinations.destinationType,
+			shortDescription: schema.destinations.shortDescription,
+			hero: mediaColumns(destinationHero),
+			uses: sql<number>`count(*)::int`
+		})
+		.from(schema.tourDestinations)
+		.innerJoin(schema.destinations, eq(schema.destinations.id, schema.tourDestinations.destinationId))
+		.leftJoin(destinationHero, eq(destinationHero.id, schema.destinations.heroMediaId))
+		.where(
+			and(
+				inArray(schema.tourDestinations.tourId, tourIds),
+				eq(schema.destinations.status, 'PUBLISHED')
+			)
+		)
+		.groupBy(
+			schema.destinations.id,
+			schema.destinations.name,
+			schema.destinations.slug,
+			schema.destinations.destinationType,
+			schema.destinations.shortDescription,
+			destinationHero.id,
+			destinationHero.url,
+			destinationHero.altText,
+			destinationHero.width,
+			destinationHero.height
+		)
+		// Most-visited first: that IS the popularity signal for this set.
+		.orderBy(desc(sql`count(*)`), asc(schema.destinations.name))
+		.limit(12);
+	return rows.map((r) => ({
+		id: r.id,
+		name: r.name,
+		slug: r.slug,
+		destinationType: r.destinationType,
+		shortDescription: r.shortDescription,
+		hero: mediaOf(r.hero)
+	}));
+}
+
+/** The five product categories. Small enough that all of them are normally shown. */
+export async function listCategories(): Promise<TaxonomyCard[]> {
+	const rows = await db()
+		.select({
+			id: schema.tourCategories.id,
+			name: schema.tourCategories.name,
+			slug: schema.tourCategories.slug,
+			shortDescription: schema.tourCategories.shortDescription,
+			hero: mediaColumns(categoryHero),
+			tourCount: sql<number>`(
+				select count(distinct l.tour_id)::int from tour_category_links l
+				join tours t on t.id = l.tour_id
+				where l.category_id = ${schema.tourCategories.id}
+				  and t.status = 'PUBLISHED' and t.deleted_at is null
+			)`
+		})
+		.from(schema.tourCategories)
+		.leftJoin(categoryHero, eq(categoryHero.id, schema.tourCategories.heroMediaId))
+		.where(eq(schema.tourCategories.isActive, true))
+		.orderBy(asc(schema.tourCategories.sortOrder), asc(schema.tourCategories.name));
+	return rows.map((r) => ({ ...r, hero: mediaOf(r.hero), tourCount: Number(r.tourCount ?? 0) }));
+}
+
+export async function listTravelStyles(featuredOnly = false): Promise<TaxonomyCard[]> {
+	const conditions: SQL[] = [eq(schema.travelStyles.isActive, true)];
+	if (featuredOnly) conditions.push(eq(schema.travelStyles.isFeatured, true));
+
+	const rows = await db()
+		.select({
+			id: schema.travelStyles.id,
+			name: schema.travelStyles.name,
+			slug: schema.travelStyles.slug,
+			shortDescription: schema.travelStyles.shortDescription,
+			hero: mediaColumns(styleHero),
+			tourCount: sql<number>`(
+				select count(distinct l.tour_id)::int from tour_travel_styles l
+				join tours t on t.id = l.tour_id
+				where l.travel_style_id = ${schema.travelStyles.id}
+				  and t.status = 'PUBLISHED' and t.deleted_at is null
+			)`
+		})
+		.from(schema.travelStyles)
+		.leftJoin(styleHero, eq(styleHero.id, schema.travelStyles.heroMediaId))
+		.where(and(...conditions))
+		.orderBy(asc(schema.travelStyles.sortOrder), asc(schema.travelStyles.name));
+	return rows.map((r) => ({ ...r, hero: mediaOf(r.hero), tourCount: Number(r.tourCount ?? 0) }));
+}
+
 const tourCardQuery = () =>
 	db()
 		.select({
@@ -735,6 +891,8 @@ export async function listPublishedTours(
 	const conditions: SQL[] = [publishedTour()];
 	if (filters.countrySlug) conditions.push(eq(schema.countries.slug, filters.countrySlug));
 	if (filters.destinationSlug) conditions.push(visitsDestination(filters.destinationSlug));
+	if (filters.categorySlug) conditions.push(inCategory(filters.categorySlug));
+	if (filters.styleSlug) conditions.push(hasStyle(filters.styleSlug));
 	if (filters.travelStyle) conditions.push(eq(schema.tours.travelStyle, filters.travelStyle));
 	if (filters.groupType) conditions.push(eq(schema.tours.groupType, filters.groupType));
 	if (filters.minDays !== undefined) conditions.push(gte(schema.tours.durationDays, filters.minDays));

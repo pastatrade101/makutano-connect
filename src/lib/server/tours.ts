@@ -602,6 +602,88 @@ export async function setTourDestinations(
  * through. Inside a transaction for the same reason: a tour showing days 1, 2 and 5
  * because an insert failed is worse than a rejected save.
  */
+/**
+ * Tag a listing with the travel styles it actually is.
+ *
+ * Whole-set replace, like destinations: the composer edits the selection and
+ * sends it whole, which removes a class of bug where two edits interleave.
+ *
+ * Capped, and the cap is the point. A vendor who ticks every style to appear in
+ * every filter makes the filters useless for everybody — including themselves,
+ * because a traveller who filters to Honeymoon and finds a budget group tour
+ * stops trusting the filter.
+ */
+export const MAX_TRAVEL_STYLES = 5;
+
+export async function setTourTravelStyles(
+	tenantId: string,
+	tourId: string,
+	styleIds: string[],
+	actor: TourActor = {}
+): Promise<void> {
+	await assertAllowed(tenantId);
+	const tour = await getTour(tenantId, tourId);
+
+	const ids: string[] = [];
+	for (const raw of styleIds) {
+		const id = raw?.trim();
+		if (!id || ids.includes(id)) continue;
+		assertUuid(id, 'travel style id');
+		ids.push(id);
+	}
+	if (ids.length > MAX_TRAVEL_STYLES) {
+		throw new AppError(
+			'VALIDATION_ERROR',
+			`Choose up to ${MAX_TRAVEL_STYLES} travel styles — the ones that genuinely describe this trip.`
+		);
+	}
+
+	if (ids.length) {
+		// Only ACTIVE canonical styles. A vendor selects from the taxonomy; they
+		// cannot invent one, and a retired style cannot be re-attached.
+		const found = await db()
+			.select({ id: schema.travelStyles.id })
+			.from(schema.travelStyles)
+			.where(and(inArray(schema.travelStyles.id, ids), eq(schema.travelStyles.isActive, true)));
+		if (found.length !== ids.length) {
+			throw new AppError('VALIDATION_ERROR', 'One of those travel styles is not available.');
+		}
+	}
+
+	await txDb().transaction(async (tx) => {
+		// tour_travel_styles carries no tenant_id — the tour row IS the ownership
+		// record, so it is re-read inside the transaction that rewrites the links.
+		const owned = await tx
+			.select({ id: schema.tours.id })
+			.from(schema.tours)
+			.where(and(eq(schema.tours.id, tourId), eq(schema.tours.tenantId, tenantId), isNull(schema.tours.deletedAt)))
+			.limit(1);
+		if (!owned.length) throw new AppError('NOT_FOUND', 'Tour could not be found.');
+
+		await tx.delete(schema.tourTravelStyles).where(eq(schema.tourTravelStyles.tourId, tourId));
+		if (ids.length) {
+			await tx
+				.insert(schema.tourTravelStyles)
+				.values(ids.map((travelStyleId, index) => ({ tourId, travelStyleId, sortOrder: index })));
+		}
+		await tx.update(schema.tours).set({ updatedAt: new Date() }).where(eq(schema.tours.id, tourId));
+	});
+
+	await audit(tenantId, 'tour.updated', auditActor(actor), { type: 'tour', id: tourId }, {
+		title: tour.title,
+		travelStyles: ids.length
+	});
+}
+
+/** The taxonomy a vendor may choose from. */
+export async function listActiveTravelStyles() {
+	return db()
+		.select()
+		.from(schema.travelStyles)
+		.where(eq(schema.travelStyles.isActive, true))
+		.orderBy(asc(schema.travelStyles.sortOrder), asc(schema.travelStyles.name));
+}
+
 export async function replaceItinerary(
 	tenantId: string,
 	tourId: string,
