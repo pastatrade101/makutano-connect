@@ -24,6 +24,8 @@
 		lng: number | null;
 		/** True when the coordinate is the day's own pin rather than a destination's. */
 		pinned: boolean;
+		/** DRIVE | FLY | BOAT — how this stop is reached from the previous one. */
+		mode?: string | null;
 	}
 
 	interface Props {
@@ -44,7 +46,8 @@
 			lat: s.lat as number,
 			lng: s.lng as number,
 			badge: `Day ${s.dayNumber}`,
-			kind: 'stop'
+			kind: 'stop',
+			mode: (s.mode ?? undefined) as MapMarker['mode']
 		}))
 	);
 	const regions = $derived([...new Set(stops.map((s) => s.placeName).filter(Boolean))] as string[]);
@@ -97,6 +100,9 @@
 					<span class="text-slate-900">{s.title || `Day ${s.dayNumber}`}</span>
 					{#if s.placeName}
 						<span class="text-slate-500"> · {s.placeName}</span>
+					{/if}
+					{#if s.mode}
+						<span class="text-slate-400"> · {s.mode.toLowerCase()}</span>
 					{:else if s.pinned}
 						<span class="text-slate-500"> · pinned on the map</span>
 					{/if}

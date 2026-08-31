@@ -126,7 +126,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			distance: d.distance,
 			estimatedTravelTime: d.estimatedTravelTime,
 			latitude: d.latitude === null ? null : Number(d.latitude),
-			longitude: d.longitude === null ? null : Number(d.longitude)
+			longitude: d.longitude === null ? null : Number(d.longitude),
+			travelMode: d.travelMode
 		})),
 		gallery: detail.gallery.map((m) => publicMedia(m)).filter((m): m is NonNullable<typeof m> => m !== null),
 		countries,
@@ -291,7 +292,8 @@ export const actions: Actions = {
 				distance: trimmed(d.distance),
 				estimatedTravelTime: trimmed(d.estimatedTravelTime),
 				latitude: coordinate(d.latitude),
-				longitude: coordinate(d.longitude)
+				longitude: coordinate(d.longitude),
+				travelMode: trimmed(d.travelMode)
 			};
 		});
 

@@ -165,6 +165,10 @@ export const DESTINATION_TYPES = [
 
 export type DestinationType = (typeof DESTINATION_TYPES)[number];
 
+/** How a traveller reaches the next stop. */
+export const TRAVEL_MODES = ['DRIVE', 'FLY', 'BOAT'] as const;
+export type TravelMode = (typeof TRAVEL_MODES)[number];
+
 export const contentStatusEnum = pgEnum('content_status', ['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 
 export const tripStatusEnum = pgEnum('trip_status', [
@@ -2502,7 +2506,15 @@ export const tours = pgTable(
 			.where(sql`${t.status} = 'PUBLISHED' and ${t.deletedAt} is null`),
 		index('tours_review_idx')
 			.on(t.submittedAt)
-			.where(sql`${t.status} in ('SUBMITTED','IN_REVIEW') and ${t.deletedAt} is null`)
+			.where(sql`${t.status} in ('SUBMITTED','IN_REVIEW') and ${t.deletedAt} is null`),
+		/**
+		 * For WRITES, not reads. tourCategories is referenced with RESTRICT, and
+		 * without this Postgres enforces that by scanning and locking all of
+		 * `tours` — so retiring a category queues behind every concurrent insert.
+		 */
+		index('tours_primary_category_idx')
+			.on(t.primaryCategoryId)
+			.where(sql`${t.primaryCategoryId} is not null`)
 	]
 );
 
@@ -2677,6 +2689,14 @@ export const tourItineraryDays = pgTable(
 		activities: jsonb('activities').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 		distance: text('distance'),
 		estimatedTravelTime: text('estimated_travel_time'),
+		/**
+		 * DRIVE | FLY | BOAT — how you reach this stop from the last one.
+		 *
+		 * NULL means the operator has not said, and the map draws a neutral line.
+		 * Six hours by road and fifty minutes in a Cessna are not the same day,
+		 * and a route that draws them identically says they are.
+		 */
+		travelMode: text('travel_mode').$type<TravelMode>(),
 		/**
 		 * An optional pin for a stop that is NOT a canonical destination -- a camp,
 		 * a viewpoint, a river crossing. Seeding the directory with those would

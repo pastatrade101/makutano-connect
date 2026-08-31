@@ -130,6 +130,8 @@
 		/** The day's own pin. Numbers, not strings: these are dragged, not typed. */
 		latitude: number | null;
 		longitude: number | null;
+		/** DRIVE | FLY | BOAT — how this stop is reached from the previous one. */
+		travelMode: string | null;
 	};
 
 	/** Everything is held as a string: the server owns the parsing, and a half-typed
@@ -169,7 +171,8 @@
 					distance: d.distance ?? '',
 					estimatedTravelTime: d.estimatedTravelTime ?? '',
 					latitude: d.latitude,
-					longitude: d.longitude
+					longitude: d.longitude,
+					travelMode: d.travelMode
 				})
 			),
 			priceFrom: t.priceFrom ?? '',
@@ -207,6 +210,13 @@
 	 * the coordinate of the destination it names. A vendor who pinned a camp
 	 * inside the Serengeti meant the camp.
 	 */
+	/** Day 1 is arrival, so it has nothing to be reached FROM. */
+	const TRAVEL_MODES = [
+		{ value: 'DRIVE', label: 'Drive' },
+		{ value: 'FLY', label: 'Fly' },
+		{ value: 'BOAT', label: 'Boat' }
+	];
+
 	const stops = $derived(
 		draft.days.map((d, i) => {
 			const dest = d.destinationId ? destinationById.get(d.destinationId) : undefined;
@@ -217,7 +227,8 @@
 				placeName: dest?.name ?? null,
 				lat: pinned ? d.latitude : (dest?.latitude ?? null),
 				lng: pinned ? d.longitude : (dest?.longitude ?? null),
-				pinned
+				pinned,
+				mode: d.travelMode
 			};
 		})
 	);
@@ -480,6 +491,7 @@
 		activities: '',
 		latitude: null,
 		longitude: null,
+		travelMode: null,
 		accommodation: '',
 		meals: '',
 		distance: '',
@@ -1211,6 +1223,34 @@
 										<label class="label" for="d-time-{index}">Travel time</label>
 										<input id="d-time-{index}" bind:value={day.estimatedTravelTime} class="input" placeholder="About 2 hours" />
 									</div>
+									{#if index > 0}
+										<!--
+											Only from day two: day one is arrival, and there is no
+											previous stop to have travelled from. Six hours on the road
+											and fifty minutes in a Cessna are not the same day, and the
+											route map draws them differently.
+										-->
+										<div>
+											<span class="label mb-0">How they get here</span>
+											<div class="mt-1 inline-flex rounded-lg border border-slate-200 p-0.5">
+												{#each TRAVEL_MODES as m (m.value)}
+													<button
+														type="button"
+														class="rounded-md px-2.5 py-1 text-xs transition {day.travelMode === m.value
+															? 'bg-slate-900 text-white'
+															: 'text-slate-600 hover:bg-slate-50'}"
+														aria-pressed={day.travelMode === m.value}
+														onclick={() => (day.travelMode = day.travelMode === m.value ? null : m.value)}
+													>
+														{m.label}
+													</button>
+												{/each}
+											</div>
+											{#if !day.travelMode}
+												<p class="mt-1 text-xs text-slate-400">Optional — left blank the map draws a neutral line.</p>
+											{/if}
+										</div>
+									{/if}
 								</div>
 							</div>
 						{:else}

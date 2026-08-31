@@ -266,9 +266,22 @@ suite('vendor tour API', () => {
 	});
 
 	it('submits once the listing is complete, and can be edited after changes are requested', async () => {
+		// primaryCategoryId is part of "complete" now: a listing filed under no
+		// category appears in no category filter, so assertPublishable counts it.
+		const [category] = await db()
+			.select({ id: schema.tourCategories.id })
+			.from(schema.tourCategories)
+			.where(eq(schema.tourCategories.isActive, true))
+			.limit(1);
 		await call(routes.one.PATCH, ev(tenantA, {
 			params: { id: tourA },
-			body: { shortDescription: 'Complete now.', priceFrom: '1900.00', currency: 'USD', heroMediaId: heroA }
+			body: {
+				shortDescription: 'Complete now.',
+				priceFrom: '1900.00',
+				currency: 'USD',
+				heroMediaId: heroA,
+				primaryCategoryId: category.id
+			}
 		}));
 
 		const ready = await call(routes.transitions.GET, ev(tenantA, { params: { id: tourA } }));

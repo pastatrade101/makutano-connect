@@ -14,6 +14,9 @@
 
 export type LngLat = [number, number];
 
+/** How a traveller reaches a stop from the one before it. */
+export type TravelMode = 'DRIVE' | 'FLY' | 'BOAT';
+
 /** A pin on the map: a stop on a route, or the place a page is about. */
 export interface MapMarker {
 	lat: number;
@@ -23,9 +26,44 @@ export interface MapMarker {
 	badge?: string;
 	kind?: 'stop' | 'start' | 'end' | 'place';
 	href?: string;
+	/**
+	 * The mode used to REACH this marker, so leg i is styled by marker i+1.
+	 * Undefined draws a neutral line rather than asserting a mode nobody stated.
+	 */
+	mode?: TravelMode;
 }
 
 export type BBox = [number, number, number, number];
+
+/**
+ * Regional figures from the NBS census layer.
+ *
+ * Deliberately only area, population and density. The same source carries HIV
+ * prevalence, sex ratio and an age breakdown; none of that belongs on a page
+ * inviting somebody to visit a place.
+ */
+export interface RegionStats {
+	area: number | null;
+	population: number | null;
+	density: number | null;
+	/** Always stated on the page — a 2012 figure presented as current is a lie. */
+	source: string;
+	/** Set where a boundary changed after the census. */
+	note?: string;
+}
+
+/**
+ * A tourism circuit — how the industry, and every operator, actually talks about
+ * the country. "The northern circuit" is a thing a traveller chooses; Manyara
+ * Region is not. Administrative regions are what the shapefile knows, so the map
+ * carries both and leads with the circuit.
+ */
+export interface Circuit {
+	name: string;
+	color: string;
+	season: string;
+	blurb: string;
+}
 
 export interface RegionEntry {
 	name: string;
@@ -36,9 +74,20 @@ export interface RegionEntry {
 	bbox: BBox;
 	/** Rings of arc references; a negative ref `~i` means arc i reversed. */
 	rings: number[][];
+	/** Absent for Songwe, which was created after the census. */
+	stats?: RegionStats;
+	/** Key into BasemapDoc.circuits. */
+	circuit?: string;
+	/** What the region is known for, as a traveller would list it. */
+	highlights?: string[];
+	/** The airport people actually arrive at. */
+	gateway?: string;
+	/** Anything seasonal or otherwise worth stating plainly. */
+	note?: string;
 }
 
 export interface BasemapDoc {
+	circuits: Record<string, Circuit>;
 	transform: { scale: [number, number]; translate: [number, number] };
 	bbox: BBox;
 	arcs: [number, number][][];
@@ -224,6 +273,15 @@ export function lakePaths(map: DecodedBasemap, project: Projection) {
  * a journey. The bow is perpendicular to the leg and always bends the same way,
  * so a multi-stop route stays legible instead of zig-zagging.
  */
+export const LEG_BOW: Record<TravelMode | 'NONE', number> = {
+	// A flight arcs; a drive follows the ground. The difference is legible before
+	// anybody reads the legend, which is the point of drawing them differently.
+	FLY: 0.26,
+	BOAT: 0.16,
+	DRIVE: 0.05,
+	NONE: 0.14
+};
+
 export function legPath(a: [number, number], b: [number, number], bow = 0.16): string {
 	const dx = b[0] - a[0];
 	const dy = b[1] - a[1];

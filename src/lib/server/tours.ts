@@ -12,6 +12,7 @@ import { and, asc, count, desc, eq, ilike, inArray, isNull, or, type SQL } from 
 import { audit, type AuditAction, type AuditActor } from './audit';
 import { db, schema, txDb } from './db';
 import { assertAllowed } from './entitlements';
+import { TRAVEL_MODES } from '$lib/server/db/schema';
 import { AppError } from './errors';
 import type { Pagination } from './http';
 import { getTenantById } from './tenants';
@@ -78,6 +79,8 @@ export type ItineraryDayInput = {
 	/** The day's own pin, for a stop that is not a canonical destination. */
 	latitude?: string | null;
 	longitude?: string | null;
+	/** DRIVE | FLY | BOAT — how this stop is reached from the last one. */
+	travelMode?: string | null;
 };
 
 const PRICING_TYPES = ['PER_PERSON', 'PER_GROUP', 'FROM'];
@@ -866,7 +869,13 @@ export async function replaceItinerary(
 					// Both or neither, matching the column CHECK: half a coordinate is
 					// not a location, it is a pin that renders off the coast of Ghana.
 					latitude: day.latitude && day.longitude ? day.latitude : null,
-					longitude: day.latitude && day.longitude ? day.longitude : null
+					longitude: day.latitude && day.longitude ? day.longitude : null,
+					// Anything not one of the three is stored as "not stated" rather
+					// than refused: the mode is a nicety, and losing a whole itinerary
+					// save over a stray value would not be.
+					travelMode: TRAVEL_MODES.includes(day.travelMode as never)
+						? (day.travelMode as schema.TravelMode)
+						: null
 				}))
 			)
 			.returning();

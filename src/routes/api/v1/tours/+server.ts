@@ -19,6 +19,7 @@ const createSchema = z.object({
 	title: z.string().min(1).max(300),
 	slug: z.string().max(120).optional(),
 	primaryCountryId: z.string().uuid().optional().nullable(),
+	primaryCategoryId: z.string().uuid().optional().nullable(),
 	shortDescription: z.string().max(600).optional().nullable(),
 	description: z.string().max(20000).optional().nullable(),
 	durationDays: z.number().int().min(1).max(365).optional(),

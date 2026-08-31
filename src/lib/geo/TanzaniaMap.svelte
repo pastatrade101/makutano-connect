@@ -15,6 +15,7 @@
 		outlinePath,
 		lakePaths,
 		legPath,
+		LEG_BOW,
 		padBBox,
 		boundsOf,
 		type BasemapDoc,
@@ -37,6 +38,12 @@
 		interactive?: boolean;
 		ariaLabel?: string;
 		onselect?: (slug: string) => void;
+		/**
+		 * Per-region fill, keyed by region slug. Used to shade the country by
+		 * tourism circuit, where every region has a colour and "highlight" would
+		 * be the wrong idea — nothing is being singled out.
+		 */
+		regionColors?: Record<string, string>;
 		/** Turns the map into a picker: a click reports where it landed. */
 		onmapclick?: (p: LngLat) => void;
 		class?: string;
@@ -51,6 +58,7 @@
 		width = 640,
 		showRegionLabels = false,
 		interactive = false,
+		regionColors,
 		ariaLabel = 'Map of Tanzania',
 		onselect,
 		onmapclick,
@@ -122,11 +130,19 @@
 				return { ...m, x, y, i };
 			})
 	);
+	// Leg i runs from pin i to pin i+1, and is styled by the mode of the pin it
+	// ARRIVES at — that is the journey the operator described for that day.
 	const legs = $derived(
 		route
-			? pins.slice(1).map((p, i) => ({ d: legPath([pins[i].x, pins[i].y], [p.x, p.y]), key: i }))
+			? pins.slice(1).map((p, i) => ({
+					d: legPath([pins[i].x, pins[i].y], [p.x, p.y], LEG_BOW[p.mode ?? 'NONE']),
+					mode: p.mode ?? null,
+					key: i
+				}))
 			: []
 	);
+
+	const usedModes = $derived([...new Set(legs.map((l) => l.mode).filter(Boolean))] as string[]);
 
 	let hovered = $state<string | null>(null);
 </script>
@@ -174,6 +190,7 @@
 						class="mk-map__region"
 						class:is-active={active.has(r.slug)}
 						class:is-hovered={hovered === r.slug}
+						style={regionColors?.[r.slug] ? `fill:${regionColors[r.slug]}` : undefined}
 						role="button"
 						tabindex="0"
 						aria-label={r.name}
@@ -190,7 +207,12 @@
 						}}
 					/>
 				{:else}
-					<path d={r.d} class="mk-map__region" class:is-active={active.has(r.slug)} />
+					<path
+						d={r.d}
+						class="mk-map__region"
+						class:is-active={active.has(r.slug)}
+						style={regionColors?.[r.slug] ? `fill:${regionColors[r.slug]}` : undefined}
+					/>
 				{/if}
 			{/each}
 		</g>
@@ -204,7 +226,11 @@
 		{#if legs.length}
 			<g class="mk-map__route">
 				{#each legs as leg (leg.key)}
-					<path d={leg.d} marker-end="url(#{uid}-arrow)" />
+					<path
+						d={leg.d}
+						class={leg.mode ? `is-${leg.mode.toLowerCase()}` : 'is-unstated'}
+						marker-end="url(#{uid}-arrow)"
+					/>
 				{/each}
 			</g>
 		{/if}
@@ -301,8 +327,21 @@
 		stroke: var(--map-route, #c8553d);
 		stroke-width: 1.8;
 		stroke-linecap: round;
-		stroke-dasharray: 4 3.5;
 		pointer-events: none;
+	}
+	/* Solid ground, dashes for air, dots for water — readable before the legend. */
+	.mk-map__route path.is-drive {
+		stroke-dasharray: none;
+	}
+	.mk-map__route path.is-fly {
+		stroke-dasharray: 6 5;
+	}
+	.mk-map__route path.is-boat {
+		stroke-dasharray: 1.5 4;
+	}
+	.mk-map__route path.is-unstated {
+		stroke-dasharray: 4 3.5;
+		opacity: 0.75;
 	}
 
 	.mk-map__pin circle {

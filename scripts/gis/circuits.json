@@ -1,0 +1,367 @@
+{
+ "_source": "Tourism circuits, region highlights and gateway airports. Editorial reference data, kept as a file rather than in the database because it changes with how the industry talks about the country, not with what any one operator sells.",
+ "circuits": {
+  "north": {
+   "name": "Northern circuit",
+   "color": "#D9A441",
+   "season": "June to October for the dry season; late January to February for calving in the southern Serengeti.",
+   "blurb": "The classic route: Tarangire, Lake Manyara, Ngorongoro and the Serengeti, with Kilimanjaro at the eastern end."
+  },
+  "south": {
+   "name": "Southern circuit",
+   "color": "#3F6B3B",
+   "season": "June to October. Roads and airstrips in Ruaha and Nyerere are at their best from July.",
+   "blurb": "Ruaha, Nyerere (Selous), Mikumi and Udzungwa — bigger, wilder and far quieter than the north."
+  },
+  "west": {
+   "name": "Western parks",
+   "color": "#A25A32",
+   "season": "July to October for Katavi and for chimp trekking on Lake Tanganyika.",
+   "blurb": "Chimpanzees at Gombe and Mahale, and the remote floodplains of Katavi. Fly-in territory."
+  },
+  "lake": {
+   "name": "Lake Victoria zone",
+   "color": "#2E7D8C",
+   "season": "June to October; the western Serengeti corridor is busiest with the migration in May to July.",
+   "blurb": "Rubondo Island, the western Serengeti, and the towns and islands of Africa's largest lake."
+  },
+  "coast": {
+   "name": "Swahili coast",
+   "color": "#4FAEBB",
+   "season": "June to October and December to February. Avoid the long rains, March to May.",
+   "blurb": "Dar es Salaam, Bagamoyo, Saadani, Mafia Island and the Usambara hills behind Tanga."
+  },
+  "zanz": {
+   "name": "Zanzibar & Pemba",
+   "color": "#E07A5F",
+   "season": "June to October and December to February; Pemba diving is clearest from October to February.",
+   "blurb": "Stone Town, the northern and eastern beaches of Unguja, and the reefs and forests of Pemba."
+  },
+  "central": {
+   "name": "Central highlands",
+   "color": "#BFA36F",
+   "season": "Year-round; the rock-art sites are easiest to reach in the dry season, June to October.",
+   "blurb": "The capital, Kondoa rock art and the granite country between the northern and southern circuits."
+  }
+ },
+ "regions": {
+  "Arusha": {
+   "circuit": "north",
+   "highlights": [
+    "Ngorongoro Conservation Area and the Crater",
+    "Serengeti (Ndutu and the south)",
+    "Arusha National Park and Mount Meru",
+    "Lake Natron and Ol Doinyo Lengai"
+   ],
+   "gateway": "Kilimanjaro International (JRO); Arusha Airport (ARK) for light aircraft",
+   "note": "Safari capital of the north — most itineraries start and end here."
+  },
+  "Kilimanjaro": {
+   "circuit": "north",
+   "highlights": [
+    "Kilimanjaro National Park",
+    "Moshi and Marangu",
+    "Lake Chala",
+    "Pare Mountains"
+   ],
+   "gateway": "Kilimanjaro International (JRO)",
+   "note": "Climbing seasons: January to March and June to October."
+  },
+  "Manyara": {
+   "circuit": "north",
+   "highlights": [
+    "Tarangire National Park",
+    "Lake Manyara National Park",
+    "Mto wa Mbu village walks",
+    "Lake Burunge"
+   ],
+   "gateway": "JRO; Lake Manyara and Kuro airstrips",
+   "note": "Tarangire is best for elephants in the dry season."
+  },
+  "Mara": {
+   "circuit": "north",
+   "highlights": [
+    "Serengeti (north) and the Mara River crossings",
+    "Musoma and Lake Victoria shore",
+    "Butiama — birthplace of Julius Nyerere"
+   ],
+   "gateway": "Mwanza (MWZ); Kogatende and Lobo airstrips",
+   "note": "River crossings usually July to October."
+  },
+  "Simiyu": {
+   "circuit": "lake",
+   "highlights": [
+    "Serengeti western corridor (Grumeti)",
+    "Maswa Game Reserve"
+   ],
+   "gateway": "Mwanza (MWZ); Grumeti and Seronera airstrips",
+   "note": "Migration passes through May to July."
+  },
+  "Mwanza": {
+   "circuit": "lake",
+   "highlights": [
+    "Lake Victoria and Bismarck Rock",
+    "Saanane Island National Park",
+    "Ukerewe Island"
+   ],
+   "gateway": "Mwanza (MWZ)",
+   "note": "Main gateway for the western Serengeti."
+  },
+  "Geita": {
+   "circuit": "lake",
+   "highlights": [
+    "Rubondo Island National Park",
+    "Lake Victoria shoreline"
+   ],
+   "gateway": "Mwanza (MWZ); Rubondo airstrip",
+   "note": "Rubondo: forest, chimps, fishing and birds."
+  },
+  "Kagera": {
+   "circuit": "lake",
+   "highlights": [
+    "Burigi–Chato National Park",
+    "Ibanda–Kyerwa and Rumanyika–Karagwe",
+    "Bukoba and the lake shore"
+   ],
+   "gateway": "Bukoba (BKZ)",
+   "note": "Newest national parks, still little visited."
+  },
+  "Shinyanga": {
+   "circuit": "lake",
+   "highlights": [
+    "Kahama and Shinyanga towns",
+    "Transit between Mwanza and the western parks"
+   ],
+   "gateway": "Mwanza (MWZ)",
+   "note": "Mostly a road-transit region."
+  },
+  "Kigoma": {
+   "circuit": "west",
+   "highlights": [
+    "Gombe National Park (chimpanzees)",
+    "Mahale Mountains National Park",
+    "Lake Tanganyika and Ujiji",
+    "MV Liemba"
+   ],
+   "gateway": "Kigoma (TKQ); Mahale airstrip",
+   "note": "Chimp trekking best July to October."
+  },
+  "Katavi": {
+   "circuit": "west",
+   "highlights": [
+    "Katavi National Park",
+    "Lake Katavi and the Katuma floodplain"
+   ],
+   "gateway": "Mpanda (NPY) and the Ikuu airstrip, charters from Arusha",
+   "note": "Hippos and buffalo herds; very few visitors."
+  },
+  "Rukwa": {
+   "circuit": "west",
+   "highlights": [
+    "Kalambo Falls",
+    "Lake Rukwa",
+    "Sumbawanga"
+   ],
+   "gateway": "Sumbawanga (SUT); mostly by road",
+   "note": "Off-the-map; combine with Katavi."
+  },
+  "Tabora": {
+   "circuit": "west",
+   "highlights": [
+    "Ugalla River National Park",
+    "Tabora, the old caravan town",
+    "Livingstone's Tembe at Kwihara"
+   ],
+   "gateway": "Tabora (TBO)",
+   "note": "History of the Arab caravan route."
+  },
+  "Iringa": {
+   "circuit": "south",
+   "highlights": [
+    "Ruaha National Park",
+    "Isimila Stone Age site",
+    "Iringa old town"
+   ],
+   "gateway": "Iringa (IRI); Msembe and Jongomero airstrips",
+   "note": "Ruaha: lions, wild dogs, kudu; June to October."
+  },
+  "Morogoro": {
+   "circuit": "south",
+   "highlights": [
+    "Mikumi National Park",
+    "Udzungwa Mountains National Park",
+    "Nyerere (Selous) western sector",
+    "Uluguru Mountains"
+   ],
+   "gateway": "Dar es Salaam (DAR) by road; Mikumi airstrip",
+   "note": "Mikumi is the easiest park to reach from Dar."
+  },
+  "Njombe": {
+   "circuit": "south",
+   "highlights": [
+    "Kitulo National Park — the \"Garden of God\"",
+    "Tea and highland scenery"
+   ],
+   "gateway": "Songwe (MBI); by road",
+   "note": "Orchids and wildflowers December to April."
+  },
+  "Mbeya": {
+   "circuit": "south",
+   "highlights": [
+    "Lake Ngozi crater lake",
+    "Matema beach on Lake Nyasa",
+    "Mbeya Peak and Loleza"
+   ],
+   "gateway": "Songwe (MBI)",
+   "note": "Highland base for the far south."
+  },
+  "Songwe": {
+   "circuit": "south",
+   "highlights": [
+    "Mbozi meteorite",
+    "Lake Rukwa southern shore",
+    "Tunduma border town"
+   ],
+   "gateway": "Songwe (MBI)",
+   "note": "Gateway to Zambia and Malawi."
+  },
+  "Ruvuma": {
+   "circuit": "south",
+   "highlights": [
+    "Lake Nyasa — Mbamba Bay",
+    "Nyerere (Selous) south",
+    "Songea"
+   ],
+   "gateway": "Songea (SGX)",
+   "note": "Quiet lake beaches, road access from Mbeya."
+  },
+  "Lindi": {
+   "circuit": "south",
+   "highlights": [
+    "Kilwa Kisiwani and Songo Mnara (UNESCO)",
+    "Nyerere (Selous) southern sector",
+    "Lindi beaches"
+   ],
+   "gateway": "Lindi (LDI); Kilwa Masoko airstrip",
+   "note": "Medieval Swahili ruins on the coast."
+  },
+  "Mtwara": {
+   "circuit": "south",
+   "highlights": [
+    "Mikindani old town",
+    "Mnazi Bay–Ruvuma Estuary Marine Park",
+    "Msimbati beach",
+    "Makonde plateau"
+   ],
+   "gateway": "Mtwara (MYW)",
+   "note": "Diving and Makonde carving country."
+  },
+  "Dar es Salaam": {
+   "circuit": "coast",
+   "highlights": [
+    "City markets, National Museum, Kivukoni fish market",
+    "Coco and Kunduchi beaches",
+    "Bongoyo and Mbudya islands",
+    "Ferries to Zanzibar"
+   ],
+   "gateway": "Julius Nyerere International (DAR)",
+   "note": "Main international gateway for the south and coast."
+  },
+  "Pwani": {
+   "circuit": "coast",
+   "highlights": [
+    "Mafia Island Marine Park",
+    "Saadani National Park",
+    "Bagamoyo and the Kaole ruins",
+    "Nyerere (Selous) north — Mtemere gate"
+   ],
+   "gateway": "DAR; Mafia (MFA) and Saadani airstrip",
+   "note": "Whale sharks off Mafia, October to March."
+  },
+  "Tanga": {
+   "circuit": "coast",
+   "highlights": [
+    "Amani Nature Reserve and the Usambaras",
+    "Lushoto highlands",
+    "Pangani",
+    "Amboni caves and Tongoni ruins"
+   ],
+   "gateway": "Tanga (TGT)",
+   "note": "Hill walking and old Swahili coast."
+  },
+  "Dodoma": {
+   "circuit": "central",
+   "highlights": [
+    "Kondoa rock-art sites (UNESCO)",
+    "Capital city and Bunge",
+    "Dodoma wineries",
+    "Swaga Swaga Game Reserve"
+   ],
+   "gateway": "Dodoma (DOD)",
+   "note": "On the road between Arusha and Iringa."
+  },
+  "Singida": {
+   "circuit": "central",
+   "highlights": [
+    "Lake Singida and Lake Kindai",
+    "Granite kopje landscapes"
+   ],
+   "gateway": "By road from Dodoma or Arusha",
+   "note": "Transit region with striking scenery."
+  },
+  "Mjini Magharibi": {
+   "circuit": "zanz",
+   "highlights": [
+    "Stone Town (UNESCO)",
+    "Prison (Changuu) Island",
+    "Spice farm tours",
+    "Forodhani night market"
+   ],
+   "gateway": "Zanzibar International (ZNZ)",
+   "note": "Arrival point and cultural heart of Zanzibar."
+  },
+  "Kaskazini Unguja": {
+   "circuit": "zanz",
+   "highlights": [
+    "Nungwi and Kendwa beaches",
+    "Mnemba Atoll snorkelling and diving",
+    "Matemwe"
+   ],
+   "gateway": "Zanzibar International (ZNZ)",
+   "note": "Best swimming beaches — small tidal range."
+  },
+  "Kusini Unguja": {
+   "circuit": "zanz",
+   "highlights": [
+    "Paje, Jambiani and Bwejuu",
+    "Jozani–Chwaka Bay National Park (red colobus)",
+    "Kizimkazi dolphins",
+    "The Rock restaurant, Michamvi"
+   ],
+   "gateway": "Zanzibar International (ZNZ)",
+   "note": "Kitesurfing at Paje, June to September and December to February."
+  },
+  "Kaskazini Pemba": {
+   "circuit": "zanz",
+   "highlights": [
+    "Ngezi Forest Reserve",
+    "Vumawimbi beach",
+    "Manta Point diving",
+    "Wete"
+   ],
+   "gateway": "Pemba (PMA)",
+   "note": "Lush, hilly and almost untouristed."
+  },
+  "Kusini Pemba": {
+   "circuit": "zanz",
+   "highlights": [
+    "Misali Island",
+    "Chake Chake",
+    "Pemba Channel wall dives",
+    "Mkoani port"
+   ],
+   "gateway": "Pemba (PMA)",
+   "note": "Some of East Africa's best drift diving."
+  }
+ }
+}

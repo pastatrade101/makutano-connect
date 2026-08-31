@@ -14,6 +14,7 @@ const patchSchema = z
 		title: z.string().min(1).max(300),
 		slug: z.string().max(120),
 		primaryCountryId: z.string().uuid().nullable(),
+		primaryCategoryId: z.string().uuid().nullable(),
 		shortDescription: z.string().max(600).nullable(),
 		description: z.string().max(20000).nullable(),
 		durationDays: z.number().int().min(1).max(365),

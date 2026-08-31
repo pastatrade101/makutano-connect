@@ -189,6 +189,44 @@ enc_arcs=[qz(simplified[i]) for i in range(len(simplified))]
 def ring_refs(ids):
     return [(~i if rev else i) for i,rev in ids]
 
+# ---- regional statistics, from the NBS census layer.
+#
+# Deliberately only area, population and density. The same table carries HIV
+# prevalence, sex ratio and an age breakdown; none of that belongs on a page
+# inviting somebody to visit a place, and publishing it there would be both
+# irrelevant and stigmatising.
+#
+# 2012 CENSUS. The layer has 30 regions: Songwe was split out of Mbeya in 2016,
+# so Songwe has no figures and Mbeya's still include it. Both facts are carried
+# through to the page rather than smoothed over.
+_, statrows = read_dbf(BASE + 'gismaps/Tanzania GIS Maps/Tanzania.dbf')
+STATS = {}
+for r in statrows:
+    name = (r.get('REGION') or '').strip()
+    if not name:
+        continue
+    STATS[name] = {
+        'area': int(r['AREA']) if r.get('AREA') else None,
+        'population': int(r['POPULATION']) if r.get('POPULATION') else None,
+        'density': float(r['POP_DENSIT']) if r.get('POP_DENSIT') else None,
+        'source': '2012 Census',
+    }
+# Mbeya's 2012 figures still contain the districts that became Songwe.
+if 'Mbeya' in STATS:
+    STATS['Mbeya']['note'] = 'Includes the districts that became Songwe Region in 2016.'
+
+# ---- tourism circuits.
+#
+# The seven circuits are how the industry — and every operator — actually talks
+# about Tanzania: "the northern circuit", "the southern circuit". Administrative
+# regions are what the shapefile knows; circuits are what a traveller is
+# choosing between, so the map carries both and leads with the circuit.
+import os as _os
+CIRC_PATH = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'circuits.json')
+if not _os.path.exists(CIRC_PATH):
+    CIRC_PATH = '/Users/pastoryjoseph/Desktop/pastatrade/makutano-connect/scripts/gis/circuits.json'
+CIRC = json.load(open(CIRC_PATH, encoding='utf-8'))
+
 feats,country=[],[]
 for reg in regions:
     rings=[ring_refs(ids) for ids in region_rings[reg] if len(build(ids))>=4]
@@ -200,10 +238,25 @@ for reg in regions:
     cx=sum((big[i][0]+big[i+1][0])*(big[i][0]*big[i+1][1]-big[i+1][0]*big[i][1]) for i in range(len(big)-1))/(6*a)
     cy=sum((big[i][1]+big[i+1][1])*(big[i][0]*big[i+1][1]-big[i+1][0]*big[i][1]) for i in range(len(big)-1))/(6*a)
     disp=NAMES.get(reg,reg)
-    feats.append({'name':disp,'official':reg,'slug':slugify(disp),
-                  'c':[round(cx,4),round(cy,4)],
-                  'bbox':[round(min(xs),4),round(min(ys),4),round(max(xs),4),round(max(ys),4)],
-                  'rings':rings})
+    entry = {'name':disp,'official':reg,'slug':slugify(disp),
+             'c':[round(cx,4),round(cy,4)],
+             'bbox':[round(min(xs),4),round(min(ys),4),round(max(xs),4),round(max(ys),4)],
+             'rings':rings}
+    if reg in STATS:
+        entry['stats'] = STATS[reg]
+    # Circuit membership and the editorial notes, keyed on the OFFICIAL name so
+    # renaming a region for display cannot silently orphan its content.
+    # The shapefile writes "Dar-es-salaam"; the editorial file writes it the way
+    # a person does. Matched on a normalised key so neither has to change.
+    def _key(n): return ''.join(ch for ch in n.lower() if ch.isalnum())
+    ed = CIRC['regions'].get(reg) or next(
+        (v for k, v in CIRC['regions'].items() if _key(k) == _key(reg)), None)
+    if ed:
+        entry['circuit'] = ed['circuit']
+        if ed.get('highlights'): entry['highlights'] = ed['highlights']
+        if ed.get('gateway'): entry['gateway'] = ed['gateway']
+        if ed.get('note'): entry['note'] = ed['note']
+    feats.append(entry)
     for ids in region_rings[reg]:
         for i,_ in ids:
             if len(all_keys.get(i,()))<2 and i not in country: country.append(i)
@@ -222,7 +275,8 @@ for row,(st,rings) in zip(wrows,wshp):
     lakes.append({'name':nm.replace('Ziwa ','Lake ').replace('Bwawa la ','Lake '),'ring':qz(sm)})
 lakes.sort(key=lambda l:-len(l['ring']))
 
-doc={'transform':{'scale':[sx,sy],'translate':[minx,miny]},
+doc={'circuits':CIRC['circuits'],
+     'transform':{'scale':[sx,sy],'translate':[minx,miny]},
      'bbox':[round(minx,4),round(miny,4),round(maxx,4),round(maxy,4)],
      'arcs':enc_arcs,'regions':feats,'outline':country,'lakes':lakes}
 import json,os
@@ -232,5 +286,7 @@ json.dump(doc,open(out+'/tz-basemap.json','w'),separators=(',',':'))
 import gzip
 raw=open(out+'/tz-basemap.json','rb').read()
 print(f"regions={len(feats)} arcs={len(enc_arcs)} lakes={len(lakes)} outlineArcs={len(country)}")
+print(f"with statistics: {sum(1 for f in feats if 'stats' in f)}/{len(feats)}  (Songwe post-dates the census)")
+print(f"with a circuit:  {sum(1 for f in feats if 'circuit' in f)}/{len(feats)}")
 print(f"raw={len(raw)/1024:.1f} KB  gzip={len(gzip.compress(raw,9))/1024:.1f} KB")
 print("lakes:", ", ".join(l['name'] for l in lakes[:8]))

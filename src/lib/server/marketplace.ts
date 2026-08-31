@@ -207,6 +207,8 @@ export type ItineraryDay = {
 	 */
 	latitude: number | null;
 	longitude: number | null;
+	/** DRIVE | FLY | BOAT, or null where the operator did not say. */
+	travelMode: string | null;
 };
 
 export const TOUR_SORTS = ['recommended', 'price_asc', 'price_desc', 'duration', 'newest'] as const;
@@ -1233,6 +1235,7 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 				estimatedTravelTime: schema.tourItineraryDays.estimatedTravelTime,
 				latitude: schema.tourItineraryDays.latitude,
 				longitude: schema.tourItineraryDays.longitude,
+				travelMode: schema.tourItineraryDays.travelMode,
 				image: mediaColumns(dayImage),
 				destination: {
 					id: schema.destinations.id,
@@ -1302,7 +1305,8 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 		estimatedTravelTime: r.estimatedTravelTime,
 		image: mediaOf(r.image),
 		latitude: coord(r.latitude),
-		longitude: coord(r.longitude)
+		longitude: coord(r.longitude),
+		travelMode: r.travelMode
 	}));
 
 	// Arusha → Tarangire → Serengeti, READ OFF the days the vendor already wrote.
