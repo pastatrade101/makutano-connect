@@ -339,6 +339,21 @@
 	 */
 	const pristine = $derived(seed());
 
+	/**
+	 * The category set as the SERVER will hold it.
+	 *
+	 * setTourCategories writes the primary category into the link set whether or
+	 * not the browser sent it, because a category filter that misses the tours
+	 * whose main category it is would be useless. The draft does not carry it —
+	 * the primary chip is rendered on and disabled rather than selected — so
+	 * comparing the raw arrays reported "Not saved yet: Basics" permanently,
+	 * immediately after a successful save. Compare what the server would store.
+	 */
+	const effectiveCategories = (s: { categoryIds: string[]; primaryCategoryId: string }) =>
+		s.primaryCategoryId && !s.categoryIds.includes(s.primaryCategoryId)
+			? [s.primaryCategoryId, ...s.categoryIds]
+			: s.categoryIds;
+
 	const same = (a: string, b: string) => a.trim() === b.trim();
 	const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
 
@@ -417,7 +432,7 @@
 			BASICS_FLAGS.some((f) => draft[f] !== pristine[f]) ||
 			draft.primaryCategoryId !== pristine.primaryCategoryId ||
 			!sameSet(draft.travelStyleIds, pristine.travelStyleIds) ||
-			!sameSet(draft.categoryIds, pristine.categoryIds),
+			!sameSet(effectiveCategories(draft), effectiveCategories(pristine)),
 		location:
 			draft.primaryCountryId !== pristine.primaryCountryId || !sameSet(draft.destinationIds, pristine.destinationIds),
 		itinerary: draft.days.map(dayPrint).join('|') !== pristine.days.map(dayPrint).join('|'),
