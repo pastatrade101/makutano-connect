@@ -36,20 +36,25 @@ export interface MapMarker {
 export type BBox = [number, number, number, number];
 
 /**
- * Regional figures from the NBS census layer.
+ * How big a region is, how many people live there, and how densely.
  *
- * Deliberately only area, population and density. The same source carries HIV
- * prevalence, sex ratio and an age breakdown; none of that belongs on a page
- * inviting somebody to visit a place.
+ * Deliberately only these three. The census also reports health facilities,
+ * schools, buildings, a sex ratio and an age breakdown per region; none of it
+ * tells a traveller anything about visiting the place, and a page about going on
+ * safari is not the place for a development dashboard.
+ *
+ * Population is the 2022 census. Area is MEASURED from the district boundaries
+ * rather than read from a table, because the only published area column is from
+ * 2012 — it predates the 2016 Songwe split, so Songwe has no area in it and
+ * Mbeya's still covers both. Measuring gives both a figure on today's borders,
+ * and the area then matches the population it is divided by.
  */
 export interface RegionStats {
 	area: number | null;
 	population: number | null;
 	density: number | null;
-	/** Always stated on the page — a 2012 figure presented as current is a lie. */
+	/** Always stated on the page — a census year is part of the number. */
 	source: string;
-	/** Set where a boundary changed after the census. */
-	note?: string;
 }
 
 /**

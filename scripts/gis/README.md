@@ -27,6 +27,27 @@ runs sharing the same pair of neighbouring regions — and each arc is simplifie
 once and referenced by both sides. This is the idea behind TopoJSON, done inline
 so the runtime stays a plain `<svg>` with no client library.
 
+## Population and area
+
+`census2022.json` holds population per region from the **2022 Population and
+Housing Census** (Matokeo ya Mwanzo, Jedwali Na. 1, NBS + OCGS Zanzibar, October
+2022). It was transcribed three times independently and cross-checked against the
+31 per-region infographic pages in the same report: no cell in dispute, no
+mismatch between the two sources, male+female equal to the total on every row, and
+the 31 regions summing to 61,741,120 — the published national total.
+
+**Area is measured, not read.** The only published area column available is the
+2012 GIS layer, which predates the 2016 Songwe split: Songwe has no row and
+Mbeya's area still covers both. `build_basemap.py` measures each region from the
+2020 district polygons instead, on the sphere rather than by a planar shoelace
+over degrees — at 6°S that would be several percent out and wrong by a different
+amount north to south, quietly tilting every density in the country. The measured
+total comes to 887,614 km² against Tanzania's actual ~885,800 km² of land.
+
+Only area, population and density reach the page. The census also carries health
+facilities, schools, buildings, a sex ratio and an age breakdown per region. None
+of that tells a traveller anything about visiting the place.
+
 ## Rebuild
 
     python3 scripts/gis/build_basemap.py 0.003 > /dev/null

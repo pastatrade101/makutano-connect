@@ -189,39 +189,78 @@ enc_arcs=[qz(simplified[i]) for i in range(len(simplified))]
 def ring_refs(ids):
     return [(~i if rev else i) for i,rev in ids]
 
-# ---- regional statistics, from the NBS census layer.
+# ---- what a traveller is told about a region: how big, how many, how dense.
 #
-# Deliberately only area, population and density. The same table carries HIV
-# prevalence, sex ratio and an age breakdown; none of that belongs on a page
-# inviting somebody to visit a place, and publishing it there would be both
-# irrelevant and stigmatising.
+# POPULATION comes from the 2022 census (scripts/gis/census2022.json), not from
+# the 1.3 GIS layer shipped with the shapefiles -- that one is the 2012 census,
+# it has 30 regions because it predates the 2016 Songwe split, and its Mbeya row
+# still counts Songwe's people.
 #
-# 2012 CENSUS. The layer has 30 regions: Songwe was split out of Mbeya in 2016,
-# so Songwe has no figures and Mbeya's still include it. Both facts are carried
-# through to the page rather than smoothed over.
-_, statrows = read_dbf(BASE + 'gismaps/Tanzania GIS Maps/Tanzania.dbf')
-STATS = {}
-for r in statrows:
-    name = (r.get('REGION') or '').strip()
-    if not name:
-        continue
-    STATS[name] = {
-        'area': int(r['AREA']) if r.get('AREA') else None,
-        'population': int(r['POPULATION']) if r.get('POPULATION') else None,
-        'density': float(r['POP_DENSIT']) if r.get('POP_DENSIT') else None,
-        'source': '2012 Census',
+# AREA is MEASURED from the 2020 district boundaries rather than read from any
+# table, for exactly the same reason: the only published area column available is
+# also 2012, so Songwe has no area and Mbeya's is nearly twice what it should be.
+# Measuring the geometry gives both regions a figure on today's boundaries, and
+# the two then agree with the population they are divided by.
+#
+# Deliberately only these three. The census also carries health facilities,
+# schools, buildings, a sex ratio and an age breakdown per region. None of it
+# tells a traveller anything about visiting the place, and a page about going on
+# safari in Katavi is not the place for a development dashboard.
+import os as _os
+CENSUS_PATH = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'census2022.json')
+if not _os.path.exists(CENSUS_PATH):
+    CENSUS_PATH = '/Users/pastoryjoseph/Desktop/pastatrade/makutano-connect/scripts/gis/census2022.json'
+CENSUS = json.load(open(CENSUS_PATH, encoding='utf-8'))
+
+_R_KM = 6371.0088  # IUGG mean radius
+
+def _spherical_area(ring):
+    """Signed area of a lon/lat ring on a sphere, km^2.
+
+    On the sphere, not by a planar shoelace over degrees: at 6 degrees south that
+    would be several percent out, and wrong by a DIFFERENT amount north to south,
+    which would quietly tilt every density in the country.
+
+    Signed, so an interior ring subtracts from its outer ring when summed.
+    """
+    if len(ring) < 4:
+        return 0.0
+    t = 0.0
+    for i in range(len(ring) - 1):
+        lon1, lat1 = math.radians(ring[i][0]), math.radians(ring[i][1])
+        lon2, lat2 = math.radians(ring[i + 1][0]), math.radians(ring[i + 1][1])
+        t += (lon2 - lon1) * (2 + math.sin(lat1) + math.sin(lat2))
+    return t * _R_KM * _R_KM / 2.0
+
+_area_km2 = defaultdict(float)
+for _row, (_st, _rings) in zip(region_of, shp):
+    for _ring in _rings:
+        _area_km2[_row] += _spherical_area(_ring)
+_area_km2 = {k: abs(v) for k, v in _area_km2.items()}
+
+def _norm(n):
+    return ''.join(c for c in n.lower() if c.isalnum())
+
+_pop_by_key = {_norm(k): v for k, v in CENSUS['population'].items()}
+
+def stats_for(reg):
+    area = _area_km2.get(reg)
+    pop = _pop_by_key.get(_norm(reg))
+    if not area or not pop:
+        return None
+    return {
+        'area': int(round(area)),
+        'population': int(pop),
+        'density': round(pop / area, 1),
+        'source': CENSUS['census'],
     }
-# Mbeya's 2012 figures still contain the districts that became Songwe.
-if 'Mbeya' in STATS:
-    STATS['Mbeya']['note'] = 'Includes the districts that became Songwe Region in 2016.'
 
 # ---- tourism circuits.
 #
-# The seven circuits are how the industry — and every operator — actually talks
+# The seven circuits are how the industry -- and every operator -- actually talks
 # about Tanzania: "the northern circuit", "the southern circuit". Administrative
-# regions are what the shapefile knows; circuits are what a traveller is
-# choosing between, so the map carries both and leads with the circuit.
-import os as _os
+# regions are what the shapefile knows; circuits are what a traveller is choosing
+# between, so the map carries both and leads with the circuit.
 CIRC_PATH = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'circuits.json')
 if not _os.path.exists(CIRC_PATH):
     CIRC_PATH = '/Users/pastoryjoseph/Desktop/pastatrade/makutano-connect/scripts/gis/circuits.json'
@@ -242,8 +281,9 @@ for reg in regions:
              'c':[round(cx,4),round(cy,4)],
              'bbox':[round(min(xs),4),round(min(ys),4),round(max(xs),4),round(max(ys),4)],
              'rings':rings}
-    if reg in STATS:
-        entry['stats'] = STATS[reg]
+    st = stats_for(reg)
+    if st:
+        entry['stats'] = st
     # Circuit membership and the editorial notes, keyed on the OFFICIAL name so
     # renaming a region for display cannot silently orphan its content.
     # The shapefile writes "Dar-es-salaam"; the editorial file writes it the way
@@ -286,7 +326,9 @@ json.dump(doc,open(out+'/tz-basemap.json','w'),separators=(',',':'))
 import gzip
 raw=open(out+'/tz-basemap.json','rb').read()
 print(f"regions={len(feats)} arcs={len(enc_arcs)} lakes={len(lakes)} outlineArcs={len(country)}")
-print(f"with statistics: {sum(1 for f in feats if 'stats' in f)}/{len(feats)}  (Songwe post-dates the census)")
+print(f"with statistics: {sum(1 for f in feats if 'stats' in f)}/{len(feats)}")
+print(f"land area total: {sum(f['stats']['area'] for f in feats if 'stats' in f):,} km2  (Tanzania is about 885,800)")
+print(f"population total: {sum(f['stats']['population'] for f in feats if 'stats' in f):,}  (2022 census: 61,741,120)")
 print(f"with a circuit:  {sum(1 for f in feats if 'circuit' in f)}/{len(feats)}")
 print(f"raw={len(raw)/1024:.1f} KB  gzip={len(gzip.compress(raw,9))/1024:.1f} KB")
 print("lakes:", ", ".join(l['name'] for l in lakes[:8]))
