@@ -267,6 +267,13 @@
       "when": 1788132000000,
       "tag": "0037_itinerary_travel_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1788140000000,
+      "tag": "0038_tours_primary_category_index",
+      "breakpoints": true
     }
   ]
 }
