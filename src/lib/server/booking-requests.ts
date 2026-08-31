@@ -74,6 +74,15 @@ export type CreateBookingRequestInput = {
 	notes?: string | null;
 	externalReference?: string | null;
 	externalSource?: string | null;
+	/**
+	 * The marketplace listing this enquiry came from, when it came from one.
+	 *
+	 * A marketplace enquiry is an ORDINARY booking request — no new lead type —
+	 * so the Flutter app and every existing report keep working untouched. This
+	 * is the only structural addition; acquisition context (utm, referrer,
+	 * session) belongs in `metadata`, not in lifecycle columns.
+	 */
+	tourId?: string | null;
 	metadata?: Record<string, unknown>;
 	items?: BookingRequestItemInput[];
 	travelers?: TravelerInput[];
@@ -116,6 +125,7 @@ export async function createBookingRequest(tenantId: string, input: CreateBookin
 			notes: input.notes ?? null,
 			externalReference: input.externalReference ?? null,
 			externalSource: input.externalSource ?? null,
+			tourId: input.tourId ?? null,
 			metadata: input.metadata ?? {}
 		})
 		.returning();

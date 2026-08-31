@@ -13,7 +13,12 @@
 		value: v,
 		label: v.replace(/_/g, ' ')
 	}));
-	const SOURCES = ['WEBSITE', 'WHATSAPP', 'ADMIN', 'API', 'PHONE', 'EMAIL'].map((v) => ({ value: v, label: v }));
+	// MARKETPLACE included so an operator can filter to the enquiries the public
+	// marketplace sent them — without it those rows are unfilterable.
+	const SOURCES = ['WEBSITE', 'WHATSAPP', 'ADMIN', 'API', 'PHONE', 'EMAIL', 'MARKETPLACE'].map((v) => ({
+		value: v,
+		label: v === 'MARKETPLACE' ? 'Marketplace' : v
+	}));
 </script>
 
 <svelte:head><title>Booking requests · {data.tenant.name}</title></svelte:head>

@@ -24,6 +24,21 @@ if (url) {
 				'The suites drop and recreate tenants. Point it at a throwaway database.'
 		);
 	}
+	/**
+	 * A SMALL pool per test file, not a large one.
+	 *
+	 * Vitest runs test files in parallel and each opens its own pool against the
+	 * same database, so the ceiling that matters is Postgres's `max_connections`
+	 * (100 by default), not the app's fan-out. Raising this to 60 deadlocked the
+	 * whole run: thirty-odd files each entitled to sixty connections asked for
+	 * roughly twenty times what the server would give.
+	 *
+	 * The app's own reason for a LARGE pool does not apply here either — that is
+	 * about Supabase's transaction pooler, where overflow wedges. A direct
+	 * connection queues overflow correctly, which is what tests run against.
+	 */
+	process.env.DB_POOL_MAX ||= '4';
+
 	// Every name the app or its scripts might resolve, so none of them can win.
 	process.env.DATABASE_URL = url;
 	process.env.DIRECT_DATABASE_URL = url;

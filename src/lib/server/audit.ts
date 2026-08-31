@@ -100,7 +100,19 @@ export type AuditAction =
 	| 'payment.reminder_sent'
 	| 'payment.received_notification_sent'
 	| 'webhook_endpoint.created'
-	| 'webhook_endpoint.deleted';
+	| 'webhook_endpoint.deleted'
+	// §35 marketplace. Publishing puts the marketplace's name on a listing, so
+	// every state change is recorded with who made it.
+	| 'tour.created'
+	| 'tour.updated'
+	| 'tour.submitted'
+	| 'tour.published'
+	| 'tour.rejected'
+	| 'tour.unpublished'
+	| 'tour.archived'
+	| 'tour.deleted'
+	| 'tour.media_added'
+	| 'tour.media_removed';
 
 export async function audit(
 	tenantId: string | null,

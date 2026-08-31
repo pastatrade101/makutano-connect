@@ -65,14 +65,33 @@ export const PERMISSIONS = [
 	'payments:verify',
 	'payments:refund',
 	// Authoring templates is not the same as sending with them.
-	'whatsapp:templates'
+	'whatsapp:templates',
+	// Marketplace listings. Writing one and putting it in front of the public are
+	// deliberately separate: a published listing carries the platform's name, not
+	// just the operator's, so approval is its own permission.
+	'tours:read',
+	'tours:write',
+	'tours:publish'
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
 
 const ALL: Permission[] = [...PERMISSIONS];
 
+/**
+ * Everything a TENANT may ever hold.
+ *
+ * `tours:publish` is deliberately absent. Approving a listing onto the public
+ * marketplace is a PLATFORM act — the marketplace carries Makutano's name, not
+ * only the operator's — so a vendor cannot approve their own content, and that
+ * has to hold for the tenant OWNER too. Owners otherwise receive every
+ * permission, so leaving this to the role table alone would have handed it
+ * straight back.
+ */
+const TENANT_ALL: Permission[] = ALL.filter((p) => p !== 'tours:publish');
+
 const READ_ONLY: Permission[] = [
+	'tours:read',
 	'orders:read',
 	'trips:read',
 	'crew:read',
@@ -95,6 +114,8 @@ const READ_ONLY: Permission[] = [
 
 const SALES: Permission[] = [
 	...READ_ONLY,
+	// Writing the listing is sales work. Putting it live is not — see tours:publish.
+	'tours:write',
 	'orders:write',
 	'catalog:write',
 	'customers:write',
@@ -129,7 +150,8 @@ const BOOKING_AGENT: Permission[] = [
  *
  * The narrowest role in the product, and narrow on purpose. Someone confirming a
  * hotel needs traveller passports and the trip; they do not need to see revenue,
- * price a quotation or verify a payment. Everything commercial is read-only here.
+ * price a quotation or verify a payment. Everything commercial is read-only here,
+ * marketplace listings included: preparing a departure is not writing the advert.
  */
 const OPERATIONS: Permission[] = [
 	...READ_ONLY,
@@ -168,15 +190,16 @@ const ADMIN: Permission[] = [
  * rather than by hiding anything. They can update the set-up of those trips,
  * because a guide confirming a hotel from the field is the point.
  *
- * Deliberately absent: bookings, quotations, payments, customers, the inbox.
- * A driver has no reason to see what a trip was sold for, and passports stay
- * behind travelers:read_sensitive, which crew do not get.
+ * Deliberately absent: bookings, quotations, payments, customers, the inbox, and
+ * tours — a driver has no reason to see what a trip was sold for or to edit the
+ * marketing copy that sold it, and passports stay behind travelers:read_sensitive,
+ * which crew do not get.
  */
 const CREW: Permission[] = ['trips:read', 'trips:write', 'crew:read'];
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 	SUPER_ADMIN: ALL,
-	OWNER: ALL,
+	OWNER: TENANT_ALL,
 	ADMIN,
 	BOOKING_AGENT,
 	OPERATIONS,
@@ -196,6 +219,8 @@ export function permissionsForRole(role: Role): Permission[] {
  */
 export function effectivePermissions(role: Role, overrides: Record<string, boolean> | null | undefined): Permission[] {
 	const base = new Set(permissionsForRole(role));
+	// Owners short-circuit, which also means a per-member override can never add
+	// tours:publish back to an owner who is not entitled to it.
 	if (role === 'OWNER' || role === 'SUPER_ADMIN' || !overrides) return [...base];
 	for (const [key, granted] of Object.entries(overrides)) {
 		if (!(PERMISSIONS as readonly string[]).includes(key)) continue; // unknown keys never grant anything
@@ -256,6 +281,12 @@ export const API_SCOPES = [
 	'trips:assign',
 	'crew:read',
 	'crew:write',
+	// Marketplace listings, so an operator's own website or CMS can read its
+	// listings and draft new ones. tours:publish is deliberately absent: a website
+	// key must never be able to put a listing on the public marketplace — approval
+	// stays a signed-in office decision, never something a leaked key can do.
+	'tours:read',
+	'tours:write',
 	// Passport data over the API is opt-in, never a default.
 	'travelers:read_sensitive'
 ] as const;

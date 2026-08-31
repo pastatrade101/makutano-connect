@@ -197,6 +197,20 @@
       "when": 1788125000000,
       "tag": "0027_protect_money_from_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1788125300000,
+      "tag": "0028_marketplace_tours",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1788125600000,
+      "tag": "0029_marketplace_reference_data",
+      "breakpoints": true
     }
   ]
 }

@@ -70,7 +70,21 @@ const schema = z.object({
 	 * A single page here already fans out 8-10 queries (admin Control Center, portal
 	 * dashboard), so 10 was one concurrent request away from wedging the process.
 	 */
-	DB_POOL_MAX: z.coerce.number().int().min(1).default(25)
+	DB_POOL_MAX: z.coerce.number().int().min(1).default(25),
+
+	// --- Cloudflare R2 (§35 marketplace media) ---
+	// Optional: with any of these unset, media upload is simply unavailable and
+	// every other feature is untouched. The account id, key and secret are
+	// SERVER-ONLY — they are never returned by an API, never rendered into a
+	// page, and never used to mint a browser-side upload URL. Uploads are
+	// proxied through Connect, which is what keeps the bucket credentials off
+	// the client entirely.
+	R2_ACCOUNT_ID: z.string().default(''),
+	R2_ACCESS_KEY_ID: z.string().default(''),
+	R2_SECRET_ACCESS_KEY: z.string().default(''),
+	R2_BUCKET_NAME: z.string().default(''),
+	/** Public CDN origin for the bucket. The only R2 value a browser ever sees. */
+	R2_PUBLIC_URL: z.string().default('')
 });
 
 export type Env = z.infer<typeof schema>;

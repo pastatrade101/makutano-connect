@@ -5,12 +5,14 @@
 import { relations, sql } from 'drizzle-orm';
 import {
 	boolean,
+	date,
 	index,
 	integer,
 	jsonb,
 	numeric,
 	pgEnum,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -67,7 +69,18 @@ export const leadStageEnum = pgEnum('lead_stage', [
 	'WON',
 	'LOST'
 ]);
-export const sourceEnum = pgEnum('source', ['WEBSITE', 'WHATSAPP', 'ADMIN', 'API', 'PHONE', 'EMAIL']);
+// MARKETPLACE is set by the marketplace enquiry route, never by an API caller —
+// the /api/v1 zod schemas deliberately still omit it, so an integration key
+// cannot forge an enquiry that looks like it came from the public marketplace.
+export const sourceEnum = pgEnum('source', [
+	'WEBSITE',
+	'WHATSAPP',
+	'ADMIN',
+	'API',
+	'PHONE',
+	'EMAIL',
+	'MARKETPLACE'
+]);
 export const bookingRequestStatusEnum = pgEnum('booking_request_status', [
 	'NEW',
 	'UNDER_REVIEW',
@@ -107,6 +120,39 @@ export const bookingStatusEnum = pgEnum('booking_status', [
  * when one of them genuinely needs the app.
  */
 export const crewTypeEnum = pgEnum('crew_type', ['DRIVER', 'GUIDE', 'SPECIALIST']);
+/**
+ * A marketplace listing's publishing lifecycle.
+ *
+ * SUBMITTED and IN_REVIEW are distinct on purpose: the first is the vendor's act,
+ * the second is a platform reviewer picking it up. A vendor may not approve their
+ * own listing — see the tours:publish permission.
+ */
+export const tourStatusEnum = pgEnum('tour_status', [
+	'DRAFT',
+	'SUBMITTED',
+	'IN_REVIEW',
+	'CHANGES_REQUESTED',
+	'APPROVED',
+	'PUBLISHED',
+	'UNPUBLISHED',
+	'ARCHIVED'
+]);
+
+/** Where a place is, never what kind of trip it is. "Luxury" is not a destination. */
+export const destinationTypeEnum = pgEnum('destination_type', [
+	'NATIONAL_PARK',
+	'GAME_RESERVE',
+	'CONSERVATION_AREA',
+	'MOUNTAIN',
+	'ISLAND',
+	'BEACH',
+	'CITY',
+	'CULTURAL_AREA',
+	'LAKE',
+	'OTHER'
+]);
+
+export const contentStatusEnum = pgEnum('content_status', ['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 
 export const tripStatusEnum = pgEnum('trip_status', [
 	'PREPARING',
@@ -718,6 +764,8 @@ export const bookingRequests = pgTable(
 		notes: text('notes'),
 		assigneeUserId: uuid('assignee_user_id').references(() => users.id, { onDelete: 'set null' }),
 		// §13 — the client website keeps its own catalog; we only reference it.
+		/** The marketplace listing this enquiry came from, when it came from one. */
+		tourId: uuid('tour_id'),
 		externalReference: text('external_reference'),
 		externalSource: text('external_source'),
 		metadata: jsonb('metadata')
@@ -2123,3 +2171,369 @@ export type OrderLink = typeof orderLinks.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type CatalogItem = typeof catalogItems.$inferSelect;
 export type Form = typeof forms.$inferSelect;
+
+
+/* ------------------------------------------------- §35 marketplace ---- */
+
+/**
+ * One media table for every marketplace asset.
+ *
+ * `tenantId IS NULL` means PLATFORM-owned — a country or destination photograph.
+ * Tour and operator assets are always tenant-scoped.
+ *
+ * Credentials are never stored here and never reach a browser: `objectKey` is the
+ * private handle that can delete an object, `url` is the public delivery address,
+ * and uploads are proxied through the server so no signed write URL is minted for
+ * the client.
+ */
+export const media = pgTable(
+	'media',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		/** NULL = platform-owned. */
+		tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+		storageProvider: text('storage_provider').notNull().default('R2'),
+		/** Server-generated from the resolved owner, never from a browser-supplied path. */
+		objectKey: text('object_key').notNull(),
+		url: text('url').notNull(),
+		mimeType: text('mime_type'),
+		size: integer('size'),
+		width: integer('width'),
+		height: integer('height'),
+		altText: text('alt_text'),
+		createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [uniqueIndex('media_object_key_idx').on(t.objectKey), index('media_tenant_idx').on(t.tenantId)]
+);
+
+/**
+ * A country the marketplace sells into. PLATFORM data — deliberately no tenantId.
+ *
+ * Tanzania is Tanzania for every operator selling it, and /countries/tanzania has
+ * to be one page. Tenant-owning this would let six operators create six rival
+ * "Tanzania" pages chasing the same search result.
+ */
+export const countries = pgTable(
+	'countries',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		name: text('name').notNull(),
+		slug: text('slug').notNull(),
+		/** ISO 3166-1 alpha-2 — the stable key for anything external. */
+		isoCode: text('iso_code'),
+		shortDescription: text('short_description'),
+		description: text('description'),
+		heroMediaId: uuid('hero_media_id').references(() => media.id, { onDelete: 'set null' }),
+		isActive: boolean('is_active').notNull().default(true),
+		seoTitle: text('seo_title'),
+		seoDescription: text('seo_description'),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('countries_slug_idx').on(t.slug),
+		uniqueIndex('countries_iso_code_idx').on(t.isoCode).where(sql`${t.isoCode} is not null`)
+	]
+);
+
+/** A place within a country. Platform data, like countries. */
+export const destinations = pgTable(
+	'destinations',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		/** RESTRICT: a country with destinations cannot be deleted from under them. */
+		countryId: uuid('country_id')
+			.notNull()
+			.references(() => countries.id, { onDelete: 'restrict' }),
+		name: text('name').notNull(),
+		/** Unique GLOBALLY: the public URL is /destinations/<slug>, with no country segment. */
+		slug: text('slug').notNull(),
+		destinationType: destinationTypeEnum('destination_type').notNull().default('OTHER'),
+		shortDescription: text('short_description'),
+		description: text('description'),
+		heroMediaId: uuid('hero_media_id').references(() => media.id, { onDelete: 'set null' }),
+		/** "How long should I stay?" is one of the questions the page exists to answer. */
+		recommendedStayMin: integer('recommended_stay_min'),
+		recommendedStayMax: integer('recommended_stay_max'),
+		bestTimeSummary: text('best_time_summary'),
+		highlights: jsonb('highlights').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		travelTips: jsonb('travel_tips').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		status: contentStatusEnum('status').notNull().default('DRAFT'),
+		seoTitle: text('seo_title'),
+		seoDescription: text('seo_description'),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('destinations_slug_idx').on(t.slug),
+		index('destinations_country_idx').on(t.countryId, t.status),
+		index('destinations_type_idx').on(t.destinationType).where(sql`${t.status} = 'PUBLISHED'`)
+	]
+);
+
+/**
+ * The public face of a tenant.
+ *
+ * Separate from `tenants` because that row is operational — plan, billing,
+ * provisioning, credentials — and must never be handed to a browser field by
+ * field. This table IS the allow-list, by construction.
+ */
+export const operatorProfiles = pgTable(
+	'operator_profiles',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		slug: text('slug').notNull(),
+		displayName: text('display_name').notNull(),
+		about: text('about'),
+		logoMediaId: uuid('logo_media_id').references(() => media.id, { onDelete: 'set null' }),
+		coverMediaId: uuid('cover_media_id').references(() => media.id, { onDelete: 'set null' }),
+		location: text('location'),
+		specialties: jsonb('specialties').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		languages: jsonb('languages').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		yearsInBusiness: integer('years_in_business'),
+		/** A PLATFORM claim about an operator. A vendor cannot mark themselves verified. */
+		isVerified: boolean('is_verified').notNull().default(false),
+		verifiedAt: timestamp('verified_at', { withTimezone: true }),
+		isActive: boolean('is_active').notNull().default(true),
+		seoTitle: text('seo_title'),
+		seoDescription: text('seo_description'),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('operator_profiles_slug_idx').on(t.slug),
+		uniqueIndex('operator_profiles_tenant_idx').on(t.tenantId)
+	]
+);
+
+/**
+ * An operator's marketplace listing. TENANT data, unlike countries and destinations.
+ *
+ * The tour is also what RESOLVES OWNERSHIP: a public browser names a tour, and the
+ * server derives the tenant from it. The browser never says who owns anything.
+ *
+ * Separate from `catalogItems` by design — that table is an externally-sourced
+ * product list owned by a sync feed, while a tour is authored here and has ordered
+ * days, media and a publishing lifecycle.
+ */
+export const tours = pgTable(
+	'tours',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		/** RESTRICT: removing a country must never silently delete the listings selling it. */
+		primaryCountryId: uuid('primary_country_id').references(() => countries.id, { onDelete: 'restrict' }),
+
+		title: text('title').notNull(),
+		/** Unique among LIVE rows across the whole marketplace: it is the public URL. */
+		slug: text('slug').notNull(),
+		shortDescription: text('short_description'),
+		description: text('description'),
+
+		durationDays: integer('duration_days').notNull().default(1),
+		durationNights: integer('duration_nights'),
+		priceFrom: money('price_from'),
+		currency: text('currency'),
+		/** PER_PERSON | PER_GROUP | FROM — what priceFrom actually means. */
+		pricingType: text('pricing_type').notNull().default('PER_PERSON'),
+
+		/** Experience, never geography. Safari, Honeymoon, Photography. */
+		travelStyle: text('travel_style'),
+		groupType: text('group_type'),
+		groupSizeMin: integer('group_size_min'),
+		groupSizeMax: integer('group_size_max'),
+		ageRequirement: text('age_requirement'),
+
+		heroMediaId: uuid('hero_media_id').references(() => media.id, { onDelete: 'set null' }),
+
+		accommodationSummary: text('accommodation_summary'),
+		transportSummary: text('transport_summary'),
+		mealsSummary: text('meals_summary'),
+		bestTimeSummary: text('best_time_summary'),
+
+		/** YEAR_ROUND | SEASONAL | DATE_RANGE */
+		availabilityType: text('availability_type').notNull().default('YEAR_ROUND'),
+		availableFrom: date('available_from'),
+		availableTo: date('available_to'),
+
+		status: tourStatusEnum('status').notNull().default('DRAFT'),
+		featured: boolean('featured').notNull().default(false),
+
+		seoTitle: text('seo_title'),
+		seoDescription: text('seo_description'),
+
+		// Editorial lists the tour page renders. Read whole, never queried by
+		// element, so jsonb rather than three more tables.
+		highlights: jsonb('highlights').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		included: jsonb('included').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		excluded: jsonb('excluded').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+
+		// Moderation trail. A vendor may not approve their own listing, so who
+		// reviewed it is part of the record rather than an afterthought.
+		submittedAt: timestamp('submitted_at', { withTimezone: true }),
+		reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+		reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+		reviewNote: text('review_note'),
+		publishedAt: timestamp('published_at', { withTimezone: true }),
+
+		metadata: jsonb('metadata')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+		deletedAt: timestamp('deleted_at', { withTimezone: true })
+	},
+	(t) => [
+		uniqueIndex('tours_slug_live_idx').on(t.slug).where(sql`${t.deletedAt} is null`),
+		index('tours_tenant_idx').on(t.tenantId, t.status, t.updatedAt).where(sql`${t.deletedAt} is null`),
+		index('tours_public_idx')
+			.on(t.publishedAt)
+			.where(sql`${t.status} = 'PUBLISHED' and ${t.deletedAt} is null`),
+		index('tours_country_idx')
+			.on(t.primaryCountryId)
+			.where(sql`${t.status} = 'PUBLISHED' and ${t.deletedAt} is null`),
+		index('tours_review_idx')
+			.on(t.submittedAt)
+			.where(sql`${t.status} in ('SUBMITTED','IN_REVIEW') and ${t.deletedAt} is null`)
+	]
+);
+
+/**
+ * Which places a tour visits. Many-to-many, relationally.
+ *
+ * NOT "1,2,3" in a text column and not a jsonb array of names: "every tour visiting
+ * Ngorongoro" is the destination page's core query, and renaming a place must not
+ * orphan the tours that mention it.
+ */
+export const tourDestinations = pgTable(
+	'tour_destinations',
+	{
+		tourId: uuid('tour_id')
+			.notNull()
+			.references(() => tours.id, { onDelete: 'cascade' }),
+		/** RESTRICT: a destination tours point at cannot be deleted from under them. */
+		destinationId: uuid('destination_id')
+			.notNull()
+			.references(() => destinations.id, { onDelete: 'restrict' }),
+		sortOrder: integer('sort_order').notNull().default(0)
+	},
+	(t) => [
+		primaryKey({ name: 'tour_destinations_pkey', columns: [t.tourId, t.destinationId] }),
+		index('tour_destinations_destination_idx').on(t.destinationId, t.sortOrder)
+	]
+);
+
+/**
+ * Reusable PACKAGE content — deliberately not `tripItems`, which belong to one
+ * operational departure that actually ran. Blurring those two would make a
+ * template and a record of a real trip the same row.
+ */
+export const tourItineraryDays = pgTable(
+	'tour_itinerary_days',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tourId: uuid('tour_id')
+			.notNull()
+			.references(() => tours.id, { onDelete: 'cascade' }),
+		dayNumber: integer('day_number').notNull(),
+		title: text('title').notNull(),
+		description: text('description'),
+		/**
+		 * Optional link to a canonical destination. This is what lets the UI DERIVE
+		 * the route (Arusha → Tarangire → Serengeti) rather than asking the vendor
+		 * to type it a second time.
+		 */
+		destinationId: uuid('destination_id').references(() => destinations.id, { onDelete: 'set null' }),
+		accommodation: text('accommodation'),
+		meals: text('meals'),
+		activities: jsonb('activities').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		distance: text('distance'),
+		estimatedTravelTime: text('estimated_travel_time'),
+		mediaId: uuid('media_id').references(() => media.id, { onDelete: 'set null' }),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [uniqueIndex('tour_itinerary_days_tour_day_idx').on(t.tourId, t.dayNumber)]
+);
+
+/** The gallery. The hero lives on tours.heroMediaId, so there is exactly one answer
+ *  to "which image represents this tour". */
+export const tourMedia = pgTable(
+	'tour_media',
+	{
+		tourId: uuid('tour_id')
+			.notNull()
+			.references(() => tours.id, { onDelete: 'cascade' }),
+		mediaId: uuid('media_id')
+			.notNull()
+			.references(() => media.id, { onDelete: 'cascade' }),
+		sortOrder: integer('sort_order').notNull().default(0)
+	},
+	(t) => [
+		primaryKey({ name: 'tour_media_pkey', columns: [t.tourId, t.mediaId] }),
+		index('tour_media_order_idx').on(t.tourId, t.sortOrder)
+	]
+);
+
+export const mediaRelations = relations(media, ({ one }) => ({
+	tenant: one(tenants, { fields: [media.tenantId], references: [tenants.id] })
+}));
+
+export const countriesRelations = relations(countries, ({ one, many }) => ({
+	heroMedia: one(media, { fields: [countries.heroMediaId], references: [media.id] }),
+	destinations: many(destinations),
+	tours: many(tours)
+}));
+
+export const destinationsRelations = relations(destinations, ({ one, many }) => ({
+	country: one(countries, { fields: [destinations.countryId], references: [countries.id] }),
+	heroMedia: one(media, { fields: [destinations.heroMediaId], references: [media.id] }),
+	tourLinks: many(tourDestinations)
+}));
+
+export const operatorProfilesRelations = relations(operatorProfiles, ({ one }) => ({
+	tenant: one(tenants, { fields: [operatorProfiles.tenantId], references: [tenants.id] }),
+	logo: one(media, { fields: [operatorProfiles.logoMediaId], references: [media.id] }),
+	cover: one(media, { fields: [operatorProfiles.coverMediaId], references: [media.id] })
+}));
+
+export const toursRelations = relations(tours, ({ one, many }) => ({
+	tenant: one(tenants, { fields: [tours.tenantId], references: [tenants.id] }),
+	primaryCountry: one(countries, { fields: [tours.primaryCountryId], references: [countries.id] }),
+	heroMedia: one(media, { fields: [tours.heroMediaId], references: [media.id] }),
+	destinationLinks: many(tourDestinations),
+	itinerary: many(tourItineraryDays),
+	gallery: many(tourMedia)
+}));
+
+export const tourDestinationsRelations = relations(tourDestinations, ({ one }) => ({
+	tour: one(tours, { fields: [tourDestinations.tourId], references: [tours.id] }),
+	destination: one(destinations, { fields: [tourDestinations.destinationId], references: [destinations.id] })
+}));
+
+export const tourItineraryDaysRelations = relations(tourItineraryDays, ({ one }) => ({
+	tour: one(tours, { fields: [tourItineraryDays.tourId], references: [tours.id] }),
+	destination: one(destinations, { fields: [tourItineraryDays.destinationId], references: [destinations.id] })
+}));
+
+export const tourMediaRelations = relations(tourMedia, ({ one }) => ({
+	tour: one(tours, { fields: [tourMedia.tourId], references: [tours.id] }),
+	asset: one(media, { fields: [tourMedia.mediaId], references: [media.id] })
+}));
+
+export type Media = typeof media.$inferSelect;
+export type Country = typeof countries.$inferSelect;
+export type Destination = typeof destinations.$inferSelect;
+export type OperatorProfile = typeof operatorProfiles.$inferSelect;
+export type Tour = typeof tours.$inferSelect;
+export type TourDestination = typeof tourDestinations.$inferSelect;
+export type TourItineraryDay = typeof tourItineraryDays.$inferSelect;
+export type TourMedia = typeof tourMedia.$inferSelect;

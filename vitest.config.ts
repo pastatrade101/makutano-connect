@@ -15,7 +15,21 @@ export default defineConfig({
 		// where every round-trip costs hundreds of ms. These are latency budgets, not
 		// slow tests: the same suite finishes in <1s against a local database.
 		testTimeout: 120_000,
-		hookTimeout: 60_000
+		hookTimeout: 60_000,
+		/**
+		 * Bound how many test FILES run at once.
+		 *
+		 * Each file opens its own connection pool against the same database, so
+		 * unbounded parallelism scales connections with the number of suites and
+		 * eventually exhausts Postgres's `max_connections` (100 by default). What
+		 * that looks like is NOT a connection error — it is a handful of unrelated
+		 * tests sitting at the 120s timeout while they wait for a connection that
+		 * never frees, which sent me chasing imaginary lock contention.
+		 *
+		 * Six workers × the small per-file pool pinned in tests/pin-database.ts
+		 * stays comfortably under any default install.
+		 */
+		poolOptions: { threads: { maxThreads: 6, minThreads: 1 } }
 	},
 	resolve: {
 		alias: {
