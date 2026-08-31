@@ -17,11 +17,16 @@ import { requirePermission } from '$lib/server/auth/permissions';
 import { db, schema } from '$lib/server/db';
 import { MAX_BYTES, deleteMedia, mediaEnabled, publicMedia, uploadMedia } from '$lib/server/media';
 import {
+	MAX_TRAVEL_STYLES,
 	assertPublishable,
 	getTourDetail,
+	listActiveCategories,
+	listActiveTravelStyles,
 	replaceItinerary,
+	setTourCategories,
 	setTourDestinations,
 	setTourGallery,
+	setTourTravelStyles,
 	transitionTour,
 	updateTour,
 	type ItineraryDayInput,
@@ -41,7 +46,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const tenantId = requireTenant(locals).id;
 	const detail = await getTourDetail(tenantId, params.id);
 
-	const [countries, destinations, missing] = await Promise.all([
+	const [countries, destinations, categories, travelStyles, missing] = await Promise.all([
 		db()
 			.select({ id: schema.countries.id, name: schema.countries.name })
 			.from(schema.countries)
@@ -56,12 +61,19 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				id: schema.destinations.id,
 				name: schema.destinations.name,
 				countryId: schema.destinations.countryId,
-				destinationType: schema.destinations.destinationType
+				destinationType: schema.destinations.destinationType,
+				// The composer draws the route as the vendor builds it, so the places
+				// arrive with their coordinates rather than being fetched per pick.
+				latitude: schema.destinations.latitude,
+				longitude: schema.destinations.longitude,
+				mapRegion: schema.destinations.mapRegion
 			})
 			.from(schema.destinations)
 			.innerJoin(schema.countries, eq(schema.countries.id, schema.destinations.countryId))
 			.where(and(eq(schema.destinations.status, 'PUBLISHED'), eq(schema.countries.isActive, true)))
 			.orderBy(asc(schema.destinations.name)),
+		listActiveCategories(),
+		listActiveTravelStyles(),
 		assertPublishable(tenantId, params.id)
 	]);
 
@@ -86,7 +98,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			groupSizeMin: t.groupSizeMin,
 			groupSizeMax: t.groupSizeMax,
 			ageRequirement: t.ageRequirement,
+			customisable: t.customisable,
+			soloFriendly: t.soloFriendly,
+			startsAnyDay: t.startsAnyDay,
 			primaryCountryId: t.primaryCountryId,
+			primaryCategoryId: t.primaryCategoryId,
 			heroMediaId: t.heroMediaId,
 			accommodationSummary: t.accommodationSummary,
 			transportSummary: t.transportSummary,
@@ -97,6 +113,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			publishedAt: t.publishedAt
 		},
 		destinationIds: detail.destinations.map((d) => d.id),
+		travelStyleIds: detail.travelStyleIds,
+		categoryIds: detail.categoryIds,
 		itinerary: detail.itinerary.map((d) => ({
 			dayNumber: d.dayNumber,
 			title: d.title,
@@ -106,11 +124,20 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			meals: d.meals,
 			activities: d.activities,
 			distance: d.distance,
-			estimatedTravelTime: d.estimatedTravelTime
+			estimatedTravelTime: d.estimatedTravelTime,
+			latitude: d.latitude === null ? null : Number(d.latitude),
+			longitude: d.longitude === null ? null : Number(d.longitude)
 		})),
 		gallery: detail.gallery.map((m) => publicMedia(m)).filter((m): m is NonNullable<typeof m> => m !== null),
 		countries,
-		destinations,
+		destinations: destinations.map((d) => ({
+			...d,
+			latitude: d.latitude === null ? null : Number(d.latitude),
+			longitude: d.longitude === null ? null : Number(d.longitude)
+		})),
+		categories: categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug, shortDescription: c.shortDescription })),
+		travelStyles: travelStyles.map((s) => ({ id: s.id, name: s.name, slug: s.slug, shortDescription: s.shortDescription })),
+		maxTravelStyles: MAX_TRAVEL_STYLES,
 		// The service's own words for what is still missing. The page ticks off the rest
 		// against this; it never decides for itself whether a listing is ready.
 		missing,
@@ -139,11 +166,25 @@ function num(f: FormData, key: string, label: string): number | null {
 
 const trimmed = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
 
+/**
+ * A map pin from the browser, or nothing.
+ *
+ * Anything unparseable becomes null rather than an error: the coordinate is set
+ * by dragging a marker, so a malformed one means a bug here, not a vendor
+ * mistake worth a validation message. The column CHECK keeps the pair honest.
+ */
+const coordinate = (value: unknown): string | null => {
+	const n = typeof value === 'number' ? value : Number(String(value ?? '').trim());
+	return Number.isFinite(n) && n !== 0 ? String(n) : null;
+};
+
 export const actions: Actions = {
 	saveBasics: async ({ locals, params, request }) => {
 		requirePermission(locals.permissions, 'tours:write');
 		const tenantId = requireTenant(locals).id;
 		const f = await request.formData();
+		const styleIds = f.getAll('travelStyleIds').map(String).filter(Boolean);
+		const categoryIds = f.getAll('categoryIds').map(String).filter(Boolean);
 		try {
 			await updateTour(
 				tenantId,
@@ -156,11 +197,17 @@ export const actions: Actions = {
 					// listing has one, and the service refuses anything below a single day.
 					durationDays: num(f, 'durationDays', 'Duration in days') ?? undefined,
 					durationNights: num(f, 'durationNights', 'Duration in nights'),
-					travelStyle: text(f, 'travelStyle'),
+					primaryCategoryId: text(f, 'primaryCategoryId'),
 					groupType: text(f, 'groupType'),
 					groupSizeMin: num(f, 'groupSizeMin', 'Minimum group size'),
 					groupSizeMax: num(f, 'groupSizeMax', 'Maximum group size'),
 					ageRequirement: text(f, 'ageRequirement'),
+					// A checkbox that is off sends NOTHING, so absence is false. Read with
+					// f.has rather than a truthiness test on the value, which would make
+					// an unchecked box indistinguishable from a field that was not shown.
+					customisable: f.has('customisable'),
+					soloFriendly: f.has('soloFriendly'),
+					startsAnyDay: f.has('startsAnyDay'),
 					accommodationSummary: text(f, 'accommodationSummary'),
 					transportSummary: text(f, 'transportSummary'),
 					mealsSummary: text(f, 'mealsSummary'),
@@ -168,6 +215,10 @@ export const actions: Actions = {
 				},
 				{ userId: locals.user?.id }
 			);
+			// After the tour row, not before: setTourCategories reads the primary
+			// category off it so the primary can never be missing from the set.
+			await setTourCategories(tenantId, params.id, categoryIds, { userId: locals.user?.id });
+			await setTourTravelStyles(tenantId, params.id, styleIds, { userId: locals.user?.id });
 			return { success: true, notice: 'Basics saved' };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -238,7 +289,9 @@ export const actions: Actions = {
 					.map((a) => a.trim())
 					.filter(Boolean),
 				distance: trimmed(d.distance),
-				estimatedTravelTime: trimmed(d.estimatedTravelTime)
+				estimatedTravelTime: trimmed(d.estimatedTravelTime),
+				latitude: coordinate(d.latitude),
+				longitude: coordinate(d.longitude)
 			};
 		});
 

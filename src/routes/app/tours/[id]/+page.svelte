@@ -19,6 +19,8 @@
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import { plural, statusLabel } from '$lib/labels';
+	import RoutePlanner from '$lib/geo/RoutePlanner.svelte';
+	import type { BasemapDoc, LngLat } from '$lib/geo/basemap';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	let { data, form } = $props();
 
@@ -125,6 +127,9 @@
 		meals: string;
 		distance: string;
 		estimatedTravelTime: string;
+		/** The day's own pin. Numbers, not strings: these are dragged, not typed. */
+		latitude: number | null;
+		longitude: number | null;
 	};
 
 	/** Everything is held as a string: the server owns the parsing, and a half-typed
@@ -137,11 +142,16 @@
 			description: t.description ?? '',
 			durationDays: String(t.durationDays ?? 1),
 			durationNights: t.durationNights == null ? '' : String(t.durationNights),
-			travelStyle: t.travelStyle ?? '',
+			primaryCategoryId: t.primaryCategoryId ?? '',
+			travelStyleIds: [...data.travelStyleIds],
+			categoryIds: [...data.categoryIds],
 			groupType: t.groupType ?? '',
 			groupSizeMin: t.groupSizeMin == null ? '' : String(t.groupSizeMin),
 			groupSizeMax: t.groupSizeMax == null ? '' : String(t.groupSizeMax),
 			ageRequirement: t.ageRequirement ?? '',
+			customisable: t.customisable,
+			soloFriendly: t.soloFriendly,
+			startsAnyDay: t.startsAnyDay,
 			accommodationSummary: t.accommodationSummary ?? '',
 			transportSummary: t.transportSummary ?? '',
 			mealsSummary: t.mealsSummary ?? '',
@@ -157,7 +167,9 @@
 					accommodation: d.accommodation ?? '',
 					meals: d.meals ?? '',
 					distance: d.distance ?? '',
-					estimatedTravelTime: d.estimatedTravelTime ?? ''
+					estimatedTravelTime: d.estimatedTravelTime ?? '',
+					latitude: d.latitude,
+					longitude: d.longitude
 				})
 			),
 			priceFrom: t.priceFrom ?? '',
@@ -171,6 +183,77 @@
 	// whatever was typed since.
 	let draft = $state(untrack(seed));
 	let mediaOrder = $state(untrack(() => data.gallery.map((m) => m.id)));
+
+	/* ------------------------------------------------------------ route map ---- */
+
+	// Fetched when the itinerary step is first opened, not on page load: it is
+	// ~115 KB of national geometry and most composer visits never reach this step.
+	let basemap = $state<BasemapDoc | null>(null);
+	let basemapFailed = $state(false);
+	let placingDay = $state<number | null>(null);
+
+	$effect(() => {
+		if (step !== 'itinerary' || basemap || basemapFailed) return;
+		fetch('/geo/tz-basemap.json')
+			.then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+			.then((doc) => (basemap = doc))
+			.catch(() => (basemapFailed = true));
+	});
+
+	const destinationById = $derived(new Map(data.destinations.map((d) => [d.id, d])));
+
+	/**
+	 * A day's coordinate, in order of specificity: the day's own pin first, then
+	 * the coordinate of the destination it names. A vendor who pinned a camp
+	 * inside the Serengeti meant the camp.
+	 */
+	const stops = $derived(
+		draft.days.map((d, i) => {
+			const dest = d.destinationId ? destinationById.get(d.destinationId) : undefined;
+			const pinned = d.latitude !== null && d.longitude !== null;
+			return {
+				dayNumber: i + 1,
+				title: d.title,
+				placeName: dest?.name ?? null,
+				lat: pinned ? d.latitude : (dest?.latitude ?? null),
+				lng: pinned ? d.longitude : (dest?.longitude ?? null),
+				pinned
+			};
+		})
+	);
+
+	function placePin(dayNumber: number, p: LngLat) {
+		const day = draft.days[dayNumber - 1];
+		if (!day) return;
+		// Five decimals is about a metre — far finer than anything drawn at this scale,
+		// and it keeps the posted JSON from carrying float noise.
+		day.longitude = Number(p[0].toFixed(5));
+		day.latitude = Number(p[1].toFixed(5));
+		placingDay = null;
+	}
+
+	function clearPin(dayNumber: number) {
+		const day = draft.days[dayNumber - 1];
+		if (!day) return;
+		day.latitude = null;
+		day.longitude = null;
+	}
+
+	const styleLimitReached = $derived(draft.travelStyleIds.length >= data.maxTravelStyles);
+
+	function toggleStyle(id: string) {
+		const at = draft.travelStyleIds.indexOf(id);
+		if (at >= 0) draft.travelStyleIds.splice(at, 1);
+		else if (!styleLimitReached) draft.travelStyleIds.push(id);
+	}
+
+	/** The primary category is always in the set, so it cannot be toggled off here. */
+	function toggleCategory(id: string) {
+		if (id === draft.primaryCategoryId) return;
+		const at = draft.categoryIds.indexOf(id);
+		if (at >= 0) draft.categoryIds.splice(at, 1);
+		else draft.categoryIds.push(id);
+	}
 	let heroMediaId = $state(untrack(() => data.tour.heroMediaId ?? ''));
 
 	// A plain let, not $state: comparing it must not make the effect below depend on it.
@@ -287,7 +370,6 @@
 		'title',
 		'shortDescription',
 		'description',
-		'travelStyle',
 		'groupType',
 		'ageRequirement',
 		'accommodationSummary',
@@ -296,11 +378,35 @@
 		'bestTimeSummary'
 	] as const;
 	const BASICS_NUMBERS = ['durationDays', 'durationNights', 'groupSizeMin', 'groupSizeMax'] as const;
+	const BASICS_FLAGS = ['customisable', 'soloFriendly', 'startsAnyDay'] as const;
+
+	/** The ticks, and the sentence each one puts on the public page. */
+	const FEATURES = [
+		{
+			key: 'customisable' as const,
+			label: 'Can be customised',
+			hint: 'Travellers may ask to change accommodation, days or destinations.'
+		},
+		{
+			key: 'soloFriendly' as const,
+			label: 'Suitable for solo travellers',
+			hint: 'One person can book this without a supplement that makes it pointless.'
+		},
+		{
+			key: 'startsAnyDay' as const,
+			label: 'Can start any day',
+			hint: 'Not tied to fixed departure dates.'
+		}
+	];
 
 	const unsaved: Record<StepKey, boolean> = $derived({
 		basics:
 			BASICS_TEXT.some((f) => !same(draft[f], pristine[f])) ||
-			BASICS_NUMBERS.some((f) => !sameNumber(draft[f], pristine[f])),
+			BASICS_NUMBERS.some((f) => !sameNumber(draft[f], pristine[f])) ||
+			BASICS_FLAGS.some((f) => draft[f] !== pristine[f]) ||
+			draft.primaryCategoryId !== pristine.primaryCategoryId ||
+			!sameSet(draft.travelStyleIds, pristine.travelStyleIds) ||
+			!sameSet(draft.categoryIds, pristine.categoryIds),
 		location:
 			draft.primaryCountryId !== pristine.primaryCountryId || !sameSet(draft.destinationIds, pristine.destinationIds),
 		itinerary: draft.days.map(dayPrint).join('|') !== pristine.days.map(dayPrint).join('|'),
@@ -372,6 +478,8 @@
 		destinationId: '',
 		description: '',
 		activities: '',
+		latitude: null,
+		longitude: null,
 		accommodation: '',
 		meals: '',
 		distance: '',
@@ -774,8 +882,16 @@
 							<input id="t-nights" name="durationNights" bind:value={draft.durationNights} inputmode="numeric" class="input" />
 						</div>
 						<div>
-							<label class="label" for="t-style">Travel style</label>
-							<input id="t-style" name="travelStyle" bind:value={draft.travelStyle} class="input" placeholder="Safari, Honeymoon, Photography" />
+							<label class="label" for="t-category">Category</label>
+							<select id="t-category" name="primaryCategoryId" bind:value={draft.primaryCategoryId} class="input">
+								<option value="">Choose what this tour is…</option>
+								{#each data.categories as c (c.id)}
+									<option value={c.id}>{c.name}</option>
+								{/each}
+							</select>
+							<p class="mt-1 text-xs text-slate-500">
+								What the tour <em>is</em>. It decides which category page the listing appears on.
+							</p>
 						</div>
 						<div>
 							<label class="label" for="t-group">Group type</label>
@@ -792,6 +908,113 @@
 						<div class="sm:col-span-2">
 							<label class="label" for="t-age">Age requirement</label>
 							<input id="t-age" name="ageRequirement" bind:value={draft.ageRequirement} class="input" placeholder="Minimum 8 years old" />
+						</div>
+
+						<!--
+							The three facts a traveller checks first. Unticked means "not
+							claimed" rather than "no", so the public page simply stays quiet
+							about anything the operator has not affirmed.
+						-->
+						<div class="sm:col-span-2">
+							<span class="label mb-0">Tour features</span>
+							<p class="mb-2 mt-1 text-xs text-slate-500">
+								Only tick what is true. Each one shows on the listing as a promise.
+							</p>
+							<div class="grid gap-2 sm:grid-cols-3">
+								{#each FEATURES as f (f.key)}
+									<label
+										class="flex cursor-pointer items-start gap-2 rounded-lg border p-3 transition
+											{draft[f.key] ? 'border-emerald-600 bg-emerald-50/60' : 'border-slate-200 hover:border-slate-300'}"
+									>
+										<input
+											type="checkbox"
+											name={f.key}
+											bind:checked={draft[f.key]}
+											class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600"
+										/>
+										<span class="min-w-0">
+											<span class="block text-sm font-medium text-slate-900">{f.label}</span>
+											<span class="mt-0.5 block text-xs text-slate-500">{f.hint}</span>
+										</span>
+									</label>
+								{/each}
+							</div>
+						</div>
+
+						<!--
+							Travel styles: HOW the trip is experienced, as against what it is.
+							Capped, and the cap is the point — a listing tagged with everything
+							appears in every filter, which makes the filters useless for the
+							vendor too, because travellers stop trusting them.
+						-->
+						<div class="sm:col-span-2">
+							<div class="flex flex-wrap items-baseline justify-between gap-2">
+								<span class="label mb-0">Travel styles</span>
+								<span class="text-xs {styleLimitReached ? 'font-medium text-amber-700' : 'text-slate-500'}">
+									{draft.travelStyleIds.length} of {data.maxTravelStyles} chosen
+								</span>
+							</div>
+							<p class="mb-2 mt-1 text-xs text-slate-500">
+								How it is experienced. Choose only the ones that genuinely describe this trip.
+							</p>
+							<div class="flex flex-wrap gap-2">
+								{#each data.travelStyles as s (s.id)}
+									{@const on = draft.travelStyleIds.includes(s.id)}
+									<button
+										type="button"
+										class="rounded-full border px-3 py-1.5 text-sm transition
+											{on
+											? 'border-emerald-600 bg-emerald-600 text-white'
+											: styleLimitReached
+												? 'cursor-not-allowed border-slate-200 text-slate-300'
+												: 'border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50'}"
+										aria-pressed={on}
+										disabled={!on && styleLimitReached}
+										title={s.shortDescription ?? s.name}
+										onclick={() => toggleStyle(s.id)}
+									>
+										{s.name}
+									</button>
+								{/each}
+							</div>
+							{#each draft.travelStyleIds as id (id)}
+								<input type="hidden" name="travelStyleIds" value={id} />
+							{/each}
+						</div>
+
+						<!--
+							A safari-and-Zanzibar itinerary genuinely is two categories. The
+							primary one is submitted with the set by the server, so it is shown
+							as already-on and cannot be turned off here.
+						-->
+						<div class="sm:col-span-2">
+							<span class="label mb-0">Also appears under</span>
+							<p class="mb-2 mt-1 text-xs text-slate-500">
+								Optional. Only if the trip genuinely spans more than one category.
+							</p>
+							<div class="flex flex-wrap gap-2">
+								{#each data.categories as c (c.id)}
+									{@const isPrimary = c.id === draft.primaryCategoryId}
+									{@const on = isPrimary || draft.categoryIds.includes(c.id)}
+									<button
+										type="button"
+										class="rounded-full border px-3 py-1.5 text-sm transition
+											{on
+											? 'border-sky-600 bg-sky-600 text-white'
+											: 'border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50'}
+											{isPrimary ? 'cursor-default opacity-90' : ''}"
+										aria-pressed={on}
+										disabled={isPrimary}
+										title={isPrimary ? 'This is the primary category' : (c.shortDescription ?? c.name)}
+										onclick={() => toggleCategory(c.id)}
+									>
+										{c.name}{isPrimary ? ' · primary' : ''}
+									</button>
+								{/each}
+							</div>
+							{#each draft.categoryIds as id (id)}
+								<input type="hidden" name="categoryIds" value={id} />
+							{/each}
 						</div>
 						<div>
 							<label class="label" for="t-acc">Accommodation</label>
@@ -898,13 +1121,28 @@
 					<input type="hidden" name="days" value={JSON.stringify(draft.days)} />
 
 					<div class="space-y-3 p-4">
+						<!-- Read off the days, never typed. Consecutive repeats collapse, so three
+						     nights in the Serengeti read as one stop on the route. -->
 						{#if route.length}
-							<!-- Read off the days, never typed. Consecutive repeats collapse, so three
-							     nights in the Serengeti read as one stop on the route. -->
 							<p class="rounded-panel bg-slate-50 px-3 py-2 text-sm text-slate-600">
 								<span class="text-xs font-semibold text-slate-400 uppercase">Route</span><br />
 								{route.join(' → ')}
 							</p>
+						{/if}
+
+						{#if basemapFailed}
+							<p class="rounded-panel bg-slate-50 px-3 py-2 text-sm text-slate-500">
+								The route map could not be loaded. Everything else on this step still works.
+							</p>
+						{:else if draft.days.length}
+							<RoutePlanner
+								{basemap}
+								{stops}
+								{placingDay}
+								onplace={placePin}
+								onclear={clearPin}
+								onstartplacing={(d) => (placingDay = d)}
+							/>
 						{/if}
 
 						{#each draft.days as day, index (index)}

@@ -38,7 +38,23 @@ import type { Pagination } from './http';
 
 /* ------------------------------------------------------------- shapes ---- */
 
-export type MediaRef = { url: string; altText: string | null; width: number | null; height: number | null };
+/**
+ * A renderable image AND the credit it must be rendered with.
+ *
+ * attribution/license/sourceUrl are not decoration. The destination photography
+ * is Wikimedia Commons material under CC BY / CC BY-SA, and those licences
+ * require the credit to travel with the image. Carrying it in the same shape as
+ * the URL is what makes it impossible to ship the picture without the credit.
+ */
+export type MediaRef = {
+	url: string;
+	altText: string | null;
+	width: number | null;
+	height: number | null;
+	attribution: string | null;
+	license: string | null;
+	sourceUrl: string | null;
+};
 
 export type CountryRef = { id: string; name: string; slug: string; isoCode: string | null };
 
@@ -61,6 +77,11 @@ export type DestinationRef = {
 	name: string;
 	slug: string;
 	destinationType: schema.Destination['destinationType'];
+	/** Numeric, not the numeric(9,6) strings postgres returns — this is drawn, not printed. */
+	latitude: number | null;
+	longitude: number | null;
+	/** The basemap polygon to paint for this place. */
+	mapRegion: string | null;
 };
 
 export type DestinationCard = DestinationRef & { shortDescription: string | null; hero: MediaRef | null };
@@ -68,6 +89,8 @@ export type DestinationCard = DestinationRef & { shortDescription: string | null
 export type DestinationListItem = DestinationCard & { country: CountryRef | null; tourCount: number };
 
 export type DestinationDetail = DestinationCard & {
+	/** The region that contains this place, for the map caption and the breadcrumb. */
+	parent: { id: string; name: string; slug: string } | null;
 	description: string | null;
 	recommendedStayMin: number | null;
 	recommendedStayMax: number | null;
@@ -144,6 +167,9 @@ export type TourDetail = {
 	groupSizeMin: number | null;
 	groupSizeMax: number | null;
 	ageRequirement: string | null;
+	customisable: boolean;
+	soloFriendly: boolean;
+	startsAnyDay: boolean;
 	accommodationSummary: string | null;
 	transportSummary: string | null;
 	mealsSummary: string | null;
@@ -174,6 +200,13 @@ export type ItineraryDay = {
 	distance: string | null;
 	estimatedTravelTime: string | null;
 	image: MediaRef | null;
+	/**
+	 * The day's own pin, for a stop that is not a canonical destination. The route
+	 * uses this when set and the destination's coordinate otherwise, so a vendor
+	 * can plot a camp without polluting the directory with it.
+	 */
+	latitude: number | null;
+	longitude: number | null;
 };
 
 export const TOUR_SORTS = ['recommended', 'price_asc', 'price_desc', 'duration', 'newest'] as const;
@@ -213,6 +246,8 @@ export type TourFilters = {
 const tourHero = alias(schema.media, 'tour_hero');
 const countryHero = alias(schema.media, 'country_hero');
 const destinationHero = alias(schema.media, 'destination_hero');
+/** The region a destination sits in — destinations joined to themselves. */
+const parentDestination = alias(schema.destinations, 'parent_destination');
 const dayImage = alias(schema.media, 'day_image');
 const galleryImage = alias(schema.media, 'gallery_image');
 const operatorLogo = alias(schema.media, 'operator_logo');
@@ -231,10 +266,18 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** The only tours that exist publicly: approved AND live. */
 const publishedTour = (): SQL => and(eq(schema.tours.status, 'PUBLISHED'), isNull(schema.tours.deletedAt)) as SQL;
 
-type MediaSelection = { url: PgColumn; altText: PgColumn; width: PgColumn; height: PgColumn };
+type MediaSelection = {
+	url: PgColumn;
+	altText: PgColumn;
+	width: PgColumn;
+	height: PgColumn;
+	attribution: PgColumn;
+	license: PgColumn;
+	sourceUrl: PgColumn;
+};
 
 /**
- * The four media columns a page renders — and pointedly not `objectKey`, the handle
+ * The media columns a page renders — and pointedly not `objectKey`, the handle
  * that can delete the object behind the URL.
  *
  * media.ts has publicMedia() for the same job, but it projects a whole row that has
@@ -247,17 +290,54 @@ type MediaSelection = { url: PgColumn; altText: PgColumn; width: PgColumn; heigh
  */
 const mediaColumns = <T extends MediaSelection>(
 	t: T
-): { url: T['url']; altText: T['altText']; width: T['width']; height: T['height'] } => ({
+): {
+	url: T['url'];
+	altText: T['altText'];
+	width: T['width'];
+	height: T['height'];
+	attribution: T['attribution'];
+	license: T['license'];
+	sourceUrl: T['sourceUrl'];
+} => ({
 	url: t.url,
 	altText: t.altText,
 	width: t.width,
-	height: t.height
+	height: t.height,
+	attribution: t.attribution,
+	license: t.license,
+	sourceUrl: t.sourceUrl
 });
 
-type JoinedMedia = { url: string | null; altText: string | null; width: number | null; height: number | null } | null;
+type JoinedMedia = {
+	url: string | null;
+	altText: string | null;
+	width: number | null;
+	height: number | null;
+	attribution?: string | null;
+	license?: string | null;
+	sourceUrl?: string | null;
+} | null;
+
+/**
+ * postgres returns `numeric` as a string, to avoid silently losing precision on
+ * values that do not fit a double. A coordinate is drawn, not accounted for, so
+ * it is converted once here rather than at every call site that forgets to.
+ */
+const coord = (v: string | number | null | undefined): number | null =>
+	v === null || v === undefined ? null : typeof v === 'number' ? v : Number(v);
 
 const mediaOf = (m: JoinedMedia): MediaRef | null =>
-	m?.url ? { url: m.url, altText: m.altText, width: m.width, height: m.height } : null;
+	m?.url
+		? {
+				url: m.url,
+				altText: m.altText,
+				width: m.width,
+				height: m.height,
+				attribution: m.attribution ?? null,
+				license: m.license ?? null,
+				sourceUrl: m.sourceUrl ?? null
+			}
+		: null;
 
 type JoinedCountry = { id: string | null; name: string | null; slug: string | null; isoCode: string | null } | null;
 
@@ -416,6 +496,9 @@ export async function destinationsForTours(tourIds: string[]): Promise<Destinati
 			name: schema.destinations.name,
 			slug: schema.destinations.slug,
 			destinationType: schema.destinations.destinationType,
+			latitude: schema.destinations.latitude,
+			longitude: schema.destinations.longitude,
+			mapRegion: schema.destinations.mapRegion,
 			shortDescription: schema.destinations.shortDescription,
 			hero: mediaColumns(destinationHero),
 			uses: sql<number>`count(*)::int`
@@ -449,6 +532,9 @@ export async function destinationsForTours(tourIds: string[]): Promise<Destinati
 		name: r.name,
 		slug: r.slug,
 		destinationType: r.destinationType,
+		latitude: coord(r.latitude),
+		longitude: coord(r.longitude),
+		mapRegion: r.mapRegion,
 		shortDescription: r.shortDescription,
 		hero: mediaOf(r.hero)
 	}));
@@ -517,6 +603,9 @@ const tourCardQuery = () =>
 				pricingType: schema.tours.pricingType,
 				travelStyle: schema.tours.travelStyle,
 				groupType: schema.tours.groupType,
+				customisable: schema.tours.customisable,
+				soloFriendly: schema.tours.soloFriendly,
+				startsAnyDay: schema.tours.startsAnyDay,
 				featured: schema.tours.featured
 			},
 			country: {
@@ -682,6 +771,9 @@ export async function listDestinations(
 			name: schema.destinations.name,
 			slug: schema.destinations.slug,
 			destinationType: schema.destinations.destinationType,
+			latitude: schema.destinations.latitude,
+			longitude: schema.destinations.longitude,
+			mapRegion: schema.destinations.mapRegion,
 			shortDescription: schema.destinations.shortDescription,
 			hero: mediaColumns(destinationHero),
 			country: {
@@ -706,6 +798,9 @@ export async function listDestinations(
 		name: r.name,
 		slug: r.slug,
 		destinationType: r.destinationType,
+		latitude: coord(r.latitude),
+		longitude: coord(r.longitude),
+		mapRegion: r.mapRegion,
 		shortDescription: r.shortDescription,
 		hero: mediaOf(r.hero),
 		country: countryRefOf(r.country),
@@ -739,6 +834,9 @@ async function relatedDestinationsFor(destination: {
 			name: schema.destinations.name,
 			slug: schema.destinations.slug,
 			destinationType: schema.destinations.destinationType,
+			latitude: schema.destinations.latitude,
+			longitude: schema.destinations.longitude,
+			mapRegion: schema.destinations.mapRegion,
 			shortDescription: schema.destinations.shortDescription,
 			hero: mediaColumns(destinationHero),
 			sharedTours: sql<number>`count(distinct ${anchorLink.tourId})::int`
@@ -765,6 +863,9 @@ async function relatedDestinationsFor(destination: {
 			name: r.name,
 			slug: r.slug,
 			destinationType: r.destinationType,
+			latitude: coord(r.latitude),
+			longitude: coord(r.longitude),
+			mapRegion: r.mapRegion,
 			shortDescription: r.shortDescription,
 			hero: mediaOf(r.hero),
 			sharedTours: Number(r.sharedTours)
@@ -781,6 +882,9 @@ async function relatedDestinationsFor(destination: {
 			name: schema.destinations.name,
 			slug: schema.destinations.slug,
 			destinationType: schema.destinations.destinationType,
+			latitude: schema.destinations.latitude,
+			longitude: schema.destinations.longitude,
+			mapRegion: schema.destinations.mapRegion,
 			shortDescription: schema.destinations.shortDescription,
 			hero: mediaColumns(destinationHero)
 		})
@@ -801,6 +905,9 @@ async function relatedDestinationsFor(destination: {
 		name: r.name,
 		slug: r.slug,
 		destinationType: r.destinationType,
+		latitude: coord(r.latitude),
+		longitude: coord(r.longitude),
+		mapRegion: r.mapRegion,
 		shortDescription: r.shortDescription,
 		hero: mediaOf(r.hero),
 		sharedTours: 0
@@ -820,6 +927,9 @@ export async function getDestinationBySlug(slug: string): Promise<{
 			name: schema.destinations.name,
 			slug: schema.destinations.slug,
 			destinationType: schema.destinations.destinationType,
+			latitude: schema.destinations.latitude,
+			longitude: schema.destinations.longitude,
+			mapRegion: schema.destinations.mapRegion,
 			shortDescription: schema.destinations.shortDescription,
 			description: schema.destinations.description,
 			recommendedStayMin: schema.destinations.recommendedStayMin,
@@ -835,6 +945,12 @@ export async function getDestinationBySlug(slug: string): Promise<{
 				name: schema.countries.name,
 				slug: schema.countries.slug,
 				isoCode: schema.countries.isoCode
+			},
+			parent: {
+				id: parentDestination.id,
+				name: parentDestination.name,
+				slug: parentDestination.slug,
+				status: parentDestination.status
 			}
 		})
 		.from(schema.destinations)
@@ -845,6 +961,7 @@ export async function getDestinationBySlug(slug: string): Promise<{
 			and(eq(schema.countries.id, schema.destinations.countryId), eq(schema.countries.isActive, true))
 		)
 		.leftJoin(destinationHero, eq(destinationHero.id, schema.destinations.heroMediaId))
+		.leftJoin(parentDestination, eq(parentDestination.id, schema.destinations.parentId))
 		.where(and(eq(schema.destinations.slug, slug), eq(schema.destinations.status, 'PUBLISHED')))
 		.limit(1);
 	if (!row) return null;
@@ -865,6 +982,9 @@ export async function getDestinationBySlug(slug: string): Promise<{
 			name: row.name,
 			slug: row.slug,
 			destinationType: row.destinationType,
+			latitude: coord(row.latitude),
+			longitude: coord(row.longitude),
+			mapRegion: row.mapRegion,
 			shortDescription: row.shortDescription,
 			description: row.description,
 			recommendedStayMin: row.recommendedStayMin,
@@ -874,7 +994,13 @@ export async function getDestinationBySlug(slug: string): Promise<{
 			travelTips: row.travelTips ?? [],
 			seoTitle: row.seoTitle,
 			seoDescription: row.seoDescription,
-			hero: mediaOf(row.hero)
+			hero: mediaOf(row.hero),
+			// Only when the region is itself published: an unpublished parent has no
+			// page, and a breadcrumb to a 404 is worse than no breadcrumb.
+			parent:
+				row.parent?.id && row.parent.name && row.parent.slug && row.parent.status === 'PUBLISHED'
+					? { id: row.parent.id, name: row.parent.name, slug: row.parent.slug }
+					: null
 		},
 		country: countryRefOf(row.country),
 		tours: tourRows.map(toTourCard),
@@ -1006,6 +1132,9 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 				pricingType: schema.tours.pricingType,
 				travelStyle: schema.tours.travelStyle,
 				groupType: schema.tours.groupType,
+				customisable: schema.tours.customisable,
+				soloFriendly: schema.tours.soloFriendly,
+				startsAnyDay: schema.tours.startsAnyDay,
 				groupSizeMin: schema.tours.groupSizeMin,
 				groupSizeMax: schema.tours.groupSizeMax,
 				ageRequirement: schema.tours.ageRequirement,
@@ -1073,6 +1202,9 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 				name: schema.destinations.name,
 				slug: schema.destinations.slug,
 				destinationType: schema.destinations.destinationType,
+				latitude: schema.destinations.latitude,
+				longitude: schema.destinations.longitude,
+				mapRegion: schema.destinations.mapRegion,
 				shortDescription: schema.destinations.shortDescription,
 				hero: mediaColumns(destinationHero),
 				sortOrder: schema.tourDestinations.sortOrder
@@ -1099,12 +1231,17 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 				activities: schema.tourItineraryDays.activities,
 				distance: schema.tourItineraryDays.distance,
 				estimatedTravelTime: schema.tourItineraryDays.estimatedTravelTime,
+				latitude: schema.tourItineraryDays.latitude,
+				longitude: schema.tourItineraryDays.longitude,
 				image: mediaColumns(dayImage),
 				destination: {
 					id: schema.destinations.id,
 					name: schema.destinations.name,
 					slug: schema.destinations.slug,
-					destinationType: schema.destinations.destinationType
+					destinationType: schema.destinations.destinationType,
+					latitude: schema.destinations.latitude,
+					longitude: schema.destinations.longitude,
+					mapRegion: schema.destinations.mapRegion
 				}
 			})
 			.from(schema.tourItineraryDays)
@@ -1134,6 +1271,9 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 		name: r.name,
 		slug: r.slug,
 		destinationType: r.destinationType,
+		latitude: coord(r.latitude),
+		longitude: coord(r.longitude),
+		mapRegion: r.mapRegion,
 		shortDescription: r.shortDescription,
 		hero: mediaOf(r.hero)
 	}));
@@ -1149,7 +1289,10 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 						id: r.destination.id,
 						name: r.destination.name,
 						slug: r.destination.slug,
-						destinationType: r.destination.destinationType
+						destinationType: r.destination.destinationType,
+						latitude: coord(r.destination.latitude),
+						longitude: coord(r.destination.longitude),
+						mapRegion: r.destination.mapRegion
 					}
 				: null,
 		accommodation: r.accommodation,
@@ -1157,7 +1300,9 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 		activities: r.activities ?? [],
 		distance: r.distance,
 		estimatedTravelTime: r.estimatedTravelTime,
-		image: mediaOf(r.image)
+		image: mediaOf(r.image),
+		latitude: coord(r.latitude),
+		longitude: coord(r.longitude)
 	}));
 
 	// Arusha → Tarangire → Serengeti, READ OFF the days the vendor already wrote.
@@ -1198,6 +1343,9 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 			pricingType: row.tour.pricingType,
 			travelStyle: row.tour.travelStyle,
 			groupType: row.tour.groupType,
+			customisable: row.tour.customisable,
+			soloFriendly: row.tour.soloFriendly,
+			startsAnyDay: row.tour.startsAnyDay,
 			groupSizeMin: row.tour.groupSizeMin,
 			groupSizeMax: row.tour.groupSizeMax,
 			ageRequirement: row.tour.ageRequirement,

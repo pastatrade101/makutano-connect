@@ -47,6 +47,7 @@ suite('marketplace listing moderation', () => {
 	let tenantId: string;
 	let countryId: string;
 	let destinationId: string;
+	let categoryId: string;
 	let mediaId: string;
 	let T: typeof import('../src/lib/server/tours');
 	let db: typeof import('../src/lib/server/db')['db'];
@@ -64,8 +65,12 @@ suite('marketplace listing moderation', () => {
 
 		const [c] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
 		countryId = c.id;
-		const [d] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti')).limit(1);
+		const [d] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti-national-park')).limit(1);
 		destinationId = d.id;
+		// A listing with no category appears under no category filter, so
+		// assertPublishable now counts one as missing.
+		const [cat] = await db().select().from(schema.tourCategories).where(eq(schema.tourCategories.slug, 'safari')).limit(1);
+		categoryId = cat.id;
 		// A media row stands in for an uploaded hero; publishability requires one.
 		const [m] = await db().insert(schema.media).values({
 			tenantId, objectKey: `probe/${Date.now()}.jpg`, url: 'https://example.test/hero.jpg', mimeType: 'image/jpeg'
@@ -82,6 +87,7 @@ suite('marketplace listing moderation', () => {
 			durationDays: 3,
 			priceFrom: '1200.00',
 			currency: 'USD',
+			primaryCategoryId: categoryId,
 			heroMediaId: mediaId
 		});
 		await T.setTourDestinations(tenantId, tour.id, [destinationId]);

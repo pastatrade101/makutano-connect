@@ -107,7 +107,7 @@ suite('R2 media, end to end', () => {
 		const [destination] = await db()
 			.select()
 			.from(schema.destinations)
-			.where(eq(schema.destinations.slug, 'serengeti'))
+			.where(eq(schema.destinations.slug, 'serengeti-national-park'))
 			.limit(1);
 
 		const media = await M.uploadMedia(

@@ -4,6 +4,7 @@
 // indexes so two tenants can never collide (or read each other's rows by guessing).
 import { relations, sql } from 'drizzle-orm';
 import {
+	type AnyPgColumn,
 	boolean,
 	date,
 	index,
@@ -157,6 +158,8 @@ export const DESTINATION_TYPES = [
 	'HERITAGE_SITE',
 	'FOREST',
 	'MARINE_AREA',
+	/** The 31 administrative regions. Geography that CONTAINS the rest. */
+	'REGION',
 	'OTHER'
 ] as const;
 
@@ -2289,6 +2292,21 @@ export const destinations = pgTable(
 		bestTimeSummary: text('best_time_summary'),
 		highlights: jsonb('highlights').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 		travelTips: jsonb('travel_tips').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		/**
+		 * Where this place IS. Rendered as a pin on the bundled national basemap;
+		 * there is no tile provider and no API key behind these two numbers.
+		 * A CHECK keeps them both-or-neither -- half a coordinate renders at the
+		 * equator rather than failing.
+		 */
+		latitude: numeric('latitude', { precision: 9, scale: 6 }),
+		longitude: numeric('longitude', { precision: 9, scale: 6 }),
+		/** Basemap region slug: the join key between this row and a static polygon. */
+		mapRegion: text('map_region'),
+		/**
+		 * The region that contains this place. SET NULL, not cascade: removing a
+		 * region must never delete the Serengeti along with it.
+		 */
+		parentId: uuid('parent_id').references((): AnyPgColumn => destinations.id, { onDelete: 'set null' }),
 		status: contentStatusEnum('status').notNull().default('DRAFT'),
 		/**
 		 * Seed broadly, feature selectively.
@@ -2310,7 +2328,9 @@ export const destinations = pgTable(
 			.on(t.sortOrder, t.name)
 			.where(sql`${t.isFeatured} and ${t.status} = 'PUBLISHED'`),
 		index('destinations_country_idx').on(t.countryId, t.status),
-		index('destinations_type_idx').on(t.destinationType).where(sql`${t.status} = 'PUBLISHED'`)
+		index('destinations_type_idx').on(t.destinationType).where(sql`${t.status} = 'PUBLISHED'`),
+		index('destinations_parent_idx').on(t.parentId).where(sql`${t.parentId} is not null`),
+		index('destinations_map_region_idx').on(t.mapRegion).where(sql`${t.status} = 'PUBLISHED'`)
 	]
 );
 
@@ -2433,6 +2453,15 @@ export const tours = pgTable(
 		availabilityType: text('availability_type').notNull().default('YEAR_ROUND'),
 		availableFrom: date('available_from'),
 		availableTo: date('available_to'),
+
+		/*
+		 * Facts a traveller filters on, as booleans the operator ticks rather than
+		 * prose a page has to interpret. False means "not claimed", so the page can
+		 * stay silent instead of guessing.
+		 */
+		customisable: boolean('customisable').notNull().default(false),
+		soloFriendly: boolean('solo_friendly').notNull().default(false),
+		startsAnyDay: boolean('starts_any_day').notNull().default(false),
 
 		status: tourStatusEnum('status').notNull().default('DRAFT'),
 		featured: boolean('featured').notNull().default(false),
@@ -2648,6 +2677,13 @@ export const tourItineraryDays = pgTable(
 		activities: jsonb('activities').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 		distance: text('distance'),
 		estimatedTravelTime: text('estimated_travel_time'),
+		/**
+		 * An optional pin for a stop that is NOT a canonical destination -- a camp,
+		 * a viewpoint, a river crossing. Seeding the directory with those would
+		 * fragment it, so the day carries the coordinate instead.
+		 */
+		latitude: numeric('latitude', { precision: 9, scale: 6 }),
+		longitude: numeric('longitude', { precision: 9, scale: 6 }),
 		mediaId: uuid('media_id').references(() => media.id, { onDelete: 'set null' }),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()

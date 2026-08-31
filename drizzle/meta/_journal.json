@@ -246,6 +246,20 @@
       "when": 1788127100000,
       "tag": "0034_media_attribution",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788130000000,
+      "tag": "0035_geography_maps",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788131000000,
+      "tag": "0036_tour_features",
+      "breakpoints": true
     }
   ]
 }

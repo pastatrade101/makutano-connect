@@ -31,6 +31,8 @@ export type TourInput = {
 	/** Optional. The public URL is derived from the title unless a caller names one. */
 	slug?: string;
 	primaryCountryId?: string | null;
+	/** WHAT this tour is. Validated against the active taxonomy — never free text. */
+	primaryCategoryId?: string | null;
 	shortDescription?: string | null;
 	description?: string | null;
 	durationDays?: number;
@@ -43,6 +45,9 @@ export type TourInput = {
 	groupSizeMin?: number | null;
 	groupSizeMax?: number | null;
 	ageRequirement?: string | null;
+	customisable?: boolean;
+	soloFriendly?: boolean;
+	startsAnyDay?: boolean;
 	heroMediaId?: string | null;
 	accommodationSummary?: string | null;
 	transportSummary?: string | null;
@@ -70,6 +75,9 @@ export type ItineraryDayInput = {
 	distance?: string | null;
 	estimatedTravelTime?: string | null;
 	mediaId?: string | null;
+	/** The day's own pin, for a stop that is not a canonical destination. */
+	latitude?: string | null;
+	longitude?: string | null;
 };
 
 const PRICING_TYPES = ['PER_PERSON', 'PER_GROUP', 'FROM'];
@@ -207,6 +215,24 @@ async function assertOwnedMedia(tenantId: string, ids: Array<string | null | und
 	}
 }
 
+/**
+ * Resolve a category id, refusing anything retired.
+ *
+ * A vendor CHOOSES from the taxonomy; they cannot invent one and cannot attach a
+ * category the platform has withdrawn. That is the whole reason categories are a
+ * table rather than the free-text column this replaces.
+ */
+async function activeCategory(id: string): Promise<string> {
+	assertUuid(id, 'category id');
+	const [row] = await db()
+		.select({ id: schema.tourCategories.id })
+		.from(schema.tourCategories)
+		.where(and(eq(schema.tourCategories.id, id), eq(schema.tourCategories.isActive, true)))
+		.limit(1);
+	if (!row) throw new AppError('VALIDATION_ERROR', 'That category is not available.');
+	return row.id;
+}
+
 /** Everything a caller may set, validated and normalised. Nothing else reaches a write. */
 async function tourValues(
 	tenantId: string,
@@ -225,10 +251,19 @@ async function tourValues(
 	if (input.primaryCountryId !== undefined) {
 		values.primaryCountryId = input.primaryCountryId ? await activeCountry(input.primaryCountryId) : null;
 	}
+	if (input.primaryCategoryId !== undefined) {
+		values.primaryCategoryId = input.primaryCategoryId ? await activeCategory(input.primaryCategoryId) : null;
+	}
 	if (input.heroMediaId !== undefined) {
 		await assertOwnedMedia(tenantId, [input.heroMediaId]);
 		values.heroMediaId = input.heroMediaId || null;
 	}
+
+	// Booleans are only written when the caller mentions them, so a partial patch
+	// from another surface cannot silently un-tick a feature it never sent.
+	if (input.customisable !== undefined) values.customisable = Boolean(input.customisable);
+	if (input.soloFriendly !== undefined) values.soloFriendly = Boolean(input.soloFriendly);
+	if (input.startsAnyDay !== undefined) values.startsAnyDay = Boolean(input.startsAnyDay);
 
 	values.durationDays = wholeNumber(input.durationDays, 'Duration in days', 1) ?? undefined;
 	values.durationNights = wholeNumber(input.durationNights, 'Duration in nights', 0);
@@ -348,7 +383,7 @@ export async function getTour(tenantId: string, id: string): Promise<schema.Tour
  */
 export async function getTourDetail(tenantId: string, id: string) {
 	const tour = await getTour(tenantId, id);
-	const [destinationRows, itinerary, galleryRows] = await Promise.all([
+	const [destinationRows, itinerary, galleryRows, styleRows, categoryRows] = await Promise.all([
 		db()
 			.select({ destination: schema.destinations, sortOrder: schema.tourDestinations.sortOrder })
 			.from(schema.tourDestinations)
@@ -365,13 +400,25 @@ export async function getTourDetail(tenantId: string, id: string) {
 			.from(schema.tourMedia)
 			.innerJoin(schema.media, eq(schema.media.id, schema.tourMedia.mediaId))
 			.where(eq(schema.tourMedia.tourId, id))
-			.orderBy(asc(schema.tourMedia.sortOrder))
+			.orderBy(asc(schema.tourMedia.sortOrder)),
+		db()
+			.select({ id: schema.tourTravelStyles.travelStyleId })
+			.from(schema.tourTravelStyles)
+			.where(eq(schema.tourTravelStyles.tourId, id))
+			.orderBy(asc(schema.tourTravelStyles.sortOrder)),
+		db()
+			.select({ id: schema.tourCategoryLinks.categoryId })
+			.from(schema.tourCategoryLinks)
+			.where(eq(schema.tourCategoryLinks.tourId, id))
+			.orderBy(asc(schema.tourCategoryLinks.sortOrder))
 	]);
 	return {
 		tour,
 		destinations: destinationRows.map((r) => r.destination),
 		itinerary,
-		gallery: galleryRows.map((r) => r.asset)
+		gallery: galleryRows.map((r) => r.asset),
+		travelStyleIds: styleRows.map((r) => r.id),
+		categoryIds: categoryRows.map((r) => r.id)
 	};
 }
 
@@ -675,6 +722,74 @@ export async function setTourTravelStyles(
 	});
 }
 
+/**
+ * The categories a listing spans, including its primary one.
+ *
+ * The primary is written in here too, so a category filter is one join rather
+ * than a union of a column and a table. Whole-set replace, like the others.
+ */
+export async function setTourCategories(
+	tenantId: string,
+	tourId: string,
+	categoryIds: string[],
+	actor: TourActor = {}
+): Promise<void> {
+	await assertAllowed(tenantId);
+	const tour = await getTour(tenantId, tourId);
+
+	const ids: string[] = [];
+	for (const raw of categoryIds) {
+		const id = raw?.trim();
+		if (!id || ids.includes(id)) continue;
+		assertUuid(id, 'category id');
+		ids.push(id);
+	}
+	// The primary category is a category. Writing it here as well is what keeps
+	// "every safari" a single join, and it can never be missing from the set.
+	if (tour.primaryCategoryId && !ids.includes(tour.primaryCategoryId)) ids.unshift(tour.primaryCategoryId);
+
+	if (ids.length) {
+		const found = await db()
+			.select({ id: schema.tourCategories.id })
+			.from(schema.tourCategories)
+			.where(and(inArray(schema.tourCategories.id, ids), eq(schema.tourCategories.isActive, true)));
+		if (found.length !== ids.length) {
+			throw new AppError('VALIDATION_ERROR', 'One of those categories is not available.');
+		}
+	}
+
+	await txDb().transaction(async (tx) => {
+		const owned = await tx
+			.select({ id: schema.tours.id })
+			.from(schema.tours)
+			.where(and(eq(schema.tours.id, tourId), eq(schema.tours.tenantId, tenantId), isNull(schema.tours.deletedAt)))
+			.limit(1);
+		if (!owned.length) throw new AppError('NOT_FOUND', 'Tour could not be found.');
+
+		await tx.delete(schema.tourCategoryLinks).where(eq(schema.tourCategoryLinks.tourId, tourId));
+		if (ids.length) {
+			await tx
+				.insert(schema.tourCategoryLinks)
+				.values(ids.map((categoryId, index) => ({ tourId, categoryId, sortOrder: index })));
+		}
+		await tx.update(schema.tours).set({ updatedAt: new Date() }).where(eq(schema.tours.id, tourId));
+	});
+
+	await audit(tenantId, 'tour.updated', auditActor(actor), { type: 'tour', id: tourId }, {
+		title: tour.title,
+		categories: ids.length
+	});
+}
+
+/** The taxonomy a vendor may choose from. */
+export async function listActiveCategories() {
+	return db()
+		.select()
+		.from(schema.tourCategories)
+		.where(eq(schema.tourCategories.isActive, true))
+		.orderBy(asc(schema.tourCategories.sortOrder), asc(schema.tourCategories.name));
+}
+
 /** The taxonomy a vendor may choose from. */
 export async function listActiveTravelStyles() {
 	return db()
@@ -747,7 +862,11 @@ export async function replaceItinerary(
 					activities: list(day.activities) ?? [],
 					distance: text(day.distance) ?? null,
 					estimatedTravelTime: text(day.estimatedTravelTime) ?? null,
-					mediaId: day.mediaId || null
+					mediaId: day.mediaId || null,
+					// Both or neither, matching the column CHECK: half a coordinate is
+					// not a location, it is a pin that renders off the coast of Ghana.
+					latitude: day.latitude && day.longitude ? day.latitude : null,
+					longitude: day.latitude && day.longitude ? day.longitude : null
 				}))
 			)
 			.returning();
@@ -839,6 +958,9 @@ export async function assertPublishable(tenantId: string, id: string): Promise<s
 	if (!tour.title.trim()) missing.push('a title');
 	if (!tour.shortDescription?.trim()) missing.push('a short description');
 	if (!tour.primaryCountryId) missing.push('a country');
+	// A listing with no category appears under no category filter, which is a
+	// listing nobody finds. The taxonomy is small and every real tour fits one.
+	if (!tour.primaryCategoryId) missing.push('a category');
 	if (!tour.durationDays || tour.durationDays < 1) missing.push('a duration of at least one day');
 	if (!tour.priceFrom) missing.push('a starting price');
 	if (!tour.currency) missing.push('a currency');

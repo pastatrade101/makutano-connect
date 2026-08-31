@@ -83,9 +83,9 @@ suite('vendor tour API', () => {
 
 		const [c] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
 		countryId = c.id;
-		const [s] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti')).limit(1);
+		const [s] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti-national-park')).limit(1);
 		serengeti = s.id;
-		const [n] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'ngorongoro')).limit(1);
+		const [n] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'ngorongoro-conservation-area')).limit(1);
 		ngorongoro = n.id;
 
 		const [ha] = await db().insert(schema.media).values({

@@ -80,8 +80,8 @@ suite('marketplace geography integrity', () => {
 		for (const style of ['luxury', 'honeymoon', 'family', 'budget', 'photography']) {
 			expect(names, `${style} must not be a destination`).not.toContain(style);
 		}
-		expect(rows.find((r) => r.slug === 'serengeti')?.destinationType).toBe('NATIONAL_PARK');
-		expect(rows.find((r) => r.slug === 'kilimanjaro')?.destinationType).toBe('MOUNTAIN');
+		expect(rows.find((r) => r.slug === 'serengeti-national-park')?.destinationType).toBe('NATIONAL_PARK');
+		expect(rows.find((r) => r.slug === 'mount-kilimanjaro')?.destinationType).toBe('MOUNTAIN');
 	});
 
 	/* ---- referential integrity ------------------------------------------ */
@@ -118,7 +118,7 @@ suite('marketplace geography integrity', () => {
 		await expect(
 			db()
 				.insert(schema.destinations)
-				.values({ countryId: tanzania.id, name: 'Serengeti Again', slug: 'serengeti' })
+				.values({ countryId: tanzania.id, name: 'Serengeti Again', slug: 'serengeti-national-park' })
 		).rejects.toThrow();
 	});
 
@@ -133,7 +133,7 @@ suite('marketplace geography integrity', () => {
 
 	it('refuses to delete a destination a tour still visits', async () => {
 		const tanzania = await country('tanzania');
-		const serengeti = await destination('serengeti');
+		const serengeti = await destination('serengeti-national-park');
 
 		const [tour] = await db()
 			.insert(schema.tours)

@@ -57,7 +57,7 @@ suite('marketplace enquiry ownership', () => {
 
 		const T = await import('../src/lib/server/tours');
 		const [country] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
-		const [dest] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti')).limit(1);
+		const [dest] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti-national-park')).limit(1);
 		const [media] = await db().insert(schema.media).values({
 			tenantId: tenantA, objectKey: `enq/${Date.now()}.jpg`, url: 'https://cdn.example.test/e.jpg', mimeType: 'image/jpeg'
 		}).returning();

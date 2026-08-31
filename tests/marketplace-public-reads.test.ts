@@ -43,9 +43,9 @@ suite('marketplace public reads', () => {
 
 		const [c] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
 		countryId = c.id;
-		const [s] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti')).limit(1);
+		const [s] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti-national-park')).limit(1);
 		serengeti = s.id;
-		const [n] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'ngorongoro')).limit(1);
+		const [n] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'ngorongoro-conservation-area')).limit(1);
 		ngorongoro = n.id;
 		const [m] = await db().insert(schema.media).values({
 			tenantId, objectKey: `pub/${Date.now()}.jpg`, url: 'https://cdn.example.test/h.jpg', mimeType: 'image/jpeg'
@@ -174,8 +174,13 @@ suite('marketplace public reads', () => {
 					'languages',
 					'location',
 					'logo',
+					// The public contact block. NULL when the operator did not publish
+					// it — never a fallback to the account's own operational details.
+					'publicEmail',
+					'publicPhone',
 					'slug',
 					'specialties',
+					'websiteUrl',
 					'yearsInBusiness'
 				].sort()
 			);
@@ -194,18 +199,22 @@ suite('marketplace public reads', () => {
 		const route = (detail as { route?: Array<{ name?: string; slug?: string }> }).route ?? [];
 
 		const names = route.map((r) => r.slug ?? r.name);
-		expect(names).toEqual(['serengeti', 'ngorongoro']);
+		expect(names).toEqual(['serengeti-national-park', 'ngorongoro-conservation-area']);
 	});
 
 	/* ---- geography reads --------------------------------------------------- */
 
 	it('lists only active countries and published destinations', async () => {
 		const countries = await MP.listCountries();
-		expect(countries.map((c) => c.slug)).toEqual(expect.arrayContaining(['tanzania', 'kenya']));
+		expect(countries.map((c) => c.slug)).toContain('tanzania');
+		// Kenya, Uganda and Rwanda were DEACTIVATED, not deleted, when the
+		// marketplace narrowed to Tanzania. Listing them would offer a country
+		// filter that matches nothing.
+		expect(countries.map((c) => c.slug)).not.toContain('kenya');
 
 		const { items } = await MP.listDestinations({} as never);
 		expect(items.every((d) => Boolean(d.slug))).toBe(true);
-		expect(items.map((d) => d.slug)).toContain('serengeti');
+		expect(items.map((d) => d.slug)).toContain('serengeti-national-park');
 		// Zanzibar is a destination of Tanzania, never a country of its own.
 		expect(countries.map((c) => c.slug)).not.toContain('zanzibar');
 		expect(items.map((d) => d.slug)).toContain('zanzibar');
