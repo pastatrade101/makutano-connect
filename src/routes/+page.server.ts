@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { planHighlights, selectablePlans, signupEnabled } from '$lib/server/provisioning';
+import { planHighlights, selectablePlans, signupEnabled, trialDays } from '$lib/server/provisioning';
 import { pathForStage, stageForUser } from '$lib/server/signup';
 import type { PageServerLoad } from './$types';
 
@@ -17,6 +17,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const plans = await selectablePlans().catch(() => []);
 	return {
 		signupEnabled: signupEnabled(),
+		// The page states the trial length as a commercial promise, so it comes from
+		// the same function signup uses rather than being typed into the markup —
+		// changing SIGNUP_TRIAL_DAYS must not leave the marketing page lying.
+		trialDays: trialDays(),
 		plans: plans.map((p) => ({
 			code: p.code,
 			name: p.name,

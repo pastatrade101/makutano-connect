@@ -75,19 +75,27 @@
 	{/if}
 
 	<div class="card space-y-3 p-3">
-		<div class="flex flex-wrap gap-1.5">
+		<!-- One row that scrolls sideways on a phone rather than three rows of wrapped
+		     chips, and each carries its count: "how much of my work is sitting with the
+		     marketplace team" is answered before anything is clicked. -->
+		<div class="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
 			<a
 				href={urlFor('')}
-				class="badge {data.status === '' ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}"
-				>All</a
+				class="badge shrink-0 gap-1.5 {data.status === ''
+					? 'bg-brand-500 text-white'
+					: 'bg-slate-100 text-slate-600 hover:bg-slate-200'}"
 			>
+				All <span class="tabular-nums opacity-60">{data.counts[''] ?? 0}</span>
+			</a>
 			{#each data.filters as status (status)}
 				<a
 					href={urlFor(status)}
-					class="badge {data.status === status
+					class="badge shrink-0 gap-1.5 whitespace-nowrap {data.status === status
 						? 'bg-brand-500 text-white'
-						: 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">{statusLabel(status)}</a
+						: 'bg-slate-100 text-slate-600 hover:bg-slate-200'}"
 				>
+					{statusLabel(status)} <span class="tabular-nums opacity-60">{data.counts[status] ?? 0}</span>
+				</a>
 			{/each}
 		</div>
 		<!-- GET, not an action: a search belongs in the URL so it survives a reload and
@@ -125,6 +133,13 @@
 							<div class="mt-1 sm:hidden">
 								<span class="badge {TONES[tour.status] ?? 'bg-slate-100 text-slate-600'}">{statusLabel(tour.status)}</span>
 							</div>
+							{#if tour.status === 'CHANGES_REQUESTED'}
+								<!-- The one status on this shelf that is the vendor's move. A badge alone
+								     says where the listing is; this says what to do about it. -->
+								<div class="mt-1 text-xs font-medium text-danger">
+									The Makutano team left a note — open it to read what they need.
+								</div>
+							{/if}
 						</td>
 						<td class="table-cell mobile-hide" data-label="Status">
 							<span class="badge {TONES[tour.status] ?? 'bg-slate-100 text-slate-600'}">{statusLabel(tour.status)}</span>
@@ -144,10 +159,25 @@
 					</tr>
 				{:else}
 					<tr>
-						<td colspan="5" class="px-3 py-8 text-center text-xs text-slate-400">
-							{search || data.status
-								? 'No listings match that.'
-								: 'No listings yet. Start one — a title is all it takes, and nothing goes public until the marketplace team approves it.'}
+						<td colspan="5" class="px-3 py-10 text-center">
+							{#if search || data.status}
+								<p class="text-sm font-medium text-slate-700">Nothing here matches that.</p>
+								<p class="mx-auto mt-1.5 max-w-md text-xs leading-5 text-slate-500">
+									Try a different word, or <a href={urlFor('')} class="text-brand-600 hover:underline">show every listing</a>.
+								</p>
+							{:else}
+								<!-- The first listing is the hardest one to start, so say how it starts
+								     rather than reporting that the table is empty. -->
+								<p class="text-sm font-medium text-slate-700">No listings yet.</p>
+								<p class="mx-auto mt-1.5 max-w-md text-xs leading-5 text-slate-500">
+									Begin with the tour you sell most. A working title is all it takes — the composer
+									then asks for the itinerary, the price and the photos one step at a time, and
+									nothing reaches a traveller until the Makutano team has approved it.
+								</p>
+								{#if data.canWrite}
+									<button class="btn-primary mt-4" onclick={() => (showNew = true)}>Start your first listing</button>
+								{/if}
+							{/if}
 						</td>
 					</tr>
 				{/each}

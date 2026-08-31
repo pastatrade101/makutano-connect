@@ -8,19 +8,18 @@
 	const getStartedHref = $derived(data.signupEnabled ? '/signup' : '/login');
 	let menuOpen = $state(false);
 	const nav = $derived([
-		{ href: '/#product', label: 'Product' },
-		{ href: '/#how-it-works', label: 'How it Works' },
-		{ href: '/#solutions', label: 'Solutions' },
-		{ href: '/#developers', label: 'Developers' },
+		{ href: '/#loop', label: 'How it works' },
+		{ href: '/#product', label: 'What you get' },
+		{ href: '/#listings', label: 'Getting listed' },
 		...(data.plans.length ? [{ href: '/#pricing', label: 'Pricing' }] : [])
 	]);
 </script>
 
 <svelte:head>
-	<title>Makutano Connect — Customer operations infrastructure</title>
+	<title>Makutano Connect — Sell your tours, run your bookings</title>
 	<meta
 		name="description"
-		content="Connect WhatsApp, customer conversations, bookings, orders, payments and your team without rebuilding the systems your business already uses."
+		content="Tour operators list their journeys on the Makutano Journeys marketplace, receive traveller enquiries in Connect, reply on their own WhatsApp number, and run quotations, bookings, payments and departures from one place."
 	/>
 </svelte:head>
 
@@ -50,15 +49,15 @@
 	</header>
 
 	<main>
-		<LandingHero {getStartedHref} />
+		<LandingHero {getStartedHref} trialDays={data.trialDays} />
 		<LandingProduct />
 		<LandingLower {data} {getStartedHref} />
 	</main>
 
 	<footer class="border-t border-slate-200 bg-white">
 		<div class="mx-auto flex max-w-[1240px] flex-col gap-8 px-4 py-10 sm:px-6 md:flex-row md:items-end md:justify-between lg:px-10">
-			<div><BrandLockup size="sm" /><p class="mt-3 max-w-sm text-[12.5px] leading-5 text-slate-400">The infrastructure behind modern customer journeys.</p></div>
-			<div class="flex flex-wrap gap-x-6 gap-y-2 text-[12.5px] text-slate-500"><a href="/#product">Product</a><a href="/documentation">Documentation</a><a href="/legal/terms">Terms</a><a href="/legal/privacy">Privacy</a><a href="mailto:connect@makutano.co.tz">Contact</a></div>
+			<div><BrandLockup size="sm" /><p class="mt-3 max-w-sm text-[12.5px] leading-5 text-slate-400">Where tour operators sell their journeys and run the trips they sell.</p></div>
+			<div class="flex flex-wrap gap-x-6 gap-y-2 text-[12.5px] text-slate-500"><a href="https://journeys.makutano.co.tz" target="_blank" rel="noopener">Makutano Journeys</a><a href="/#product">What you get</a><a href="/#start">Getting started</a><a href="/documentation">Documentation</a><a href="/legal/terms">Terms</a><a href="/legal/privacy">Privacy</a><a href="mailto:connect@makutano.co.tz">Contact</a></div>
 			<p class="text-[11.5px] text-slate-400">{new Date().getFullYear()} © Makutano Connect</p>
 		</div>
 	</footer>

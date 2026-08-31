@@ -6,8 +6,10 @@
 // role, and a screen that renders a button nobody can press only teaches people that
 // the product is broken.
 import { fail, redirect } from '@sveltejs/kit';
+import { and, count, eq, ilike, isNull, or, type SQL } from 'drizzle-orm';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
+import { db, schema } from '$lib/server/db';
 import { createTour, listTours } from '$lib/server/tours';
 import { toAppError } from '$lib/server/errors';
 import { paginationFrom } from '$lib/server/http';
@@ -32,6 +34,27 @@ const FILTERS: Record<string, Tour['status'][]> = {
 	ARCHIVED: ['ARCHIVED']
 };
 
+/**
+ * How many listings sit in each status.
+ *
+ * One grouped count rather than eight calls to listTours, which would each also fetch
+ * a page of rows nobody renders. The title/slug match is the same one listTours runs,
+ * repeated here rather than exported because the numbers have to move with the table:
+ * a chip reading "Draft 6" above four rows is the page contradicting itself.
+ */
+async function countByStatus(tenantId: string, search: string | undefined): Promise<Map<string, number>> {
+	const conditions: SQL[] = [eq(schema.tours.tenantId, tenantId), isNull(schema.tours.deletedAt)];
+	if (search) {
+		conditions.push(or(ilike(schema.tours.title, `%${search}%`), ilike(schema.tours.slug, `%${search}%`)) as SQL);
+	}
+	const rows = await db()
+		.select({ status: schema.tours.status, value: count() })
+		.from(schema.tours)
+		.where(and(...conditions))
+		.groupBy(schema.tours.status);
+	return new Map(rows.map((r) => [r.status as string, Number(r.value)]));
+}
+
 export const load: PageServerLoad = async ({ locals, url }) => {
 	requireTenantPermission(locals, 'tours:read');
 	const tenantId = requireTenant(locals).id;
@@ -43,15 +66,26 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const status = requested in FILTERS ? requested : '';
 
 	// listTours already falls back to pagination.q, so the search box is just `q`.
-	const { items, total } = await listTours(tenantId, pagination, {
-		status: status ? FILTERS[status] : undefined
-	});
+	const [{ items, total }, byStatus] = await Promise.all([
+		listTours(tenantId, pagination, { status: status ? FILTERS[status] : undefined }),
+		countByStatus(tenantId, pagination.q)
+	]);
+
+	// A number per chip, so "how much of my work is waiting on the marketplace team"
+	// is answered before anything is clicked. Every status the table can hold belongs
+	// to exactly one filter, so summing the filters is also the count for "All".
+	const counts: Record<string, number> = { '': 0 };
+	for (const [key, statuses] of Object.entries(FILTERS)) {
+		counts[key] = statuses.reduce((n, s) => n + (byStatus.get(s) ?? 0), 0);
+		counts[''] += counts[key];
+	}
 
 	return {
 		items,
 		total,
 		pagination,
 		status,
+		counts,
 		filters: Object.keys(FILTERS),
 		canWrite: locals.permissions.includes('tours:write')
 	};
