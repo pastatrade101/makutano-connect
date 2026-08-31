@@ -236,11 +236,15 @@ suite('marketplace taxonomy', () => {
 	 * somebody changing a migration to CASCADE — and that is exactly what this
 	 * catches, without being able to jam the run.
 	 */
-	const deleteRuleFor = async (constraint: string): Promise<string> => {
+	const deleteRuleFor = async (table: string, column: string): Promise<string> => {
 		const rows = (await db().execute(sqlTag`
 			select rc.delete_rule
 			from information_schema.referential_constraints rc
-			where rc.constraint_name = ${constraint}
+			join information_schema.key_column_usage k
+			  on k.constraint_name = rc.constraint_name
+			 and k.constraint_schema = rc.constraint_schema
+			where k.table_name = ${table} and k.column_name = ${column}
+			limit 1
 		`)) as unknown as Array<{ delete_rule: string }>;
 		return rows[0]?.delete_rule ?? 'MISSING';
 	};
@@ -256,8 +260,8 @@ suite('marketplace taxonomy', () => {
 			.from(schema.tourCategoryLinks)
 			.where(eq(schema.tourCategoryLinks.tourId, tour.id));
 		expect(links.map((l) => l.id)).toContain(ownCategoryId);
-		expect(await deleteRuleFor('tours_primary_category_id_fkey')).toBe('RESTRICT');
-		expect(await deleteRuleFor('tour_category_links_category_id_fkey')).toBe('RESTRICT');
+		expect(await deleteRuleFor('tours', 'primary_category_id')).toBe('RESTRICT');
+		expect(await deleteRuleFor('tour_category_links', 'category_id')).toBe('RESTRICT');
 	});
 
 	it('will not let a travel style be deleted out from under the listings tagged with it', async () => {
@@ -269,6 +273,6 @@ suite('marketplace taxonomy', () => {
 			.from(schema.tourTravelStyles)
 			.where(eq(schema.tourTravelStyles.tourId, tour.id));
 		expect(links.map((l) => l.id)).toContain(ownStyleId);
-		expect(await deleteRuleFor('tour_travel_styles_travel_style_id_fkey')).toBe('RESTRICT');
+		expect(await deleteRuleFor('tour_travel_styles', 'travel_style_id')).toBe('RESTRICT');
 	});
 });

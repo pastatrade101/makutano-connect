@@ -124,11 +124,42 @@ suite('marketplace geography integrity', () => {
 
 	/* ---- what deletion must NOT do -------------------------------------- */
 
+	/**
+	 * The delete rule for a foreign key, found by the COLUMN it hangs off rather
+	 * than by constraint name — drizzle generates those names, and a test that
+	 * hardcodes them fails the day one is regenerated.
+	 *
+	 * Read rather than provoked. A DELETE attempt on the Tanzania row takes an
+	 * exclusive lock on it while every other suite's tour insert holds a KEY
+	 * SHARE on the same row for its own foreign key, so under parallel execution
+	 * neither side moves: it does not fail, it queues, and it took the vendor-api
+	 * suite down with it for two minutes at a time.
+	 *
+	 * Postgres does not need us to prove it enforces its own constraints. What
+	 * can regress is a migration being changed to CASCADE, and this catches that.
+	 */
+	const deleteRuleFor = async (table: string, column: string): Promise<string> => {
+		const { sql } = await import('drizzle-orm');
+		const rows = (await db().execute(sql`
+			select rc.delete_rule
+			from information_schema.referential_constraints rc
+			join information_schema.key_column_usage k
+			  on k.constraint_name = rc.constraint_name
+			 and k.constraint_schema = rc.constraint_schema
+			where k.table_name = ${table} and k.column_name = ${column}
+			limit 1
+		`)) as unknown as Array<{ delete_rule: string }>;
+		return rows[0]?.delete_rule ?? 'MISSING';
+	};
+
 	it('refuses to delete a country that still has destinations', async () => {
 		const tanzania = await country('tanzania');
-		await expect(
-			db().delete(schema.countries).where(eq(schema.countries.id, tanzania.id))
-		).rejects.toThrow();
+		const kids = await db()
+			.select({ id: schema.destinations.id })
+			.from(schema.destinations)
+			.where(eq(schema.destinations.countryId, tanzania.id));
+		expect(kids.length).toBeGreaterThan(0);
+		expect(await deleteRuleFor('destinations', 'country_id')).toBe('RESTRICT');
 	});
 
 	it('refuses to delete a destination a tour still visits', async () => {
@@ -151,9 +182,7 @@ suite('marketplace geography integrity', () => {
 
 		// RESTRICT, not cascade: removing a place must never silently delete the
 		// listings that sell it. Retire it with status instead.
-		await expect(
-			db().delete(schema.destinations).where(eq(schema.destinations.id, serengeti.id))
-		).rejects.toThrow();
+		expect(await deleteRuleFor('tour_destinations', 'destination_id')).toBe('RESTRICT');
 
 		// Cleaning up the tour DOES release the link — the protection is on the
 		// destination, not on the join row.
