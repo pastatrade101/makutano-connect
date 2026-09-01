@@ -331,10 +331,14 @@ export async function deleteMedia(id: string, scope: MediaScope): Promise<void> 
 	const [row] = await db()
 		.delete(schema.media)
 		.where(and(eq(schema.media.id, mediaId), owned))
-		.returning({ objectKey: schema.media.objectKey });
+		.returning({ objectKey: schema.media.objectKey, storageProvider: schema.media.storageProvider });
 	if (!row) throw new AppError('NOT_FOUND', 'That image could not be found.');
 
-	await deleteObject(row.objectKey);
+	// Only bytes we hold get deleted. A row can point at a file on somebody
+	// else's storage — imported demo listings do — and firing a DeleteObject at
+	// our own bucket with a foreign key deletes nothing while logging a failure
+	// that reads like a real one.
+	if (row.storageProvider === 'R2') await deleteObject(row.objectKey);
 }
 
 /** The only fields of a media row that may leave the server. */

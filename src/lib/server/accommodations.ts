@@ -6,7 +6,7 @@
 // the tour through the tenant first, because a link is a tenant's data even when
 // the thing it points at is not.
 import { and, asc, eq, ilike, inArray, isNull, sql, type SQL } from 'drizzle-orm';
-import { db, schema } from './db';
+import { db, schema, txDb } from './db';
 import { accommodationLevelLabel, lodgeTypeLabel, normaliseBestFor } from '../tour-options';
 import { AppError } from './errors';
 import type { Pagination } from './http';
@@ -423,7 +423,9 @@ export async function setTourAccommodations(tourId: string, entries: TourStayInp
 		}
 	}
 
-	await db().transaction(async (tx) => {
+	// txDb, never db: a transaction over the 6543 pooler leaves the pool
+	// permanently broken, and every other transaction in the app already knows it.
+	await txDb().transaction(async (tx) => {
 		await tx.delete(schema.tourAccommodations).where(eq(schema.tourAccommodations.tourId, tourId));
 		if (rows.length) await tx.insert(schema.tourAccommodations).values(rows);
 	});
