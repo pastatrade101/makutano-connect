@@ -219,6 +219,43 @@ suite('marketplace public reads', () => {
 		expect(Array.isArray(detail!.tour.styles)).toBe(true);
 	});
 
+	/*
+	 * Filtering by travel style is done through `tour_travel_styles` and never
+	 * against `tours.travel_style`, the legacy text column.
+	 *
+	 * The public endpoint used to pass the same slug to BOTH — `styleSlug` and
+	 * `travelStyle` — and the two conditions are ANDed. Every tour the composer
+	 * creates is tagged through the join table and leaves the text column null,
+	 * so `?style=adventure` returned nothing at all while `?category=safari`
+	 * worked. The tour was reachable from its own style PAGE and invisible to
+	 * the filter, which is the sort of gap nobody reports as a bug — they just
+	 * conclude the marketplace has no adventure trips.
+	 */
+	it('finds a tour by a travel style tagged through the join table', async () => {
+		const tour = await buildTour('PUBLISHED');
+		const [style] = await db().select().from(schema.travelStyles).limit(1);
+		expect(style, 'the seed should provide at least one travel style').toBeTruthy();
+
+		await db()
+			.insert(schema.tourTravelStyles)
+			.values({ tourId: tour.id, travelStyleId: style.id })
+			.onConflictDoNothing();
+
+		// Exactly what the public endpoint asks for.
+		const { items } = await MP.listPublishedTours({ page: 1, limit: 50 } as never, {
+			styleSlug: style.slug
+		} as never);
+		expect(items.map((t) => t.slug), 'the join table decides').toContain(tour.slug);
+
+		// And the legacy column is genuinely empty, so it cannot be what matched.
+		const [row] = await db()
+			.select({ travelStyle: schema.tours.travelStyle })
+			.from(schema.tours)
+			.where(eq(schema.tours.id, tour.id))
+			.limit(1);
+		expect(row.travelStyle).toBeNull();
+	});
+
 	/* ---- derived data ----------------------------------------------------- */
 
 	it('derives the route from the itinerary, collapsing consecutive repeats', async () => {

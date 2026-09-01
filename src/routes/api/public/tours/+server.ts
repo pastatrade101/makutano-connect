@@ -42,8 +42,18 @@ export const GET: RequestHandler = async (event) =>
 			countrySlug: f.country,
 			destinationSlug: f.destination,
 			categorySlug: f.category,
+			/*
+			 * The join table, and ONLY the join table.
+			 *
+			 * `travelStyle` was passed the same value, and it filters the legacy
+			 * `tours.travel_style` TEXT column. The two conditions are ANDed, so a
+			 * tour tagged through `tour_travel_styles` — every tour the composer
+			 * creates — was excluded by a text column it never fills in.
+			 * ?style=adventure returned nothing while ?category=safari worked.
+			 *
+			 * No live tour sets the text column; three rows use the join table.
+			 */
 			styleSlug: f.style,
-			travelStyle: f.style,
 			groupType: f.group,
 			minDays: f.minDays,
 			maxDays: f.maxDays,
