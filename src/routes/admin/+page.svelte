@@ -33,6 +33,57 @@
 <div class="space-y-4">
 	<h1 class="text-base font-semibold text-slate-800">System health</h1>
 
+	<!--
+		The marketplace leads, because the marketplace is the product.
+
+		Everything below this block describes a multi-tenant SaaS — tenants,
+		messages, orders, forms, templates — and none of it answers the two
+		questions this page is actually opened to ask: what is waiting on me, and
+		how much of the marketplace is really live.
+	-->
+	<div>
+		<p class="pb-1.5 text-[11.5px] font-bold uppercase tracking-widest text-slate-400">Marketplace</p>
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+			<StatTile
+				label="Awaiting review"
+				value={c.tours_awaiting_review}
+				hint={c.tours_awaiting_review ? 'needs a decision' : 'nothing waiting'}
+				tone={c.tours_awaiting_review ? 'warn' : 'default'}
+				href="/admin/marketplace/tours"
+			/>
+			<StatTile
+				label="Published tours"
+				value={c.tours_published}
+				hint="{c.tours_draft} draft"
+				href="/admin/marketplace/tours"
+			/>
+			<StatTile
+				label="Changes requested"
+				value={c.tours_changes_requested}
+				hint="back with the operator"
+				href="/admin/marketplace/tours"
+			/>
+			<StatTile
+				label="Operators"
+				value={c.operators}
+				hint="{c.operators_verified} verified"
+				tone={c.operators && !c.operators_verified ? 'warn' : 'default'}
+				href="/admin/tenants"
+			/>
+			<StatTile
+				label="Destinations"
+				value={c.destinations_published}
+				hint="{c.destinations_with_tours} with a tour"
+			/>
+			<StatTile
+				label="Enquiries"
+				value={c.marketplace_enquiries}
+				hint="{c.marketplace_enquiries_7d} in 7 days"
+				tone={c.marketplace_enquiries ? 'good' : 'default'}
+			/>
+		</div>
+	</div>
+
 	<!-- Platform -->
 	<div>
 		<p class="pb-1.5 text-[11.5px] font-bold uppercase tracking-widest text-slate-400">Platform</p>

@@ -11,11 +11,20 @@
 
 	const NAV = [
 		{ href: '/admin', label: 'System health', icon: 'M3 10h4l2-5 3 10 2-5h3' },
-		{ href: '/admin/tenants', label: 'Tenants', icon: 'M3 17V7l4-3 4 3v10M11 17V9l3-2 3 2v8M3 17h14' },
+		/*
+		 * The marketplace first, and "Operators" rather than "Tenants".
+		 *
+		 * Connect is one product for the tour industry now. A tenant IS a tour
+		 * operator, so the generic multi-tenant word was making an admin translate
+		 * on every visit. The route is unchanged — only what it is called, and the
+		 * order the work actually happens in: review listings, then the operators
+		 * behind them, then the taxonomy they are filed under.
+		 */
+		{ href: '/admin/marketplace/tours', label: 'Tour listings', icon: 'M3 15l4.5-6 3 4 2.5-3L17 15M3 5h14v10H3z' },
+		{ href: '/admin/tenants', label: 'Operators', icon: 'M3 17V7l4-3 4 3v10M11 17V9l3-2 3 2v8M3 17h14' },
+		{ href: '/admin/marketplace/taxonomy', label: 'Categories & styles', icon: 'M4 5h12M4 10h12M4 15h7' },
 		{ href: '/admin/plans', label: 'Plans & entitlements', icon: 'M3 6h14M3 10h14M3 14h9' },
 		{ href: '/admin/usage', label: 'Usage & subscriptions', icon: 'M4 16V9m4 7V5m4 11v-4m4 4V8' },
-		{ href: '/admin/marketplace/tours', label: 'Tour listings', icon: 'M3 15l4.5-6 3 4 2.5-3L17 15M3 5h14v10H3z' },
-		{ href: '/admin/marketplace/taxonomy', label: 'Categories & styles', icon: 'M4 5h12M4 10h12M4 15h7' },
 		{ href: '/admin/whatsapp', label: 'WhatsApp connections', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z' },
 		{ href: '/admin/errors', label: 'Delivery & payment errors', icon: 'M10 7v4m0 3h.01M4.2 17h11.6a1.5 1.5 0 0 0 1.3-2.2L11.3 4a1.5 1.5 0 0 0-2.6 0L2.9 14.8A1.5 1.5 0 0 0 4.2 17Z' },
 		{ href: '/admin/audit', label: 'Audit logs', icon: 'M6 3h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm2 4h4M8 10h4m-4 3h2' }

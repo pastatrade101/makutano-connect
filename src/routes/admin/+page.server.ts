@@ -27,7 +27,29 @@ export const load: PageServerLoad = async () => {
 			(select count(*) from jobs where status = 'PENDING')::int as jobs_pending,
 			(select count(*) from jobs where status = 'DEAD')::int as jobs_dead,
 			(select count(*) from webhook_deliveries where status = 'DEAD')::int as webhooks_dead,
-			(select count(*) from payments where status = 'FAILED')::int as payments_failed
+			(select count(*) from payments where status = 'FAILED')::int as payments_failed,
+
+			/*
+			 * The marketplace, which is what this product now IS.
+			 *
+			 * The counts above describe a multi-tenant SaaS: tenants, messages,
+			 * orders, forms. None of them answer the two questions a marketplace
+			 * operator opens this page to ask — what is waiting on me, and how much
+			 * inventory is actually live.
+			 */
+			(select count(*) from tours where status in ('SUBMITTED','IN_REVIEW') and deleted_at is null)::int as tours_awaiting_review,
+			(select count(*) from tours where status = 'PUBLISHED' and deleted_at is null)::int as tours_published,
+			(select count(*) from tours where status = 'DRAFT' and deleted_at is null)::int as tours_draft,
+			(select count(*) from tours where status = 'CHANGES_REQUESTED' and deleted_at is null)::int as tours_changes_requested,
+			(select count(*) from operator_profiles where is_active)::int as operators,
+			(select count(*) from operator_profiles where is_active and is_verified)::int as operators_verified,
+			(select count(*) from destinations where status = 'PUBLISHED')::int as destinations_published,
+			(select count(*) from destinations d where d.status = 'PUBLISHED'
+			   and exists (select 1 from tour_destinations td join tours t on t.id = td.tour_id
+			               where td.destination_id = d.id and t.status = 'PUBLISHED' and t.deleted_at is null)
+			)::int as destinations_with_tours,
+			(select count(*) from booking_requests where source = 'MARKETPLACE')::int as marketplace_enquiries,
+			(select count(*) from booking_requests where source = 'MARKETPLACE' and created_at > now() - interval '7 days')::int as marketplace_enquiries_7d
 	`)) as unknown as Array<Record<string, number>>;
 
 	const activity = (await db().execute(sql`
