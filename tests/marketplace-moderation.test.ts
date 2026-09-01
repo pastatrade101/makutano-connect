@@ -34,7 +34,10 @@ const LEGAL: Record<Action, { from: Status[]; to: Status; platform: boolean }> =
 	start_review:    { from: ['SUBMITTED'], to: 'IN_REVIEW', platform: true },
 	approve:         { from: ['SUBMITTED', 'IN_REVIEW'], to: 'APPROVED', platform: true },
 	request_changes: { from: ['SUBMITTED', 'IN_REVIEW'], to: 'CHANGES_REQUESTED', platform: true },
-	publish:         { from: ['APPROVED'], to: 'PUBLISHED', platform: true },
+	// UNPUBLISHED as well as APPROVED: a listing pulled from the marketplace has to
+	// be something the platform can put back, or the admin who took it down has to
+	// ask the operator to resubmit for a whole review round.
+	publish:         { from: ['APPROVED', 'UNPUBLISHED'], to: 'PUBLISHED', platform: true },
 	unpublish:       { from: ['PUBLISHED'], to: 'UNPUBLISHED', platform: false },
 	archive:         { from: ['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'UNPUBLISHED'], to: 'ARCHIVED', platform: false },
 	restore:         { from: ['ARCHIVED'], to: 'DRAFT', platform: false }

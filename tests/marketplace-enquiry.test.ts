@@ -143,6 +143,163 @@ suite('marketplace enquiry ownership', () => {
 		expect(rows, 'nothing may be injected into another operator’s inbox').toHaveLength(0);
 	});
 
+	/* ---- enquiries from an operator storefront ------------------------------ */
+
+	/*
+	 * "Plan my trip" from a profile page. There is no tour yet — the traveller
+	 * likes the operator — so the OPERATOR SLUG has to decide the owner, under
+	 * exactly the rules the tour path uses.
+	 */
+	it('routes an operator enquiry to that operator’s tenant, with no tour attached', async () => {
+		const [profile] = await db()
+			.select()
+			.from(schema.operatorProfiles)
+			.where(eq(schema.operatorProfiles.tenantId, tenantA))
+			.limit(1);
+		expect(profile, 'the tour fixture should have created a profile').toBeTruthy();
+
+		const { status, body } = await post(
+			{ operator: profile.slug, firstName: 'Grace', email: 'grace@example.com', adults: 2 },
+			'203.0.113.31'
+		);
+		expect(status).toBe(200);
+
+		const row = await rowFor(body.data.reference as string);
+		expect(row.tenantId).toBe(tenantA);
+		expect(row.source).toBe('MARKETPLACE');
+		expect(row.tourId, 'there is no tour in an operator enquiry').toBeNull();
+	});
+
+	it('ignores a tenantId supplied alongside an operator slug', async () => {
+		const [profile] = await db()
+			.select()
+			.from(schema.operatorProfiles)
+			.where(eq(schema.operatorProfiles.tenantId, tenantA))
+			.limit(1);
+
+		const { status, body } = await post(
+			{
+				operator: profile.slug,
+				tenantId: tenantB, // the forgery
+				tenant_id: tenantB,
+				firstName: 'Mallory',
+				email: 'mallory2@example.com'
+			},
+			'203.0.113.32'
+		);
+		expect(status).toBe(200);
+		const row = await rowFor(body.data.reference as string);
+		expect(row.tenantId, 'the OPERATOR decides the owner, not the caller').toBe(tenantA);
+	});
+
+	it('refuses an enquiry to an operator that has been deactivated', async () => {
+		const [profile] = await db()
+			.select()
+			.from(schema.operatorProfiles)
+			.where(eq(schema.operatorProfiles.tenantId, tenantA))
+			.limit(1);
+		await db()
+			.update(schema.operatorProfiles)
+			.set({ isActive: false })
+			.where(eq(schema.operatorProfiles.id, profile.id));
+
+		const { status } = await post(
+			{ operator: profile.slug, firstName: 'Eve', email: 'eve2@example.com' },
+			'203.0.113.33'
+		);
+		expect(status, 'unlisting an operator has to stop the leads too').toBe(404);
+
+		await db()
+			.update(schema.operatorProfiles)
+			.set({ isActive: true })
+			.where(eq(schema.operatorProfiles.id, profile.id));
+	});
+
+	/*
+	 * Found in production, not in review: the first version of this rule demanded
+	 * `tenants.status = 'ACTIVE'`, and the live operator was on a free trial —
+	 * status 'TRIAL'. Every enquiry to them was answered "no longer available".
+	 * The operator most in need of their first lead was the one guaranteed not to
+	 * get it.
+	 */
+	it.each(['TRIAL', 'PENDING', 'ACTIVE'])('still delivers to a %s tenant', async (status) => {
+		const [profile] = await db()
+			.select()
+			.from(schema.operatorProfiles)
+			.where(eq(schema.operatorProfiles.tenantId, tenantA))
+			.limit(1);
+		await db()
+			.update(schema.tenants)
+			.set({ status: status as 'ACTIVE' })
+			.where(eq(schema.tenants.id, tenantA));
+
+		const { status: code } = await post(
+			{ operator: profile.slug, firstName: 'Trial', email: `trial-${status}@example.com` },
+			`203.0.113.4${status.length}`
+		);
+		expect(code, `a ${status} operator is a real operator`).toBe(200);
+
+		await db().update(schema.tenants).set({ status: 'ACTIVE' }).where(eq(schema.tenants.id, tenantA));
+	});
+
+	it.each(['SUSPENDED', 'CANCELLED'])('refuses delivery to a %s tenant', async (status) => {
+		const [profile] = await db()
+			.select()
+			.from(schema.operatorProfiles)
+			.where(eq(schema.operatorProfiles.tenantId, tenantA))
+			.limit(1);
+		await db()
+			.update(schema.tenants)
+			.set({ status: status as 'SUSPENDED' })
+			.where(eq(schema.tenants.id, tenantA));
+
+		const { status: code } = await post(
+			{ operator: profile.slug, firstName: 'Nope', email: `nope-${status}@example.com` },
+			`203.0.113.5${status.length}`
+		);
+		expect(code).toBe(404);
+
+		await db().update(schema.tenants).set({ status: 'ACTIVE' }).where(eq(schema.tenants.id, tenantA));
+	});
+
+	it('refuses an enquiry naming an operator that does not exist', async () => {
+		const { status } = await post(
+			{ operator: 'no-such-operator-anywhere', firstName: 'Eve', email: 'eve3@example.com' },
+			'203.0.113.34'
+		);
+		expect(status).toBe(404);
+	});
+
+	it('insists on naming either a tour or an operator', async () => {
+		const { status } = await post({ firstName: 'Eve', email: 'eve4@example.com' }, '203.0.113.35');
+		// 422 is what this API returns for a VALIDATION_ERROR; see "insists on a
+		// way to reply" below.
+		expect(status).toBe(422);
+	});
+
+	it('prefers the tour when both are sent', async () => {
+		const [otherProfile] = await db()
+			.select()
+			.from(schema.operatorProfiles)
+			.where(eq(schema.operatorProfiles.tenantId, tenantB))
+			.limit(1);
+		// Only meaningful if tenant B actually has a profile to point at.
+		if (!otherProfile) return;
+
+		const { status, body } = await post(
+			{
+				tour: publishedSlug,
+				operator: otherProfile.slug,
+				firstName: 'Ada',
+				email: 'ada2@example.com'
+			},
+			'203.0.113.36'
+		);
+		expect(status).toBe(200);
+		const row = await rowFor(body.data.reference as string);
+		expect(row.tenantId, 'the tour is the more specific of the two').toBe(tenantA);
+	});
+
 	/* ---- unavailable listings ---------------------------------------------- */
 
 	it('refuses an enquiry against a draft listing', async () => {

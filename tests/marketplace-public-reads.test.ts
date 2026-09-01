@@ -189,6 +189,36 @@ suite('marketplace public reads', () => {
 		}
 	});
 
+	/*
+	 * The marketplace renders BOTH payloads from hand-written copies of these
+	 * types in a different repository, and nothing type-checks the two against
+	 * each other. Twice now a field the marketplace read has been missing from
+	 * the projection, and both times the page 500ed on `undefined.map` — once for
+	 * every listing page, the moment the first tour was published.
+	 *
+	 * These two tests are the guard rail: they assert the SHAPE the marketplace
+	 * relies on, so the drift fails here instead of on a public page.
+	 */
+	it('gives a tour card every discovery axis the marketplace renders', async () => {
+		const tour = await buildTour('PUBLISHED');
+		const { items } = await MP.listPublishedTours({ page: 1, limit: 20 } as never);
+		const card = items.find((c) => c.slug === tour.slug);
+		expect(card, 'the published tour should be listed').toBeTruthy();
+
+		// Arrays, never undefined: the card maps over all three without guarding.
+		expect(Array.isArray(card!.destinations)).toBe(true);
+		expect(Array.isArray(card!.styles)).toBe(true);
+		expect(card!).toHaveProperty('category');
+	});
+
+	it('gives the tour detail its category and travel styles', async () => {
+		const tour = await buildTour('PUBLISHED');
+		const detail = await MP.getPublishedTourBySlug(tour.slug);
+		expect(detail).toBeTruthy();
+		expect(detail!.tour).toHaveProperty('category');
+		expect(Array.isArray(detail!.tour.styles)).toBe(true);
+	});
+
 	/* ---- derived data ----------------------------------------------------- */
 
 	it('derives the route from the itinerary, collapsing consecutive repeats', async () => {

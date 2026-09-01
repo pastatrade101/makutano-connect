@@ -11,7 +11,7 @@
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { createBookingRequest } from '$lib/server/booking-requests';
-import { resolveTourOwner } from '$lib/server/marketplace';
+import { resolveOperatorOwner, resolveTourOwner } from '$lib/server/marketplace';
 import { AppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
 import { handlePublic, preflight, publicJson } from '$lib/server/public-api';
@@ -40,8 +40,16 @@ const attributionSchema = z
 	.strip();
 
 const bodySchema = z.object({
-	// The ONLY thing that decides ownership.
-	tour: z.string().trim().min(1).max(200),
+	/*
+	 * One of these two decides ownership, and nothing else does.
+	 *
+	 * `tour` is an enquiry about a specific listing. `operator` is an enquiry
+	 * from a storefront — "help me plan something" — where there is no tour yet.
+	 * Both are PUBLIC slugs, and both are resolved server-side; neither is a
+	 * tenant id, and the schema still has no field that could carry one.
+	 */
+	tour: z.string().trim().min(1).max(200).optional(),
+	operator: z.string().trim().min(1).max(200).optional(),
 
 	firstName: z.string().trim().min(1).max(120),
 	lastName: z.string().trim().max(120).optional(),
@@ -85,14 +93,35 @@ export const POST: RequestHandler = async (event) =>
 		 * OWNERSHIP. Note what is NOT read here: the body's tenantId, or any header
 		 * claiming one. `bodySchema` does not even define such a field, so a
 		 * malicious `{"tenantId": "..."}` is dropped by the parse before this line
-		 * runs. The tour resolves the tenant, and resolveTourOwner only answers for
-		 * a PUBLISHED, non-deleted listing — so an enquiry cannot be attached to a
-		 * draft, an archived listing, or a tour that does not exist.
+		 * runs.
+		 *
+		 * A tour resolves the tenant, and resolveTourOwner only answers for a
+		 * PUBLISHED, non-deleted listing — so an enquiry cannot be attached to a
+		 * draft, an archived listing, or a tour that does not exist. An operator
+		 * slug resolves it the same way, and only for an ACTIVE profile on an
+		 * active tenant.
+		 *
+		 * The tour wins when both are sent: it is the more specific of the two,
+		 * and it already carries the operator with it.
 		 */
-		const owner = await resolveTourOwner(body.tour);
-		if (!owner) throw new AppError('NOT_FOUND', 'That tour is no longer available.');
+		if (!body.tour && !body.operator) {
+			throw new AppError('VALIDATION_ERROR', 'Tell us which trip or operator this is about.');
+		}
 
-		const { request } = await createBookingRequest(owner.tenantId, {
+		let tenantId: string;
+		let tourId: string | null = null;
+		if (body.tour) {
+			const owner = await resolveTourOwner(body.tour);
+			if (!owner) throw new AppError('NOT_FOUND', 'That tour is no longer available.');
+			tenantId = owner.tenantId;
+			tourId = owner.tourId;
+		} else {
+			const owner = await resolveOperatorOwner(body.operator!);
+			if (!owner) throw new AppError('NOT_FOUND', 'That operator is no longer available.');
+			tenantId = owner.tenantId;
+		}
+
+		const { request } = await createBookingRequest(tenantId, {
 			customer: {
 				firstName: body.firstName,
 				lastName: body.lastName ?? '',
@@ -102,7 +131,7 @@ export const POST: RequestHandler = async (event) =>
 				country: body.country ?? null
 			},
 			source: 'MARKETPLACE',
-			tourId: owner.tourId,
+			tourId,
 			startDate: body.startDate ?? null,
 			endDate: body.endDate ?? null,
 			adults: body.adults,
@@ -115,7 +144,7 @@ export const POST: RequestHandler = async (event) =>
 
 		// Deliberately no tenant id, no tour id, no customer id, no internal status.
 		// A reference is all the traveller needs, and all they should be given.
-		log.info('marketplace_enquiry_created', { reference: request.reference, tourId: owner.tourId });
+		log.info('marketplace_enquiry_created', { reference: request.reference, tourId });
 
 		return publicJson(
 			{

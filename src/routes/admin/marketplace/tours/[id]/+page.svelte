@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { groupTypeLabel } from '$lib/tour-options';
 	// Everything a reviewer needs in one page, in the order they judge it: who is asking,
 	// what is missing, what the traveller would see, and only then the buttons.
 	import FormToast from '$components/FormToast.svelte';
@@ -89,7 +90,11 @@
 			{/if}
 			{#if can('publish')}
 				<form method="POST" action="?/publish" use:enhance>
-					<button class="btn-primary">Publish to the marketplace</button>
+					<!-- Says which of the two it is: a first publication, or putting back
+					     something that was taken down. -->
+					<button class="btn-primary">
+						{t.status === 'UNPUBLISHED' ? 'Put it back on the marketplace' : 'Publish to the marketplace'}
+					</button>
 				</form>
 			{/if}
 			{#if can('unpublish')}
@@ -148,7 +153,7 @@
 				<dt class="text-slate-400">Last reviewed</dt>
 				<dd class="mt-0.5 font-medium text-slate-700">
 					{#if t.reviewedAt}
-						<TimeAgo value={t.reviewedAt} />{#if data.reviewer}<span class="text-slate-400"> by {data.reviewer}</span>{/if}
+						<TimeAgo value={t.reviewedAt} />{#if data.reviewer}<span class="ml-1 text-slate-400">by {data.reviewer}</span>{/if}
 					{:else}
 						<span class="text-slate-400">Not yet</span>
 					{/if}
@@ -229,10 +234,10 @@
 									<p class="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">{day.description}</p>
 								{/if}
 								<dl class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-slate-500">
-									{#if day.accommodation}<div><dt class="inline text-slate-400">Stay: </dt><dd class="inline">{day.accommodation}</dd></div>{/if}
-									{#if day.meals}<div><dt class="inline text-slate-400">Meals: </dt><dd class="inline">{day.meals}</dd></div>{/if}
-									{#if day.distance}<div><dt class="inline text-slate-400">Distance: </dt><dd class="inline">{day.distance}</dd></div>{/if}
-									{#if day.estimatedTravelTime}<div><dt class="inline text-slate-400">Travel: </dt><dd class="inline">{day.estimatedTravelTime}</dd></div>{/if}
+									{#if day.accommodation}<div><dt class="mr-1 inline text-slate-400">Stay:</dt><dd class="inline">{day.accommodation}</dd></div>{/if}
+									{#if day.meals}<div><dt class="mr-1 inline text-slate-400">Meals:</dt><dd class="inline">{day.meals}</dd></div>{/if}
+									{#if day.distance}<div><dt class="mr-1 inline text-slate-400">Distance:</dt><dd class="inline">{day.distance}</dd></div>{/if}
+									{#if day.estimatedTravelTime}<div><dt class="mr-1 inline text-slate-400">Travel:</dt><dd class="inline">{day.estimatedTravelTime}</dd></div>{/if}
 								</dl>
 								{#if day.activities.length}
 									<p class="mt-1 text-[11.5px] text-slate-500">{day.activities.join(' · ')}</p>
@@ -302,7 +307,7 @@
 					{#if t.groupType || groupSize}
 						<div>
 							<dt class="text-slate-400">Group</dt>
-							<dd class="mt-0.5 font-medium text-slate-700">{[t.groupType, groupSize].filter(Boolean).join(' · ')}</dd>
+							<dd class="mt-0.5 font-medium text-slate-700">{[groupTypeLabel(t.groupType), groupSize].filter(Boolean).join(' · ')}</dd>
 						</div>
 					{/if}
 					{#if t.ageRequirement}<div><dt class="text-slate-400">Ages</dt><dd class="mt-0.5 font-medium text-slate-700">{t.ageRequirement}</dd></div>{/if}

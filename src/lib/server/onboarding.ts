@@ -55,7 +55,7 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 	const entitlements = await effectiveEntitlements(tenantId);
 	const can = (key: string) => entitlements.resolved[key]?.effective !== false;
 
-	const [connections, members, templates, catalog, activity, integrations] = await Promise.all([
+	const [connections, members, templates, catalog, activity, integrations, listings] = await Promise.all([
 		db()
 			.select({ id: schema.whatsappConnections.id })
 			.from(schema.whatsappConnections)
@@ -65,7 +65,10 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 		count('whatsapp_templates', tenantId),
 		count('catalog_items', tenantId),
 		count('booking_requests', tenantId).then(async (n) => n + (await count('orders', tenantId))),
-		count('api_keys', tenantId).then(async (n) => n + (await count('webhook_endpoints', tenantId)))
+		count('api_keys', tenantId).then(async (n) => n + (await count('webhook_endpoints', tenantId))),
+		// A tour that has been SENT, not merely started. An empty draft is not a
+		// listing, and this file's rule is that nothing ticks without the work.
+		count('tours', tenantId, "and status in ('SUBMITTED','IN_REVIEW','APPROVED','PUBLISHED') and deleted_at is null")
 	]);
 
 	const settings = (tenant.settings ?? {}) as Record<string, unknown>;
@@ -84,6 +87,19 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 			done: !!(tenant.industry && tenant.businessPhone)
 		}
 	];
+
+	// Second, for a tour operator, because it is the thing they came to do. The
+	// marketplace's call to action is "List your tours" and the checklist used to
+	// talk about everything except that.
+	if (moduleRelevant(workspace, 'bookings')) {
+		items.push({
+			key: 'listing',
+			label: 'List your first tour',
+			description: 'Write it once; the Makutano team reviews it and puts it on the marketplace.',
+			href: '/app/tours',
+			done: listings > 0
+		});
+	}
 
 	if (can('whatsapp.enabled')) {
 		items.push({

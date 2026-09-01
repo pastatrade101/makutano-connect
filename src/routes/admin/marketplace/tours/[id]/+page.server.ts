@@ -29,7 +29,7 @@ const PLATFORM_ACTIONS = {
 	start_review: ['SUBMITTED'],
 	approve: ['SUBMITTED', 'IN_REVIEW'],
 	request_changes: ['SUBMITTED', 'IN_REVIEW'],
-	publish: ['APPROVED'],
+	publish: ['APPROVED', 'UNPUBLISHED'],
 	unpublish: ['PUBLISHED']
 } as const satisfies Record<string, readonly schema.Tour['status'][]>;
 

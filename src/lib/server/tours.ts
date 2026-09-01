@@ -14,6 +14,7 @@ import { db, schema, txDb } from './db';
 import { assertAllowed } from './entitlements';
 import { TRAVEL_MODES } from '$lib/server/db/schema';
 import { AppError } from './errors';
+import { CURRENCY_CODES, GROUP_TYPE_VALUES, isCurrency } from '$lib/tour-options';
 import type { Pagination } from './http';
 import { getTenantById } from './tenants';
 
@@ -289,8 +290,10 @@ async function tourValues(
 	}
 	if (input.currency !== undefined) {
 		const currency = input.currency?.trim().toUpperCase();
-		if (currency && !/^[A-Z]{3}$/.test(currency)) {
-			throw new AppError('VALIDATION_ERROR', 'Currency must be a three-letter code, e.g. USD.');
+		// A shape check let "ABC" through. The marketplace formats money with this
+		// code and filters on it, so it has to be a currency we actually support.
+		if (currency && !isCurrency(currency)) {
+			throw new AppError('VALIDATION_ERROR', `Currency must be one of ${CURRENCY_CODES.join(', ')}.`);
 		}
 		values.currency = currency || null;
 	}
@@ -316,7 +319,16 @@ async function tourValues(
 	values.shortDescription = text(input.shortDescription);
 	values.description = text(input.description);
 	values.travelStyle = text(input.travelStyle);
-	values.groupType = text(input.groupType);
+	if (input.groupType !== undefined) {
+		// Free text here became the marketplace's group filter, one option per
+		// spelling. A closed list keeps two operators describing the same trip
+		// on the same filter.
+		const groupType = input.groupType?.trim() || null;
+		if (groupType && !GROUP_TYPE_VALUES.includes(groupType)) {
+			throw new AppError('VALIDATION_ERROR', `Group type must be one of ${GROUP_TYPE_VALUES.join(', ')}.`);
+		}
+		values.groupType = groupType;
+	}
 	values.ageRequirement = text(input.ageRequirement);
 	values.accommodationSummary = text(input.accommodationSummary);
 	values.transportSummary = text(input.transportSummary);
@@ -1019,7 +1031,13 @@ const TRANSITIONS: Record<TourAction, TransitionRule> = {
 		platform: true,
 		audit: 'tour.rejected'
 	},
-	publish: { from: ['APPROVED'], to: 'PUBLISHED', platform: true, audit: 'tour.published' },
+	// UNPUBLISHED belongs here as well as APPROVED. Unpublishing is usually a pause —
+	// a mis-priced listing pulled while it is corrected — and without this the
+	// platform admin who took it down could not put it back: the only ways out of
+	// UNPUBLISHED were the operator's (resubmit for a full review round, or
+	// archive). It opens no review hole, because editing a listing never resets its
+	// status, so a PUBLISHED listing can already change under the same approval.
+	publish: { from: ['APPROVED', 'UNPUBLISHED'], to: 'PUBLISHED', platform: true, audit: 'tour.published' },
 	unpublish: { from: ['PUBLISHED'], to: 'UNPUBLISHED', platform: false, audit: 'tour.unpublished' },
 	archive: {
 		from: ['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'UNPUBLISHED'],

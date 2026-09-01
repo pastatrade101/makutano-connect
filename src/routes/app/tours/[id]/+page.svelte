@@ -19,6 +19,7 @@
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import { plural, statusLabel } from '$lib/labels';
+	import { CURRENCIES, GROUP_TYPES } from '$lib/tour-options';
 	import RoutePlanner from '$lib/geo/RoutePlanner.svelte';
 	import type { BasemapDoc, LngLat } from '$lib/geo/basemap';
 	import type { SubmitFunction } from '@sveltejs/kit';
@@ -312,9 +313,23 @@
 				await update({ reset: false });
 				// After the update, so a confirm strip closes on the render that already
 				// shows the result rather than a frame ahead of it.
-				if (ok) onSaved?.();
+				if (ok) {
+					onSaved?.();
+					// "Save and continue" is one gesture, so the step only moves once the
+					// save has actually landed. A failed save leaves the operator on the
+					// step that failed, looking at the message.
+					if (pendingAdvance) {
+						step = pendingAdvance;
+						pendingAdvance = null;
+					}
+				} else {
+					pendingAdvance = null;
+				}
 			};
 		};
+
+	/** Set by "Save and continue"; consumed by `track` when the save succeeds. */
+	let pendingAdvance = $state<StepKey | null>(null);
 
 	/** The upload form is the one here whose inputs are NOT bound to `draft` — the file
 	 *  and its alt text belong to the photo just sent, so it is cleared for the next one. */
@@ -349,6 +364,21 @@
 	 * comparing the raw arrays reported "Not saved yet: Basics" permanently,
 	 * immediately after a successful save. Compare what the server would store.
 	 */
+	/** The chosen group type's one-line explanation, so the list is self-explaining. */
+	/**
+	 * How many files are in the picker right now.
+	 *
+	 * Only so the form can say what it is about to do — one shared description
+	 * cannot honestly describe six different photographs, so the field switches
+	 * itself off rather than quietly attaching the wrong words to five of them.
+	 */
+	let pickedCount = $state(0);
+	const onPickPhotos = (e: Event) => {
+		pickedCount = (e.currentTarget as HTMLInputElement).files?.length ?? 0;
+	};
+
+	const groupTypeHint = $derived(GROUP_TYPES.find((g) => g.value === draft.groupType)?.hint ?? 'Who else is on the trip.');
+
 	const effectiveCategories = (s: { categoryIds: string[]; primaryCategoryId: string }) =>
 		s.primaryCategoryId && !s.categoryIds.includes(s.primaryCategoryId)
 			? [s.primaryCategoryId, ...s.categoryIds]
@@ -482,6 +512,54 @@
 	/* ----------------------------------------------------------- location ---- */
 
 	const byCountry = $derived(data.destinations.filter((d) => d.countryId === draft.primaryCountryId));
+
+	/*
+	 * The picker used to be one flat list of every published place — a hundred and
+	 * four checkboxes in which "Arusha", "Arusha National Park" and "Arusha Region"
+	 * sat next to each other, indistinguishable. Two things fix it: a filter box,
+	 * and headings that say what kind of place each group is.
+	 */
+	let destQuery = $state('');
+
+	/** Plural headings, in the order an operator thinks about a trip. */
+	const DEST_GROUPS: Array<{ type: string; heading: string }> = [
+		{ type: 'NATIONAL_PARK', heading: 'National parks' },
+		{ type: 'CONSERVATION_AREA', heading: 'Conservation areas' },
+		{ type: 'GAME_RESERVE', heading: 'Game reserves' },
+		{ type: 'MOUNTAIN', heading: 'Mountains' },
+		{ type: 'ISLAND', heading: 'Islands' },
+		{ type: 'BEACH', heading: 'Beaches' },
+		{ type: 'LAKE', heading: 'Lakes' },
+		{ type: 'MARINE_AREA', heading: 'Marine areas' },
+		{ type: 'FOREST', heading: 'Forests' },
+		{ type: 'CULTURAL_AREA', heading: 'Cultural areas' },
+		{ type: 'HERITAGE_SITE', heading: 'Heritage sites' },
+		{ type: 'CITY', heading: 'Cities and towns' },
+		{ type: 'OTHER', heading: 'Other places' },
+		// Last, and labelled for what it is. A region is administrative geography a
+		// tour does not "visit"; it exists so travellers can browse. Ticking one
+		// where a park was meant is the single easiest mistake to make here.
+		{ type: 'REGION', heading: 'Regions (administrative — usually not what you want)' }
+	];
+
+	const destMatches = $derived.by(() => {
+		const q = destQuery.trim().toLowerCase();
+		if (!q) return byCountry;
+		// A ticked place always stays visible: filtering something out of sight
+		// while it is still selected is how a selection gets lost.
+		return byCountry.filter(
+			(d) => d.name.toLowerCase().includes(q) || draft.destinationIds.includes(d.id)
+		);
+	});
+
+	const destGroups = $derived(
+		DEST_GROUPS.map((g) => ({
+			...g,
+			items: destMatches
+				.filter((d) => (d.destinationType ?? 'OTHER') === g.type)
+				.sort((a, b) => a.name.localeCompare(b.name))
+		})).filter((g) => g.items.length)
+	);
 	const destinationName = $derived(new Map(data.destinations.map((d) => [d.id, d.name])));
 
 	function chooseCountry(id: string) {
@@ -688,9 +766,18 @@
 			{bar.text}
 		</span>
 		{#if next}
-			<button type="button" class="btn-secondary ml-auto" onclick={() => (step = next.key)}>
-				Next: {next.label}
-			</button>
+			{#if unsaved[key]}
+				<!-- There is work in this step that has not reached the server. Advancing
+				     without saving is the move that loses it on a reload, so the one
+				     button does both, in that order. -->
+				<button class="btn-secondary ml-auto" onclick={() => (pendingAdvance = next.key)}>
+					Save and continue →
+				</button>
+			{:else}
+				<button type="button" class="btn-secondary ml-auto" onclick={() => (step = next.key)}>
+					Next: {next.label}
+				</button>
+			{/if}
 		{/if}
 	</div>
 {/snippet}
@@ -922,7 +1009,11 @@
 						</div>
 						<div>
 							<label class="label" for="t-group">Group type</label>
-							<input id="t-group" name="groupType" bind:value={draft.groupType} class="input" placeholder="Private, Small group, Family" />
+							<select id="t-group" name="groupType" bind:value={draft.groupType} class="input">
+								<option value="">Not set</option>
+								{#each GROUP_TYPES as g (g.value)}<option value={g.value}>{g.label}</option>{/each}
+							</select>
+							<p class="mt-1 text-xs text-slate-400">{groupTypeHint}</p>
 						</div>
 						<div>
 							<label class="label" for="t-min">Smallest group</label>
@@ -1092,26 +1183,50 @@
 							<fieldset>
 								<legend class="label">Places this tour visits</legend>
 								{#if byCountry.length}
-									<div class="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-										{#each byCountry as destination (destination.id)}
-											<label
-												class="flex cursor-pointer items-center gap-2 rounded-panel border px-3 py-2 text-sm transition {draft.destinationIds.includes(
-													destination.id
-												)
-													? 'border-brand-500 bg-brand-50 text-slate-700'
-													: 'border-slate-200 text-slate-600 hover:border-slate-300'}"
-											>
-												<input
-													type="checkbox"
-													name="destinationIds"
-													value={destination.id}
-													checked={draft.destinationIds.includes(destination.id)}
-													onchange={() => toggleDestination(destination.id)}
-												/>
-												<span class="min-w-0 truncate">{destination.name}</span>
-											</label>
-										{/each}
+									<div class="mb-3 flex flex-wrap items-center gap-2">
+										<input
+											type="search"
+											bind:value={destQuery}
+											class="input sm:max-w-xs"
+											placeholder="Find a place — Serengeti, Zanzibar…"
+											aria-label="Filter places"
+										/>
+										<span class="text-xs text-slate-400">
+											{draft.destinationIds.length} selected of {byCountry.length} places
+										</span>
 									</div>
+									{#each destGroups as group (group.type)}
+										<div class="mb-3">
+											<p class="mb-1.5 text-xs font-semibold tracking-wide text-slate-400 uppercase">
+												{group.heading}
+											</p>
+											<div class="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+												{#each group.items as destination (destination.id)}
+													<label
+														class="flex cursor-pointer items-center gap-2 rounded-panel border px-3 py-2 text-sm transition {draft.destinationIds.includes(
+															destination.id
+														)
+															? 'border-brand-500 bg-brand-50 text-slate-700'
+															: 'border-slate-200 text-slate-600 hover:border-slate-300'}"
+													>
+														<input
+															type="checkbox"
+															name="destinationIds"
+															value={destination.id}
+															checked={draft.destinationIds.includes(destination.id)}
+															onchange={() => toggleDestination(destination.id)}
+														/>
+														<span class="min-w-0 truncate">{destination.name}</span>
+													</label>
+												{/each}
+											</div>
+										</div>
+									{/each}
+									{#if !destGroups.length}
+										<p class="rounded-panel bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+											Nothing matches “{destQuery}”.
+										</p>
+									{/if}
 									{#if !draft.destinationIds.length}
 										<p class="mt-2 text-xs text-slate-400">
 											Nothing ticked yet. Tick every park, town or beach the tour actually stops at —
@@ -1303,7 +1418,10 @@
 						</div>
 						<div>
 							<label class="label" for="t-currency">Currency</label>
-							<input id="t-currency" name="currency" bind:value={draft.currency} class="input uppercase" maxlength="3" placeholder="USD" />
+							<select id="t-currency" name="currency" bind:value={draft.currency} class="input">
+								<option value="">Choose one</option>
+								{#each CURRENCIES as c (c.code)}<option value={c.code}>{c.code} · {c.label}</option>{/each}
+							</select>
 						</div>
 						<div>
 							<label class="label" for="t-pricing">What the price means</label>
@@ -1332,19 +1450,44 @@
 								action="?/uploadPhoto"
 								enctype="multipart/form-data"
 								use:enhance={trackUpload}
-								class="flex flex-wrap items-end gap-2 p-4"
+								class="grid gap-3 p-4 sm:grid-cols-2"
 							>
 								<label class="block">
-									<span class="label">Photo</span>
-									<input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/avif" class="input" />
+									<span class="label">Photos</span>
+									<input
+										type="file"
+										name="file"
+										multiple
+										accept="image/jpeg,image/png,image/webp,image/avif"
+										class="input"
+										onchange={onPickPhotos}
+									/>
+									<p class="mt-1 text-xs text-slate-400">Choose several at once — they are added in the order you pick them.</p>
 								</label>
-								<label class="block min-w-0 flex-1">
+								<label class="block">
 									<!-- Captured at upload: alt text belongs to the image, and there is no
 									     service call that rewrites it afterwards. Replace the photo to change it. -->
 									<span class="label">Describe it (for screen readers and search)</span>
-									<input name="altText" class="input w-full" placeholder="Elephants crossing the Tarangire river" />
+									<input
+										name="altText"
+										class="input w-full"
+										disabled={pickedCount > 1}
+										placeholder={pickedCount > 1
+											? 'Add descriptions one photo at a time'
+											: 'Elephants crossing the Tarangire river'}
+									/>
+									<p class="mt-1 text-xs text-slate-400">
+										{#if pickedCount > 1}
+											{pickedCount} photos selected — one description cannot describe them all.
+										{:else}
+											Say what is in the picture. It is read aloud, and search engines read it too.
+										{/if}
+									</p>
 								</label>
-								<button class="btn-primary" disabled={!data.canWrite}>Upload</button>
+								<div class="sm:col-span-2">
+								<button class="btn-primary" disabled={!data.canWrite}>
+									{pickedCount > 1 ? `Upload ${pickedCount} photos` : 'Upload'}
+								</button>
 								<span
 									class="text-xs {saved.upload === 'failed'
 										? 'font-semibold text-danger'
@@ -1360,6 +1503,7 @@
 												? 'Upload failed — nothing was stored'
 												: `JPEG, PNG, WebP or AVIF up to ${maxMb}MB.`}
 								</span>
+								</div>
 							</form>
 						{:else}
 							<p class="p-4 text-xs text-slate-500">

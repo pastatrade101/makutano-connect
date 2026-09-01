@@ -333,31 +333,50 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'tours:write');
 		const tenantId = requireTenant(locals).id;
 		const f = await request.formData();
-		const file = f.get('file');
-		if (!(file instanceof File) || !file.size) return fail(400, { message: 'Choose a photo to upload.' });
-		if (file.size > MAX_BYTES) {
-			return fail(400, { message: `Photos must be smaller than ${Math.round(MAX_BYTES / 1024 / 1024)}MB.` });
+		// Operators upload a shoot, not a photograph. One file at a time meant
+		// picking, typing, waiting and scrolling back, six times over.
+		const files = f.getAll('file').filter((v): v is File => v instanceof File && v.size > 0);
+		if (!files.length) return fail(400, { message: 'Choose a photo to upload.' });
+		const tooBig = files.find((file) => file.size > MAX_BYTES);
+		if (tooBig) {
+			return fail(400, {
+				message: `${tooBig.name} is larger than ${Math.round(MAX_BYTES / 1024 / 1024)}MB.`
+			});
 		}
 
 		try {
 			// Ownership first: bytes must not reach the bucket before we know this
 			// listing belongs to the tenant whose folder they would be written into.
 			const detail = await getTourDetail(tenantId, params.id);
-			const media = await uploadMedia(
-				{ kind: 'tour-gallery', tenantId, tourId: params.id },
-				new Uint8Array(await file.arrayBuffer()),
-				file.type,
-				{ altText: text(f, 'altText'), createdBy: locals.user?.id }
+			// One description cannot honestly describe several different pictures, so
+			// it is only applied when a single file was chosen.
+			const altText = files.length === 1 ? text(f, 'altText') : null;
+			const uploaded = [];
+			for (const file of files) {
+				uploaded.push(
+					await uploadMedia(
+						{ kind: 'tour-gallery', tenantId, tourId: params.id },
+						new Uint8Array(await file.arrayBuffer()),
+						file.type,
+						{ altText, createdBy: locals.user?.id }
+					)
+				);
+			}
+			await setTourGallery(
+				tenantId,
+				params.id,
+				[...detail.gallery.map((m) => m.id), ...uploaded.map((m) => m.id)],
+				{ userId: locals.user?.id }
 			);
-			await setTourGallery(tenantId, params.id, [...detail.gallery.map((m) => m.id), media.id], {
-				userId: locals.user?.id
-			});
 			// The first photo becomes the main one. A listing holding photographs and no
 			// main photo is a gap the vendor did not knowingly leave.
 			if (!detail.tour.heroMediaId) {
-				await updateTour(tenantId, params.id, { heroMediaId: media.id }, { userId: locals.user?.id });
+				await updateTour(tenantId, params.id, { heroMediaId: uploaded[0].id }, { userId: locals.user?.id });
 			}
-			return { success: true, notice: 'Photo uploaded' };
+			return {
+				success: true,
+				notice: uploaded.length === 1 ? 'Photo uploaded' : `${uploaded.length} photos uploaded`
+			};
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}

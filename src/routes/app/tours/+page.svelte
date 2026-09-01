@@ -28,6 +28,21 @@
 	};
 
 	let showNew = $state(false);
+	let titleInput = $state<HTMLInputElement | null>(null);
+
+	/**
+	 * Open the create form and put the cursor in it.
+	 *
+	 * The form is rendered at the top of the page while the button that opens it,
+	 * in the empty state, is at the bottom of the table. Clicking it appeared to do
+	 * nothing at all — the thing it opened was off-screen. Focusing the field
+	 * scrolls it into view and leaves the operator able to just start typing.
+	 */
+	function openNew() {
+		showNew = true;
+		// After the form exists, not before.
+		queueMicrotask(() => titleInput?.focus());
+	}
 
 	/** Filter links keep whatever search is already running. */
 	function urlFor(status: string): string {
@@ -56,7 +71,7 @@
 			</p>
 		</div>
 		{#if data.canWrite}
-			<button class="btn-primary" onclick={() => (showNew = !showNew)}>New listing</button>
+			<button class="btn-primary" onclick={() => (showNew ? (showNew = false) : openNew())}>New listing</button>
 		{/if}
 	</div>
 
@@ -64,7 +79,12 @@
 		<form method="POST" action="?/create" use:enhance class="card flex flex-wrap items-end gap-2 p-3">
 			<label class="block min-w-0 flex-1">
 				<span class="label">What is this tour called?</span>
-				<input name="title" placeholder="6-Day Northern Circuit Safari" class="input w-full" />
+				<input
+					bind:this={titleInput}
+					name="title"
+					placeholder="6-Day Northern Circuit Safari"
+					class="input w-full"
+				/>
 			</label>
 			<button class="btn-primary">Create draft</button>
 			<button type="button" class="btn-secondary" onclick={() => (showNew = false)}>Cancel</button>
@@ -175,7 +195,7 @@
 									nothing reaches a traveller until the Makutano team has approved it.
 								</p>
 								{#if data.canWrite}
-									<button class="btn-primary mt-4" onclick={() => (showNew = true)}>Start your first listing</button>
+									<button class="btn-primary mt-4" onclick={openNew}>Start your first listing</button>
 								{/if}
 							{/if}
 						</td>

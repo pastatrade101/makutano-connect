@@ -28,6 +28,7 @@ import {
 	isNull,
 	lte,
 	ne,
+	notInArray,
 	or,
 	sql,
 	type SQL
@@ -149,7 +150,19 @@ export type TourCard = {
 	hero: MediaRef | null;
 	country: CountryRef | null;
 	operator: OperatorCard | null;
+	/*
+	 * What the card shows besides the picture: where the trip goes, what kind of
+	 * trip it is, and how it is experienced. Destinations and styles are hydrated
+	 * in a second pass rather than joined — a tour has many of each, and joining
+	 * them would multiply every card row by destinations x styles.
+	 */
+	destinations: TaxonomyRef[];
+	category: TaxonomyRef | null;
+	styles: TaxonomyRef[];
 };
+
+/** Just enough of a related row to label it and link to it. */
+export type TaxonomyRef = { name: string; slug: string };
 
 export type TourDetail = {
 	id: string;
@@ -186,6 +199,14 @@ export type TourDetail = {
 	seoDescription: string | null;
 	publishedAt: Date | null;
 	updatedAt: Date;
+	/*
+	 * The other two discovery axes. They were absent here while the marketplace's
+	 * own copy of the type declared them, so `tour.category` on the detail page
+	 * was quietly always undefined and no tour ever showed what kind of trip it
+	 * was. Destinations already arrive as their own key on the response.
+	 */
+	category: TaxonomyRef | null;
+	styles: TaxonomyRef[];
 };
 
 export type ItineraryDay = {
@@ -508,12 +529,7 @@ export async function destinationsForTours(tourIds: string[]): Promise<Destinati
 		.from(schema.tourDestinations)
 		.innerJoin(schema.destinations, eq(schema.destinations.id, schema.tourDestinations.destinationId))
 		.leftJoin(destinationHero, eq(destinationHero.id, schema.destinations.heroMediaId))
-		.where(
-			and(
-				inArray(schema.tourDestinations.tourId, tourIds),
-				eq(schema.destinations.status, 'PUBLISHED')
-			)
-		)
+		.where(and(inArray(schema.tourDestinations.tourId, tourIds), eq(schema.destinations.status, 'PUBLISHED')))
 		.groupBy(
 			schema.destinations.id,
 			schema.destinations.name,
@@ -617,6 +633,7 @@ const tourCardQuery = () =>
 				isoCode: schema.countries.isoCode
 			},
 			hero: mediaColumns(tourHero),
+			category: { name: schema.tourCategories.name, slug: schema.tourCategories.slug },
 			operator: {
 				slug: schema.operatorProfiles.slug,
 				displayName: schema.operatorProfiles.displayName,
@@ -639,6 +656,8 @@ const tourCardQuery = () =>
 			and(eq(schema.countries.id, schema.tours.primaryCountryId), eq(schema.countries.isActive, true))
 		)
 		.leftJoin(tourHero, eq(tourHero.id, schema.tours.heroMediaId))
+		// Many-to-one, so it can be joined straight into the card without fanning rows out.
+		.leftJoin(schema.tourCategories, eq(schema.tourCategories.id, schema.tours.primaryCategoryId))
 		.leftJoin(
 			schema.operatorProfiles,
 			and(eq(schema.operatorProfiles.tenantId, schema.tours.tenantId), eq(schema.operatorProfiles.isActive, true))
@@ -647,6 +666,63 @@ const tourCardQuery = () =>
 		.leftJoin(operatorCover, eq(operatorCover.id, schema.operatorProfiles.coverMediaId));
 
 type TourCardRow = Awaited<ReturnType<typeof tourCardQuery>>[number];
+
+/**
+ * Turn card rows into cards, with the many-valued relations filled in.
+ *
+ * Two extra queries for the whole page rather than two per card, and rows keep
+ * their order. `toTourCard` alone would leave `destinations` and `styles` empty,
+ * which is why nothing outside this file should call it: a card that renders no
+ * places is a card that looks broken.
+ */
+async function hydrateTourCards(rows: TourCardRow[]): Promise<TourCard[]> {
+	const cards = rows.map(toTourCard);
+	if (!cards.length) return cards;
+	const ids = cards.map((c) => c.id);
+
+	const [destRows, styleRows] = await Promise.all([
+		db()
+			.select({
+				tourId: schema.tourDestinations.tourId,
+				name: schema.destinations.name,
+				slug: schema.destinations.slug
+			})
+			.from(schema.tourDestinations)
+			.innerJoin(schema.destinations, eq(schema.destinations.id, schema.tourDestinations.destinationId))
+			// A destination pulled from the marketplace must vanish from the cards too,
+			// exactly as it vanishes from the listings.
+			.where(and(inArray(schema.tourDestinations.tourId, ids), eq(schema.destinations.status, 'PUBLISHED')))
+			.orderBy(asc(schema.tourDestinations.sortOrder), asc(schema.destinations.name)),
+		db()
+			.select({
+				tourId: schema.tourTravelStyles.tourId,
+				name: schema.travelStyles.name,
+				slug: schema.travelStyles.slug
+			})
+			.from(schema.tourTravelStyles)
+			.innerJoin(schema.travelStyles, eq(schema.travelStyles.id, schema.tourTravelStyles.travelStyleId))
+			.where(and(inArray(schema.tourTravelStyles.tourId, ids), eq(schema.travelStyles.isActive, true)))
+			.orderBy(asc(schema.travelStyles.name))
+	]);
+
+	const group = (rows: Array<{ tourId: string; name: string; slug: string }>) => {
+		const by = new Map<string, TaxonomyRef[]>();
+		for (const r of rows) {
+			const list = by.get(r.tourId);
+			if (list) list.push({ name: r.name, slug: r.slug });
+			else by.set(r.tourId, [{ name: r.name, slug: r.slug }]);
+		}
+		return by;
+	};
+	const byDest = group(destRows);
+	const byStyle = group(styleRows);
+
+	for (const card of cards) {
+		card.destinations = byDest.get(card.id) ?? [];
+		card.styles = byStyle.get(card.id) ?? [];
+	}
+	return cards;
+}
 
 const toTourCard = (row: TourCardRow): TourCard => ({
 	id: row.tour.id,
@@ -663,7 +739,11 @@ const toTourCard = (row: TourCardRow): TourCard => ({
 	featured: row.tour.featured,
 	hero: mediaOf(row.hero),
 	country: countryRefOf(row.country),
-	operator: operatorCardOf(row.operator, row.logo, row.cover)
+	operator: operatorCardOf(row.operator, row.logo, row.cover),
+	category: row.category?.slug ? { name: row.category.name, slug: row.category.slug } : null,
+	// Filled in by hydrateTourCards; empty here so the shape is never undefined.
+	destinations: [],
+	styles: []
 });
 
 /* ----------------------------------------------------------- countries ---- */
@@ -1005,7 +1085,7 @@ export async function getDestinationBySlug(slug: string): Promise<{
 					: null
 		},
 		country: countryRefOf(row.country),
-		tours: tourRows.map(toTourCard),
+		tours: await hydrateTourCards(tourRows),
 		relatedDestinations
 	};
 }
@@ -1056,7 +1136,7 @@ export async function listPublishedTours(
 			.where(where)
 	]);
 
-	return { items: rows.map(toTourCard), total: Number(total) };
+	return { items: await hydrateTourCards(rows), total: Number(total) };
 }
 
 const sharedLink = alias(schema.tourDestinations, 'shared_link');
@@ -1105,7 +1185,7 @@ async function relatedToursFor(tour: {
 
 	const ids = ranked.map((r) => r.id);
 	const rows = await tourCardQuery().where(and(publishedTour(), inArray(schema.tours.id, ids)));
-	const byId = new Map(rows.map((r) => [r.tour.id, toTourCard(r)]));
+	const byId = new Map((await hydrateTourCards(rows)).map((c) => [c.id, c]));
 	return ids.map((id) => byId.get(id)).filter((t): t is TourCard => !!t);
 }
 
@@ -1163,6 +1243,7 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 				isoCode: schema.countries.isoCode
 			},
 			hero: mediaColumns(tourHero),
+			category: { name: schema.tourCategories.name, slug: schema.tourCategories.slug },
 			operator: {
 				slug: schema.operatorProfiles.slug,
 				displayName: schema.operatorProfiles.displayName,
@@ -1185,6 +1266,7 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 			and(eq(schema.countries.id, schema.tours.primaryCountryId), eq(schema.countries.isActive, true))
 		)
 		.leftJoin(tourHero, eq(tourHero.id, schema.tours.heroMediaId))
+		.leftJoin(schema.tourCategories, eq(schema.tourCategories.id, schema.tours.primaryCategoryId))
 		.leftJoin(
 			schema.operatorProfiles,
 			and(eq(schema.operatorProfiles.tenantId, schema.tours.tenantId), eq(schema.operatorProfiles.isActive, true))
@@ -1196,6 +1278,15 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 	if (!row) return null;
 
 	const tourId = row.tour.id;
+
+	// Styles are many per tour, so they are their own statement; the category is
+	// one, and rides along on the join above.
+	const styleRows = await db()
+		.select({ name: schema.travelStyles.name, slug: schema.travelStyles.slug })
+		.from(schema.tourTravelStyles)
+		.innerJoin(schema.travelStyles, eq(schema.travelStyles.id, schema.tourTravelStyles.travelStyleId))
+		.where(and(eq(schema.tourTravelStyles.tourId, tourId), eq(schema.travelStyles.isActive, true)))
+		.orderBy(asc(schema.travelStyles.name));
 
 	const [destinationRows, itineraryRows, galleryRows] = await Promise.all([
 		db()
@@ -1368,7 +1459,9 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 			seoTitle: row.tour.seoTitle,
 			seoDescription: row.tour.seoDescription,
 			publishedAt: row.tour.publishedAt,
-			updatedAt: row.tour.updatedAt
+			updatedAt: row.tour.updatedAt,
+			category: row.category?.slug ? { name: row.category.name, slug: row.category.slug } : null,
+			styles: styleRows.map((r) => ({ name: r.name, slug: r.slug }))
 		},
 		country: countryRefOf(row.country),
 		destinations,
@@ -1427,7 +1520,7 @@ export async function getOperatorBySlug(slug: string): Promise<{ operator: Opera
 		.orderBy(...tourOrder('recommended'))
 		.limit(OPERATOR_TOUR_LIMIT);
 
-	return { operator: card, tours: tours.map(toTourCard) };
+	return { operator: card, tours: await hydrateTourCards(tours) };
 }
 
 /* ----------------------------------------------------------- ownership ---- */
@@ -1445,6 +1538,46 @@ export async function getOperatorBySlug(slug: string): Promise<{ operator: Opera
  * the listing exists, so an unpublished slug resolves to null exactly like a made-up
  * one.
  */
+/**
+ * Which tenant owns an operator storefront.
+ *
+ * The operator-page counterpart to `resolveTourOwner`, and it exists for the
+ * same reason: an enquiry sent from a profile has to reach THAT operator, and
+ * the browser is not allowed to say which tenant that is. It names a public
+ * slug; the server answers with the tenant, or with nothing.
+ *
+ * Deliberately as strict as the tour path. `isActive` is checked because an
+ * operator withdrawn from the marketplace should be as unreachable as a tour
+ * that was never published — otherwise "unlist me" would still deliver leads.
+ */
+export async function resolveOperatorOwner(slug: string): Promise<{ operatorId: string; tenantId: string } | null> {
+	const value = slug?.trim();
+	if (!value) return null;
+
+	const [row] = await db()
+		.select({ operatorId: schema.operatorProfiles.id, tenantId: schema.operatorProfiles.tenantId })
+		.from(schema.operatorProfiles)
+		.innerJoin(schema.tenants, eq(schema.tenants.id, schema.operatorProfiles.tenantId))
+		.where(
+			and(
+				eq(schema.operatorProfiles.slug, value),
+				eq(schema.operatorProfiles.isActive, true),
+				// A suspended, cancelled or deleted tenant must not receive leads.
+				//
+				// Stated as an EXCLUSION, not as `status = 'ACTIVE'`. A tenant on a
+				// free trial is 'TRIAL', and a self-signup awaiting billing is
+				// 'PENDING' — both are real operators whose tours are published and
+				// visible. Demanding 'ACTIVE' silently swallowed every enquiry to a
+				// trialling operator, which is precisely the operator who most needs
+				// the first one to arrive.
+				isNull(schema.tenants.deletedAt),
+				notInArray(schema.tenants.status, ['SUSPENDED', 'CANCELLED'])
+			)
+		)
+		.limit(1);
+	return row ?? null;
+}
+
 export async function resolveTourOwner(slugOrId: string): Promise<{ tourId: string; tenantId: string } | null> {
 	const value = slugOrId?.trim();
 	if (!value) return null;

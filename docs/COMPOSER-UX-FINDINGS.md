@@ -21,6 +21,35 @@ today. Now compares the set as the SERVER will hold it.
 
 ---
 
+**X2 · The alt-text box collapses to 26 pixels between tablet and laptop.**
+The upload row is `flex flex-wrap items-end gap-2`. The file input keeps its
+intrinsic width (353px measured), the Upload button and the status line take
+theirs, and the alt-text label is `min-w-0 flex-1` — so instead of wrapping onto
+a second line it absorbs the entire shortfall. Measured at a 754px viewport:
+the input is **26px wide**, its label 9px wide and 162px tall, one word per line.
+An operator physically cannot type a description there.
+
+It is the alt-text field specifically, which makes it worse than a cosmetic
+break: alt text is what a screen reader announces and what a search engine
+reads, and this is the only place the operator can write it.
+
+Fix: give that label a real flex basis so `flex-wrap` can do its job —
+`min-w-[16rem] flex-1` in place of `min-w-0 flex-1`. `min-w-0` is what tells the
+browser it may shrink to nothing.
+Seen at `src/routes/app/tours/[id]/+page.svelte:1341`.
+
+**X3 · `GET /logout` returns 500.**
+`src/routes/logout/+page.server.ts` declares `actions` and no `load`, and there
+is no `+page.svelte`, so the route only answers POST. Anything that arrives by
+GET — a typed URL, a bookmark, a browser prefetch — gets a 500 error page rather
+than being signed out or redirected. The working control is the "Sign out"
+button in the account sheet, which POSTs; the URL is simply a trap.
+
+Fix: add a `load` that redirects to `/login` (or to `/app` for a signed-in user),
+so a GET is a harmless redirect instead of a server error.
+
+---
+
 ## Blockers
 
 **B1 · A gallery upload takes one file picker per photo.**
@@ -64,3 +93,63 @@ saying so would save a confused pause.
   auto-locks into the set and cannot be unticked, as intended.
 - The draft redirected straight into the composer on create — no extra click.
 - AVIF is accepted, which matters: the operator's whole library is AVIF.
+- Uploading six photographs set the gallery order from the submitted order and
+  promoted the first to main, and the Media step went green immediately.
+- The gallery cards show the alt text under each photo, so a missing or lazy
+  description is visible rather than buried in an attribute.
+
+---
+
+## Fixed in this pass
+
+Everything below was found by walking the chain as an operator and then as the
+platform team, and is fixed in code rather than only written down.
+
+**The marketplace 500ed the moment a tour was published.** `TourCard.svelte`
+read `tour.destinations.map(...)`; the Connect projection never returned
+`destinations`, `category` or `styles`, because the two `TourCard` types are
+hand-maintained copies in two repos and had drifted. Nothing caught it: with
+zero published tours, the card had never once rendered. Connect now hydrates the
+three relations in two batched queries (`hydrateTourCards`), and the component
+treats a missing list as empty so the next drift degrades instead of 500ing.
+
+**Currency and group type were free text.** `currency` was checked against
+`/^[A-Z]{3}$/`, so "ABC" was a currency the marketplace would format money with;
+`group_type` was checked against nothing while the marketplace built its group
+filter from `distinct(group_type)` — one filter option per spelling. Both are
+closed lists now (`src/lib/tour-options.ts`), enforced in the service and by
+CHECK constraints in `0039_tour_enums.sql`, which also maps the existing wording
+rather than discarding it. Both render as selects.
+
+**Save and continue.** "Next: Pricing" moved between steps without saving, so
+the flow relied on a warning strip explaining that a reload would lose the work.
+When a step has unsaved changes the button now saves first and advances only on
+success — a failed save leaves the operator on the step, reading the error.
+
+**X2 — alt-text box collapsed to 26px** between tablet and laptop. The upload
+row is a two-column grid now, so nothing is squeezed to a sliver.
+
+**B1 — one photo at a time.** The picker takes several at once and uploads them
+in the order chosen. The shared description switches itself off for a multi-file
+pick, because one sentence cannot honestly describe six photographs.
+
+**F1 — "Start your first listing" appeared to do nothing.** The button is at the
+bottom of the empty table; the form it opens renders at the top of the page.
+Opening it now focuses the title field, which scrolls it into view.
+
+**F2 — 104 undifferentiated destinations.** Grouped under headings by kind, with
+a filter box, and the 31 administrative REGION rows sorted last and labelled
+"usually not what you want".
+
+**X3 — `GET /logout` returned 500.** It answers with a redirect; signing out
+stays a POST, because a GET that destroys a session can be fired by any image
+tag on any page.
+
+**Onboarding never mentioned listing a tour.** The marketplace's call to action
+is "List your tours", and the dashboard checklist talked about WhatsApp,
+payments, colleagues and integrations. It now has "List your first tour",
+second, ticked only by a listing actually sent for review.
+
+**Admin review — collapsed label spacing.** "Stay:Tulia Boutique Hotel",
+"just nowby Platform Admin". A trailing space at the end of an inline box
+followed by another inline box is collapsed away; the gap is margin now.
