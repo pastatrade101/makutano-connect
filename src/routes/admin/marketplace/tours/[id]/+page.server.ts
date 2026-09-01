@@ -179,54 +179,6 @@ async function move(params: { id?: string }, locals: App.Locals, action: TourAct
 }
 
 export const actions: Actions = {
-	/**
-	 * Grant or withdraw the operator's verified badge.
-	 *
-	 * The flag has existed since the marketplace was built and nothing could
-	 * set it: no admin screen, no service call, no API — only a hand-written
-	 * UPDATE against the database. So every operator was unverified forever,
-	 * and the badge the public profile is built around could never appear.
-	 *
-	 * It lives on the listing review page because that is when a human at
-	 * Makutano is actually looking at the operator: reading their itinerary,
-	 * their lodges and their prices before letting any of it reach a traveller.
-	 * Verification is a deliberate act recorded against a named admin — never a
-	 * default, and never something a vendor can grant themselves.
-	 */
-	setVerified: async ({ locals, params, request }) => {
-		const data = await request.formData();
-		const verified = String(data.get('verified') ?? '') === 'true';
-		const row = await platformTour(idOf(params));
-
-		try {
-			const [profile] = await db()
-				.update(schema.operatorProfiles)
-				.set({
-					isVerified: verified,
-					// Cleared on withdrawal: a stale "verified on" date under an
-					// operator who is no longer verified is worse than no date.
-					verifiedAt: verified ? new Date() : null,
-					verifiedBy: verified ? (locals.user?.id ?? null) : null,
-					updatedAt: new Date()
-				})
-				.where(eq(schema.operatorProfiles.tenantId, row.tour.tenantId))
-				.returning({ id: schema.operatorProfiles.id, slug: schema.operatorProfiles.slug });
-
-			if (!profile) return fail(404, { message: 'That operator has no public profile yet.' });
-
-			await audit(
-				row.tour.tenantId,
-				'tenant.updated',
-				{ type: 'user', userId: locals.user?.id },
-				{ type: 'operator_profile', id: profile.id },
-				{ what: 'operator_verification', verified, slug: profile.slug }
-			);
-			return { success: true };
-		} catch (err) {
-			return fail(400, { message: toAppError(err).message });
-		}
-	},
-
 	startReview: ({ locals, params }) => move(params, locals, 'start_review'),
 
 	approve: async ({ locals, params, request }) => {

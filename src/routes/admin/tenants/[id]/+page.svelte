@@ -43,6 +43,22 @@
 			<p class="font-mono text-[12.5px] text-slate-400">{data.tenant.slug} · created <TimeAgo value={data.tenant.createdAt} /></p>
 		</div>
 		<div class="flex items-center gap-2">
+			<!-- The operator's public standing, next to the tenant's own controls.
+			     Absent entirely for a tenant with no storefront — there is nothing
+			     to verify until they have a public profile. -->
+			{#if data.operator}
+				<form method="POST" action="?/verifyOperator" use:enhance class="flex items-center gap-2">
+					<input type="hidden" name="verified" value={data.operator.isVerified ? 'false' : 'true'} />
+					{#if data.operator.isVerified}
+						<span class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-success">
+							<i class="icon-ok-circled" aria-hidden="true"></i>Verified operator
+						</span>
+						<button class="btn-secondary !py-1.5 text-[12.5px]">Withdraw</button>
+					{:else}
+						<button class="btn-secondary !py-1.5 text-[12.5px]">Verify this operator</button>
+					{/if}
+				</form>
+			{/if}
 			{#if suspended}
 				<form method="POST" action="?/status" use:enhance>
 					<input type="hidden" name="status" value="ACTIVE" />

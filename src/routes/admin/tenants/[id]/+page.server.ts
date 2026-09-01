@@ -25,6 +25,52 @@ export const load: PageServerLoad = async ({ params }) => {
 };
 
 export const actions: Actions = {
+	/**
+	 * Grant or withdraw the operator's verified badge.
+	 *
+	 * Verification is a claim about the COMPANY, so it lives on the tenant's own
+	 * page — not on whichever listing an admin happened to have open when they
+	 * decided. It records who signed it off and when, and clears both on
+	 * withdrawal: a stale "verified on" date under an unverified operator is
+	 * worse than no date at all.
+	 *
+	 * Platform-only, and never a default. A badge the marketplace hands out
+	 * automatically is not a signal.
+	 */
+	verifyOperator: async ({ locals, params, request }) => {
+		const tenantId = idOf(params);
+		const data = await request.formData();
+		const verified = String(data.get('verified') ?? '') === 'true';
+
+		try {
+			const [profile] = await db()
+				.update(schema.operatorProfiles)
+				.set({
+					isVerified: verified,
+					verifiedAt: verified ? new Date() : null,
+					verifiedBy: verified ? (locals.user?.id ?? null) : null,
+					updatedAt: new Date()
+				})
+				.where(eq(schema.operatorProfiles.tenantId, tenantId))
+				.returning({ id: schema.operatorProfiles.id, slug: schema.operatorProfiles.slug });
+
+			if (!profile) {
+				return fail(404, { message: 'This tenant has no public operator profile yet.' });
+			}
+
+			await audit(
+				tenantId,
+				'tenant.updated',
+				{ type: 'user', userId: locals.user?.id, requestId: locals.requestId },
+				{ type: 'operator_profile', id: profile.id },
+				{ what: 'operator_verification', verified, slug: profile.slug }
+			);
+			return { success: true };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
 	/** Change the tenant's workspace (§18). UI relevance only — never entitlements. */
 	workspace: async ({ locals, params, request }) => {
 		const data = await request.formData();

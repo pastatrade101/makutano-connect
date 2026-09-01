@@ -154,10 +154,32 @@ export async function tenantControlCenter(tenantId: string) {
 		.where(eq(schema.tenantMemberships.tenantId, tenantId))
 		.orderBy(schema.tenantMemberships.createdAt);
 
+	/*
+	 * The public storefront, if this tenant has one.
+	 *
+	 * Verification is a statement about the COMPANY, so it belongs on the
+	 * tenant's own page rather than buried on whichever listing an admin
+	 * happened to be reviewing when they decided.
+	 */
+	const [operator] = await db()
+		.select({
+			id: schema.operatorProfiles.id,
+			slug: schema.operatorProfiles.slug,
+			displayName: schema.operatorProfiles.displayName,
+			location: schema.operatorProfiles.location,
+			isActive: schema.operatorProfiles.isActive,
+			isVerified: schema.operatorProfiles.isVerified,
+			verifiedAt: schema.operatorProfiles.verifiedAt
+		})
+		.from(schema.operatorProfiles)
+		.where(eq(schema.operatorProfiles.tenantId, tenantId))
+		.limit(1);
+
 	return {
 		tenant: row.tenant,
 		plan: row.plan,
 		plans,
+		operator: operator ?? null,
 		// Serializable summary only — TenantEntitlements carries a resolver function
 		// that cannot cross the server→client boundary.
 		entitlements: {
