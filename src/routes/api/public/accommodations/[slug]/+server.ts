@@ -1,6 +1,6 @@
 // One property, with every photograph we hold for it.
 import { getAccommodationBySlug } from '$lib/server/accommodations';
-import { publishedToursForAccommodation } from '$lib/server/marketplace';
+import { publishedToursForAccommodation, tourCountsForAccommodations } from '$lib/server/marketplace';
 import { AppError } from '$lib/server/errors';
 import { CACHE_REFERENCE, handlePublic, preflight, publicJson } from '$lib/server/public-api';
 import type { RequestHandler } from './$types';
@@ -15,6 +15,16 @@ export const GET: RequestHandler = async (event) =>
 
 		// The way back into the catalogue: a lodge page that cannot tell you which
 		// trips sleep there is a dead end, and this is a marketplace.
-		const tours = await publishedToursForAccommodation(detail.id);
-		return publicJson({ ...detail, tours }, CACHE_REFERENCE);
+		const [tours, counts] = await Promise.all([
+			publishedToursForAccommodation(detail.id),
+			// The REAL number, not the length of the capped list above. The
+			// directory card already reports this one, and a lodge whose card
+			// says fourteen journeys and whose page says twelve is a lodge the
+			// reader stops trusting about anything else.
+			tourCountsForAccommodations([detail.id])
+		]);
+		return publicJson(
+			{ ...detail, tours, tourCount: counts.get(detail.id) ?? tours.length },
+			CACHE_REFERENCE
+		);
 	});
