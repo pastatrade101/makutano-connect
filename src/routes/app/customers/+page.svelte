@@ -4,37 +4,26 @@
 	import FilterBar from '$components/FilterBar.svelte';
 	import Pagination from '$components/Pagination.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
-	import { enhance } from '$lib/forms';
-	import FormToast from '$components/FormToast.svelte';
-	let { data, form } = $props();
-	let showForm = $state(data.openNew);
-	const canWrite = $derived(data.permissions?.includes('customers:write'));
+	let { data } = $props();
 </script>
 
-<FormToast {form} successTitle="Customer added" />
-
-<svelte:head><title>Customers · {data.tenant.name}</title></svelte:head>
+<svelte:head><title>Travellers · {data.tenant.name}</title></svelte:head>
 
 <div class="space-y-3">
-	<div class="flex items-center justify-between">
-		<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Customers</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">People your team works with</p></div>
-		{#if canWrite}
-			<button class="btn-primary" onclick={() => (showForm = !showForm)}>New customer</button>
-		{/if}
+	<div>
+		<h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Travellers</h1>
+		<p class="mt-0.5 text-xs text-slate-400 sm:hidden">Everyone who has asked you for a trip</p>
 	</div>
-
-	{#if showForm}
-		<form method="POST" action="?/create" use:enhance class="card grid gap-3 p-3 sm:grid-cols-[2fr_1.5fr_1.5fr_auto]">
-			<div><label class="label" for="c-name">Name</label><input id="c-name" name="name" required class="input" placeholder="Mama Daniel" /></div>
-			<div><label class="label" for="c-phone">WhatsApp / phone</label><input id="c-phone" name="phone" inputmode="tel" class="input" placeholder="+255 712 345 678" /></div>
-			<div><label class="label" for="c-email">Email <span class="font-normal text-slate-400">(optional)</span></label><input id="c-email" name="email" type="email" class="input" /></div>
-			<div class="flex items-end"><button class="btn-primary w-full">Add</button></div>
-		</form>
-	{/if}
 	<div class="card overflow-hidden">
 		<FilterBar placeholder="Search name, email or phone…" />
 		{#if data.items.length === 0}
-			<EmptyState title="No customers yet" description="Customers appear here automatically when they message you on WhatsApp or send an enquiry — or add one yourself." action={{ href: '/app/customers?new=1', label: 'Add your first customer' }} />
+			<!-- No "add one" call to action: a traveller with no enquiry, quotation
+			     or booking behind them is a name in a table, and nobody was typing
+			     them in. They arrive with the work. -->
+			<EmptyState
+				title="No travellers yet"
+				description="People appear here the moment they send an enquiry from the marketplace or message you on WhatsApp."
+			/>
 		{:else}
 			<div>
 				<table class="mobile-record-table min-w-full divide-y divide-slate-100">

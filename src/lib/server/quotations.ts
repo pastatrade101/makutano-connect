@@ -5,16 +5,21 @@
 // acceptQuotation() is the piece that matters commercially: accepting converts to a
 // booking carrying the customer, trip dates and line items across, so nothing is
 // retyped and the numbers cannot drift between the quote and the booking.
+import { randomUUID } from 'node:crypto';
 import { and, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { db, schema } from './db';
 import { nextReference } from './db/references';
 import { recordUsage } from './billing';
 import { assertAllowed } from './entitlements';
-import { createBooking } from './bookings';
+import { changeBookingStatus, createBooking } from './bookings';
 import { findOrCreateCustomer } from './customers';
 import { emit } from './events';
 import { sendEventTemplate } from './whatsapp/template-engine';
+import { quotationEmail, sendEmail } from './email';
+import { env } from './env';
 import { AppError } from './errors';
+import { log } from './logger';
 import { getTenantById } from './tenants';
 import type { Pagination } from './http';
 import type { BookingRequestItemInput } from './booking-requests';
@@ -210,6 +215,122 @@ export async function listQuotations(
 }
 
 /** Snapshot the quotation, mark it SENT, and flag the originating request as QUOTED. */
+/**
+ * What a quotation for this enquiry should probably say.
+ *
+ * A draft, not a record: nothing is written. It exists so that the phone and
+ * the portal open the SAME quotation for the same enquiry — before this, the
+ * web action invented a line called "Package" priced at the enquiry's estimate
+ * (usually zero) while the phone used the tour's own title and published price.
+ * Two surfaces quoting the same customer differently is the bug this closes.
+ *
+ * The "smart" part is only that the enquiry already knows almost all of it —
+ * who is asking, when, how many, and for a marketplace enquiry exactly which
+ * trip at what price. The pricing DECISION stays with the operator.
+ */
+export type QuotationDraft = {
+	enquiry: {
+		id: string;
+		reference: string;
+		source: string | null;
+		notes: string | null;
+		startDate: Date | null;
+		endDate: Date | null;
+		adults: number;
+		children: number;
+	};
+	customer: { id: string; name: string; email: string | null; phone: string | null } | null;
+	tour: { title: string; days: number | null; pricingType: string | null } | null;
+	currency: string;
+	travellers: number;
+	items: { description: string; quantity: number; unitPrice: string; basis: 'per group' | 'per person' }[];
+	suggestedTotal: string | null;
+};
+
+export async function draftQuotationFor(tenantId: string, bookingRequestId: string): Promise<QuotationDraft> {
+	const [row] = await db()
+		.select({
+			request: schema.bookingRequests,
+			customer: schema.customers,
+			tourTitle: schema.tours.title,
+			tourPrice: schema.tours.priceFrom,
+			tourCurrency: schema.tours.currency,
+			tourPricingType: schema.tours.pricingType,
+			tourDays: schema.tours.durationDays
+		})
+		.from(schema.bookingRequests)
+		.leftJoin(schema.customers, eq(schema.customers.id, schema.bookingRequests.customerId))
+		.leftJoin(schema.tours, eq(schema.tours.id, schema.bookingRequests.tourId))
+		.where(
+			and(
+				eq(schema.bookingRequests.id, bookingRequestId),
+				eq(schema.bookingRequests.tenantId, tenantId),
+				isNull(schema.bookingRequests.deletedAt)
+			)
+		)
+		.limit(1);
+
+	if (!row) throw new AppError('NOT_FOUND', 'That enquiry could not be found.');
+
+	const adults = row.request.adults ?? 1;
+	const children = row.request.children ?? 0;
+	const travellers = Math.max(1, adults + children);
+
+	/*
+	 * One line, priced the way the tour is priced.
+	 *
+	 * PER_GROUP means the published figure is the whole trip, so the quantity
+	 * is 1 — multiplying it by the party size would quote four times the real
+	 * price. Anything else is per person.
+	 */
+	const perGroup = row.tourPricingType === 'PER_GROUP';
+	const unitPrice = row.tourPrice ?? null;
+	const quantity = perGroup ? 1 : travellers;
+
+	return {
+		enquiry: {
+			id: row.request.id,
+			reference: row.request.reference,
+			source: row.request.source,
+			notes: row.request.notes,
+			startDate: row.request.startDate,
+			endDate: row.request.endDate,
+			adults,
+			children
+		},
+		customer: row.customer
+			? {
+					id: row.customer.id,
+					name: [row.customer.firstName, row.customer.lastName].filter(Boolean).join(' ').trim(),
+					email: row.customer.email,
+					phone: row.customer.phone ?? row.customer.whatsappPhone
+				}
+			: null,
+		tour: row.tourTitle
+			? { title: row.tourTitle, days: row.tourDays, pricingType: row.tourPricingType }
+			: null,
+		// The tour's own currency wins over the tenant default: quoting a USD
+		// trip in shillings because that is the account setting is a real way to
+		// send somebody a number that is wrong by a factor of two thousand.
+		currency: row.tourCurrency ?? row.request.currency ?? 'USD',
+		travellers,
+		items: row.tourTitle
+			? [
+					{
+						description: row.tourTitle,
+						quantity,
+						unitPrice: unitPrice ?? '0',
+						// Stated so both surfaces can show WHY the quantity is what it is.
+						basis: perGroup ? 'per group' : 'per person'
+					}
+				]
+			: [],
+		// Null when the tour has no published price, so the operator is asked
+		// rather than presented with a confident zero.
+		suggestedTotal: unitPrice ? (Number(unitPrice) * quantity).toFixed(2) : null
+	};
+}
+
 export async function sendQuotation(tenantId: string, id: string, sentByUserId: string | null = null) {
 	const { quotation, items } = await getQuotationDetail(tenantId, id);
 	if (quotation.status === 'ACCEPTED' || quotation.status === 'CONVERTED') {
@@ -250,41 +371,124 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 		customerId: updated.customerId
 	});
 
-	// Notify the customer through the Template Center — for a tenant whose own
-	// site does not already do it.
+	// Tell the customer, on every channel we can reach them on.
 	//
-	// A tenant running their own website (Goldfinch) sends the quotation from
-	// there, with their own link and their own template. Connect sending a
-	// second one would put two messages and two links in front of the same
-	// customer. That is switched off per tenant by unmapping QUOTATION_READY in
-	// the Template Center, not by deleting this: a tenant with no website of
-	// their own has nothing else to send it.
+	// Email is the one that always runs: an address is the one contact detail a
+	// marketplace enquiry always carries, and it is the channel that can hold a
+	// priced breakdown. WhatsApp goes out ALONGSIDE it — not instead of it —
+	// whenever the tenant has a connection and the customer a WhatsApp number,
+	// because a message on the app someone actually reads is what gets a quote
+	// opened, and the two carry the same link to the same page.
 	//
-	// The view link comes from the quotation's own metadata (set by the tenant's
-	// site/integration); if it is absent the engine's empty-variable guard skips
-	// the send rather than breaking at Meta.
-	void (async () => {
-		const [customer] = updated.customerId
-			? await db().select().from(schema.customers).where(eq(schema.customers.id, updated.customerId)).limit(1)
-			: [];
-		// A mirrored quotation keeps the legacy site's own URL: the customer may
-		// already hold it, and that page is the one the legacy system will update.
-		// Anything Connect originated gets Connect's link — which is the whole
-		// reason this template used to be skipped for native quotes.
-		const meta = (updated.metadata ?? {}) as Record<string, unknown>;
-		const link = String(meta.viewUrl ?? meta.publicUrl ?? meta.link ?? '');
-		await sendEventTemplate(
+	// Both are fire-and-forget and independent: a Meta outage must not stop the
+	// email, and an unconfigured mailer must not stop the WhatsApp.
+	void deliverQuotation(tenantId, updated).catch(() => undefined);
+	return updated;
+}
+
+/**
+ * The traveller's link.
+ *
+ * A quotation mirrored from a tenant's own website keeps that site's URL: the
+ * customer may already hold it, and that page is the one the legacy system will
+ * keep up to date. Anything raised HERE gets the marketplace page, because
+ * there is no other site to send them to.
+ */
+function quotationLink(quotation: { publicToken: string | null; metadata: Record<string, unknown> | null }): string {
+	const meta = quotation.metadata ?? {};
+	const mirrored = String(meta.viewUrl ?? meta.publicUrl ?? meta.link ?? '');
+	if (mirrored) return mirrored;
+	if (!quotation.publicToken) return '';
+	return `${env().MARKETPLACE_URL.replace(/\/+$/, '')}/quotes/${quotation.publicToken}`;
+}
+
+/**
+ * Mint the token that the public quotation page accepts.
+ *
+ * On first send rather than at creation: a draft nobody has been shown should
+ * not have a live public URL, and a token that exists is a token that can leak.
+ */
+async function ensurePublicToken(tenantId: string, id: string, existing: string | null): Promise<string> {
+	if (existing) return existing;
+	const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '').slice(0, 8);
+	await db()
+		.update(schema.quotations)
+		.set({ publicToken: token })
+		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)));
+	return token;
+}
+
+async function deliverQuotation(tenantId: string, quotation: schema.Quotation) {
+	const token = await ensurePublicToken(tenantId, quotation.id, quotation.publicToken);
+	const link = quotationLink({ publicToken: token, metadata: quotation.metadata });
+
+	const [customer] = quotation.customerId
+		? await db().select().from(schema.customers).where(eq(schema.customers.id, quotation.customerId)).limit(1)
+		: [];
+
+	const items = await db()
+		.select()
+		.from(schema.quotationItems)
+		.where(and(eq(schema.quotationItems.quotationId, quotation.id), eq(schema.quotationItems.tenantId, tenantId)))
+		.orderBy(schema.quotationItems.sortOrder);
+
+	// The operator's own name and crest, not Connect's: the traveller asked THEM.
+	const operatorLogo = alias(schema.media, 'quote_operator_logo');
+	const [operator] = await db()
+		.select({
+			name: schema.operatorProfiles.displayName,
+			location: schema.operatorProfiles.location,
+			verified: schema.operatorProfiles.isVerified,
+			logoUrl: operatorLogo.url
+		})
+		.from(schema.operatorProfiles)
+		.leftJoin(operatorLogo, eq(operatorLogo.id, schema.operatorProfiles.logoMediaId))
+		.where(eq(schema.operatorProfiles.tenantId, tenantId))
+		.limit(1);
+
+	const tenant = operator ? null : await getTenantById(tenantId);
+	const brand = {
+		name: operator?.name ?? tenant?.name ?? 'Your operator',
+		logoUrl: operator?.logoUrl ?? null,
+		location: operator?.location ?? null,
+		verified: operator?.verified ?? false
+	};
+
+	await Promise.allSettled([
+		// Email.
+		(async () => {
+			if (!customer?.email || !link) return;
+			const message = quotationEmail({
+				operator: brand,
+				customerFirstName: customer.firstName,
+				reference: quotation.reference,
+				currency: quotation.currency,
+				total: quotation.total,
+				items: items.map((line) => ({
+					title: line.title,
+					quantity: line.quantity,
+					unitPrice: line.unitPrice,
+					total: line.total
+				})),
+				notes: quotation.notes,
+				validUntil: quotation.validUntil,
+				url: link
+			});
+			await sendEmail({ ...message, to: customer.email });
+		})(),
+		// WhatsApp, through the Template Center. Skipped by its own empty-variable
+		// guard when there is no number, no connection or no mapped template.
+		sendEventTemplate(
 			tenantId,
 			'QUOTATION_READY',
 			customer?.whatsappPhone,
 			{
 				customer: { firstName: customer?.firstName, lastName: customer?.lastName },
-				quotation: { reference: updated.reference, total: `${updated.currency} ${updated.total}`, link }
+				quotation: { reference: quotation.reference, total: `${quotation.currency} ${quotation.total}`, link }
 			},
-			`quotation-QUOTATION_READY:${updated.id}:${updated.version}`
-		);
-	})().catch(() => undefined);
-	return updated;
+			`quotation-QUOTATION_READY:${quotation.id}:${quotation.version}`
+		)
+	]);
 }
 
 export async function markQuotationViewed(tenantId: string, id: string) {
@@ -380,6 +584,44 @@ export async function acceptQuotation(
 			);
 	}
 
+	/*
+	 * Accepted means confirmed.
+	 *
+	 * The traveller has said yes to a priced quotation, so what comes out of it is
+	 * a confirmed sale rather than one waiting to be confirmed a second time by
+	 * hand. Money is chased ON a confirmed booking: the outstanding balance and
+	 * the commercial status are two different facts, and the payment next-action
+	 * reads the balance, not the status.
+	 *
+	 * Routed through changeBookingStatus rather than created as CONFIRMED
+	 * outright, because that function is where the status-history row, the
+	 * `booking.confirmed` event and the traveller's BOOKING_CONFIRMED message
+	 * happen. Creating it confirmed would have been a silent confirmation —
+	 * right in the column and invisible everywhere else.
+	 *
+	 * Done AFTER the quotation and enquiry are linked to the booking: if this
+	 * step fails, the acceptance still stands and the booking is one press of
+	 * "Confirm booking" away, rather than an orphan nothing points at.
+	 */
+	let confirmed = booking;
+	try {
+		confirmed = await changeBookingStatus(
+			tenantId,
+			booking.id,
+			'CONFIRMED',
+			actor,
+			`Quotation ${quotation.reference} accepted`
+		);
+	} catch (err) {
+		// Not swallowed silently: the booking exists and is visibly unconfirmed,
+		// and this says why.
+		log.warn('booking_confirm_after_accept_failed', {
+			bookingId: booking.id,
+			quotationId: updated.id,
+			error: (err as Error)?.message
+		});
+	}
+
 	await emit(tenantId, 'quotation.accepted', {
 		id: updated.id,
 		reference: updated.reference,
@@ -405,7 +647,7 @@ export async function acceptQuotation(
 		);
 	})().catch(() => undefined);
 
-	return { quotation: updated, booking };
+	return { quotation: updated, booking: confirmed };
 }
 
 /** Scheduled sweep: expire quotations whose validity has passed. */

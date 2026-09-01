@@ -22,6 +22,7 @@
 		 */
 		{ href: '/admin/marketplace/tours', label: 'Tour listings', icon: 'M3 15l4.5-6 3 4 2.5-3L17 15M3 5h14v10H3z' },
 		{ href: '/admin/tenants', label: 'Operators', icon: 'M3 17V7l4-3 4 3v10M11 17V9l3-2 3 2v8M3 17h14' },
+		{ href: '/admin/reviews', label: 'Review moderation', icon: 'm10 2.6 2.3 4.7 5.2.7-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L2.5 8l5.2-.7L10 2.6Z' },
 		{ href: '/admin/marketplace/taxonomy', label: 'Categories & styles', icon: 'M4 5h12M4 10h12M4 15h7' },
 		{ href: '/admin/plans', label: 'Plans & entitlements', icon: 'M3 6h14M3 10h14M3 14h9' },
 		{ href: '/admin/usage', label: 'Usage & subscriptions', icon: 'M4 16V9m4 7V5m4 11v-4m4 4V8' },

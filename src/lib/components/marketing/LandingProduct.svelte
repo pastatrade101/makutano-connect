@@ -81,7 +81,7 @@
 						class="relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full text-[14.5px] font-bold {step.where ===
 						'journeys'
 							? 'bg-brand-500 text-white shadow-[0_8px_18px_rgba(28,132,238,0.28)]'
-							: 'bg-[#0e335d] text-white shadow-[0_8px_18px_rgba(14,51,93,0.25)]'}">{index + 1}</span
+							: 'bg-[#2b231b] text-white shadow-[0_8px_18px_rgba(14,51,93,0.25)]'}">{index + 1}</span
 					>
 					<div class="min-w-0 lg:mt-4">
 						<span
@@ -106,7 +106,7 @@
 	</div>
 </section>
 
-<section id="product" class="scroll-mt-24 border-b border-slate-100 bg-[#f8faff]">
+<section id="product" class="scroll-mt-24 border-b border-slate-100 bg-[#faf8f5]">
 	<div class="mx-auto max-w-[1240px] px-4 py-[70px] sm:px-6 sm:py-[90px] lg:px-10">
 		<SectionHead
 			label="What you get"
@@ -154,7 +154,7 @@
 			</div>
 		</div>
 
-		<div class="mt-20 overflow-hidden rounded-[24px] border border-brand-200 bg-[#0e335d] text-white shadow-[0_35px_90px_rgba(14,51,93,0.20)] lg:mt-24">
+		<div class="mt-20 overflow-hidden rounded-[24px] border border-brand-200 bg-[#2b231b] text-white shadow-[0_35px_90px_rgba(14,51,93,0.20)] lg:mt-24">
 			<div class="grid items-center gap-10 p-6 sm:p-9 lg:grid-cols-[0.8fr_1.2fr] lg:p-12">
 				<div><span class="text-[11.5px] font-bold tracking-[0.17em] text-blue-200 uppercase">03 · Payments</span><h3 class="mt-4 text-3xl leading-tight font-bold tracking-[-0.035em] text-white">A deposit request that doesn’t end in a dead end.</h3><p class="mt-4 text-sm leading-7 text-blue-100/75">Tell the traveller how to pay, capture their report, have a person verify it, update the booking and notify them — without pretending a button proves the money arrived.</p></div>
 				<div class="rounded-2xl border border-white/15 bg-white p-5 text-slate-700 shadow-2xl"><div class="flex flex-wrap items-start justify-between gap-3"><div><p class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Deposit requested</p><p class="mt-1 text-2xl font-bold text-slate-900">TZS 1,020,000</p><p class="mt-1 text-[11.5px] text-slate-400">M-Pesa · GFA-BK-2026-00128</p></div><span class="rounded-full bg-warning/10 px-2.5 py-1 text-[10px] font-semibold text-[#a9780c]">Awaiting verification</span></div><div class="mt-5 grid gap-2 sm:grid-cols-5">{#each [{ t: 'Requested', s: 'How to pay', c: 'done' }, { t: '“I have paid”', s: 'Traveller report', c: 'done' }, { t: 'Verify', s: 'Staff action', c: 'active' }, { t: 'Booking updated', s: 'Confirmed', c: 'later' }, { t: 'Traveller notified', s: 'WhatsApp', c: 'later' }] as item, index (item.t)}<div class="rounded-xl border p-3 {item.c === 'done' ? 'border-success/20 bg-success/5' : item.c === 'active' ? 'border-warning/30 bg-warning/5' : 'border-slate-200 bg-slate-50'}"><span class="text-[9px] font-bold {item.c === 'done' ? 'text-success' : item.c === 'active' ? 'text-[#a9780c]' : 'text-slate-300'}">0{index + 1}</span><div class="mt-5 text-[10px] font-semibold text-slate-700">{item.t}</div><div class="mt-0.5 text-[9px] text-slate-400">{item.s}</div></div>{/each}</div></div>

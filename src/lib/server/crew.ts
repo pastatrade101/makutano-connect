@@ -8,7 +8,7 @@
 //
 // Crew are DEACTIVATED, never deleted: a trip that ran last year still names
 // the driver who ran it, and deleting the row would quietly rewrite that.
-import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { assertAllowed } from './entitlements';
 import { AppError } from './errors';
@@ -117,23 +117,19 @@ export async function crewForPicker(tenantId: string) {
 const pick = (r: schema.Crew) => ({ id: r.id, name: r.name, phone: r.phone, type: r.type });
 
 /**
- * Accommodations a trip can be assigned, from the tenant's own catalog.
+ * Where a trip can be told to sleep: the platform accommodation directory.
  *
- * The catalog is where a tenant's lodges live, and a tenant whose CMS is the
- * source of truth pushes them in through the same /api/v1/catalog it already
- * uses — so Connect never asks anyone to maintain the same list twice.
+ * This used to read the per-tenant catalog, which meant every operator kept
+ * their own spelling of the same lodge. The directory is shared — two operators
+ * sending guests to the same camp now point at one record, with its photographs
+ * and its comfort level attached.
+ *
+ * No tenant filter, deliberately: a lodge is a place, not a tenant's property.
  */
-export async function accommodationsForPicker(tenantId: string) {
-	const rows = await db()
-		.select({ id: schema.catalogItems.id, name: schema.catalogItems.name })
-		.from(schema.catalogItems)
-		.where(
-			and(
-				eq(schema.catalogItems.tenantId, tenantId),
-				eq(schema.catalogItems.type, 'ACCOMMODATION'),
-				eq(schema.catalogItems.isActive, true)
-			)
-		)
-		.orderBy(asc(schema.catalogItems.name));
-	return rows;
+export async function accommodationsForPicker(_tenantId: string) {
+	return db()
+		.select({ id: schema.accommodations.id, name: schema.accommodations.name })
+		.from(schema.accommodations)
+		.where(and(eq(schema.accommodations.isActive, true), isNull(schema.accommodations.deletedAt)))
+		.orderBy(asc(schema.accommodations.name));
 }

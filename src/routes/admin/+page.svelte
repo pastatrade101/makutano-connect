@@ -19,7 +19,7 @@
 		],
 		xaxis: { categories: data.activity.labels, labels: { style: { colors: pal.label, fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
 		yaxis: { labels: { style: { colors: pal.label, fontSize: '11px' } } },
-		colors: ['#1c84ee', '#7f56da', '#22c55e'],
+		colors: ['#b4532a', '#8e877c', '#3d6b52'],
 		plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
 		dataLabels: { enabled: false },
 		grid: { borderColor: pal.grid, strokeDashArray: 4 },

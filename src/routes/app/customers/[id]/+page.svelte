@@ -22,7 +22,7 @@
 	const caps = $derived(data.tenant.capabilities);
 	const rel = (m: Parameters<typeof moduleRelevant>[1]) => moduleRelevant(caps, m);
 	const can = (perm: string) => data.permissions?.includes(perm as never) ?? false;
-	const name = $derived([data.customer.firstName, data.customer.lastName].filter(Boolean).join(' ') || 'Unnamed customer');
+	const name = $derived([data.customer.firstName, data.customer.lastName].filter(Boolean).join(' ') || 'Unnamed traveller');
 	const initials = $derived(
 		name
 			.split(/\s+/)
@@ -119,7 +119,7 @@
 		const booking = latest('booking');
 		const request = booking ? requestFor(booking) : null;
 		return {
-			title: booking ? `Booking ${booking.reference}` : quote ? `Quotation ${quote.reference}` : enquiry ? `Enquiry ${enquiry.reference}` : 'This customer',
+			title: booking ? `Booking ${booking.reference}` : quote ? `Quotation ${quote.reference}` : enquiry ? `Enquiry ${enquiry.reference}` : 'This traveller',
 			stages: [
 				{
 					label: 'Enquiry',
@@ -229,7 +229,7 @@
 <FormToast {form} successTitle="Saved" />
 
 <div class="mx-auto max-w-3xl space-y-3">
-	<a href="/app/customers" class="text-xs text-slate-500 hover:underline">← Customers</a>
+	<a href="/app/customers" class="text-xs text-slate-500 hover:underline">← Travellers</a>
 
 	<!-- Who is this? Identity and the one action, nothing technical. -->
 	<header class="card p-4">

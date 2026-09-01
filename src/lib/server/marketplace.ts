@@ -34,6 +34,9 @@ import {
 	type SQL
 } from 'drizzle-orm';
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
+import { mealsLabel, normaliseMeals } from '../tour-options';
+import { accommodationsForTours, imagesForAccommodations, type TourStay } from './accommodations';
+import { getOperatorReviewSummary, getTourReviewSummary, type ReviewSummary } from './reviews';
 import { db, schema } from './db';
 import type { Pagination } from './http';
 
@@ -216,7 +219,19 @@ export type ItineraryDay = {
 	description: string | null;
 	destination: DestinationRef | null;
 	accommodation: string | null;
+	/** Set when the day names a directory property, so a page can link to it. */
+	accommodationSlug: string | null;
+	/**
+	 * Photographs of where the night is spent — from the directory when the day
+	 * points at a listed property, from the day's own urls when it does not. One
+	 * field, because a page rendering a strip of pictures does not care which of
+	 * the two it is looking at.
+	 */
+	accommodationImages: string[];
+	/** A rendered sentence — "All meals", "Breakfast and dinner" — or null. */
 	meals: string | null;
+	/** The same fact as a closed set, for anything that has to filter or translate. */
+	mealsIncluded: string[];
 	activities: string[];
 	distance: string | null;
 	estimatedTravelTime: string | null;
@@ -251,6 +266,23 @@ export type TourFilters = {
 	/** @deprecated free-text column; use styleSlug. */
 	travelStyle?: string;
 	groupType?: string;
+	/**
+	 * How many people are travelling.
+	 *
+	 * Matched against the tour's own published group size. A NULL bound means
+	 * "no limit stated", which passes — the alternative is hiding every listing
+	 * whose operator has not filled the field in, which would make the filter
+	 * look broken rather than permissive.
+	 */
+	travellers?: number;
+	/**
+	 * A date they want to travel, as YYYY-MM-DD.
+	 *
+	 * A YEAR_ROUND tour always matches; a seasonal or date-ranged one matches
+	 * only inside its window. Same NULL rule as above: an unstated bound is not
+	 * a closed door.
+	 */
+	date?: string;
 	minDays?: number;
 	maxDays?: number;
 	priceMin?: number | string;
@@ -272,6 +304,8 @@ const destinationHero = alias(schema.media, 'destination_hero');
 /** The region a destination sits in — destinations joined to themselves. */
 const parentDestination = alias(schema.destinations, 'parent_destination');
 const dayImage = alias(schema.media, 'day_image');
+/** The directory property an itinerary day points at, when it points at one. */
+const dayStay = alias(schema.accommodations, 'day_stay');
 const galleryImage = alias(schema.media, 'gallery_image');
 const operatorLogo = alias(schema.media, 'operator_logo');
 const operatorCover = alias(schema.media, 'operator_cover');
@@ -1103,6 +1137,20 @@ export async function listPublishedTours(
 	if (filters.styleSlug) conditions.push(hasStyle(filters.styleSlug));
 	if (filters.travelStyle) conditions.push(eq(schema.tours.travelStyle, filters.travelStyle));
 	if (filters.groupType) conditions.push(eq(schema.tours.groupType, filters.groupType));
+	if (filters.travellers && Number.isFinite(filters.travellers)) {
+		const n = Math.max(1, Math.trunc(filters.travellers));
+		conditions.push(
+			sql`(${schema.tours.groupSizeMin} is null or ${schema.tours.groupSizeMin} <= ${n})
+				and (${schema.tours.groupSizeMax} is null or ${schema.tours.groupSizeMax} >= ${n})` as SQL
+		);
+	}
+	if (filters.date) {
+		conditions.push(
+			sql`(${schema.tours.availabilityType} = 'YEAR_ROUND'
+				or ((${schema.tours.availableFrom} is null or ${schema.tours.availableFrom}::date <= ${filters.date}::date)
+					and (${schema.tours.availableTo} is null or ${schema.tours.availableTo}::date >= ${filters.date}::date)))` as SQL
+		);
+	}
 	if (filters.minDays !== undefined) conditions.push(gte(schema.tours.durationDays, filters.minDays));
 	if (filters.maxDays !== undefined) conditions.push(lte(schema.tours.durationDays, filters.maxDays));
 	// priceFrom is a numeric column, which drizzle reads and writes as a string
@@ -1189,12 +1237,93 @@ async function relatedToursFor(tour: {
 	return ids.map((id) => byId.get(id)).filter((t): t is TourCard => !!t);
 }
 
+/**
+ * The published trips that sleep at one property.
+ *
+ * Two ways a tour can name a place and both count: the whole-trip "where you
+ * stay" list, and an individual itinerary night. A tour that names a lodge on
+ * day three but never added it to the trip-level list is still a tour that stays
+ * there, and a directory page that omitted it would be quietly wrong.
+ *
+ * Ranked and hydrated in two steps for the same reason relatedToursFor is:
+ * scoring plus the card's five joins in one statement means grouping by every
+ * joined key to keep Postgres happy.
+ */
+export async function publishedToursForAccommodation(accommodationId: string): Promise<TourCard[]> {
+	const ranked = await db()
+		.select({ id: schema.tours.id })
+		.from(schema.tours)
+		.where(
+			and(
+				publishedTour(),
+				or(
+					exists(
+						db()
+							.select({ one: sql`1` })
+							.from(schema.tourAccommodations)
+							.where(
+								and(
+									eq(schema.tourAccommodations.tourId, schema.tours.id),
+									eq(schema.tourAccommodations.accommodationId, accommodationId)
+								)
+							)
+					),
+					exists(
+						db()
+							.select({ one: sql`1` })
+							.from(schema.tourItineraryDays)
+							.where(
+								and(
+									eq(schema.tourItineraryDays.tourId, schema.tours.id),
+									eq(schema.tourItineraryDays.accommodationId, accommodationId)
+								)
+							)
+					)
+				)
+			)
+		)
+		.orderBy(desc(schema.tours.featured), sql`${schema.tours.publishedAt} desc nulls last`, asc(schema.tours.id))
+		.limit(12);
+	if (!ranked.length) return [];
+
+	const ids = ranked.map((r) => r.id);
+	const rows = await tourCardQuery().where(and(publishedTour(), inArray(schema.tours.id, ids)));
+	const byId = new Map((await hydrateTourCards(rows)).map((c) => [c.id, c]));
+	return ids.map((id) => byId.get(id)).filter((t): t is TourCard => !!t);
+}
+
+/** How many published trips stay at each of these properties, in one query. */
+export async function tourCountsForAccommodations(ids: string[]): Promise<Map<string, number>> {
+	if (!ids.length) return new Map();
+	const rows = (await db().execute(sql`
+		select a.id::text as accommodation_id, count(distinct t.id)::int as tours
+		from accommodations a
+		join tours t on t.deleted_at is null and t.status = 'PUBLISHED' and (
+			exists (select 1 from tour_accommodations ta where ta.tour_id = t.id and ta.accommodation_id = a.id)
+			or exists (select 1 from tour_itinerary_days d where d.tour_id = t.id and d.accommodation_id = a.id)
+		)
+		where a.id in ${ids}
+		group by a.id
+	`)) as unknown as Array<{ accommodation_id: string; tours: number }>;
+	return new Map(rows.map((r) => [r.accommodation_id, Number(r.tours)]));
+}
+
 export async function getPublishedTourBySlug(slug: string): Promise<{
 	tour: TourDetail;
 	country: CountryRef | null;
 	destinations: DestinationCard[];
 	itinerary: ItineraryDay[];
 	gallery: MediaRef[];
+	/** Where the traveller sleeps, directory properties and one-offs in one list. */
+	stays: TourStay[];
+	/**
+	 * Published reviews only, computed at read time.
+	 *
+	 * Carried on the detail so a page can decide whether a reviews section exists
+	 * at all without a second round trip — and so a tour with none renders an
+	 * empty state rather than "0.0".
+	 */
+	reviews: ReviewSummary;
 	operator: OperatorCard | null;
 	route: DestinationRef[];
 	relatedTours: TourCard[];
@@ -1320,7 +1449,12 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 				title: schema.tourItineraryDays.title,
 				description: schema.tourItineraryDays.description,
 				accommodation: schema.tourItineraryDays.accommodation,
+				accommodationId: schema.tourItineraryDays.accommodationId,
+				accommodationName: dayStay.name,
+				accommodationSlug: dayStay.slug,
+				accommodationImages: schema.tourItineraryDays.accommodationImages,
 				meals: schema.tourItineraryDays.meals,
+				mealsNote: schema.tourItineraryDays.mealsNote,
 				activities: schema.tourItineraryDays.activities,
 				distance: schema.tourItineraryDays.distance,
 				estimatedTravelTime: schema.tourItineraryDays.estimatedTravelTime,
@@ -1350,6 +1484,17 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 				)
 			)
 			.leftJoin(dayImage, eq(dayImage.id, schema.tourItineraryDays.mediaId))
+			// Same reasoning as the destination join above: a day whose property has
+			// been deactivated keeps its day and falls back to the operator's own
+			// words, rather than vanishing from the itinerary.
+			.leftJoin(
+				dayStay,
+				and(
+					eq(dayStay.id, schema.tourItineraryDays.accommodationId),
+					eq(dayStay.isActive, true),
+					isNull(dayStay.deletedAt)
+				)
+			)
 			.where(eq(schema.tourItineraryDays.tourId, tourId))
 			.orderBy(asc(schema.tourItineraryDays.dayNumber)),
 		db()
@@ -1372,6 +1517,11 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 		hero: mediaOf(r.hero)
 	}));
 
+	// One query for every day's stay photographs, rather than one per day.
+	const dayStayImages = await imagesForAccommodations(
+		[...new Set(itineraryRows.map((r) => r.accommodationId).filter((id): id is string => Boolean(id)))]
+	);
+
 	const itinerary: ItineraryDay[] = itineraryRows.map((r) => ({
 		id: r.id,
 		dayNumber: r.dayNumber,
@@ -1389,8 +1539,19 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 						mapRegion: r.destination.mapRegion
 					}
 				: null,
-		accommodation: r.accommodation,
-		meals: r.meals,
+		// The directory's name where the day points at one, the operator's own
+		// words where it does not. One field, because a page showing both would
+		// print the same lodge twice under two spellings — which is the problem
+		// the directory exists to end.
+		accommodation: r.accommodationName ?? r.accommodation,
+		accommodationSlug: r.accommodationSlug,
+		accommodationImages: r.accommodationId
+			? (dayStayImages.get(r.accommodationId) ?? []).map((i) => i.url)
+			: (r.accommodationImages ?? []),
+		// Rendered once, here, so every consumer says it the same way rather than
+		// each reimplementing the join.
+		meals: mealsLabel(r.meals) ?? r.mealsNote,
+		mealsIncluded: normaliseMeals(r.meals),
 		activities: r.activities ?? [],
 		distance: r.distance,
 		estimatedTravelTime: r.estimatedTravelTime,
@@ -1467,6 +1628,11 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 		destinations,
 		itinerary,
 		gallery: galleryRows.map((r) => mediaOf(r.image)).filter((m): m is MediaRef => !!m),
+		// Where the traveller sleeps, as the operator arranged it — directory
+		// properties and one-off camps in one list, because a reader does not care
+		// which of the two a lodge happens to be.
+		stays: (await accommodationsForTours([tourId])).get(tourId) ?? [],
+		reviews: await getTourReviewSummary(tourId),
 		operator: operatorCardOf(row.operator, row.logo, row.cover),
 		route,
 		relatedTours
@@ -1484,7 +1650,9 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
  * shape of it: the moment this page starts returning "the card, plus a couple of extra
  * fields", the next caller adds two more.
  */
-export async function getOperatorBySlug(slug: string): Promise<{ operator: OperatorCard; tours: TourCard[] } | null> {
+export async function getOperatorBySlug(
+	slug: string
+): Promise<{ operator: OperatorCard; tours: TourCard[]; reviews: ReviewSummary } | null> {
 	const [row] = await db()
 		.select({
 			// tenantId is read here and never returned: it is what scopes the tour list
@@ -1520,7 +1688,14 @@ export async function getOperatorBySlug(slug: string): Promise<{ operator: Opera
 		.orderBy(...tourOrder('recommended'))
 		.limit(OPERATOR_TOUR_LIMIT);
 
-	return { operator: card, tours: await hydrateTourCards(tours) };
+	return {
+		operator: card,
+		tours: await hydrateTourCards(tours),
+		// Every published review this operator has, across every trip they run —
+		// not the sum of one listing's. Computed at read time from published rows,
+		// so hiding a review changes the number immediately.
+		reviews: await getOperatorReviewSummary(row.tenantId)
+	};
 }
 
 /* ----------------------------------------------------------- ownership ---- */

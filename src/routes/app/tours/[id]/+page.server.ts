@@ -32,6 +32,7 @@ import {
 	type ItineraryDayInput,
 	type TourAction
 } from '$lib/server/tours';
+import { setTourAccommodations } from '$lib/server/accommodations';
 import { AppError, toAppError } from '$lib/server/errors';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -40,6 +41,8 @@ const VENDOR_ACTIONS: readonly string[] = ['submit', 'unpublish', 'archive', 're
 
 /** A JSON field has no natural size limit the way a set of inputs does. */
 const MAX_DAYS = 60;
+/** Enough for a long circuit; past this it is a catalogue, not an itinerary. */
+const MAX_STAYS = 40;
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	requireTenantPermission(locals, 'tours:read');
@@ -120,7 +123,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			title: d.title,
 			description: d.description,
 			destinationId: d.destinationId,
+			accommodationId: d.accommodationId,
 			accommodation: d.accommodation,
+			accommodationImages: d.accommodationImages,
+			mealsNote: d.mealsNote,
 			meals: d.meals,
 			activities: d.activities,
 			distance: d.distance,
@@ -130,6 +136,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			travelMode: d.travelMode
 		})),
 		gallery: detail.gallery.map((m) => publicMedia(m)).filter((m): m is NonNullable<typeof m> => m !== null),
+		// What is attached, and the directory to attach from.
+		accommodations: detail.accommodations,
+		accommodationOptions: detail.accommodationOptions,
 		countries,
 		destinations: destinations.map((d) => ({
 			...d,
@@ -166,6 +175,19 @@ function num(f: FormData, key: string, label: string): number | null {
 }
 
 const trimmed = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
+
+/**
+ * Image urls typed into a textarea, one per line.
+ *
+ * Only the shape is checked here; the service re-checks it, because this page is
+ * not the only way in.
+ */
+const urlList = (value: unknown): string[] =>
+	String(value ?? '')
+		.split(/[\n,]/)
+		.map((url) => url.trim())
+		.filter(Boolean)
+		.slice(0, 12);
 
 /**
  * A map pin from the browser, or nothing.
@@ -287,8 +309,11 @@ export const actions: Actions = {
 				title: String(d.title ?? '').trim(),
 				description: trimmed(d.description),
 				destinationId: trimmed(d.destinationId),
+				accommodationId: trimmed(d.accommodationId),
 				accommodation: trimmed(d.accommodation),
-				meals: trimmed(d.meals),
+				accommodationImages: urlList(d.accommodationImages),
+				// Already a closed set from the composer; the service parses either.
+				meals: Array.isArray(d.meals) ? d.meals.map(String) : trimmed(d.meals),
 				activities: String(d.activities ?? '')
 					.split(',')
 					.map((a) => a.trim())
@@ -304,6 +329,56 @@ export const actions: Actions = {
 		try {
 			await replaceItinerary(tenantId, params.id, days, { userId: locals.user?.id });
 			return { success: true, notice: 'Itinerary saved' };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
+	/**
+	 * Where the traveller sleeps, as one ordered list.
+	 *
+	 * Posted as JSON for the same reason the itinerary is: rows are added,
+	 * removed and reordered in the browser, so the browser already holds the
+	 * finished list. Reassembling it here from indexed inputs would only rebuild
+	 * the array it already has.
+	 */
+	saveAccommodations: async ({ locals, params, request }) => {
+		requirePermission(locals.permissions, 'tours:write');
+		const tenantId = requireTenant(locals).id;
+		const f = await request.formData();
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(String(f.get('stays') ?? '[]'));
+		} catch {
+			return fail(400, { message: 'That list could not be read. Reload the page and try again.' });
+		}
+		if (!Array.isArray(parsed)) {
+			return fail(400, { message: 'That list could not be read. Reload the page and try again.' });
+		}
+		if (parsed.length > MAX_STAYS) {
+			return fail(400, { message: `A tour can list ${MAX_STAYS} places to stay.` });
+		}
+
+		try {
+			// Ownership first: the link is the tenant's data even though the
+			// property it points at is the platform's.
+			await getTourDetail(tenantId, params.id);
+			await setTourAccommodations(
+				params.id,
+				parsed.map((raw) => {
+					const row = (raw ?? {}) as Record<string, unknown>;
+					const nights = Number(row.nights);
+					return {
+						accommodationId: trimmed(row.accommodationId),
+						customName: trimmed(row.customName),
+						customImages: urlList(row.customImages),
+						nights: Number.isInteger(nights) && nights > 0 && nights <= 60 ? nights : null,
+						note: trimmed(row.note)
+					};
+				})
+			);
+			return { success: true, notice: 'Places to stay saved' };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}

@@ -163,11 +163,36 @@ export function nextForBooking(booking: BookingLike, can: NextActionAbility): Ne
 	if (booking.outstanding > 0 && !booking.activeRequestStatus && can.payments) {
 		return { key: 'request_payment', label: 'Request payment', href, hint: 'Send them how to pay, on WhatsApp.' };
 	}
+	/*
+	 * Money outstanding outranks the handover, whatever the status says.
+	 *
+	 * An accepted quotation now confirms its booking immediately, which is right
+	 * commercially — but it means CONFIRMED no longer implies paid. Without this,
+	 * a booking with a payment request already out would have skipped straight to
+	 * "Hand over to operations" and put an unpaid trip in front of the people who
+	 * have to run it.
+	 */
+	if (booking.outstanding > 0 && can.payments) {
+		// Reuses request_payment rather than adding a key: every surface already
+		// routes that one to the payment panel, which is exactly where chasing
+		// happens. A new key would need handling in the portal AND the phone to
+		// end up in the same place.
+		return {
+			key: 'request_payment',
+			label: 'Chase payment',
+			href,
+			hint: 'Asked for, not arrived. Nothing goes to operations until it does.'
+		};
+	}
 	// Once trips exist, a confirmed booking's next step is the handover, not a
 	// booking-level "Start trip" — that button only ever flipped a commercial
 	// status, and having it sit next to a real Trip domain is the kind of
 	// near-synonym that makes staff guess. Departure belongs to the trip.
-	if (can.tripsWrite && !booking.hasTrip && booking.status === 'CONFIRMED') {
+	// `outstanding <= 0`, not "can.payments said nothing": the rule is about the
+	// balance, not about who is looking. Gating it on the viewer's permissions
+	// meant an operations person without payment rights was shown the handover on
+	// exactly the unpaid booking a salesperson was being told to chase.
+	if (can.tripsWrite && !booking.hasTrip && booking.status === 'CONFIRMED' && booking.outstanding <= 0) {
 		return {
 			key: 'hand_over_to_operations',
 			label: 'Hand over to operations',

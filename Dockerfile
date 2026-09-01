@@ -30,6 +30,10 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/src/lib/server/db/schema.ts ./src/lib/server/db/schema.ts
+# The shared vocabularies (meals, comfort levels, lodge types). Scripts import
+# them rather than restating them: a copy of a closed list in an import script is
+# how the list quietly stops being closed.
+COPY --from=build /app/src/lib/tour-options.ts ./src/lib/tour-options.ts
 
 # Run unprivileged.
 USER node

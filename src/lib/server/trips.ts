@@ -838,18 +838,20 @@ export async function updateTrip(
 
 	if (input.accommodationItemId !== undefined) {
 		if (input.accommodationItemId) {
+			// The platform directory, not a per-tenant list: the same lodge is the
+			// same lodge whoever is sending guests to it.
 			const [item] = await db()
-				.select({ id: schema.catalogItems.id, name: schema.catalogItems.name })
-				.from(schema.catalogItems)
+				.select({ id: schema.accommodations.id, name: schema.accommodations.name })
+				.from(schema.accommodations)
 				.where(
 					and(
-						eq(schema.catalogItems.id, input.accommodationItemId),
-						eq(schema.catalogItems.tenantId, tenantId),
-						eq(schema.catalogItems.type, 'ACCOMMODATION')
+						eq(schema.accommodations.id, input.accommodationItemId),
+						eq(schema.accommodations.isActive, true),
+						isNull(schema.accommodations.deletedAt)
 					)
 				)
 				.limit(1);
-			if (!item) throw new AppError('VALIDATION_ERROR', 'That accommodation is not in your catalog.');
+			if (!item) throw new AppError('VALIDATION_ERROR', 'That place is no longer listed.');
 			patch.accommodationItemId = item.id;
 			patch.accommodation = item.name;
 		} else {

@@ -38,7 +38,10 @@ export const EVENTS = [
 	'trip.in_progress',
 	'trip.completed',
 	'trip.cancelled',
-	'trip.preparing'
+	'trip.preparing',
+	// Reviews. Submitted is not published: the platform decides between them.
+	'review.submitted',
+	'review.published'
 ] as const;
 
 export type DomainEvent = (typeof EVENTS)[number];

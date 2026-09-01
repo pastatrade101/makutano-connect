@@ -29,7 +29,6 @@ export const PATCH: RequestHandler = async (event) =>
 				items: z
 					.array(
 						z.object({
-							catalogItemId: z.string().uuid().optional().nullable(),
 							title: z.string().min(1).max(300),
 							variant: z.string().max(200).optional().nullable(),
 							sku: z.string().max(100).optional().nullable(),

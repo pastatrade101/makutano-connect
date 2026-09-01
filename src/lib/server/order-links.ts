@@ -48,7 +48,6 @@ export type OrderLinkInput = {
 	paymentTiming?: 'AFTER_CONFIRMATION' | 'IMMEDIATE';
 	shareTags?: Array<{ key: string; label: string }>;
 	batchId?: string | null;
-	catalogItemId?: string | null;
 };
 
 type Actor = { userId?: string | null };
@@ -112,14 +111,6 @@ async function assertTenantOwned(tenantId: string, input: OrderLinkInput): Promi
 			.limit(1);
 		if (!rows[0]) throw new AppError('NOT_FOUND', 'Batch could not be found.');
 	}
-	if (input.catalogItemId) {
-		const rows = await db()
-			.select({ id: schema.catalogItems.id })
-			.from(schema.catalogItems)
-			.where(and(eq(schema.catalogItems.id, input.catalogItemId), eq(schema.catalogItems.tenantId, tenantId)))
-			.limit(1);
-		if (!rows[0]) throw new AppError('NOT_FOUND', 'Catalog item could not be found.');
-	}
 }
 
 /* ------------------------------------------------------------ management -- */
@@ -158,7 +149,6 @@ export async function createOrderLink(
 			paymentTiming: input.paymentTiming ?? 'AFTER_CONFIRMATION',
 			shareTags: input.shareTags ?? [],
 			batchId: input.batchId ?? null,
-			catalogItemId: input.catalogItemId ?? null,
 			createdByUserId: actor.userId ?? null
 		})
 		.returning();
@@ -214,7 +204,6 @@ export async function updateOrderLink(
 			paymentTiming: input.paymentTiming ?? before.paymentTiming,
 			shareTags: input.shareTags ?? (before.shareTags as Array<{ key: string; label: string }>),
 			batchId: input.batchId ?? null,
-			catalogItemId: input.catalogItemId ?? null,
 			updatedAt: new Date()
 		})
 		.where(eq(schema.orderLinks.id, id))
@@ -301,8 +290,7 @@ export async function duplicateOrderLink(tenantId: string, id: string, actor: Ac
 			fieldConfig: source.fieldConfig as Record<string, FieldMode>,
 			paymentTiming: source.paymentTiming as 'AFTER_CONFIRMATION' | 'IMMEDIATE',
 			shareTags: source.shareTags as Array<{ key: string; label: string }>,
-			batchId: source.batchId,
-			catalogItemId: source.catalogItemId
+			batchId: source.batchId
 		},
 		actor
 	);
@@ -355,7 +343,6 @@ export async function listOrderLinks(
 			paymentTiming: r.payment_timing,
 			shareTags: r.share_tags,
 			batchId: r.batch_id,
-			catalogItemId: r.catalog_item_id,
 			viewCount: r.view_count,
 			metadata: r.metadata,
 			createdByUserId: r.created_by_user_id,
@@ -654,8 +641,7 @@ export async function submitOrderLink(
 						quantity,
 						unit: link.unit,
 						// Price ALWAYS from the link's configuration — never from the browser (§26).
-						unitPrice: String(link.unitPrice),
-						catalogItemId: link.catalogItemId
+						unitPrice: String(link.unitPrice)
 					}
 				]
 			},

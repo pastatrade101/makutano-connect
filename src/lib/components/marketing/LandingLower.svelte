@@ -56,7 +56,7 @@
 	</div>
 </section>
 
-<section id="start" class="scroll-mt-24 border-b border-slate-100 bg-[#f8faff]">
+<section id="start" class="scroll-mt-24 border-b border-slate-100 bg-[#faf8f5]">
 	<div class="mx-auto max-w-[1240px] px-4 py-[70px] sm:px-6 sm:py-[90px] lg:px-10">
 		<SectionHead
 			label="Getting started"
@@ -94,7 +94,7 @@
 	</section>
 {/if}
 
-<section id="developers" class="scroll-mt-24 border-b border-slate-100 bg-[#f8faff]">
+<section id="developers" class="scroll-mt-24 border-b border-slate-100 bg-[#faf8f5]">
 	<div class="mx-auto grid max-w-[1240px] items-center gap-12 px-4 py-[70px] sm:px-6 sm:py-[90px] lg:grid-cols-2 lg:px-10">
 		<div>
 			<SectionHead
@@ -111,7 +111,7 @@
 		     code block would stretch the whole track past the viewport on a phone
 		     instead of letting the <pre> scroll inside itself. -->
 		<div class="min-w-0">
-			<div class="overflow-hidden rounded-2xl border border-white/10 bg-[#101b2b] shadow-[0_28px_70px_rgba(16,27,43,0.24)]"><div class="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3"><span class="truncate font-mono text-[11.5px] text-slate-400">POST /api/v1/booking-requests</span><span class="rounded bg-success/15 px-2 py-0.5 font-mono text-[10px] text-[#70e59a]">201</span></div><pre class="overflow-x-auto p-5 font-mono text-[12.5px] leading-6 text-slate-300"><code><span>{'{'}</span>
+			<div class="overflow-hidden rounded-2xl border border-white/10 bg-[#1f1a15] shadow-[0_28px_70px_rgba(16,27,43,0.24)]"><div class="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3"><span class="truncate font-mono text-[11.5px] text-slate-400">POST /api/v1/booking-requests</span><span class="rounded bg-success/15 px-2 py-0.5 font-mono text-[10px] text-[#8fd7ab]">201</span></div><pre class="overflow-x-auto p-5 font-mono text-[12.5px] leading-6 text-slate-300"><code><span>{'{'}</span>
   <span>"customer": {'{'}</span>
     <span>"firstName": "Asha",</span>
     <span>"whatsappPhone": "+255754000128"</span>
@@ -135,6 +135,6 @@
 		/><div class="mt-10 grid gap-x-10 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">{#each [{ t: 'Your business is its own boundary', d: 'Every operator works inside a server-scoped data boundary. An enquiry can only ever reach the operator who owns the tour.' }, { t: 'Granular permissions', d: 'Roles limit what each member of your team can open, change and send.' }, { t: 'Secure WhatsApp credentials', d: 'Your WhatsApp tokens stay encrypted and server-side. They never reach a browser.' }, { t: 'Webhook verification', d: 'Inbound provider events are authenticated before anything is processed.' }, { t: 'Auditable payments', d: 'Requests, traveller reports and verification actions each keep their own audit record.' }, { t: 'Unpublished stays unpublished', d: 'A listing in draft or in review is invisible to the public marketplace — including to your competitors.' }] as item (item.t)}<div class="flex gap-3"><span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 2 4 4.5v5c0 3.7 2.6 6.6 6 8 3.4-1.4 6-4.3 6-8v-5L10 2Z" /><path d="m7.5 10 2 2 3.5-4" /></svg></span><div><h3 class="text-[14.5px] font-semibold text-slate-800">{item.t}</h3><p class="mt-1 text-[12.5px] leading-5 text-slate-500">{item.d}</p></div></div>{/each}</div></div>
 </section>
 
-<section class="bg-[#0e335d] text-white">
-	<div class="mx-auto max-w-[1240px] px-4 py-[70px] text-center sm:px-6 sm:py-[90px] lg:px-10"><p class="text-[11.5px] font-bold tracking-[0.18em] text-blue-200 uppercase">Start selling</p><h2 class="mx-auto mt-4 max-w-5xl text-[32px] leading-tight font-bold tracking-[-0.04em] text-white sm:text-4xl lg:text-5xl">Put your journeys in front of travellers.<br class="hidden lg:block" /> Run the rest from here.</h2><p class="mx-auto mt-5 max-w-xl text-sm leading-7 text-blue-100/75">List on Makutano Journeys, answer on your own WhatsApp, and take the trip from enquiry to departure in one place.</p><div class="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center"><a href={getStartedHref} class="inline-flex min-h-12 items-center justify-center rounded-lg bg-white px-6 text-sm font-semibold text-[#0e335d] transition hover:bg-blue-50">Create your account</a><a href="https://journeys.makutano.co.tz" target="_blank" rel="noopener" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-white/20 px-6 text-sm font-semibold text-white transition hover:bg-white/10">See the marketplace <svg class="size-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 13 13 7m0 0H8m5 0v5" /></svg></a></div><p class="mt-5 text-[12.5px] text-blue-200/70">14-day free trial · No card required</p></div>
+<section class="bg-[#2b231b] text-white">
+	<div class="mx-auto max-w-[1240px] px-4 py-[70px] text-center sm:px-6 sm:py-[90px] lg:px-10"><p class="text-[11.5px] font-bold tracking-[0.18em] text-blue-200 uppercase">Start selling</p><h2 class="mx-auto mt-4 max-w-5xl text-[32px] leading-tight font-bold tracking-[-0.04em] text-white sm:text-4xl lg:text-5xl">Put your journeys in front of travellers.<br class="hidden lg:block" /> Run the rest from here.</h2><p class="mx-auto mt-5 max-w-xl text-sm leading-7 text-blue-100/75">List on Makutano Journeys, answer on your own WhatsApp, and take the trip from enquiry to departure in one place.</p><div class="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center"><a href={getStartedHref} class="inline-flex min-h-12 items-center justify-center rounded-lg bg-white px-6 text-sm font-semibold text-[#2b231b] transition hover:bg-blue-50">Create your account</a><a href="https://journeys.makutano.co.tz" target="_blank" rel="noopener" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-white/20 px-6 text-sm font-semibold text-white transition hover:bg-white/10">See the marketplace <svg class="size-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 13 13 7m0 0H8m5 0v5" /></svg></a></div><p class="mt-5 text-[12.5px] text-blue-200/70">14-day free trial · No card required</p></div>
 </section>

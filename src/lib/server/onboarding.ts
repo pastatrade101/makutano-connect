@@ -8,7 +8,7 @@ import { audit } from './audit';
 import { db, schema } from './db';
 import { effectiveEntitlements } from './entitlements';
 import { log } from './logger';
-import { catalogRecommended, moduleRelevant, normalizeWorkspace } from '$lib/workspace';
+import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
 
 export type ChecklistItem = {
 	key: string;
@@ -55,7 +55,7 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 	const entitlements = await effectiveEntitlements(tenantId);
 	const can = (key: string) => entitlements.resolved[key]?.effective !== false;
 
-	const [connections, members, templates, catalog, activity, integrations, listings] = await Promise.all([
+	const [connections, members, templates, activity, integrations, listings] = await Promise.all([
 		db()
 			.select({ id: schema.whatsappConnections.id })
 			.from(schema.whatsappConnections)
@@ -63,7 +63,6 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 			.limit(1),
 		db().select({ id: schema.tenantMemberships.id }).from(schema.tenantMemberships).where(eq(schema.tenantMemberships.tenantId, tenantId)),
 		count('whatsapp_templates', tenantId),
-		count('catalog_items', tenantId),
 		count('booking_requests', tenantId).then(async (n) => n + (await count('orders', tenantId))),
 		count('api_keys', tenantId).then(async (n) => n + (await count('webhook_endpoints', tenantId))),
 		// A tour that has been SENT, not merely started. An empty draft is not a
@@ -138,18 +137,6 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 			description: 'Create an API key or webhook so Connect can work beside your existing system.',
 			href: '/app/developers',
 			done: integrations > 0
-		});
-	}
-
-	// Only where reusable items speed up order entry. A tour operator's website stays
-	// the source of truth for tours — Connect never asks them to recreate packages here.
-	if (catalogRecommended(workspace) && can('orders.enabled') && !usesExternalSystem) {
-		items.push({
-			key: 'catalog',
-			label: 'Add what you sell',
-			description: 'Products or services customers order often — speeds up order entry.',
-			href: '/app/catalog',
-			done: catalog > 0
 		});
 	}
 

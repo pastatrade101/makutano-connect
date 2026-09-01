@@ -1,7 +1,6 @@
 import { error, fail, redirect, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
-import { listCatalogItems } from '$lib/server/catalog';
 import { COMMON_UNITS, listBatches } from '$lib/server/order-batches';
 import { createCustomer } from '$lib/server/customers';
 import { getConversation } from '$lib/server/conversations';
@@ -43,8 +42,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	}
 
-	const [{ items: catalog }, recentCustomers, { items: openBatches }] = await Promise.all([
-		listCatalogItems(tenantId, { page: 1, limit: 100, order: 'desc' }, { activeOnly: true }),
+	const [recentCustomers, { items: openBatches }] = await Promise.all([
 		db()
 			.select({
 				id: schema.customers.id,
@@ -65,13 +63,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			'orders'
 		),
 		conversation,
-		catalog: catalog.map((c) => ({
-			id: c.id,
-			name: c.name,
-			price: c.price,
-			currency: c.currency,
-			variants: c.variants
-		})),
 		customers: recentCustomers,
 		units: COMMON_UNITS,
 		batches: openBatches.map((b) => ({
@@ -147,7 +138,6 @@ export const actions: Actions = {
 					paymentMethod: String(data.get('paymentMethod') ?? '') || null,
 					notes: String(data.get('notes') ?? '') || null,
 					items: items.map((i) => ({
-						catalogItemId: (i.catalogItemId as string) || null,
 						title: String(i.title ?? '').slice(0, 300),
 						variant: String(i.variant ?? '').slice(0, 200) || null,
 						quantity: Math.max(1, Number(i.quantity ?? 1) || 1),

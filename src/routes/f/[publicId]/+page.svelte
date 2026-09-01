@@ -6,10 +6,9 @@
 	let { data } = $props();
 
 	const c = $derived(data.config);
-	const accent = $derived(String((c.branding as Record<string, unknown>)?.accentColor ?? '#1c84ee'));
+	const accent = $derived(String((c.branding as Record<string, unknown>)?.accentColor ?? '#b4532a'));
 
 	let values = $state<Record<string, string>>({});
-	let cart = $state<Array<{ catalogItemId: string; quantity: number; variant: string }>>([]);
 	let submitting = $state(false);
 	let done = $state<string | null>(null);
 	let errorMessage = $state<string | null>(null);
@@ -19,12 +18,6 @@
 	const isNumber = (key: string) => key === 'adults' || key === 'children' || key === 'quantity';
 	const isTextarea = (key: string) => key === 'message' || key === 'notes';
 
-	function toggleCartItem(id: string) {
-		const index = cart.findIndex((x) => x.catalogItemId === id);
-		if (index >= 0) cart.splice(index, 1);
-		else cart.push({ catalogItemId: id, quantity: 1, variant: '' });
-	}
-
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		submitting = true;
@@ -33,7 +26,7 @@
 			const res = await fetch(`/api/public/widgets/${c.publicId}/submit`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ hp_company: hp, fields: values, items: cart.length ? cart : undefined })
+				body: JSON.stringify({ hp_company: hp, fields: values })
 			});
 			const out = await res.json();
 			if (out.success) done = out.data.message;
@@ -83,62 +76,27 @@
 				<form onsubmit={submit} class="mt-4 space-y-3">
 					<input type="text" name="hp_company" bind:value={hp} tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -left-[9999px] h-0 w-0 opacity-0" />
 
-					{#if c.type === 'ORDER' && c.catalog.length}
-						<div>
-							<span class="label">Choose products</span>
-							<div class="space-y-1.5">
-								{#each c.catalog as item (item.id)}
-									{@const inCart = cart.find((x) => x.catalogItemId === item.id)}
-									<div class="rounded-panel border {inCart ? 'border-brand-500 bg-brand-50/40' : 'border-slate-200'} p-2.5">
-										<label class="flex cursor-pointer items-center justify-between gap-2">
-											<span class="flex items-center gap-2.5">
-												<input type="checkbox" checked={!!inCart} onchange={() => toggleCartItem(item.id)} class="rounded border-slate-300" />
-												<span class="text-sm font-medium text-slate-700">{item.name}</span>
-											</span>
-											{#if item.price}<span class="text-[13px] font-semibold text-slate-600">{item.currency ?? ''} {item.price}</span>{/if}
-										</label>
-										{#if inCart}
-											<div class="mt-2 flex gap-2 pl-6">
-												<input type="number" min="1" max="999" bind:value={inCart.quantity} class="input w-20 py-1.5" aria-label="Quantity" />
-												{#if item.variants.length}
-													<select bind:value={inCart.variant} class="input py-1.5">
-														<option value="">Choose option…</option>
-														{#each item.variants as v, i (i)}
-															<option value={String(v.label ?? '')}>{String(v.label ?? '')}</option>
-														{/each}
-													</select>
-												{/if}
-											</div>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
-
 					{#each c.fields as field (field.key)}
-						{#if !(c.type === 'ORDER' && c.catalog.length && (field.key === 'product' || field.key === 'variant' || field.key === 'quantity'))}
-							<div>
-								<label class="label" for="pf-{field.key}">{field.label}{#if field.required}<span class="text-danger"> *</span>{/if}</label>
-								{#if isTextarea(field.key)}
-									<textarea id="pf-{field.key}" rows="3" bind:value={values[field.key]} required={field.required} class="input"></textarea>
-								{:else if field.key === 'deliveryMethod'}
-									<select id="pf-{field.key}" bind:value={values[field.key]} required={field.required} class="input">
-										<option value="">Choose…</option>
-										<option value="DELIVERY">Delivery</option>
-										<option value="PICKUP">Pickup</option>
-									</select>
-								{:else}
-									<input
-										id="pf-{field.key}"
-										type={isDate(field.key) ? 'date' : isNumber(field.key) ? 'number' : field.key === 'email' ? 'email' : 'text'}
-										bind:value={values[field.key]}
-										required={field.required}
-										class="input"
-									/>
-								{/if}
-							</div>
-						{/if}
+						<div>
+							<label class="label" for="pf-{field.key}">{field.label}{#if field.required}<span class="text-danger"> *</span>{/if}</label>
+							{#if isTextarea(field.key)}
+								<textarea id="pf-{field.key}" rows="3" bind:value={values[field.key]} required={field.required} class="input"></textarea>
+							{:else if field.key === 'deliveryMethod'}
+								<select id="pf-{field.key}" bind:value={values[field.key]} required={field.required} class="input">
+									<option value="">Choose…</option>
+									<option value="DELIVERY">Delivery</option>
+									<option value="PICKUP">Pickup</option>
+								</select>
+							{:else}
+								<input
+									id="pf-{field.key}"
+									type={isDate(field.key) ? 'date' : isNumber(field.key) ? 'number' : field.key === 'email' ? 'email' : 'text'}
+									bind:value={values[field.key]}
+									required={field.required}
+									class="input"
+								/>
+							{/if}
+					</div>
 					{/each}
 
 					{#if errorMessage}<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{errorMessage}</p>{/if}

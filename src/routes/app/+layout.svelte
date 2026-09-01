@@ -6,7 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import Toasts from '$components/Toasts.svelte';
-	import { catalogCopy, moduleRelevant, type Module } from '$lib/workspace';
+	import { moduleRelevant, type Module } from '$lib/workspace';
 	import { theme, toggleTheme } from '$lib/stores/theme.svelte';
 	let { data, children } = $props();
 
@@ -35,7 +35,7 @@
 			items: [
 				{ href: '/app', label: 'Home', icon: 'M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-4v-5H8v5H4a1 1 0 0 1-1-1v-6.5Z', permission: null, primary: true },
 				{ href: '/app/conversations', label: 'Inbox', icon: 'M3 4h14v9H7l-4 3V4Z', permission: 'conversations:read', primary: true },
-				{ href: '/app/customers', label: 'Customers', icon: 'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 7a6 6 0 0 1 12 0H4Z', permission: 'customers:read' }
+				{ href: '/app/customers', label: 'Travellers', icon: 'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 7a6 6 0 0 1 12 0H4Z', permission: 'customers:read' }
 			]
 		},
 		{
@@ -47,6 +47,7 @@
 				{ href: '/app/orders', label: 'Orders', icon: 'M5 4h10l1.5 3v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V7L5 4Zm-1 3h12M8 10a2 2 0 0 0 4 0', permission: 'orders:read', primary: true, module: 'orders', entitlement: 'orders.enabled' },
 				{ href: '/app/quotations', label: 'Quotations', icon: 'M5 3h7l3 3v11H5V3Zm7 0v3h3', permission: 'quotations:read', module: 'quotations', entitlement: 'quotations.enabled' },
 				{ href: '/app/trips', label: 'Trips', icon: 'M2 12h16M6 12V7l3-3 3 3v5M4 12v4h12v-4', permission: 'trips:read', module: 'trips' },
+				{ href: '/app/reviews', label: 'Reviews', icon: 'm10 2.6 2.3 4.7 5.2.7-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L2.5 8l5.2-.7L10 2.6Z', permission: 'reviews:read', module: 'bookings' },
 				{ href: '/app/crew', label: 'Crew', icon: 'M7 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-5 7a5 5 0 0 1 10 0M13 5.5a2 2 0 1 1 0 4M14 16a4.5 4.5 0 0 0-1.2-3', permission: 'crew:read', module: 'trips' },
 				{ href: '/app/payments', label: 'Payments', icon: 'M2 6h16v8H2V6Zm0 3h16', permission: 'payments:read' }
 			]
@@ -57,7 +58,6 @@
 			items: [
 				{ href: '/app/whatsapp', label: 'WhatsApp', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.enabled' },
 				{ href: '/app/forms', label: 'Forms & widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read', entitlement: 'forms.hostedEnabled' },
-				{ href: '/app/catalog', label: 'Catalog', icon: 'M4 5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v11l-3-1.8L10 16l-3-1.8L4 16V5Z', permission: 'catalog:read', module: 'catalog' },
 				{ href: '/app/tours', label: 'Tours', icon: 'M10 2.5a4.5 4.5 0 0 0-4.5 4.5c0 3.4 4.5 10 4.5 10s4.5-6.6 4.5-10A4.5 4.5 0 0 0 10 2.5Zm0 6.2a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4Z', permission: 'tours:read', module: 'bookings' },
 				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read', module: 'leads' },
 				{ href: '/app/developers', label: 'Integrations', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5', permission: 'api_keys:read', entitlement: 'api.enabled' },
@@ -75,11 +75,9 @@
 	};
 	/** Locked = visible but not navigable, so the tenant can see what a plan adds. */
 	const locked = (item: Item) => !!item.entitlement && data.entitlements?.[item.entitlement] !== true;
-	// The catalog presents itself honestly per business type: "Services & Packages"
-	// for bookings/service tenants (optional tool), "Catalog" for order-takers.
-	const withCopy = (item: Item) =>
-		item.href === '/app/catalog' ? { ...item, label: catalogCopy(data.tenant.capabilities).label } : item;
-	const groups = $derived(GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed).map(withCopy) })).filter((g) => g.items.length));
+	// No per-item relabelling any more: the one entry that renamed itself per
+	// business type was the catalog, and it is gone.
+	const groups = $derived(GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length));
 	const flat = $derived(groups.flatMap((g) => g.items));
 	const primary = $derived(flat.filter((n) => n.primary).slice(0, 3));
 	const current = $derived(flat.find((n) => isActive(n.href))?.label ?? 'Overview');
@@ -103,7 +101,6 @@
 			items.push({ href: '/app/booking-requests/new', label: 'New enquiry', hint: ws === 'SERVICE' ? 'Log a customer enquiry' : 'Log a booking enquiry' });
 		}
 		if (can('customers:write')) {
-			items.push({ href: '/app/customers?new=1', label: 'New customer', hint: 'Add someone manually' });
 		}
 		// Quotations are deliberately absent: one always starts from an enquiry, so a
 		// "New quotation" button could only ever drop someone on a list.
@@ -222,7 +219,7 @@
 				<img src="/2.png" alt="" class="size-7 shrink-0 object-contain lg:hidden" />
 
 				<form onsubmit={submitSearch} class="relative hidden md:block">
-					<input bind:value={search} placeholder="Search customers, orders, references…" class="w-64 rounded-panel border border-slate-200 bg-slate-50 py-2 pr-3 pl-9 text-[14.5px] placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-1 focus:ring-brand-500" />
+					<input bind:value={search} placeholder="Search travellers, enquiries, references…" class="w-64 rounded-panel border border-slate-200 bg-slate-50 py-2 pr-3 pl-9 text-[14.5px] placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-1 focus:ring-brand-500" />
 					<svg class="pointer-events-none absolute top-2.5 left-3 size-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.4 9.84l3.13 3.13a.75.75 0 1 0 1.06-1.06l-3.13-3.13A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" /></svg>
 				</form>
 				<div class="min-w-0 md:hidden">
@@ -384,7 +381,7 @@
 					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12.5 4.5-5 5 5 5" /></svg>
 				</button>
 				<form onsubmit={submitSearch} class="relative flex-1">
-					<input bind:value={search} placeholder="Search customers, orders, references…" class="input h-10 rounded-full bg-slate-50 pl-10" />
+					<input bind:value={search} placeholder="Search travellers, enquiries, references…" class="input h-10 rounded-full bg-slate-50 pl-10" />
 					<svg class="pointer-events-none absolute top-3 left-3.5 size-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.4 9.84l3.13 3.13a.75.75 0 1 0 1.06-1.06l-3.13-3.13A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" /></svg>
 				</form>
 			</div>

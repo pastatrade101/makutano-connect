@@ -162,7 +162,7 @@
 			use:enhance={() => async ({ update, result }) => { await update({ reset: !l }); if (result.type === 'success') { showForm = false; editing = null; } }}
 			class="card grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
 		>
-			{#if l}<input type="hidden" name="id" value={l.id} /><input type="hidden" name="catalogItemId" value={l.catalogItemId ?? ''} />{/if}
+			{#if l}<input type="hidden" name="id" value={l.id} />{/if}
 			<div class="sm:col-span-2"><label class="label" for="ol-title">What are you selling?</label><input id="ol-title" name="title" required value={l?.title ?? ''} placeholder="Fresh Fish" class="input" /></div>
 			<div>
 				<label class="label" for="ol-unit">Sold by</label>

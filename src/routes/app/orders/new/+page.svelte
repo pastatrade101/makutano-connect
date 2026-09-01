@@ -2,17 +2,17 @@
 	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import { sourceLabel, statusLabel } from '$lib/labels';
 	// Record an order the way a WhatsApp seller thinks about it: who, what, how many,
-	// how it reaches them. Catalog quick-pick fills names and prices; free-text rows
-	// cover everything the catalog doesn't. Nothing here is a storefront.
+	// how it reaches them. Free-text rows throughout — a saved list of products was
+	// tried and removed; nobody filled one. Nothing here is a storefront.
 	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	let { data, form } = $props();
 
-	type Row = { catalogItemId: string | null; title: string; variant: string; quantity: number; unit: string; unitPrice: string };
+	type Row = { title: string; variant: string; quantity: number; unit: string; unitPrice: string };
 	// Variants are the exception, not the rule: a row shows one when it has one, or
 	// when this person asks for it.
 	let variantRows = $state(new Set<number>());
-	let rows = $state<Row[]>([{ catalogItemId: null, title: '', variant: '', quantity: 1, unit: '', unitPrice: '' }]);
+	let rows = $state<Row[]>([{ title: '', variant: '', quantity: 1, unit: '', unitPrice: '' }]);
 	let discount = $state('');
 	let deliveryFee = $state('');
 	let batchId = $state('');
@@ -66,13 +66,7 @@
 	const total = $derived(Math.max(0, subtotal - (Number(discount) || 0) + (Number(deliveryFee) || 0)));
 
 	function addRow() {
-		rows.push({ catalogItemId: null, title: '', variant: '', quantity: 1, unit: '', unitPrice: '' });
-	}
-	function addFromCatalog(id: string) {
-		const item = data.catalog.find((c) => c.id === id);
-		if (!item) return;
-		rows.push({ catalogItemId: item.id, title: item.name, variant: '', quantity: 1, unit: '', unitPrice: item.price ?? '' });
-		if (rows.length > 1 && !rows[0].title) rows.shift();
+		rows.push({ title: '', variant: '', quantity: 1, unit: '', unitPrice: '' });
 	}
 	const validRows = $derived(rows.filter((r) => r.title.trim()));
 </script>
@@ -141,12 +135,6 @@
 		<section class="card p-3">
 			<div class="mb-2 flex items-center justify-between">
 				<h2 class="card-title">Items</h2>
-				{#if data.catalog.length}
-					<select class="input w-auto py-1.5 text-xs" onchange={(e) => { addFromCatalog(e.currentTarget.value); e.currentTarget.value = ''; }}>
-						<option value="">+ from catalog…</option>
-						{#each data.catalog as c (c.id)}<option value={c.id}>{c.name}{c.price ? ` — ${c.currency ?? ''} ${c.price}` : ''}</option>{/each}
-					</select>
-				{/if}
 			</div>
 			<div class="space-y-2">
 				{#each rows as row, i (i)}

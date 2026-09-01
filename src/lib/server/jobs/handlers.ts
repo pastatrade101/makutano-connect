@@ -56,25 +56,6 @@ export const handlers: Record<string, JobHandler> = {
 	'usage.aggregate': async () => {
 		log.debug('usage_aggregate_tick');
 	},
-	// One tenant's catalogue. Errors are contained per source inside the service,
-	// so a single unreachable endpoint does not fail the job or the sweep.
-	'catalog.sync': async (payload) => {
-		const { syncTenantCatalog } = await import('../catalog-sync');
-		const { tenantId } = payload as { tenantId: string };
-		await syncTenantCatalog(tenantId);
-	},
-
-	// Hourly fan-out. Enqueued with an hour-bucketed dedupe key by the worker
-	// sweep, so a restart cannot stack up a queue of them.
-	'catalog.sync.sweep': async () => {
-		const { tenantsWithCatalogSync } = await import('../catalog-sync');
-		const { enqueue } = await import('./queue');
-		const tenants = await tenantsWithCatalogSync();
-		const hour = Math.floor(Date.now() / 3_600_000);
-		for (const tenantId of tenants) {
-			await enqueue('catalog.sync', { tenantId }, { tenantId, dedupeKey: `catalog:${tenantId}:${hour}` });
-		}
-	},
 
 	'maintenance.cleanup': async () => {
 		const keys = await purgeExpiredKeys();

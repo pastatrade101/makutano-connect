@@ -13,7 +13,7 @@
 //   2. Dates stay uncertain when the customer was uncertain. "around 12 October" is
 //      preserved verbatim next to any resolved date, and never silently hardened
 //      into a promise.
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { AppError } from '../errors';
 import { log } from '../logger';
@@ -355,13 +355,21 @@ export async function suggestEnquiry(
 				.limit(1)
 		: [];
 
-	// Optional match against the tenant's OWN catalog, labelled a suggestion (§9).
+	// Optional match against the operator's own PUBLISHED LISTINGS, labelled a
+	// suggestion (§9). This read the per-tenant catalog until that was removed;
+	// tours are the list that exists, and the one a traveller is asking about.
 	let suggestedMatch: EnquiryDraft['suggestedMatch'] = null;
 	if (extraction.travel.destinations.length) {
 		const items = await db()
-			.select({ name: schema.catalogItems.name })
-			.from(schema.catalogItems)
-			.where(and(eq(schema.catalogItems.tenantId, tenantId), eq(schema.catalogItems.isActive, true)))
+			.select({ name: schema.tours.title })
+			.from(schema.tours)
+			.where(
+				and(
+					eq(schema.tours.tenantId, tenantId),
+					eq(schema.tours.status, 'PUBLISHED'),
+					isNull(schema.tours.deletedAt)
+				)
+			)
 			.limit(60);
 		const wanted = extraction.travel.destinations.map((d) => d.toLowerCase());
 		const hit = items.find((i) => wanted.some((d) => i.name.toLowerCase().includes(d)));

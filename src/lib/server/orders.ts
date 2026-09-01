@@ -25,7 +25,6 @@ const fixed = (n: number): string => n.toFixed(2);
 export type OrderActor = { userId?: string | null; apiKeyId?: string | null };
 
 export type OrderItemInput = {
-	catalogItemId?: string | null;
 	title: string;
 	variant?: string | null;
 	sku?: string | null;
@@ -86,7 +85,6 @@ async function insertItems(tenantId: string, orderId: string, items: OrderItemIn
 			items.map((item) => ({
 				tenantId,
 				orderId,
-				catalogItemId: item.catalogItemId ?? null,
 				title: item.title,
 				variant: item.variant ?? null,
 				sku: item.sku ?? null,

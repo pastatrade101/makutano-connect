@@ -20,57 +20,23 @@ export type Module =
 	| 'bookings'
 	| 'orders' // includes batches
 	| 'quotations'
-	| 'catalog'
 	| 'leads'
 	| 'trips'; // the operational half of a booking
 
 const RELEVANCE: Record<Workspace, ReadonlySet<Module>> = {
 	// Tour operator: enquiry → quote → booking → payment. Orders never appear.
-	// Catalog is reachable as an optional tool (see catalogRecommended) — their
-	// website stays the source of truth for tours; Connect never asks to recreate them.
-	BOOKINGS: new Set<Module>(['enquiries', 'bookings', 'quotations', 'catalog', 'leads', 'trips']),
+	BOOKINGS: new Set<Module>(['enquiries', 'bookings', 'quotations', 'leads', 'trips']),
 	// WhatsApp seller: conversation → order → payment. Booking flows never appear.
-	ORDERS: new Set<Module>(['orders', 'catalog']),
+	ORDERS: new Set<Module>(['orders']),
 	// Service business: enquiry → conversation → quote → payment. Neither orders nor bookings.
-	SERVICE: new Set<Module>(['enquiries', 'quotations', 'catalog', 'leads']),
+	SERVICE: new Set<Module>(['enquiries', 'quotations', 'leads']),
 	// Genuinely both — e.g. a lodge with rooms AND a shop. Never the default for simplicity.
-	HYBRID: new Set<Module>(['enquiries', 'bookings', 'orders', 'quotations', 'catalog', 'leads', 'trips'])
+	HYBRID: new Set<Module>(['enquiries', 'bookings', 'orders', 'quotations', 'leads', 'trips'])
 };
 
 /** Is this module part of this kind of business's world? (Relevance, not access.) */
 export function moduleRelevant(workspace: Workspace, module: Module): boolean {
 	return RELEVANCE[workspace].has(module);
-}
-
-/**
- * Should Connect actively suggest filling the catalog? Only where reusable items
- * genuinely speed up daily work (order entry). For BOOKINGS and SERVICE the catalog
- * is a quiet optional tool: no onboarding step, no empty-state nagging, nothing
- * blocked when it is empty — the tenant's own website/CMS remains the source of truth.
- */
-export function catalogRecommended(workspace: Workspace): boolean {
-	return workspace === 'ORDERS' || workspace === 'HYBRID';
-}
-
-/** How the catalog presents itself per business type — same feature, honest framing. */
-export function catalogCopy(workspace: Workspace): { label: string; hint: string } {
-	switch (workspace) {
-		case 'BOOKINGS':
-			return {
-				label: 'Services & Packages',
-				hint: 'Optional — add frequently used tours or services for faster manual bookings and quotations. Your website can remain your source of truth.'
-			};
-		case 'SERVICE':
-			return {
-				label: 'Services & Packages',
-				hint: 'Optional — add the services you quote most so staff never retype names and prices.'
-			};
-		default:
-			return {
-				label: 'Catalog',
-				hint: 'A quick-pick list for orders, quotes and forms — not inventory management.'
-			};
-	}
 }
 
 /**

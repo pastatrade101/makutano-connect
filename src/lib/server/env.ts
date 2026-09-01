@@ -15,6 +15,14 @@ const schema = z.object({
 	// Optional session-mode connection used by scripts/migrate.ts.
 	DIRECT_DATABASE_URL: z.string().default(''),
 	PUBLIC_APP_URL: z.string().url().default('http://localhost:5173'),
+	/**
+	 * Where a traveller reads things.
+	 *
+	 * PUBLIC_APP_URL is the operator's console; a customer must never be sent
+	 * there. Quotation links, and anything else addressed to the person buying
+	 * the trip, are built against the marketplace instead.
+	 */
+	MARKETPLACE_URL: z.string().url().default('https://journeys.makutano.co.tz'),
 	AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
 	CREDENTIALS_ENCRYPTION_KEY: z.string().min(16, 'CREDENTIALS_ENCRYPTION_KEY must be at least 16 characters'),
 

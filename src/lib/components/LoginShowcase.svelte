@@ -57,7 +57,7 @@
 </script>
 
 <section
-	class="showcase relative hidden min-h-screen overflow-hidden bg-[#0d2542] md:flex md:items-center md:justify-center"
+	class="showcase relative hidden min-h-screen overflow-hidden bg-[#241d16] md:flex md:items-center md:justify-center"
 	aria-label="Makutano Connect product stories"
 	onmouseenter={() => (paused = true)}
 	onmouseleave={() => (paused = false)}
@@ -75,7 +75,7 @@
 			>
 				<div class="mb-7">
 					<div class="flex items-center gap-2 text-[11.5px] font-bold tracking-[0.18em] text-blue-200 uppercase">
-						<span class="size-1.5 rounded-full bg-[#60d6c2] shadow-[0_0_0_5px_rgba(96,214,194,0.12)]"></span>
+						<span class="size-1.5 rounded-full bg-[#7fc79f] shadow-[0_0_0_5px_rgba(127,199,159,0.12)]"></span>
 						{stories[slide].eyebrow}
 					</div>
 					<h2 class="mt-3 whitespace-pre-line text-[30px] leading-[1.12] font-bold tracking-[-0.035em] text-white lg:text-[38px]">
@@ -179,7 +179,7 @@
 <style>
 	.showcase > :global(div:first-child) {
 		background-image:
-			radial-gradient(circle at 15% 15%, rgb(28 132 238 / 0.34), transparent 28rem),
+			radial-gradient(circle at 15% 15%, rgb(224 138 95 / 0.34), transparent 28rem),
 			radial-gradient(circle at 88% 80%, rgb(78 202 194 / 0.16), transparent 24rem),
 			linear-gradient(rgb(255 255 255 / 0.045) 1px, transparent 1px),
 			linear-gradient(90deg, rgb(255 255 255 / 0.045) 1px, transparent 1px);

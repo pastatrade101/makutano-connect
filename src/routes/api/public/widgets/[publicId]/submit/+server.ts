@@ -15,7 +15,6 @@ import { json } from '@sveltejs/kit';
 import { z } from 'zod';
 import { audit } from '$lib/server/audit';
 import { createBookingRequest } from '$lib/server/booking-requests';
-import { getCatalogItemsByIds } from '$lib/server/catalog';
 import { findOrCreateCustomer } from '$lib/server/customers';
 import { sha256 } from '$lib/server/encryption';
 import { AppError, errorResponse, toAppError } from '$lib/server/errors';
@@ -36,7 +35,6 @@ const submissionSchema = z
 		items: z
 			.array(
 				z.object({
-					catalogItemId: z.string().uuid().optional().nullable(),
 					title: z.string().max(300).optional(),
 					variant: z.string().max(200).optional().nullable(),
 					quantity: z.number().int().min(1).max(999).optional()
@@ -98,14 +96,9 @@ export const POST: RequestHandler = async (event) => {
 			return json({ success: true, data: { message: form.successMessage ?? 'Thank you.' } }, { headers: cors });
 		}
 
-		// Required-field enforcement from the form's own configuration. On catalog-backed
-		// order forms the product/variant/quantity fields are replaced by the picker, so a
-		// submission carrying catalog items satisfies them.
-		const catalogSatisfied = (form.catalogItemIds?.length ?? 0) > 0 && (body.items?.length ?? 0) > 0;
-		const PICKER_KEYS = new Set(['product', 'variant', 'quantity']);
+		// Required-field enforcement from the form's own configuration.
 		const enabledKeys = new Set(FORM_FIELD_CATALOG[form.type].filter((f) => form.fields[f.key]?.enabled).map((f) => f.key));
 		for (const fieldDef of FORM_FIELD_CATALOG[form.type]) {
-			if (catalogSatisfied && PICKER_KEYS.has(fieldDef.key)) continue;
 			if (form.fields[fieldDef.key]?.enabled && form.fields[fieldDef.key]?.required) {
 				const value = body.fields[fieldDef.key];
 				if (value === undefined || String(value).trim() === '') {
@@ -139,7 +132,7 @@ export const POST: RequestHandler = async (event) => {
 			});
 			resultRef = request.reference;
 		} else if (form.type === 'ORDER') {
-			const items = await buildOrderItems(tenant.id, form.catalogItemIds ?? [], body, f);
+			const items = buildOrderItems(f);
 			const customer = await findOrCreateCustomer(
 				tenant.id,
 				{
@@ -220,38 +213,21 @@ function toIsoDate(v: unknown): string | null {
 }
 
 /**
- * Order lines from a submission. Catalog-configured forms trust ONLY the tenant's own
- * prices — a visitor picks items and quantities, never amounts. Free-text forms create
- * unpriced lines a member of staff completes before confirming.
+ * Order lines from a submission.
+ *
+ * Always unpriced: a public form takes what somebody typed, and a member of staff
+ * puts a price on it before confirming. A visitor has never been able to set an
+ * amount here and still cannot.
  */
-async function buildOrderItems(
-	tenantId: string,
-	allowedCatalogIds: string[],
-	body: z.infer<typeof submissionSchema>,
-	f: Record<string, unknown>
-) {
-	const items: Array<{ catalogItemId?: string | null; title: string; variant?: string | null; quantity?: number; unitPrice?: string | null }> = [];
-	if (body.items?.length && allowedCatalogIds.length) {
-		const allowed = new Set(allowedCatalogIds);
-		const wanted = body.items.filter((i) => i.catalogItemId && allowed.has(i.catalogItemId));
-		const catalog = await getCatalogItemsByIds(tenantId, wanted.map((i) => i.catalogItemId!));
-		const byId = new Map(catalog.map((c) => [c.id, c]));
-		for (const line of wanted) {
-			const item = byId.get(line.catalogItemId!);
-			if (!item) continue;
-			items.push({
-				catalogItemId: item.id,
-				title: item.name,
-				variant: str(line.variant, 200) || null,
-				quantity: Math.min(999, Math.max(1, line.quantity ?? 1)),
-				unitPrice: item.price ?? '0'
-			});
+function buildOrderItems(f: Record<string, unknown>) {
+	const title = str(f.product, 300);
+	if (!title) throw new AppError('VALIDATION_ERROR', 'Please tell us what you would like to order.');
+	return [
+		{
+			title,
+			variant: str(f.variant, 200) || null,
+			quantity: Math.min(999, Math.max(1, num(f.quantity, 1) || 1)),
+			unitPrice: '0'
 		}
-	}
-	if (!items.length) {
-		const title = str(f.product, 300);
-		if (!title) throw new AppError('VALIDATION_ERROR', 'Please tell us what you would like to order.');
-		items.push({ title, variant: str(f.variant, 200) || null, quantity: Math.min(999, Math.max(1, num(f.quantity, 1) || 1)), unitPrice: '0' });
-	}
-	return items;
+	];
 }

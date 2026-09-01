@@ -19,7 +19,7 @@
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import { plural, statusLabel } from '$lib/labels';
-	import { CURRENCIES, GROUP_TYPES } from '$lib/tour-options';
+	import { CURRENCIES, GROUP_TYPES, MEALS } from '$lib/tour-options';
 	import RoutePlanner from '$lib/geo/RoutePlanner.svelte';
 	import type { BasemapDoc, LngLat } from '$lib/geo/basemap';
 	import type { SubmitFunction } from '@sveltejs/kit';
@@ -35,6 +35,55 @@
 	] as const;
 	type StepKey = (typeof STEPS)[number]['key'];
 	let step = $state<StepKey>('basics');
+
+	/**
+	 * Where the traveller sleeps, across the whole trip.
+	 *
+	 * Held apart from `draft` because it saves through its own action: the
+	 * itinerary form is already large, and a list that can be reordered has no
+	 * business riding along inside it.
+	 *
+	 * A row is EITHER a directory property or one the operator typed. The
+	 * directory will never be complete, and forcing a new camp into it — a
+	 * platform table every tenant would then be writing to — to solve a problem
+	 * local to one listing is the wrong trade.
+	 */
+	type Stay = { accommodationId: string; customName: string; customImages: string; nights: string; note: string };
+	const seedStays = (): Stay[] =>
+		data.accommodations.map((a) => ({
+			accommodationId: a.accommodationId ?? '',
+			customName: a.custom ? a.name : '',
+			customImages: (a.images ?? []).join('\n'),
+			nights: a.nights == null ? '' : String(a.nights),
+			note: a.note ?? ''
+		}));
+	// untrack, like the rest of the draft: this is a working copy seeded once, and
+	// re-seeding on every `data` change would wipe an edit mid-typing.
+	let stays = $state<Stay[]>(untrack(seedStays));
+	let stayPick = $state('');
+
+	const stayName = (stay: Stay) =>
+		stay.accommodationId
+			? (data.accommodationOptions.find((o) => o.id === stay.accommodationId)?.name ?? 'Listed place')
+			: stay.customName.trim() || 'Untitled stay';
+
+	function addStay() {
+		if (!stayPick) return;
+		if (stayPick === '__custom') {
+			stays = [...stays, { accommodationId: '', customName: '', customImages: '', nights: '', note: '' }];
+		} else if (!stays.some((s) => s.accommodationId === stayPick)) {
+			stays = [...stays, { accommodationId: stayPick, customName: '', customImages: '', nights: '', note: '' }];
+		}
+		stayPick = '';
+	}
+
+	const moveStay = (from: number, to: number) => {
+		if (to < 0 || to >= stays.length) return;
+		const next = [...stays];
+		const [row] = next.splice(from, 1);
+		next.splice(to, 0, row);
+		stays = next;
+	};
 
 	const stepLabel = new Map<StepKey, string>(STEPS.map((s) => [s.key, s.label]));
 
@@ -124,8 +173,16 @@
 		destinationId: string;
 		description: string;
 		activities: string;
+		/** A property from the directory, when the night is spent at a listed one. */
+		accommodationId: string;
+		/** Free text for anywhere that is not — a fly camp, a farmhouse. */
 		accommodation: string;
-		meals: string;
+		/** Its pictures, one url per line. Only used when nothing is picked above. */
+		accommodationImages: string;
+		/** BREAKFAST | LUNCH | DINNER — a set, not a sentence. */
+		meals: string[];
+		/** What was typed before this field became a set, while it is still unread. */
+		mealsNote: string;
 		distance: string;
 		estimatedTravelTime: string;
 		/** The day's own pin. Numbers, not strings: these are dragged, not typed. */
@@ -166,8 +223,11 @@
 					destinationId: d.destinationId ?? '',
 					description: d.description ?? '',
 					activities: (d.activities ?? []).join(', '),
+					accommodationId: d.accommodationId ?? '',
 					accommodation: d.accommodation ?? '',
-					meals: d.meals ?? '',
+					accommodationImages: (d.accommodationImages ?? []).join('\n'),
+					meals: [...(d.meals ?? [])],
+					mealsNote: d.mealsNote ?? '',
 					distance: d.distance ?? '',
 					estimatedTravelTime: d.estimatedTravelTime ?? '',
 					latitude: d.latitude,
@@ -270,6 +330,7 @@
 		if (data.tour.id === seededFor) return;
 		seededFor = data.tour.id;
 		draft = seed();
+		stays = seedStays();
 		mediaOrder = data.gallery.map((m) => m.id);
 		heroMediaId = data.tour.heroMediaId ?? '';
 		step = 'basics';
@@ -405,7 +466,11 @@
 				.map((a) => a.trim())
 				.filter(Boolean),
 			d.accommodation.trim(),
-			d.meals.trim(),
+			d.accommodationId,
+			d.accommodationImages.trim(),
+			// Sorted, so re-picking the same meals in a different order does not
+			// read as an unsaved change.
+			[...d.meals].sort(),
 			d.distance.trim(),
 			d.estimatedTravelTime.trim()
 		]);
@@ -573,8 +638,11 @@
 		latitude: null,
 		longitude: null,
 		travelMode: null,
+		accommodationId: '',
 		accommodation: '',
-		meals: '',
+		accommodationImages: '',
+		meals: [],
+		mealsNote: '',
 		distance: '',
 		estimatedTravelTime: ''
 	});
@@ -1292,12 +1360,66 @@
 										<input id="d-act-{index}" bind:value={day.activities} class="input" placeholder="Game drive, Sundowner" />
 									</div>
 									<div>
-										<label class="label" for="d-acc-{index}">Accommodation</label>
-										<input id="d-acc-{index}" bind:value={day.accommodation} class="input" />
+										<label class="label" for="d-stay-{index}">Where they sleep</label>
+										<select id="d-stay-{index}" bind:value={day.accommodationId} class="input">
+											<option value="">Not from the directory</option>
+											{#each data.accommodationOptions as place (place.id)}
+												<option value={place.id}>{place.name}</option>
+											{/each}
+										</select>
+										<!-- The free-text field only appears when no property is chosen.
+										     Showing both at once invites an operator to fill in two
+										     answers to one question and leaves nobody sure which the
+										     page will print. -->
+										{#if !day.accommodationId}
+											<input
+												id="d-acc-{index}"
+												bind:value={day.accommodation}
+												class="input mt-1.5"
+												placeholder="Or type it — a fly camp, a farmhouse"
+												aria-label="Accommodation, in your own words"
+											/>
+											{#if day.accommodation.trim()}
+												<textarea
+													id="d-acc-img-{index}"
+													bind:value={day.accommodationImages}
+													rows="2"
+													class="input mt-1.5 text-[12.5px]"
+													placeholder="Photo links, one per line (https://…)"
+													aria-label="Photographs of where they sleep"
+												></textarea>
+											{/if}
+										{/if}
 									</div>
 									<div>
-										<label class="label" for="d-meals-{index}">Meals</label>
-										<input id="d-meals-{index}" bind:value={day.meals} class="input" placeholder="Breakfast, Lunch, Dinner" />
+										<span class="label">Meals included</span>
+										<div class="mt-1 flex flex-wrap gap-1.5">
+											{#each MEALS as meal (meal.value)}
+												{@const on = day.meals.includes(meal.value)}
+												<button
+													type="button"
+													aria-pressed={on}
+													class="rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition {on
+														? 'border-brand-600 bg-brand-600 text-white'
+														: 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'}"
+													onclick={() =>
+														(day.meals = on
+															? day.meals.filter((m) => m !== meal.value)
+															: [...day.meals, meal.value])}
+												>
+													{meal.label}
+												</button>
+											{/each}
+										</div>
+										<!-- The sentence this day used to carry, shown back only while
+										     nothing has been read out of it. An operator can see what
+										     they had written instead of losing it to a migration's
+										     pattern match; choosing anything above clears it on save. -->
+										{#if day.mealsNote && !day.meals.length}
+											<p class="mt-1 text-[11.5px] text-amber-700">
+												Previously: “{day.mealsNote}” — pick the meals above to replace it.
+											</p>
+										{/if}
 									</div>
 									<div>
 										<label class="label" for="d-dist-{index}">Distance</label>
@@ -1359,6 +1481,93 @@
 						{/if}
 					</div>
 					{@render saveBar('itinerary')}
+				</form>
+
+				<!--
+					Where they sleep, across the whole trip.
+
+					Its own form and its own action: the itinerary saves days, this
+					saves a list, and one button that did both would make a failure in
+					either look like a failure in both.
+				-->
+				<form method="POST" action="?/saveAccommodations" use:enhance class="card mt-3">
+					<div class="card-header">
+						<h2 class="card-title">Where they stay</h2>
+						<p class="text-[12.5px] text-slate-500">
+							Pick from the directory, or add somewhere it does not list yet.
+						</p>
+					</div>
+					<div class="space-y-3 p-4">
+						<div class="flex flex-wrap gap-2">
+							<select bind:value={stayPick} class="input max-w-sm" aria-label="Add a place to stay">
+								<option value="">Add a place…</option>
+								{#each data.accommodationOptions as place (place.id)}
+									<option value={place.id} disabled={stays.some((s) => s.accommodationId === place.id)}>
+										{place.name}
+									</option>
+								{/each}
+								<option value="__custom">＋ Somewhere not listed…</option>
+							</select>
+							<button type="button" class="btn-secondary" onclick={addStay} disabled={!stayPick || !data.canWrite}>
+								Add
+							</button>
+						</div>
+
+						{#if stays.length}
+							<ul class="space-y-2">
+								{#each stays as stay, index (index)}
+									<li class="rounded-panel border border-slate-200 p-3">
+										<div class="flex flex-wrap items-center gap-2">
+											<span class="text-sm font-medium text-slate-800">{index + 1}. {stayName(stay)}</span>
+											{#if !stay.accommodationId}
+												<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+													Not in the directory
+												</span>
+											{/if}
+											<span class="ml-auto flex gap-1">
+												<button type="button" class="btn-secondary !px-2 !py-1 text-xs" onclick={() => moveStay(index, index - 1)} aria-label="Move up" disabled={index === 0}>↑</button>
+												<button type="button" class="btn-secondary !px-2 !py-1 text-xs" onclick={() => moveStay(index, index + 1)} aria-label="Move down" disabled={index === stays.length - 1}>↓</button>
+												<button type="button" class="btn-secondary !px-2 !py-1 text-xs" onclick={() => (stays = stays.filter((_, i) => i !== index))} aria-label="Remove">Remove</button>
+											</span>
+										</div>
+
+										<div class="mt-2 grid gap-2 sm:grid-cols-4">
+											{#if !stay.accommodationId}
+												<div class="sm:col-span-4">
+													<label class="label" for="s-name-{index}">What is it called</label>
+													<input id="s-name-{index}" bind:value={stay.customName} class="input" placeholder="Ndutu fly camp" />
+												</div>
+												<div class="sm:col-span-4">
+													<label class="label" for="s-img-{index}">Photo links, one per line</label>
+													<textarea id="s-img-{index}" bind:value={stay.customImages} rows="2" class="input text-[12.5px]" placeholder="https://…"></textarea>
+												</div>
+											{/if}
+											<div>
+												<label class="label" for="s-nights-{index}">Nights</label>
+												<input id="s-nights-{index}" bind:value={stay.nights} inputmode="numeric" class="input" placeholder="2" />
+											</div>
+											<div class="sm:col-span-3">
+												<label class="label" for="s-note-{index}">Note (optional)</label>
+												<input id="s-note-{index}" bind:value={stay.note} class="input" placeholder="Nights 3–4, garden rooms" />
+											</div>
+										</div>
+									</li>
+								{/each}
+							</ul>
+						{:else}
+							<p class="rounded-panel bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+								Nothing added yet. Travellers ask where they will sleep before they ask almost
+								anything else.
+							</p>
+						{/if}
+
+						<!-- The browser holds the finished list, so it posts it as one field
+						     rather than as dozens of indexed inputs reassembled server-side. -->
+						<input type="hidden" name="stays" value={JSON.stringify(stays)} />
+					</div>
+					<div class="border-t border-slate-200 px-4 py-3">
+						<button class="btn-primary" disabled={!data.canWrite}>Save places to stay</button>
+					</div>
 				</form>
 			{/if}
 

@@ -112,7 +112,15 @@ export type AuditAction =
 	| 'tour.archived'
 	| 'tour.deleted'
 	| 'tour.media_added'
-	| 'tour.media_removed';
+	| 'tour.media_removed'
+	// Reviews. The traveller's words, the operator's answer, the platform's call —
+	// each recorded separately so an audit can tell which party did what.
+	| 'review.invited'
+	| 'review.responded'
+	| 'review.publish'
+	| 'review.hide'
+	| 'review.reject'
+	| 'review.restore';
 
 export async function audit(
 	tenantId: string | null,

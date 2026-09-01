@@ -2,7 +2,6 @@ import { fail, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { audit } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/auth/permissions';
-import { listCatalogItems } from '$lib/server/catalog';
 import { env } from '$lib/server/env';
 import { toAppError } from '$lib/server/errors';
 import { createForm, FORM_FIELD_CATALOG, getForm, listForms, regeneratePublicId, updateForm } from '$lib/server/forms';
@@ -11,14 +10,10 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals }) => {
 	requireTenantPermission(locals, 'forms:read');
 	const tenantId = requireTenant(locals).id;
-	const [formsList, { items: catalog }] = await Promise.all([
-		listForms(tenantId),
-		listCatalogItems(tenantId, { page: 1, limit: 100, order: 'desc' }, { activeOnly: true })
-	]);
+	const formsList = await listForms(tenantId);
 	return {
 		forms: formsList,
 		fieldCatalog: FORM_FIELD_CATALOG,
-		catalog: catalog.map((c) => ({ id: c.id, name: c.name })),
 		baseUrl: env().PUBLIC_APP_URL.replace(/\/+$/, '')
 	};
 };
@@ -59,7 +54,6 @@ export const actions: Actions = {
 				ctaText: String(data.get('ctaText') ?? '') || null,
 				successMessage: String(data.get('successMessage') ?? '') || null,
 				fields,
-				catalogItemIds: data.getAll('catalogItemIds').map(String),
 				allowedOrigins: String(data.get('allowedOrigins') ?? '')
 					.split(/[\n,]/)
 					.map((s) => s.trim())

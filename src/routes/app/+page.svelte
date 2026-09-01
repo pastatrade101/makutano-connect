@@ -12,6 +12,7 @@
 
 	const s = $derived(data.stats);
 	const c = $derived(data.centre as Record<string, unknown>);
+
 	const caps = $derived(data.tenant.capabilities);
 	const n = (key: string) => Number(c?.[key] ?? 0);
 
@@ -20,6 +21,25 @@
 	const can = (perm: string) => data.permissions?.includes(perm as never) ?? false;
 	const attention = $derived(data.attention ?? []);
 	const persona = $derived(data.persona ?? 'owner');
+	/**
+	 * The marketplace, from this operator's side.
+	 *
+	 * The chain the whole product is built on — listings → enquiries →
+	 * quotations → bookings — shown as one band at the top, because everything
+	 * below it is a consequence of the first number.
+	 */
+	const mk = $derived(data.marketplace);
+	const mkn = (key: string) => Number((mk?.counts as Record<string, unknown>)?.[key] ?? 0);
+	const operator = $derived(mk?.operator ?? null);
+	const showMarketplace = $derived(rel('enquiries') && can('tours:read'));
+
+	const funnel = $derived([
+		{ label: 'Live listings', value: mkn('live_tours'), href: '/app/tours', hint: mkn('tours_total') ? `of ${mkn('tours_total')}` : 'none yet' },
+		{ label: 'Open enquiries', value: mkn('enquiries_open'), href: '/app/booking-requests', hint: mkn('marketplace_enquiries') ? `${mkn('marketplace_enquiries')} from the marketplace` : 'none from the marketplace' },
+		{ label: 'Quotations out', value: mkn('quotations_open'), href: '/app/quotations', hint: 'draft, sent or viewed' },
+		{ label: 'Live bookings', value: mkn('bookings_live'), href: '/app/bookings', hint: 'not cancelled or refunded' }
+	]);
+
 	/** Analytics is for people who watch the business, not people working a queue. */
 	const showAnalytics = $derived(persona === 'owner');
 
@@ -45,7 +65,6 @@
 		}
 		if (rel('enquiries') && can('booking_requests:write')) items.push({ href: '/app/booking-requests/new', label: 'New enquiry' });
 		if (can('conversations:read')) items.push({ href: '/app/conversations', label: 'Open inbox' });
-		if (can('customers:write')) items.push({ href: '/app/customers?new=1', label: 'New customer' });
 		return items.slice(0, 4);
 	});
 
@@ -89,7 +108,7 @@
 		],
 		xaxis: { categories: data.activity.labels, labels: { style: { colors: pal.label, fontSize: '11px' } }, axisBorder: { show: false }, axisTicks: { show: false } },
 		yaxis: { labels: { style: { colors: pal.label, fontSize: '11px' } } },
-		colors: ['#1c84ee', '#4ecac2'],
+		colors: ['#b4532a', '#3d6b52'],
 		stroke: { curve: 'smooth' as const, width: 2.5 },
 		fill: { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
 		dataLabels: { enabled: false },
@@ -108,6 +127,88 @@
 			{attention.length ? "Here's what needs your attention." : 'Nothing is waiting on you right now.'}
 		</p>
 	</div>
+
+	<!--
+		The shopfront, before the queue.
+
+		An operator on a marketplace opens this page to find out whether their
+		trips are up and whether anyone is asking — and until now the answer was
+		nowhere on it. What follows underneath is the work that first number
+		produces.
+	-->
+	{#if showMarketplace}
+		<section class="card">
+			<header class="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3">
+				{#if operator?.logoUrl}
+					<img src={operator.logoUrl} alt="" class="size-9 rounded-full border border-slate-200 object-cover" />
+				{/if}
+				<div class="min-w-0">
+					<h2 class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+						{operator?.name ?? data.tenant.name}
+						{#if operator?.verified}
+							<span class="rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-semibold text-success">
+								Verified
+							</span>
+						{/if}
+					</h2>
+					<p class="text-[12.5px] text-slate-500">
+						{#if operator}
+							Your storefront on Makutano Journeys{operator.location ? ` · ${operator.location}` : ''}
+						{:else}
+							<!-- No profile yet: say what is missing rather than showing a
+							     storefront that does not exist. -->
+							No marketplace storefront yet — a listing needs one.
+						{/if}
+					</p>
+				</div>
+				<div class="ml-auto flex flex-wrap gap-1.5">
+					{#if operator}
+						<a href={operator.publicUrl} target="_blank" rel="noopener" class="btn-secondary !py-1.5 text-xs">
+							View storefront ↗
+						</a>
+					{/if}
+					{#if can('tours:write')}
+						<a href="/app/tours" class="btn-primary !py-1.5 text-xs">Manage listings</a>
+					{/if}
+				</div>
+			</header>
+
+			<!-- listings → enquiries → quotations → bookings, in that order, because
+			     that is the order they happen in. -->
+			<div class="grid grid-cols-2 divide-slate-200 sm:grid-cols-4 sm:divide-x">
+				{#each funnel as step (step.label)}
+					<a href={step.href} class="block px-4 py-3.5 transition hover:bg-slate-50">
+						<p class="text-[11px] font-bold tracking-wider text-slate-400 uppercase">{step.label}</p>
+						<p class="mt-0.5 text-2xl font-bold text-slate-900 tabular-nums">{step.value}</p>
+						<p class="text-[12px] text-slate-500">{step.hint}</p>
+					</a>
+				{/each}
+			</div>
+
+			{#if mkn('tours_need_you') || mkn('tours_in_review') || mkn('stays_attached')}
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 px-4 py-2.5 text-[12.5px]">
+					{#if mkn('tours_need_you')}
+						<a href="/app/tours" class="font-semibold text-brand-600">
+							{mkn('tours_need_you')} {mkn('tours_need_you') === 1 ? 'listing needs' : 'listings need'} you
+						</a>
+					{/if}
+					{#if mkn('tours_in_review')}
+						<!-- Waiting on the platform, not on them: a different queue, said
+						     differently so nobody sits refreshing their own draft. -->
+						<span class="text-slate-500">{mkn('tours_in_review')} with the marketplace for review</span>
+					{/if}
+					{#if mkn('stays_attached')}
+						<span class="text-slate-500">
+							{mkn('stays_attached')} {mkn('stays_attached') === 1 ? 'place' : 'places'} to stay attached
+						</span>
+					{/if}
+					<a href={`${mk?.marketplaceUrl}/stays`} target="_blank" rel="noopener" class="ml-auto text-slate-400 hover:underline">
+						Accommodation directory ↗
+					</a>
+				</div>
+			{/if}
+		</section>
+	{/if}
 
 	{#if data.onboarding}
 		<OnboardingChecklist

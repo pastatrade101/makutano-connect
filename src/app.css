@@ -1,46 +1,57 @@
 @import 'tailwindcss';
 
-/* Reback design system (adopted from the Reback Svelte admin template), re-expressed
-   as Tailwind v4 tokens. The slate-* scale is REDEFINED to Reback's gray ramp and
-   brand-* to its primary blue, so every existing utility class in the app renders in
-   the template's palette without per-page edits. */
+/* The Reback admin template's structure, wearing MAKUTANO JOURNEYS' colours.
+   
+   The slate-* scale is REDEFINED to a warm neutral ramp and brand-* to the
+   marketplace's terracotta, so every existing utility class in the app re-renders
+   in the marketplace palette without a single per-page edit. This is one product
+   with an operator's side and a traveller's side; it should not change identity
+   when an operator signs in.
+   
+   COLOUR only — the template's type and spacing stay as they are. */
 @theme {
 	--font-sans: 'Wix Madefor Text', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-	/* Reback grays ($gray-100 … $gray-900) mapped onto the slate scale */
-	--color-slate-50: #f8f9fa;
-	--color-slate-100: #eef2f7;
-	--color-slate-200: #eaedf1;
-	--color-slate-300: #d8dfe7;
-	--color-slate-400: #b0b0bb;
-	--color-slate-500: #8486a7;
-	--color-slate-600: #5d7186;
-	--color-slate-700: #424e5a;
-	--color-slate-800: #36404a;
-	--color-slate-900: #323a46;
+	/* Warm neutrals, built around the marketplace's paper (#f7f5f1), its rule
+	   colour (#e7e2d9) and its ink (#2b2b28). Still called slate-* because every
+	   utility class in the app already names them; renaming would touch a
+	   thousand lines to change nothing a reader can see. */
+	--color-slate-50: #faf8f5;
+	--color-slate-100: #f2ede6;
+	--color-slate-200: #e7e2d9;
+	--color-slate-300: #d8d1c5;
+	--color-slate-400: #b4ada1;
+	--color-slate-500: #8e877c;
+	--color-slate-600: #6f6a63;
+	--color-slate-700: #4a453e;
+	--color-slate-800: #3a3630;
+	--color-slate-900: #2b2b28;
 
-	/* Reback $primary #1c84ee */
-	--color-brand-50: #e9f3fd;
-	--color-brand-100: #d2e6fc;
-	--color-brand-200: #a4cdf9;
-	--color-brand-300: #77b5f5;
-	--color-brand-400: #499cf2;
-	--color-brand-500: #1c84ee;
-	--color-brand-600: #1c84ee;
-	--color-brand-700: #156ac2;
-	--color-brand-800: #0f5096;
-	--color-brand-900: #0a3766;
+	/* The marketplace's --mk-accent (#b4532a) and --mk-accent-dark (#9d4523),
+	   with a ramp built around them. */
+	--color-brand-50: #fbf1ec;
+	--color-brand-100: #f6e3d9;
+	--color-brand-200: #ebc3af;
+	--color-brand-300: #dca184;
+	--color-brand-400: #ca7a54;
+	--color-brand-500: #b4532a;
+	--color-brand-600: #b4532a;
+	--color-brand-700: #9d4523;
+	--color-brand-800: #7e371c;
+	--color-brand-900: #5c2814;
 
 	/* Reback accent palette */
-	--color-success: #22c55e;
-	--color-danger: #ef5f5f;
-	--color-warning: #f9b931;
+	/* The same verified green the marketplace prints under an operator's name, so
+	   the colour means one thing across the product. */
+	--color-success: #3d6b52;
+	--color-danger: #b3402f;
+	--color-warning: #a9722a;
 	--color-info: #4ecac2;
 	--color-purple: #7f56da;
 	--color-orange: #ff6c2f;
 
-	--color-canvas: #f8f8fa;
-	--color-sidenav-dark: #262d34;
+	--color-canvas: #f7f5f1;
+	--color-sidenav-dark: #26211b;
 
 	/* Type scale. The Reback defaults ran small enough that dense screens were tiring
 	   to read; each step is nudged up once so the whole product breathes without
@@ -60,20 +71,28 @@
    reads the palette (bg-white, text-slate-*, borders, brand tints) re-resolves to
    the dark ramp. No per-page dark: variants, no markup changes. */
 .mk-dark {
-	--color-white: #1e242b;
-	--color-canvas: #14181d;
-	--color-slate-50: #232931;
-	--color-slate-100: #2a313a;
-	--color-slate-200: #343d47;
-	--color-slate-300: #414b57;
-	--color-slate-400: #7e8898;
-	--color-slate-500: #98a1b0;
-	--color-slate-600: #b0b8c4;
-	--color-slate-700: #ccd2db;
-	--color-slate-800: #e4e8ee;
-	--color-slate-900: #f2f4f7;
-	--color-brand-50: #16283e;
-	--color-brand-100: #1b3350;
+	/* Warm, because the light ramp is warm: a neutral-blue night mode beside a
+	   terracotta day mode reads as two different products. */
+	--color-white: #1c1a16;
+	--color-canvas: #13110e;
+	--color-slate-50: #24211b;
+	--color-slate-100: #2b2822;
+	--color-slate-200: #332f28;
+	--color-slate-300: #423d34;
+	--color-slate-400: #8b8377;
+	--color-slate-500: #a9a296;
+	--color-slate-600: #c0b9ad;
+	--color-slate-700: #d8d2c7;
+	--color-slate-800: #ece7de;
+	--color-slate-900: #f5f2ec;
+	/* Brighter than their light twins rather than the same colour dimmed. */
+	--color-brand-50: #3a241a;
+	--color-brand-100: #4a2c1e;
+	--color-brand-500: #e08a5f;
+	--color-brand-600: #e08a5f;
+	--color-success: #6fbf92;
+	--color-warning: #e0a551;
+	--color-danger: #f08070;
 	color-scheme: dark;
 }
 

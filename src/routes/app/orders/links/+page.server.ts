@@ -129,8 +129,7 @@ function parseInput(data: FormData, timeZone: string): OrderLinkInput {
 		},
 		paymentTiming: String(data.get('paymentTiming')) === 'IMMEDIATE' ? 'IMMEDIATE' : 'AFTER_CONFIRMATION',
 		shareTags,
-		batchId: opt(data.get('batchId')) ?? null,
-		catalogItemId: opt(data.get('catalogItemId')) ?? null
+		batchId: opt(data.get('batchId')) ?? null
 	};
 }
 

@@ -77,7 +77,6 @@ suite('commerce integration', () => {
 		db: typeof import('../src/lib/server/db');
 		tenants: typeof import('../src/lib/server/tenants');
 		orders: typeof import('../src/lib/server/orders');
-		catalog: typeof import('../src/lib/server/catalog');
 		customers: typeof import('../src/lib/server/customers');
 		payments: typeof import('../src/lib/server/payments');
 		forms: typeof import('../src/lib/server/forms');
@@ -91,7 +90,6 @@ suite('commerce integration', () => {
 			db: await import('../src/lib/server/db'),
 			tenants: await import('../src/lib/server/tenants'),
 			orders: await import('../src/lib/server/orders'),
-			catalog: await import('../src/lib/server/catalog'),
 			customers: await import('../src/lib/server/customers'),
 			payments: await import('../src/lib/server/payments'),
 			forms: await import('../src/lib/server/forms')
@@ -214,12 +212,6 @@ suite('commerce integration', () => {
 		});
 		const cleared = await ctx.orders.updateDraftOrder(tenantA.id, draft.id, { customerId: null });
 		expect(cleared.customerId).toBeNull();
-	});
-
-	it('keeps catalog tenant-isolated and batch fetch scoped', async () => {
-		const item = await ctx.catalog.createCatalogItem(tenantA.id, { name: 'Secret product', price: '10.00' });
-		await expect(ctx.catalog.getCatalogItem(tenantB.id, item.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-		expect(await ctx.catalog.getCatalogItemsByIds(tenantB.id, [item.id])).toEqual([]);
 	});
 
 	it('conversation links on orders cannot cross tenants', async () => {

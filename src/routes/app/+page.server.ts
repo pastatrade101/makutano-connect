@@ -10,8 +10,10 @@ import { paymentStats } from '$lib/server/payments';
 import { listConversations } from '$lib/server/conversations';
 import { listBookingRequests } from '$lib/server/booking-requests';
 import { getConnectionForTenant, toSafeConnection } from '$lib/server/whatsapp/connections';
-import { db } from '$lib/server/db';
-import { sql } from 'drizzle-orm';
+import { db, schema } from '$lib/server/db';
+import { eq, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { env } from '$lib/server/env';
 import type { PageServerLoad } from './$types';
 
 /** Daily activity for the overview chart: enquiries in, messages exchanged. */
@@ -58,6 +60,74 @@ async function actionCentre(tenantId: string) {
 	return rows[0] ?? {};
 }
 
+/**
+ * The marketplace, from this operator's side.
+ *
+ * Connect is one product with a traveller's half and an operator's half, and the
+ * dashboard used to show only the second — orders, batches, payments — as though
+ * the listings that produce all of it were somewhere else. This is the chain the
+ * whole system is built on, counted once:
+ *
+ *   listings → enquiries → quotations → bookings
+ *
+ * One query rather than five round trips, because it renders above the fold.
+ */
+async function marketplaceState(tenantId: string) {
+	const rows = (await db().execute(sql`
+		select
+			(select count(*)::int from tours t
+				where t.tenant_id = ${tenantId}::uuid and t.deleted_at is null and t.status = 'PUBLISHED') as live_tours,
+			(select count(*)::int from tours t
+				where t.tenant_id = ${tenantId}::uuid and t.deleted_at is null
+					and t.status in ('SUBMITTED', 'IN_REVIEW', 'APPROVED')) as tours_in_review,
+			-- What is waiting on the OPERATOR, which is a different queue from what
+			-- is waiting on the platform. Only one of the two is theirs to clear.
+			(select count(*)::int from tours t
+				where t.tenant_id = ${tenantId}::uuid and t.deleted_at is null
+					and t.status in ('DRAFT', 'CHANGES_REQUESTED')) as tours_need_you,
+			(select count(*)::int from tours t
+				where t.tenant_id = ${tenantId}::uuid and t.deleted_at is null) as tours_total,
+			(select count(*)::int from booking_requests br
+				where br.tenant_id = ${tenantId}::uuid and br.deleted_at is null
+					and br.source = 'MARKETPLACE') as marketplace_enquiries,
+			(select count(*)::int from booking_requests br
+				where br.tenant_id = ${tenantId}::uuid and br.deleted_at is null
+					and br.status in ('NEW', 'UNDER_REVIEW', 'CONTACTED')) as enquiries_open,
+			(select count(*)::int from quotations q
+				where q.tenant_id = ${tenantId}::uuid and q.deleted_at is null
+					and q.status in ('DRAFT', 'SENT', 'VIEWED')) as quotations_open,
+			(select count(*)::int from bookings b
+				where b.tenant_id = ${tenantId}::uuid and b.deleted_at is null
+					and b.status not in ('CANCELLED', 'REFUNDED')) as bookings_live,
+			(select count(*)::int from tour_accommodations ta
+				join tours t on t.id = ta.tour_id
+				where t.tenant_id = ${tenantId}::uuid and t.deleted_at is null) as stays_attached
+	`)) as unknown as Array<Record<string, unknown>>;
+
+	const operatorLogo = alias(schema.media, 'dash_operator_logo');
+	const [operator] = await db()
+		.select({
+			name: schema.operatorProfiles.displayName,
+			slug: schema.operatorProfiles.slug,
+			location: schema.operatorProfiles.location,
+			verified: schema.operatorProfiles.isVerified,
+			logoUrl: operatorLogo.url
+		})
+		.from(schema.operatorProfiles)
+		.leftJoin(operatorLogo, eq(operatorLogo.id, schema.operatorProfiles.logoMediaId))
+		.where(eq(schema.operatorProfiles.tenantId, tenantId))
+		.limit(1);
+
+	const marketplace = env().MARKETPLACE_URL.replace(/\/+$/, '');
+	return {
+		counts: rows[0] ?? {},
+		operator: operator
+			? { ...operator, publicUrl: `${marketplace}/operators/${operator.slug}` }
+			: null,
+		marketplaceUrl: marketplace
+	};
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
 	const tenantId = requireTenant(locals).id;
 	const pagination = { page: 1, limit: 8, order: 'desc' as const };
@@ -65,8 +135,20 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const viewer = { userId: locals.user!.id, permissions: locals.permissions };
 	const workspace = normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities);
 
-	const [requests, bookings, customers, payments, recent, inbox, connection, activity, centre, attention, continuing] =
-		await Promise.all([
+	const [
+		requests,
+		bookings,
+		customers,
+		payments,
+		recent,
+		inbox,
+		connection,
+		activity,
+		centre,
+		attention,
+		continuing,
+		marketplace
+	] = await Promise.all([
 			bookingRequestStats(tenantId),
 			bookingStats(tenantId),
 			customerStats(tenantId),
@@ -84,12 +166,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			// Who is looking, and what is waiting for THEM — visibility-scoped on the server.
 			attentionFor(tenantId, viewer, workspace),
 			// Where each customer actually stands, not a second copy of the inbox.
-			continueWorking(tenantId, viewer, workspace)
+			continueWorking(tenantId, viewer, workspace),
+			marketplaceState(tenantId)
 		]);
 
 	const onboarding = await onboardingState(tenantId);
 
 	return {
+		marketplace,
 		centre,
 		attention: attention.items,
 		context: attention.context,

@@ -152,18 +152,10 @@ export async function suggestOrderFromMessage(
 		.orderBy(desc(schema.orderBatches.createdAt))
 		.limit(1);
 
-	const catalog = await db()
-		.select({
-			name: schema.catalogItems.name,
-			unit: schema.catalogItems.sku,
-			price: schema.catalogItems.price,
-			currency: schema.catalogItems.currency
-		})
-		.from(schema.catalogItems)
-		.where(and(eq(schema.catalogItems.tenantId, tenantId), eq(schema.catalogItems.isActive, true)))
-		.limit(40);
-
-	const knownItems = [...(openBatch ? [openBatch.title] : []), ...catalog.map((c) => c.name)].filter(Boolean);
+	// The open batch is the item list now: the saved product catalog it used to
+	// read alongside it has been removed, and grounding on a list nobody filled
+	// bought nothing.
+	const knownItems = [openBatch?.title].filter(Boolean) as string[];
 
 	const userTurn = [
 		knownItems.length
@@ -227,21 +219,9 @@ export async function suggestOrderFromMessage(
 				source: 'batch' as const
 			};
 		}
-		const match = catalog.find(
-			(c) =>
-				c.name.toLowerCase() === wanted ||
-				c.name.toLowerCase().includes(wanted) ||
-				wanted.includes(c.name.toLowerCase())
-		);
-		if (match?.price) {
-			return {
-				title: match.name,
-				quantity: item.quantity,
-				unit: item.unit,
-				unitPrice: String(match.price),
-				source: 'catalog' as const
-			};
-		}
+		// Nothing else to price it from: an item that is not the open batch comes
+		// back unpriced for a person to complete, which is what happened anyway
+		// whenever the saved list did not contain it.
 		return { title: item.title, quantity: item.quantity, unit: item.unit, unitPrice: null, source: 'none' as const };
 	});
 

@@ -11,7 +11,6 @@ import { and, count, eq, sql } from 'drizzle-orm';
 import { db, schema } from './db';
 import { randomToken } from './encryption';
 import { AppError } from './errors';
-import { getCatalogItemsByIds } from './catalog';
 import { assertAllowed, assertWithinCount } from './entitlements';
 
 export type FormType = schema.Form['type'];
@@ -118,7 +117,6 @@ export type FormPatch = Partial<{
 	ctaText: string | null;
 	successMessage: string | null;
 	fields: Record<string, { enabled: boolean; required: boolean }>;
-	catalogItemIds: string[];
 	allowedOrigins: string[];
 	branding: Record<string, unknown>;
 	isActive: boolean;
@@ -146,7 +144,6 @@ export async function updateForm(tenantId: string, id: string, patch: FormPatch)
 			...(patch.ctaText !== undefined ? { ctaText: patch.ctaText } : {}),
 			...(patch.successMessage !== undefined ? { successMessage: patch.successMessage } : {}),
 			...(fields !== undefined ? { fields } : {}),
-			...(patch.catalogItemIds !== undefined ? { catalogItemIds: patch.catalogItemIds } : {}),
 			...(patch.allowedOrigins !== undefined ? { allowedOrigins: patch.allowedOrigins.filter(Boolean) } : {}),
 			...(patch.branding !== undefined ? { branding: patch.branding } : {}),
 			...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
@@ -181,7 +178,6 @@ export type PublicFormConfig = {
 	branding: Record<string, unknown>;
 	businessName: string;
 	fields: Array<{ key: string; label: string; required: boolean }>;
-	catalog: Array<{ id: string; name: string; price: string | null; currency: string | null; variants: Array<Record<string, unknown>> }>;
 };
 
 /** Resolve a live form by its opaque public id. Inactive and unknown ids 404 alike. */
@@ -201,7 +197,6 @@ export async function resolvePublicForm(publicId: string): Promise<{ form: schem
 
 export async function publicFormConfig(publicId: string): Promise<PublicFormConfig> {
 	const { form, tenant } = await resolvePublicForm(publicId);
-	const catalogRows = await getCatalogItemsByIds(tenant.id, form.catalogItemIds ?? []);
 	const enabled = FORM_FIELD_CATALOG[form.type]
 		.filter((f) => form.fields[f.key]?.enabled)
 		.map((f) => ({ key: f.key, label: f.label, required: !!form.fields[f.key]?.required }));
@@ -214,8 +209,7 @@ export async function publicFormConfig(publicId: string): Promise<PublicFormConf
 		successMessage: form.successMessage,
 		branding: form.branding ?? {},
 		businessName: tenant.name,
-		fields: enabled,
-		catalog: catalogRows.map((c) => ({ id: c.id, name: c.name, price: c.price, currency: c.currency, variants: c.variants ?? [] }))
+		fields: enabled
 	};
 }
 

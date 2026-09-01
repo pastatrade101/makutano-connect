@@ -19,7 +19,7 @@
 	const widths = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl', xl: 'max-w-5xl' };
 </script>
 
-<div class="auth-surface relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#f6f8fc] px-4 py-8 sm:px-6 sm:py-12">
+<div class="auth-surface relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#f7f5f1] px-4 py-8 sm:px-6 sm:py-12">
 	<div class="pointer-events-none absolute inset-0 opacity-70" aria-hidden="true"></div>
 	<div class="relative w-full {widths[width]}">
 		<div class="mb-8 text-center">
@@ -39,10 +39,13 @@
 <style>
 	.auth-surface > :global(div:first-child) {
 		background-image:
-			radial-gradient(circle at 18% 10%, rgb(28 132 238 / 0.08), transparent 27rem),
-			radial-gradient(circle at 85% 85%, rgb(78 202 194 / 0.07), transparent 24rem),
-			linear-gradient(rgb(50 58 70 / 0.035) 1px, transparent 1px),
-			linear-gradient(90deg, rgb(50 58 70 / 0.035) 1px, transparent 1px);
+			/* The marketplace's terracotta and verified green, at the same weights
+			   the blue and teal were — this is texture behind a form, not colour
+			   competing with it. */
+			radial-gradient(circle at 18% 10%, rgb(180 83 42 / 0.08), transparent 27rem),
+			radial-gradient(circle at 85% 85%, rgb(61 107 82 / 0.07), transparent 24rem),
+			linear-gradient(rgb(74 69 62 / 0.035) 1px, transparent 1px),
+			linear-gradient(90deg, rgb(74 69 62 / 0.035) 1px, transparent 1px);
 		background-size: auto, auto, 32px 32px, 32px 32px;
 		mask-image: linear-gradient(to bottom, black, rgb(0 0 0 / 0.45) 70%, transparent);
 	}

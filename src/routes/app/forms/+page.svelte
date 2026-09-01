@@ -76,7 +76,7 @@
 					<input type="hidden" name="id" value={f.id} />
 					<div class="grid gap-3 sm:grid-cols-2">
 						<div><label class="label" for="fe-name-{f.id}">Internal name</label><input id="fe-name-{f.id}" name="name" value={f.name} class="input" /></div>
-						<div><label class="label" for="fe-accent-{f.id}">Accent colour</label><input id="fe-accent-{f.id}" name="accentColor" value={String((f.branding ?? {}).accentColor ?? '#1c84ee')} class="input" /></div>
+						<div><label class="label" for="fe-accent-{f.id}">Accent colour</label><input id="fe-accent-{f.id}" name="accentColor" value={String((f.branding ?? {}).accentColor ?? '#b4532a')} class="input" /></div>
 						<div><label class="label" for="fe-heading-{f.id}">Heading</label><input id="fe-heading-{f.id}" name="heading" value={f.heading ?? ''} class="input" /></div>
 						<div><label class="label" for="fe-cta-{f.id}">Button text</label><input id="fe-cta-{f.id}" name="ctaText" value={f.ctaText ?? ''} class="input" /></div>
 						<div class="sm:col-span-2"><label class="label" for="fe-desc-{f.id}">Description</label><input id="fe-desc-{f.id}" name="description" value={f.description ?? ''} class="input" /></div>
@@ -101,19 +101,6 @@
 						</div>
 					</div>
 
-					{#if (f.type === 'ORDER' || f.type === 'BOOKING') && data.catalog.length}
-						<div>
-							<span class="label">Offer catalog items (optional)</span>
-							<div class="grid grid-cols-1 gap-1 sm:grid-cols-3">
-								{#each data.catalog as c (c.id)}
-									<label class="flex items-center gap-2 rounded-panel border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-600">
-										<input type="checkbox" name="catalogItemIds" value={c.id} checked={(f.catalogItemIds ?? []).includes(c.id)} class="rounded border-slate-300" />
-										{c.name}
-									</label>
-								{/each}
-							</div>
-						</div>
-					{/if}
 
 					<div>
 						<label class="label" for="fe-origins-{f.id}">Allowed embed domains (one per line; empty = any)</label>

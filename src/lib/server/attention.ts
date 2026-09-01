@@ -498,6 +498,7 @@ type OpenRecord = {
 	amount_paid: string;
 	currency: string;
 	adults: number | null;
+	children: number | null;
 	notes: string | null;
 	updated_at: string;
 	converted_booking_id: string | null;
@@ -544,20 +545,20 @@ export async function continueWorking(tenantId: string, viewer: Viewer, workspac
 				select * from (
 					select 'enquiry' as kind, br.id::text, br.customer_id::text, br.reference, br.status::text,
 						coalesce(br.estimated_total::text,'0') as total, '0' as amount_paid, br.currency,
-						br.adults, br.notes, br.updated_at, null::text as converted_booking_id,
+						br.adults, br.children, br.notes, br.updated_at, null::text as converted_booking_id,
 						null::text as active_request_status, br.assignee_user_id::text
 					from booking_requests br
 					where br.tenant_id = ${tenantId}::uuid and br.deleted_at is null and br.customer_id::text in ${customerIds}
 						and br.status in ('NEW','UNDER_REVIEW','CONTACTED','QUOTED')
 					union all
 					select 'quotation', q.id::text, q.customer_id::text, q.reference, q.status::text, q.total::text, '0', q.currency,
-						q.adults, q.notes, q.updated_at, q.converted_booking_id::text, null, null
+						q.adults, q.children, q.notes, q.updated_at, q.converted_booking_id::text, null, null
 					from quotations q
 					where q.tenant_id = ${tenantId}::uuid and q.deleted_at is null and q.customer_id::text in ${customerIds}
 						and q.status in ('DRAFT','SENT','VIEWED','ACCEPTED')
 					union all
 					select 'booking', b.id::text, b.customer_id::text, b.booking_reference, b.status::text, b.total::text,
-						b.amount_paid::text, b.currency, b.adults, null, b.updated_at, null,
+						b.amount_paid::text, b.currency, b.adults, b.children, null, b.updated_at, null,
 						(select pr.status::text from payment_requests pr where pr.booking_id = b.id
 							and pr.status in ('REQUESTED','REPORTED','PARTIALLY_PAID') order by pr.created_at desc limit 1),
 						null
@@ -566,7 +567,7 @@ export async function continueWorking(tenantId: string, viewer: Viewer, workspac
 						and b.status not in ('COMPLETED','CANCELLED','REFUNDED')
 					union all
 					select 'order', o.id::text, o.customer_id::text, o.order_number, o.status::text, o.total::text,
-						o.amount_paid::text, o.currency, null, o.notes, o.updated_at, null,
+						o.amount_paid::text, o.currency, null, null, o.notes, o.updated_at, null,
 						(select pr.status::text from payment_requests pr where pr.order_id = o.id
 							and pr.status in ('REQUESTED','REPORTED','PARTIALLY_PAID') order by pr.created_at desc limit 1),
 						null
@@ -712,7 +713,12 @@ function describeDetail(record: OpenRecord): string | null {
 	}
 	if (record.kind === 'enquiry') {
 		const bits: string[] = [];
-		if (record.adults) bits.push(`${record.adults} ${record.adults === 1 ? 'traveller' : 'travellers'}`);
+		// Adults AND children. Counting only adults called a family of four "2
+		// travellers" on the home screen while the quotation priced four — the
+		// same figure, said two different ways, in two places an operator reads
+		// one after the other.
+		const party = (record.adults ?? 0) + (record.children ?? 0);
+		if (party) bits.push(`${party} ${party === 1 ? 'traveller' : 'travellers'}`);
 		if (record.notes) bits.push(record.notes.split(/[.\n]/)[0].trim().slice(0, 40));
 		return bits.length ? bits.join(' · ') : record.reference;
 	}

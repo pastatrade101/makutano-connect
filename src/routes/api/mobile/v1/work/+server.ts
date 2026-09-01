@@ -24,6 +24,7 @@ type Row = {
 	updated_at: string;
 	converted_booking_id: string | null;
 	active_request_status: string | null;
+	booking_request_id: string | null;
 };
 
 export const GET: RequestHandler = async (event) => {
@@ -34,19 +35,33 @@ export const GET: RequestHandler = async (event) => {
 
 		const rows = (await db().execute(sql`
 			select * from (
+				/*
+				 * The source and the tour title ride along for enquiries.
+				 *
+				 * On the phone an enquiry showed a reference and a name and nothing
+				 * else, so an operator could not tell a marketplace lead from a
+				 * WhatsApp one, or see which trip was being asked about — which is
+				 * the single most useful thing about it. Both are null for the other
+				 * kinds; the union needs the columns either way.
+				 */
 				select 'enquiry' as kind, br.id::text, br.reference, br.status::text,
 					coalesce(br.estimated_total::text, '0') as total, '0' as amount_paid, br.currency,
 					trim(coalesce(cu.first_name, '') || ' ' || coalesce(cu.last_name, '')) as customer_name,
-					br.updated_at, null::text as converted_booking_id, null::text as active_request_status
+					br.updated_at, null::text as converted_booking_id, null::text as active_request_status,
+					br.source::text as source, tr.title as subject,
+					-- An enquiry answers for itself: this is how a quotation raised
+					-- against it is matched back, without going via the customer's name.
+					br.id::text as booking_request_id
 				from booking_requests br
 				left join customers cu on cu.id = br.customer_id
+				left join tours tr on tr.id = br.tour_id
 				where br.tenant_id = ${viewer.tenantId}::uuid
 					and br.deleted_at is null
 					and br.status in ('NEW', 'UNDER_REVIEW', 'CONTACTED', 'QUOTED')
 				union all
 				select 'quotation', q.id::text, q.reference, q.status::text, q.total::text, '0', q.currency,
 					trim(coalesce(cu.first_name, '') || ' ' || coalesce(cu.last_name, '')),
-					q.updated_at, q.converted_booking_id::text, null
+					q.updated_at, q.converted_booking_id::text, null, null, null, q.booking_request_id::text
 				from quotations q
 				left join customers cu on cu.id = q.customer_id
 				where q.tenant_id = ${viewer.tenantId}::uuid and q.deleted_at is null and q.status in ('DRAFT', 'SENT', 'VIEWED', 'ACCEPTED')
@@ -56,7 +71,7 @@ export const GET: RequestHandler = async (event) => {
 					b.updated_at, null,
 					(select pr.status::text from payment_requests pr
 						where pr.booking_id = b.id and pr.status in ('REQUESTED', 'REPORTED', 'PARTIALLY_PAID')
-						order by pr.created_at desc limit 1)
+						order by pr.created_at desc limit 1), null, null, null
 				from bookings b
 				left join customers cu on cu.id = b.customer_id
 				where b.tenant_id = ${viewer.tenantId}::uuid
@@ -76,7 +91,7 @@ export const GET: RequestHandler = async (event) => {
 					o.updated_at, null,
 					(select pr.status::text from payment_requests pr
 						where pr.order_id = o.id and pr.status in ('REQUESTED', 'REPORTED', 'PARTIALLY_PAID')
-						order by pr.created_at desc limit 1)
+						order by pr.created_at desc limit 1), null, null, null
 				from orders o
 				left join customers cu on cu.id = o.customer_id
 				where o.tenant_id = ${viewer.tenantId}::uuid
@@ -99,7 +114,17 @@ export const GET: RequestHandler = async (event) => {
 		};
 		const MODULE = { enquiry: 'enquiries', quotation: 'quotations', booking: 'bookings', order: 'orders' } as const;
 		const outstanding = (r: Row) => Math.max(0, Number(r.total) - Number(r.amount_paid));
-		const hasQuotationFor = new Set(rows.filter((r) => r.kind === 'quotation').map((r) => r.customer_name));
+		/*
+		 * Which enquiries have already been quoted — by enquiry, not by name.
+		 *
+		 * Keying this on the customer's name meant quoting ONE enquiry silently
+		 * removed the next action from every other enquiry that person had open.
+		 * A regular customer with three live requests got one quotation and two
+		 * rows that looked handled and were not.
+		 */
+		const hasQuotationFor = new Set(
+			rows.filter((r) => r.kind === 'quotation' && r.booking_request_id).map((r) => r.booking_request_id)
+		);
 
 		const items = rows
 			.filter((r) => moduleRelevant(workspace, MODULE[r.kind]))
@@ -129,7 +154,7 @@ export const GET: RequestHandler = async (event) => {
 							: r.kind === 'quotation'
 								? nextForQuotation({ id: r.id, status: r.status, convertedBookingId: r.converted_booking_id }, ability)
 								: nextForEnquiry(
-										{ id: r.id, status: r.status, hasQuotation: hasQuotationFor.has(r.customer_name) },
+										{ id: r.id, status: r.status, hasQuotation: hasQuotationFor.has(r.id) },
 										ability
 									);
 				return {
@@ -143,6 +168,10 @@ export const GET: RequestHandler = async (event) => {
 					outstanding: outstanding(r).toFixed(2),
 					currency: r.currency,
 					updatedAt: r.updated_at,
+					// Only an enquiry has these; the phone badges "Marketplace" from
+					// the first and shows the trip from the second.
+					source: (r as { source?: string | null }).source ?? null,
+					subject: (r as { subject?: string | null }).subject ?? null,
 					missingCritical: null as number | null,
 					daysToDeparture: null as number | null,
 					next: next ? { key: next.key, label: next.label, hint: next.hint ?? null } : null

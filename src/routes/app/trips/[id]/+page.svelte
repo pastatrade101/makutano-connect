@@ -202,10 +202,14 @@
 							</form>
 							{#if picker && picker.list.length}
 								<p class="mt-1.5 pl-32 text-xs text-slate-400">
-									Not on the list? Add them under
-									<a href={row.key === 'accommodation' ? '/app/catalog' : '/app/crew'} class="text-brand-600 hover:underline"
-										>{row.key === 'accommodation' ? 'Catalog' : 'Crew'}</a
-									>.
+									{#if row.key === 'accommodation'}
+										<!-- The accommodation directory is platform-curated, so this is
+										     a request rather than a link to a page they can edit. -->
+										Not on the list? Ask Makutano to add the property.
+									{:else}
+										Not on the list? Add them under
+										<a href="/app/crew" class="text-brand-600 hover:underline">Crew</a>.
+									{/if}
 								</p>
 							{/if}
 						{:else}

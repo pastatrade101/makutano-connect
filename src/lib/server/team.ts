@@ -84,9 +84,7 @@ export const PERMISSION_GROUPS: ReadonlyArray<{
 			{ key: 'orders:write', label: 'Create, update and confirm orders' },
 			{ key: 'order_links:read', label: 'View order links' },
 			{ key: 'order_links:write', label: 'Create and edit public order links' },
-			{ key: 'order_links:archive', label: 'Archive order links' },
-			{ key: 'catalog:read', label: 'View catalog' },
-			{ key: 'catalog:write', label: 'Manage catalog' }
+			{ key: 'order_links:archive', label: 'Archive order links' }
 		]
 	},
 	{

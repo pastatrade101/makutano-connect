@@ -42,15 +42,11 @@ Passing a `conversationId` links the order to its WhatsApp thread and inherits t
 
 In the portal, staff open a WhatsApp conversation and click **Create order** — customer, thread and source are pre-filled; they add items and save as a draft for review. AI never finalises an order; a human confirms.
 
-### Catalog
-
-A lightweight quick-pick list (`GET/POST /catalog`, `PATCH /catalog/{id}`) so staff and forms don't retype names and prices — name, type, SKU, price, simple variants, active flag. Businesses with an existing catalog skip it entirely and use `externalReference` on line items.
-
 ## Hosted forms & the embeddable widget
 
 The no-code layer for businesses whose current pipeline is *website form → email*. A form is configuration over the same domain services the API uses — never a second engine.
 
-In the portal under **Forms & Widgets** a tenant creates a form from a template — **Booking enquiry**, **Product order**, **Quote request** or **Contact / lead** — toggles fields, sets copy and branding, optionally attaches catalog items and an embed-domain allow-list, then copies either:
+In the portal under **Forms & Widgets** a tenant creates a form from a template — **Booking enquiry**, **Product order**, **Quote request** or **Contact / lead** — toggles fields, sets copy and branding, sets an embed-domain allow-list, then copies either:
 
 - the **hosted URL** — `https://connect.makutano.co.tz/f/{formId}`, or
 - the **one-line embed** for any website (plain HTML, WordPress, Webflow, React, Svelte…):
@@ -61,7 +57,7 @@ In the portal under **Forms & Widgets** a tenant creates a form from a template 
 
 The widget renders in an auto-sizing iframe, so no CSS or JavaScript leaks in either direction.
 
-**Security model.** The browser only ever holds the form's opaque `wf_…` id. Submissions go to `POST /api/public/widgets/{id}/submit`, where Connect resolves the tenant server-side, applies per-visitor and per-form rate limits, a honeypot, payload caps and the origin allow-list — then routes into the normal services: booking/quote forms create booking requests, order forms create `PENDING_CONFIRMATION` orders (never auto-paid, never auto-fulfilled — and on catalog-backed forms, prices always come from the tenant's catalog, never the visitor), lead forms create customers + leads. No API key exists anywhere in this path; regenerating the form id instantly invalidates every published embed.
+**Security model.** The browser only ever holds the form's opaque `wf_…` id. Submissions go to `POST /api/public/widgets/{id}/submit`, where Connect resolves the tenant server-side, applies per-visitor and per-form rate limits, a honeypot, payload caps and the origin allow-list — then routes into the normal services: booking/quote forms create booking requests, order forms create `PENDING_CONFIRMATION` orders (never auto-paid, never auto-fulfilled; line items arrive unpriced and a person prices them before confirming — a visitor has never been able to set an amount), lead forms create customers + leads. No API key exists anywhere in this path; regenerating the form id instantly invalidates every published embed.
 
 ## Template Center
 

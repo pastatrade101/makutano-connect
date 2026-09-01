@@ -10,7 +10,6 @@ import { withIdempotency } from '$lib/server/idempotency';
 const money = z.string().regex(/^\d+(\.\d{1,2})?$/);
 
 const itemSchema = z.object({
-	catalogItemId: z.string().uuid().optional().nullable(),
 	title: z.string().min(1).max(300),
 	variant: z.string().max(200).optional().nullable(),
 	sku: z.string().max(100).optional().nullable(),

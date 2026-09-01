@@ -14,6 +14,8 @@ import { db, schema, txDb } from './db';
 import { assertAllowed } from './entitlements';
 import { TRAVEL_MODES } from '$lib/server/db/schema';
 import { AppError } from './errors';
+import { parseMeals } from '../tour-options';
+import { accommodationOptions, accommodationsForTours } from './accommodations';
 import { CURRENCY_CODES, GROUP_TYPE_VALUES, isCurrency } from '$lib/tour-options';
 import type { Pagination } from './http';
 import { getTenantById } from './tenants';
@@ -71,8 +73,19 @@ export type ItineraryDayInput = {
 	title: string;
 	description?: string | null;
 	destinationId?: string | null;
+	/** A property from the directory. The free-text field below stays for anything not in it. */
+	accommodationId?: string | null;
 	accommodation?: string | null;
-	meals?: string | null;
+	/** Pictures for a night somewhere the directory does not list. */
+	accommodationImages?: string[];
+	/**
+	 * BREAKFAST | LUNCH | DINNER.
+	 *
+	 * A sentence is still accepted and parsed — the public v1 API has always
+	 * taken free text here, and breaking those callers to tidy a column would be
+	 * making somebody else pay for our schema change.
+	 */
+	meals?: string[] | string | null;
 	activities?: string[];
 	distance?: string | null;
 	estimatedTravelTime?: string | null;
@@ -427,13 +440,22 @@ export async function getTourDetail(tenantId: string, id: string) {
 			.where(eq(schema.tourCategoryLinks.tourId, id))
 			.orderBy(asc(schema.tourCategoryLinks.sortOrder))
 	]);
+	// Where the traveller sleeps, and the directory to pick from. Loaded here so
+	// the composer and the public tour page read the same list.
+	const [stays, stayOptions] = await Promise.all([
+		accommodationsForTours([id]),
+		accommodationOptions()
+	]);
+
 	return {
 		tour,
 		destinations: destinationRows.map((r) => r.destination),
 		itinerary,
 		gallery: galleryRows.map((r) => r.asset),
 		travelStyleIds: styleRows.map((r) => r.id),
-		categoryIds: categoryRows.map((r) => r.id)
+		categoryIds: categoryRows.map((r) => r.id),
+		accommodations: stays.get(id) ?? [],
+		accommodationOptions: stayOptions
 	};
 }
 
@@ -832,6 +854,19 @@ export async function listActiveTravelStyles() {
 		.orderBy(asc(schema.travelStyles.sortOrder), asc(schema.travelStyles.name));
 }
 
+/**
+ * Image urls a day may carry for a stay that is not in the directory.
+ *
+ * https only, and capped: these are rendered as image sources on a public page,
+ * so a `javascript:` or `data:` url here is a script tag with extra steps.
+ */
+const DAY_IMAGE_URL = /^https:\/\/[^\s"'<>]{3,600}$/i;
+const dayImages = (urls?: string[]): string[] =>
+	(urls ?? [])
+		.map((url) => String(url).trim())
+		.filter((url) => DAY_IMAGE_URL.test(url))
+		.slice(0, 12);
+
 export async function replaceItinerary(
 	tenantId: string,
 	tourId: string,
@@ -866,6 +901,27 @@ export async function replaceItinerary(
 			);
 		}
 	}
+	// Same rule as destinations: a day may name a property the tour does not
+	// formally list, but it must be a real, live one or the rendered day links to
+	// nothing.
+	const stayIds = [...new Set(ordered.map((d) => d.accommodationId).filter((id): id is string => Boolean(id)))];
+	if (stayIds.length) {
+		for (const id of stayIds) assertUuid(id, 'accommodation id');
+		const rows = await db()
+			.select({ id: schema.accommodations.id })
+			.from(schema.accommodations)
+			.where(
+				and(
+					inArray(schema.accommodations.id, stayIds),
+					eq(schema.accommodations.isActive, true),
+					isNull(schema.accommodations.deletedAt)
+				)
+			);
+		if (rows.length !== stayIds.length) {
+			throw new AppError('VALIDATION_ERROR', 'An itinerary day names a place that is no longer listed.');
+		}
+	}
+
 	await assertOwnedMedia(
 		tenantId,
 		ordered.map((d) => d.mediaId)
@@ -890,8 +946,16 @@ export async function replaceItinerary(
 					title: day.title.trim(),
 					description: text(day.description) ?? null,
 					destinationId: day.destinationId || null,
+					accommodationId: day.accommodationId || null,
 					accommodation: text(day.accommodation) ?? null,
-					meals: text(day.meals) ?? null,
+					// Ignored when a directory property is chosen: that property
+					// brings its own pictures, and keeping a second set would leave
+					// two answers to one question in the row.
+					accommodationImages: day.accommodationId ? [] : dayImages(day.accommodationImages),
+					meals: parseMeals(day.meals),
+					// Cleared on save: once an operator has chosen, the old sentence
+					// has nothing left to tell them.
+					mealsNote: null,
 					activities: list(day.activities) ?? [],
 					distance: text(day.distance) ?? null,
 					estimatedTravelTime: text(day.estimatedTravelTime) ?? null,
