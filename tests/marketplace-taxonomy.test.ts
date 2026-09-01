@@ -164,17 +164,49 @@ suite('marketplace taxonomy', () => {
 
 	it('always files a listing under its own primary category', async () => {
 		const cat = { id: ownCategoryId };
-		const other = (await tours.listActiveCategories()).find((c) => c.id !== cat.id);
 		const tour = await draft('Primary is always in the set');
 		await tours.updateTour(tenantId, tour.id, { primaryCategoryId: cat.id }, { userId: null });
-		// Deliberately omitting the primary: the service must add it back, or a
+		// Passing nothing at all: the service must still add the primary back, or a
 		// category filter would miss the tours whose main category it is.
-		await tours.setTourCategories(tenantId, tour.id, other ? [other.id] : [], { userId: null });
+		await tours.setTourCategories(tenantId, tour.id, [], { userId: null });
 		const rows = await db()
 			.select({ id: schema.tourCategoryLinks.categoryId })
 			.from(schema.tourCategoryLinks)
 			.where(eq(schema.tourCategoryLinks.tourId, tour.id));
-		expect(rows.map((r) => r.id)).toContain(cat.id);
+		expect(rows.map((r) => r.id)).toEqual([cat.id]);
+	});
+
+	/*
+	 * A package belongs to exactly ONE category.
+	 *
+	 * A category is what the trip IS, and the axis a traveller filters on first;
+	 * a listing that is two things at once ranks for neither. Enforced in the
+	 * service rather than in the composer, because the composer is not the only
+	 * writer — the vendor API and the mobile app call the same function, and a
+	 * rule that lives in one form is not a rule.
+	 */
+	it('refuses a second category alongside the primary', async () => {
+		const other = (await tours.listActiveCategories()).find((c) => c.id !== ownCategoryId);
+		expect(other, 'the seed should provide more than one category').toBeTruthy();
+
+		const tour = await draft('One category only');
+		await tours.updateTour(tenantId, tour.id, { primaryCategoryId: ownCategoryId }, { userId: null });
+		// Establish the link first, so the rejection below has something it could
+		// have damaged. Setting the primary column does not itself write a row.
+		await tours.setTourCategories(tenantId, tour.id, [], { userId: null });
+
+		await expect(
+			tours.setTourCategories(tenantId, tour.id, [other!.id], { userId: null })
+		).rejects.toThrow(/one category/i);
+
+		// A refused write leaves the listing exactly as it was — filed under its
+		// primary, not emptied by a replace that got half way.
+		
+		const rows = await db()
+			.select({ id: schema.tourCategoryLinks.categoryId })
+			.from(schema.tourCategoryLinks)
+			.where(eq(schema.tourCategoryLinks.tourId, tour.id));
+		expect(rows.map((r) => r.id)).toEqual([ownCategoryId]);
 	});
 
 	/* ------------------------------------------------------------- publishing -- */

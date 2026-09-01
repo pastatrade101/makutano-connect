@@ -147,7 +147,6 @@
 			durationNights: t.durationNights == null ? '' : String(t.durationNights),
 			primaryCategoryId: t.primaryCategoryId ?? '',
 			travelStyleIds: [...data.travelStyleIds],
-			categoryIds: [...data.categoryIds],
 			groupType: t.groupType ?? '',
 			groupSizeMin: t.groupSizeMin == null ? '' : String(t.groupSizeMin),
 			groupSizeMax: t.groupSizeMax == null ? '' : String(t.groupSizeMax),
@@ -260,12 +259,6 @@
 	}
 
 	/** The primary category is always in the set, so it cannot be toggled off here. */
-	function toggleCategory(id: string) {
-		if (id === draft.primaryCategoryId) return;
-		const at = draft.categoryIds.indexOf(id);
-		if (at >= 0) draft.categoryIds.splice(at, 1);
-		else draft.categoryIds.push(id);
-	}
 	let heroMediaId = $state(untrack(() => data.tour.heroMediaId ?? ''));
 
 	// A plain let, not $state: comparing it must not make the effect below depend on it.
@@ -379,11 +372,6 @@
 
 	const groupTypeHint = $derived(GROUP_TYPES.find((g) => g.value === draft.groupType)?.hint ?? 'Who else is on the trip.');
 
-	const effectiveCategories = (s: { categoryIds: string[]; primaryCategoryId: string }) =>
-		s.primaryCategoryId && !s.categoryIds.includes(s.primaryCategoryId)
-			? [s.primaryCategoryId, ...s.categoryIds]
-			: s.categoryIds;
-
 	const same = (a: string, b: string) => a.trim() === b.trim();
 	const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
 
@@ -462,7 +450,7 @@
 			BASICS_FLAGS.some((f) => draft[f] !== pristine[f]) ||
 			draft.primaryCategoryId !== pristine.primaryCategoryId ||
 			!sameSet(draft.travelStyleIds, pristine.travelStyleIds) ||
-			!sameSet(effectiveCategories(draft), effectiveCategories(pristine)),
+			draft.primaryCategoryId !== pristine.primaryCategoryId,
 		location:
 			draft.primaryCountryId !== pristine.primaryCountryId || !sameSet(draft.destinationIds, pristine.destinationIds),
 		itinerary: draft.days.map(dayPrint).join('|') !== pristine.days.map(dayPrint).join('|'),
@@ -1100,40 +1088,6 @@
 							{/each}
 						</div>
 
-						<!--
-							A safari-and-Zanzibar itinerary genuinely is two categories. The
-							primary one is submitted with the set by the server, so it is shown
-							as already-on and cannot be turned off here.
-						-->
-						<div class="sm:col-span-2">
-							<span class="label mb-0">Also appears under</span>
-							<p class="mb-2 mt-1 text-xs text-slate-500">
-								Optional. Only if the trip genuinely spans more than one category.
-							</p>
-							<div class="flex flex-wrap gap-2">
-								{#each data.categories as c (c.id)}
-									{@const isPrimary = c.id === draft.primaryCategoryId}
-									{@const on = isPrimary || draft.categoryIds.includes(c.id)}
-									<button
-										type="button"
-										class="rounded-full border px-3 py-1.5 text-sm transition
-											{on
-											? 'border-sky-600 bg-sky-600 text-white'
-											: 'border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50'}
-											{isPrimary ? 'cursor-default opacity-90' : ''}"
-										aria-pressed={on}
-										disabled={isPrimary}
-										title={isPrimary ? 'This is the primary category' : (c.shortDescription ?? c.name)}
-										onclick={() => toggleCategory(c.id)}
-									>
-										{c.name}{isPrimary ? ' · primary' : ''}
-									</button>
-								{/each}
-							</div>
-							{#each draft.categoryIds as id (id)}
-								<input type="hidden" name="categoryIds" value={id} />
-							{/each}
-						</div>
 						<div>
 							<label class="label" for="t-acc">Accommodation</label>
 							<textarea id="t-acc" name="accommodationSummary" bind:value={draft.accommodationSummary} rows="3" class="input"></textarea>

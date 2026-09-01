@@ -185,7 +185,11 @@ export const actions: Actions = {
 		const tenantId = requireTenant(locals).id;
 		const f = await request.formData();
 		const styleIds = f.getAll('travelStyleIds').map(String).filter(Boolean);
-		const categoryIds = f.getAll('categoryIds').map(String).filter(Boolean);
+		// A package belongs to exactly ONE category. The link table stays — the
+		// marketplace filters through it — but it now holds a single row, derived
+		// from the primary category rather than from a separate multi-select the
+		// operator had to keep in step with it.
+		const categoryIds: string[] = [];
 		try {
 			await updateTour(
 				tenantId,

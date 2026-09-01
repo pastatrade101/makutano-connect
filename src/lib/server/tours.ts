@@ -763,6 +763,24 @@ export async function setTourCategories(
 	// "every safari" a single join, and it can never be missing from the set.
 	if (tour.primaryCategoryId && !ids.includes(tour.primaryCategoryId)) ids.unshift(tour.primaryCategoryId);
 
+	/*
+	 * ONE category per package.
+	 *
+	 * A category is what the trip IS — the axis a traveller filters on first —
+	 * and a listing that is two things at once is a listing that ranks for
+	 * neither. Enforced here rather than in the composer, because the composer
+	 * is not the only writer: the vendor API and the mobile app reach this same
+	 * function, and a rule that lives in one form is not a rule.
+	 *
+	 * How it is experienced stays plural — that is what travel styles are for.
+	 */
+	if (ids.length > 1) {
+		throw new AppError(
+			'VALIDATION_ERROR',
+			'A tour belongs to one category. Choose it as the primary category.'
+		);
+	}
+
 	if (ids.length) {
 		const found = await db()
 			.select({ id: schema.tourCategories.id })
