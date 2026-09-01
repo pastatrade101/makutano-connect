@@ -77,6 +77,17 @@
 	);
 	const cls = (key: string) => (next?.key === key ? 'btn-primary' : 'btn-secondary');
 
+	/**
+	 * Eligibility, the same rule the service enforces: either lifecycle finished,
+	 * and never a cancelled or refunded booking. Mirrored here only to decide
+	 * whether to draw the button — the server checks it again for real.
+	 */
+	const canAskForReview = $derived(
+		(data.permissions?.includes('reviews:read' as never) ?? false) &&
+			!['CANCELLED', 'REFUNDED'].includes(data.booking.status) &&
+			(data.booking.status === 'COMPLETED' || data.trip?.status === 'COMPLETED')
+	);
+
 	const selectedMethod = $derived(data.payMethods.find((method) => method.key === selectedMethodKey) ?? data.payMethods[0] ?? null);
 	const requestReady = $derived(
 		!!selectedMethod &&
@@ -112,6 +123,32 @@
 					<input type="hidden" name="requestId" value={activeRequest.id} />
 					<button class="btn-secondary">Send payment reminder</button>
 				</form>
+			{/if}
+			<!--
+				Offered only once the trip is over. Asking somebody to review a journey
+				they have not taken is the fastest way to make a review section
+				worthless.
+			-->
+			{#if canAskForReview}
+				<!--
+					Three states, read off the review row itself: never asked, asked
+					and waiting, and written. Sending again just re-mints the token and
+					re-sends the same invitation — there is no reminder scheduler here.
+				-->
+				{#if data.review.written}
+					<span class="rounded-panel border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+						Review received
+					</span>
+				{:else}
+					<form method="POST" action="?/askForReview" use:enhance>
+						<button class="btn-secondary">
+							{data.review.requested ? 'Send review request again' : 'Ask for a review'}
+						</button>
+					</form>
+					{#if data.review.requested}
+						<span class="self-center text-xs text-slate-500">Review requested</span>
+					{/if}
+				{/if}
 			{/if}
 			{#if canWrite}
 				{#each forward as move (move.to)}

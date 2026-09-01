@@ -281,6 +281,48 @@
       "when": 1788140010000,
       "tag": "0039_tour_enums",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1788140020000,
+      "tag": "0040_quotation_public_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1788140030000,
+      "tag": "0041_accommodations",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1788140040000,
+      "tag": "0042_itinerary_meals",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1788140050000,
+      "tag": "0043_accommodation_detail",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1788140060000,
+      "tag": "0044_drop_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1788140070000,
+      "tag": "0045_reviews",
+      "breakpoints": true
     }
   ]
 }

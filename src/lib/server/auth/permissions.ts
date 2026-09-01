@@ -33,8 +33,6 @@ export const PERMISSIONS = [
 	'order_links:read',
 	'order_links:write',
 	'order_links:archive',
-	'catalog:read',
-	'catalog:write',
 	'forms:read',
 	'forms:write',
 	'travelers:read_sensitive', // §15 passport data
@@ -71,7 +69,14 @@ export const PERMISSIONS = [
 	// just the operator's, so approval is its own permission.
 	'tours:read',
 	'tours:write',
-	'tours:publish'
+	'tours:publish',
+	// Traveller reviews. An operator may READ their reviews and answer them; they
+	// may never publish, hide, reject or alter one. Moderation carries the
+	// platform's name and belongs to the platform — same reasoning as
+	// tours:publish, and enforced the same way below.
+	'reviews:read',
+	'reviews:respond',
+	'reviews:moderate'
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -87,8 +92,14 @@ const ALL: Permission[] = [...PERMISSIONS];
  * has to hold for the tenant OWNER too. Owners otherwise receive every
  * permission, so leaving this to the role table alone would have handed it
  * straight back.
+ *
+ * `reviews:moderate` is absent for the same reason, and it matters more: a
+ * traveller's review is the one thing on this marketplace an operator has an
+ * obvious motive to remove. An operator may answer a review. Only the platform
+ * decides whether it is published.
  */
-const TENANT_ALL: Permission[] = ALL.filter((p) => p !== 'tours:publish');
+const PLATFORM_ONLY: Permission[] = ['tours:publish', 'reviews:moderate'];
+const TENANT_ALL: Permission[] = ALL.filter((p) => !PLATFORM_ONLY.includes(p));
 
 const READ_ONLY: Permission[] = [
 	'tours:read',
@@ -96,7 +107,6 @@ const READ_ONLY: Permission[] = [
 	'trips:read',
 	'crew:read',
 	'order_links:read',
-	'catalog:read',
 	'forms:read',
 	'tenant:read',
 	'members:read',
@@ -117,7 +127,6 @@ const SALES: Permission[] = [
 	// Writing the listing is sales work. Putting it live is not — see tours:publish.
 	'tours:write',
 	'orders:write',
-	'catalog:write',
 	'customers:write',
 	'leads:write',
 	'conversations:write',
@@ -256,8 +265,6 @@ export function requirePermission(permissions: readonly Permission[] | undefined
 export const API_SCOPES = [
 	'orders:read',
 	'orders:write',
-	'catalog:read',
-	'catalog:write',
 	'bookings:read',
 	'bookings:write',
 	'booking_requests:read',

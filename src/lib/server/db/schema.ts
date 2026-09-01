@@ -1065,7 +1065,16 @@ export const trips = pgTable(
 		specialist: text('specialist'),
 		specialistCrewId: uuid('specialist_crew_id').references(() => crew.id, { onDelete: 'set null' }),
 		accommodation: text('accommodation'),
-		accommodationItemId: uuid('accommodation_item_id'),
+		/**
+		 * The directory property, where the night is at a listed one.
+		 *
+		 * Declared WITH its foreign key: this column already had one in the
+		 * database (to the old catalog) that the schema file did not mention, and
+		 * a migration failed on the constraint nobody knew was there.
+		 */
+		accommodationItemId: uuid('accommodation_item_id').references(() => accommodations.id, {
+			onDelete: 'set null'
+		}),
 		hotelConfirmed: boolean('hotel_confirmed').notNull().default(false),
 		notes: text('notes'),
 		metadata: jsonb('metadata')
@@ -1223,6 +1232,12 @@ export const quotations = pgTable(
 		declinedAt: timestamp('declined_at', { withTimezone: true }),
 		convertedBookingId: uuid('converted_booking_id').references(() => bookings.id, { onDelete: 'set null' }),
 		createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		/**
+		 * The traveller's way in. Minted on first send, never guessable, and the
+		 * only credential the public quotation page accepts — there is no login
+		 * on the customer side of this product.
+		 */
+		publicToken: text('public_token'),
 		metadata: jsonb('metadata')
 			.$type<Record<string, unknown>>()
 			.notNull()
@@ -1797,7 +1812,7 @@ export type WebhookEndpoint = typeof webhookEndpoints.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Role = (typeof roleEnum.enumValues)[number];
 
-/* ================== Conversational commerce: orders + catalog + forms ==== */
+/* ========================= Conversational commerce: orders + forms ======= */
 /* All additive. Nothing above this line changed — the booking domain keeps  */
 /* its exact shape and behaviour.                                            */
 
@@ -1843,57 +1858,11 @@ export const orderSourceEnum = pgEnum('order_source', [
 
 export const orderBatchStatusEnum = pgEnum('order_batch_status', ['OPEN', 'CLOSED']);
 
-export const catalogItemTypeEnum = pgEnum('catalog_item_type', [
-	'PRODUCT',
-	'SERVICE',
-	'TOUR',
-	'ACCOMMODATION',
-	'EXPERIENCE',
-	'OTHER'
-]);
 
 export const deliveryMethodEnum = pgEnum('delivery_method', ['DELIVERY', 'PICKUP']);
 
 export const formTypeEnum = pgEnum('form_type', ['BOOKING', 'ORDER', 'QUOTE', 'LEAD']);
 
-/** Lightweight catalog — enough to reference what is booked, quoted or ordered.
- *  Businesses with their own catalog keep it and pass externalReference instead. */
-export const catalogItems = pgTable(
-	'catalog_items',
-	{
-		id: uuid('id').primaryKey().defaultRandom(),
-		tenantId: uuid('tenant_id')
-			.notNull()
-			.references(() => tenants.id, { onDelete: 'cascade' }),
-		type: catalogItemTypeEnum('type').notNull().default('PRODUCT'),
-		name: text('name').notNull(),
-		description: text('description'),
-		sku: text('sku'),
-		externalReference: text('external_reference'),
-		externalSource: text('external_source'),
-		price: money('price'),
-		currency: text('currency'),
-		imageUrl: text('image_url'),
-		/** [{ label: "Black / 43", price?: "230.00", sku?: "NIKE-AM-43-BLK" }] */
-		variants: jsonb('variants')
-			.$type<Array<Record<string, unknown>>>()
-			.notNull()
-			.default(sql`'[]'::jsonb`),
-		isActive: boolean('is_active').notNull().default(true),
-		metadata: jsonb('metadata')
-			.$type<Record<string, unknown>>()
-			.notNull()
-			.default(sql`'{}'::jsonb`),
-		createdAt: createdAt(),
-		updatedAt: updatedAt()
-	},
-	(t) => [
-		index('catalog_items_tenant_idx').on(t.tenantId, t.isActive),
-		uniqueIndex('catalog_items_tenant_sku_key')
-			.on(t.tenantId, t.sku)
-			.where(sql`${t.sku} is not null`)
-	]
-);
 
 /**
  * Order Batch — one selling round with shared defaults (§fish-seller workflow).
@@ -2014,7 +1983,6 @@ export const orderLinks = pgTable(
 			.notNull()
 			.default(sql`'[]'::jsonb`),
 		batchId: uuid('batch_id').references(() => orderBatches.id, { onDelete: 'set null' }),
-		catalogItemId: uuid('catalog_item_id').references(() => catalogItems.id, { onDelete: 'set null' }),
 		viewCount: integer('view_count').notNull().default(0),
 		metadata: jsonb('metadata')
 			.$type<Record<string, unknown>>()
@@ -2098,7 +2066,6 @@ export const orderItems = pgTable(
 		orderId: uuid('order_id')
 			.notNull()
 			.references(() => orders.id, { onDelete: 'cascade' }),
-		catalogItemId: uuid('catalog_item_id').references(() => catalogItems.id, { onDelete: 'set null' }),
 		title: text('title').notNull(),
 		variant: text('variant'), // "Black / Size 43", "256GB / Black"
 		sku: text('sku'),
@@ -2160,11 +2127,6 @@ export const forms = pgTable(
 			.$type<Record<string, { enabled: boolean; required: boolean }>>()
 			.notNull()
 			.default(sql`'{}'::jsonb`),
-		/** Catalog items offered on ORDER/BOOKING forms; empty = free-text item entry. */
-		catalogItemIds: jsonb('catalog_item_ids')
-			.$type<string[]>()
-			.notNull()
-			.default(sql`'[]'::jsonb`),
 		/** Allowed embedding origins; empty = any origin. */
 		allowedOrigins: jsonb('allowed_origins')
 			.$type<string[]>()
@@ -2186,7 +2148,6 @@ export type Order = typeof orders.$inferSelect;
 export type OrderBatch = typeof orderBatches.$inferSelect;
 export type OrderLink = typeof orderLinks.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
-export type CatalogItem = typeof catalogItems.$inferSelect;
 export type Form = typeof forms.$inferSelect;
 
 
@@ -2404,7 +2365,7 @@ export const operatorProfiles = pgTable(
  * The tour is also what RESOLVES OWNERSHIP: a public browser names a tour, and the
  * server derives the tenant from it. The browser never says who owns anything.
  *
- * Separate from `catalogItems` by design — that table is an externally-sourced
+ * Separate from what a tenant syncs in by design — that content is externally-sourced
  * product list owned by a sync feed, while a tour is authored here and has ordered
  * days, media and a publishing lifecycle.
  */
@@ -2668,6 +2629,124 @@ export const tourTravelStyles = pgTable(
  * operational departure that actually ran. Blurring those two would make a
  * template and a record of a real trip the same row.
  */
+/**
+ * Where people sleep — a platform directory, like countries and destinations.
+ *
+ * A lodge is a place, not a tenant's property: two operators selling the same
+ * camp should point at one record, which is the whole reason this is not a
+ * per-tenant table. Tenants LINK to accommodations; they never own them.
+ *
+ * Deliberately thin. The first import carries names and photographs and nothing
+ * else, so location and description are nullable and stay empty rather than
+ * being guessed — an invented address on a lodge listing is worse than none.
+ */
+export const accommodations = pgTable(
+	'accommodations',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		name: text('name').notNull(),
+		slug: text('slug').notNull(),
+		countryId: uuid('country_id').references(() => countries.id, { onDelete: 'set null' }),
+		destinationId: uuid('destination_id').references(() => destinations.id, { onDelete: 'set null' }),
+		shortDescription: text('short_description'),
+		/** Rich text (HTML) from the source system, like tour descriptions. */
+		description: text('description'),
+		/** LUXURY | MID_RANGE | BUDGET — what it costs in comfort, not in money. */
+		accommodationLevel: text('accommodation_level'),
+		/** SAFARI_LODGE | HOTEL | TENTED_CAMP | BEACH_RESORT | ECO_LODGE | BOUTIQUE_HOTEL. */
+		lodgeType: text('lodge_type'),
+		/** The operator's own case for it. Rich text; only a handful have one. */
+		whyWeRecommend: text('why_we_recommend'),
+		websiteUrl: text('website_url'),
+		currency: text('currency'),
+		isFeatured: boolean('is_featured').notNull().default(false),
+		flyInAvailable: boolean('fly_in_available').notNull().default(false),
+		transferAvailable: boolean('transfer_available').notNull().default(false),
+		/** Free-form audience tags from the source; normalised on the way in. */
+		bestFor: jsonb('best_for').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		isActive: boolean('is_active').notNull().default(true),
+		sortOrder: integer('sort_order').notNull().default(0),
+		/** Provenance, so an import can be traced and re-run without duplicating. */
+		source: text('source'),
+		externalRef: text('external_ref'),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+		deletedAt: timestamp('deleted_at', { withTimezone: true })
+	},
+	(t) => [
+		uniqueIndex('accommodations_slug_key').on(t.slug),
+		index('accommodations_active_idx').on(t.isActive, t.name),
+		index('accommodations_destination_idx').on(t.destinationId)
+	]
+);
+
+/**
+ * Photographs, as urls.
+ *
+ * NOT rows in `media`, and that is not laziness: a media row carries an
+ * object_key which is the handle for DELETING an object. These images live in
+ * another bucket, so pointing Connect's delete path at one of their keys is a
+ * way to destroy a file that was never ours to remove.
+ */
+export const accommodationImages = pgTable(
+	'accommodation_images',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		accommodationId: uuid('accommodation_id')
+			.notNull()
+			.references(() => accommodations.id, { onDelete: 'cascade' }),
+		url: text('url').notNull(),
+		/** hero | hero_mobile | card | cover | gallery — the role it played at source. */
+		role: text('role'),
+		altText: text('alt_text'),
+		caption: text('caption'),
+		category: text('category'),
+		sortOrder: integer('sort_order').notNull().default(0),
+		createdAt: createdAt()
+	},
+	(t) => [
+		index('accommodation_images_parent_idx').on(t.accommodationId, t.sortOrder),
+		uniqueIndex('accommodation_images_url_key').on(t.accommodationId, t.url)
+	]
+);
+
+/**
+ * Where you stay on this trip, as an ordered list.
+ *
+ * RESTRICT on the accommodation: a lodge that tours point at is deactivated,
+ * never deleted — the same rule travel styles follow, for the same reason.
+ */
+export const tourAccommodations = pgTable(
+	'tour_accommodations',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tourId: uuid('tour_id')
+			.notNull()
+			.references(() => tours.id, { onDelete: 'cascade' }),
+		/** Null for a one-off the operator typed; see [customName]. */
+		accommodationId: uuid('accommodation_id').references(() => accommodations.id, { onDelete: 'restrict' }),
+		/**
+		 * A place the directory does not list, and its photographs.
+		 *
+		 * The directory will never be complete — a new camp, a private house, a
+		 * lodge nobody has added. Making an operator either pollute a shared
+		 * platform table or settle for a nameless line of free text is a false
+		 * choice, so a row is EITHER a directory property or one of these. A
+		 * CHECK enforces exactly one, because a row that is both is a row whose
+		 * rendering is a guess.
+		 */
+		customName: text('custom_name'),
+		customImages: jsonb('custom_images').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		sortOrder: integer('sort_order').notNull().default(0),
+		nights: integer('nights'),
+		note: text('note')
+	},
+	(t) => [
+		index('tour_accommodations_tour_idx').on(t.tourId, t.sortOrder),
+		uniqueIndex('tour_accommodations_unique_property').on(t.tourId, t.accommodationId)
+	]
+);
+
 export const tourItineraryDays = pgTable(
 	'tour_itinerary_days',
 	{
@@ -2684,8 +2763,35 @@ export const tourItineraryDays = pgTable(
 		 * to type it a second time.
 		 */
 		destinationId: uuid('destination_id').references(() => destinations.id, { onDelete: 'set null' }),
+		/**
+		 * Where the night is spent, from the directory.
+		 *
+		 * The free-text column below it stays and is not deprecated: a day can
+		 * name a fly camp or a farmhouse that is not — and should not be — a
+		 * directory entry, and losing that would be a regression. The id is the
+		 * upgrade for the properties that ARE listed, so "Serengeti Serena" and
+		 * "Serena Serengeti" stop being two lodges.
+		 */
+		accommodationId: uuid('accommodation_id').references(() => accommodations.id, { onDelete: 'set null' }),
 		accommodation: text('accommodation'),
-		meals: text('meals'),
+		/**
+		 * Photographs for a night spent somewhere the directory does not list.
+		 *
+		 * Read only when accommodationId is null — a directory property brings
+		 * its own pictures, and a second set on the day would be two answers to
+		 * one question.
+		 */
+		accommodationImages: jsonb('accommodation_images').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		/**
+		 * BREAKFAST | LUNCH | DINNER — a closed set, not a sentence.
+		 *
+		 * See MEALS in $lib/tour-options. The old free text is preserved in
+		 * [mealsNote] wherever the backfill could not read it, so a guess made by
+		 * pattern-matching English is checkable rather than destructive.
+		 */
+		meals: jsonb('meals').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		/** What the operator had typed, kept only while it has not been understood. */
+		mealsNote: text('meals_note'),
 		activities: jsonb('activities').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 		distance: text('distance'),
 		estimatedTravelTime: text('estimated_travel_time'),
@@ -2794,6 +2900,110 @@ export const tourMediaRelations = relations(tourMedia, ({ one }) => ({
 	asset: one(media, { fields: [tourMedia.mediaId], references: [media.id] })
 }));
 
+/* ====================== Reviews: platform trust data ===================== */
+
+/**
+ * PENDING → PUBLISHED | HIDDEN | REJECTED.
+ *
+ * HIDDEN and REJECTED are different facts and both are kept: rejected never
+ * went public, hidden did and was pulled. A review is never deleted for being
+ * hidden — the traveller wrote it, and destroying it to tidy a page would be
+ * the platform editing someone else's words.
+ */
+export const reviewStatusEnum = pgEnum('review_status', ['PENDING', 'PUBLISHED', 'HIDDEN', 'REJECTED']);
+
+/**
+ * A traveller's review, backed by a real booking.
+ *
+ * A row cannot exist without a booking behind it, and that is the whole design:
+ * "verified" is not a flag anybody can switch on, it is the shape of the table.
+ * `bookingId` is NOT NULL and UNIQUE, and the service resolves the customer, the
+ * tenant and the tour FROM the booking rather than from anything a browser sent.
+ *
+ * Three parties with three different rights, drawn in the columns:
+ *   the traveller owns rating, title and body
+ *   the operator owns operatorResponse and nothing else
+ *   the platform owns status and the moderation columns
+ *
+ * Deliberately NOT here: category ratings (guide/value/…). One honest overall
+ * number beats five fields nobody fills in, and adding them later is additive.
+ */
+export const reviews = pgTable(
+	'reviews',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		/** The source of truth. Everything below is derived from it, server-side. */
+		bookingId: uuid('booking_id')
+			.notNull()
+			.references(() => bookings.id, { onDelete: 'cascade' }),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		customerId: uuid('customer_id')
+			.notNull()
+			.references(() => customers.id, { onDelete: 'cascade' }),
+		/**
+		 * Null for a custom trip.
+		 *
+		 * An accepted quotation need not come from a published listing, and
+		 * refusing the review would punish the traveller for how they booked. It
+		 * still counts towards the operator's rating.
+		 */
+		tourId: uuid('tour_id').references(() => tours.id, { onDelete: 'set null' }),
+
+		rating: integer('rating').notNull(),
+		title: text('title'),
+		body: text('body').notNull(),
+
+		status: reviewStatusEnum('status').notNull().default('PENDING'),
+
+		/**
+		 * The traveller's way in — a HASH, never the token itself.
+		 *
+		 * There is no customer login anywhere in this product, so an unguessable
+		 * token is how a traveller reaches their own review. The quotation flow
+		 * proved the shape but stores its token raw; a review invitation sits in
+		 * an inbox for months, so storing it in the clear would let anyone with
+		 * read access to this table write reviews as any traveller. Only the
+		 * sha256 is kept — the raw token exists in the email and nowhere else.
+		 */
+		inviteTokenHash: text('invite_token_hash'),
+		invitedAt: timestamp('invited_at', { withTimezone: true }),
+		/**
+		 * Expiry blocks WRITING, never reading.
+		 *
+		 * A link that works forever is a link that leaks forever; a traveller
+		 * coming back after it lapses still sees what they wrote.
+		 */
+		expiresAt: timestamp('expires_at', { withTimezone: true }),
+
+		submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+		publishedAt: timestamp('published_at', { withTimezone: true }),
+		/** Set on every traveller edit. The fact of an edit is never erased. */
+		editedAt: timestamp('edited_at', { withTimezone: true }),
+
+		moderatedAt: timestamp('moderated_at', { withTimezone: true }),
+		moderatedBy: uuid('moderated_by').references(() => users.id, { onDelete: 'set null' }),
+		moderationReason: text('moderation_reason'),
+
+		/** The operator's only writable field. */
+		operatorResponse: text('operator_response'),
+		operatorRespondedAt: timestamp('operator_responded_at', { withTimezone: true }),
+
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('reviews_booking_key').on(t.bookingId),
+		uniqueIndex('reviews_invite_token_key').on(t.inviteTokenHash),
+		index('reviews_tour_published_idx').on(t.tourId, t.publishedAt),
+		index('reviews_tenant_published_idx').on(t.tenantId, t.publishedAt),
+		index('reviews_tenant_status_idx').on(t.tenantId, t.status, t.submittedAt),
+		index('reviews_status_idx').on(t.status, t.submittedAt),
+		index('reviews_customer_idx').on(t.customerId)
+	]
+);
+
 export type Media = typeof media.$inferSelect;
 export type Country = typeof countries.$inferSelect;
 export type Destination = typeof destinations.$inferSelect;
@@ -2805,4 +3015,8 @@ export type TourCategory = typeof tourCategories.$inferSelect;
 export type TourCategoryLink = typeof tourCategoryLinks.$inferSelect;
 export type TourTravelStyle = typeof tourTravelStyles.$inferSelect;
 export type TourItineraryDay = typeof tourItineraryDays.$inferSelect;
+export type Accommodation = typeof accommodations.$inferSelect;
+export type AccommodationImage = typeof accommodationImages.$inferSelect;
+export type TourAccommodation = typeof tourAccommodations.$inferSelect;
+export type Review = typeof reviews.$inferSelect;
 export type TourMedia = typeof tourMedia.$inferSelect;

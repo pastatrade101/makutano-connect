@@ -18,6 +18,7 @@ import {
 	requestsForTransaction
 } from '$lib/server/payment-requests';
 import { toAppError } from '$lib/server/errors';
+import { inviteAndNotify } from '$lib/server/reviews';
 import { parseUuid } from '$lib/server/http';
 import type { PageServerLoad } from './$types';
 
@@ -46,8 +47,24 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					.where(and(eq(schema.trips.tenantId, tenant.id), eq(schema.trips.bookingId, idOf(params))))
 					.limit(1)
 			: [];
+		/*
+		 * Has a review already been asked for?
+		 *
+		 * One indexed lookup, no new infrastructure: the invitation IS the review
+		 * row, so its existence is the whole answer. Used only to label the button
+		 * — there is no reminder system behind it.
+		 */
+		const [reviewRow] = await db()
+			.select({ invitedAt: schema.reviews.invitedAt, body: schema.reviews.body })
+			.from(schema.reviews)
+			.where(eq(schema.reviews.bookingId, idOf(params)))
+			.limit(1);
+
 		return {
 			...detail,
+			review: reviewRow
+				? { requested: Boolean(reviewRow.invitedAt), written: Boolean(reviewRow.body) }
+				: { requested: false, written: false },
 			payMethods: methods,
 			requestTemplateReady,
 			paymentRequests: paymentRequestRows,
@@ -69,6 +86,35 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 };
 
 export const actions: Actions = {
+	/**
+	 * Ask the traveller for a review.
+	 *
+	 * One button, one email, no automation: the operator decides when to ask, and
+	 * nothing in the booking or trip lifecycle is coupled to it. Re-tapping
+	 * reissues the link rather than creating a second review — the stored token
+	 * is a hash and cannot be turned back into one, and `UNIQUE booking_id` still
+	 * means one review per trip.
+	 */
+	askForReview: async ({ locals, params }) => {
+		requirePermission(locals.permissions, 'reviews:read');
+		const tenantId = requireTenant(locals).id;
+		try {
+			// Ownership first: the service takes only a booking id, so this is where
+			// "is this booking yours" is established.
+			await getBookingDetail(tenantId, idOf(params));
+			const result = await inviteAndNotify(idOf(params), { userId: locals.user?.id });
+			if (!result.delivered) {
+				// Created but not sent is its own outcome. Saying "sent" here would
+				// leave an operator waiting for a review nobody was asked for.
+				return fail(400, { message: result.reason ?? 'Could not send review request. Try again.' });
+			}
+			return { success: true, notice: 'Review request sent' };
+		} catch (error) {
+			return fail(400, { message: toAppError(error).message });
+		}
+	},
+
+
 	/**
 	 * Hand the sale over to operations.
 	 *
