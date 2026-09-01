@@ -1,0 +1,96 @@
+{
+	"2-day-nyerere-midrange-safari-from-zanzibar": [
+		{
+			"day": 1,
+			"title": "Nyerere National Park — Fly In from Zanzibar & Game Drives",
+			"description": "Your adventure begins with a convenient flight from Zanzibar to southern Tanzania and Nyerere National Park, formerly part of Selous Game Reserve and one of Africa's largest protected wilderness areas. Exciting game drives lead through the park's diverse habitats, searching for African wildlife including elephants, lions, giraffes, buffaloes, zebras, hippos, crocodiles and many bird species. After a full day of adventure you relax at a carefully selected midrange safari lodge or tented camp, combining comfort with the authentic atmosphere of the African wilderness.",
+			"meals": null,
+			"activities": "Flight from Zanzibar to Nyerere National Park\nGame drives through the park's diverse habitats\nOvernight at a midrange safari lodge or tented camp",
+			"image": null
+		},
+		{
+			"day": 2,
+			"title": "Rufiji River — Boat Safari & Return Flight to Zanzibar",
+			"description": "Today brings a relaxing boat safari on the Rufiji River, offering a unique perspective of Tanzania's wildlife as animals gather along the riverbanks. This iconic river runs through Nyerere National Park, one of Africa's largest protected wilderness areas and a destination famous for its untouched landscapes and abundant wildlife. Your return flight then carries you back to Zanzibar at the end of this short fly-in safari.",
+			"meals": null,
+			"activities": "Boat safari on the Rufiji River\nReturn flight to Zanzibar",
+			"image": null
+		}
+	],
+	"4-day-serengeti-safari-from-zanzibar-private-tanzania-wildlife-tour": [
+		{
+			"day": 1,
+			"title": "Zanzibar to Serengeti National Park — Fly via Arusha",
+			"description": "Your journey begins with a convenient flight from Zanzibar to Arusha, followed by a scenic transfer into the breathtaking Serengeti National Park. The route is designed for travellers looking to explore one of Africa's most famous wildlife destinations without spending long hours on the road. You journey into the heart of the Serengeti, where over the days ahead you can witness Africa's iconic wildlife including lions, elephants, giraffes, cheetahs, and thousands of wildebeest and zebras. Comfortable safari accommodation and an experienced private guide are part of the journey throughout.",
+			"meals": null,
+			"activities": "Flight from Zanzibar to Arusha\nScenic transfer into Serengeti National Park\nArrival in the heart of the Serengeti",
+			"image": null
+		},
+		{
+			"day": 2,
+			"title": "Serengeti National Park — Private Game Drives on the Endless Plains",
+			"description": "Explore the endless plains of the Serengeti through thrilling private game drives. The search is for the Big Five, lions, elephants, leopards, buffalo and rhinos, alongside cheetahs, giraffes, hippos and countless bird species. Carefully planned routes and an experienced private guide shape your time in the park, with comfortable safari accommodation waiting at the end of it.",
+			"meals": null,
+			"activities": "Private game drives in the Serengeti\nSearching for the Big Five\nCarefully planned routes with an experienced private guide",
+			"image": null
+		},
+		{
+			"day": 3,
+			"title": "Serengeti National Park — In Search of the Big Five",
+			"description": "Thrilling private game drives continue across the endless plains, still searching for the Big Five alongside cheetahs, giraffes, hippos and countless bird species. Depending on the season, you may also have the opportunity to witness the spectacular Great Migration, when millions of wildebeest and zebras move across the Serengeti ecosystem. Carefully planned routes and an experienced private guide keep the focus firmly on the wildlife.",
+			"meals": null,
+			"activities": "Private game drives in the Serengeti\nSearching for the Big Five and other wildlife\nThe Great Migration, depending on the season",
+			"image": null
+		},
+		{
+			"day": 4,
+			"title": "Serengeti National Park to Zanzibar — Return from the Safari",
+			"description": "After exploring the wonders of the Serengeti, you return to Zanzibar. The safari draws to a close with memories of Africa's incredible wilderness. It is a private trip that combines the beauty of Zanzibar with the legendary landscapes of Serengeti National Park, offering a balance of adventure, comfort and unforgettable wildlife experiences.",
+			"meals": null,
+			"activities": "Departure from the Serengeti\nReturn to Zanzibar",
+			"image": null
+		}
+	],
+	"5-day-luxury-safari-from-zanzibar-serengeti-ngorongoro-tarangire": [
+		{
+			"day": 1,
+			"title": "Zanzibar to Arusha — the scenic flight in and meeting your guide",
+			"description": "Your adventure begins with a scenic flight from Zanzibar to Arusha, where your private safari guide and luxury 4x4 vehicle welcome you before heading into the wild. Ahead lie four of the country's most famous destinations on the Northern Safari Circuit: Lake Manyara National Park, Serengeti National Park, Ngorongoro Crater and Tarangire National Park. Throughout the journey you enjoy carefully selected luxury accommodations, private game drives, professional safari guidance and personalized service.",
+			"meals": null,
+			"activities": "Scenic flight from Zanzibar to Arusha\nMeet your private safari guide and luxury 4x4 vehicle",
+			"image": null
+		},
+		{
+			"day": 2,
+			"title": "Lake Manyara National Park — diverse ecosystems on the Northern Circuit",
+			"description": "Lake Manyara National Park is the first of the four destinations this journey describes. Here you explore the park's diverse ecosystems. Lake Manyara is famous for tree-climbing lions, flamingos and large elephant herds.",
+			"meals": null,
+			"activities": "Explore the diverse ecosystems of Lake Manyara National Park\nA park famous for tree-climbing lions, flamingos and large elephant herds",
+			"image": null
+		},
+		{
+			"day": 3,
+			"title": "Serengeti National Park — the endless plains and the Great Migration",
+			"description": "The journey continues into the endless plains of the Serengeti. This is the park the tour describes as home to some of Africa's highest concentrations of wildlife, and it is the stage for the world-famous Great Migration. Your private game drives, professional safari guidance and personalized service continue throughout.",
+			"meals": null,
+			"activities": "Continue into the endless plains of the Serengeti\nPrivate game drives with professional safari guidance, included throughout the journey",
+			"image": null
+		},
+		{
+			"day": 4,
+			"title": "Ngorongoro Crater — descend into a UNESCO World Heritage Site",
+			"description": "You descend into the breathtaking Ngorongoro Crater, a UNESCO World Heritage Site. The crater is described as one of the best places in Africa to witness the Big Five in a single day. As throughout the journey, you travel with your private guide and luxury 4x4.",
+			"meals": null,
+			"activities": "Descend into the breathtaking Ngorongoro Crater\nA UNESCO World Heritage Site described as one of the best places in Africa to witness the Big Five in a single day",
+			"image": null
+		},
+		{
+			"day": 5,
+			"title": "Tarangire National Park — the final safari experience",
+			"description": "Your final safari experience takes you to Tarangire National Park, known for its ancient baobab trees, seasonal wildlife gatherings and some of Tanzania's largest elephant populations. After the wildlife adventure, you return to Zanzibar by flight, or continue with your beach extension. The balance of safari and beach time can be adjusted to suit you, and extra safari nights can be added.",
+			"meals": null,
+			"activities": "Visit Tarangire National Park, the final safari experience of the journey\nA park known for ancient baobab trees, seasonal wildlife gatherings and large elephant populations\nAt the end of the safari, return to Zanzibar by flight or continue with your beach extension",
+			"image": null
+		}
+	]
+}

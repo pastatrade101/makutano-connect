@@ -123,6 +123,23 @@ const db = drizzle(sql, { schema });
 const raw = JSON.parse(readFileSync(file, 'utf8')) as { packages?: SourcePackage[]; source?: string };
 const packages = raw.packages ?? [];
 
+/*
+ * Itineraries for the three tours the export has none for.
+ *
+ * Kept in their own file, and read here rather than written here, because they
+ * are not the export's data: they are laid out from each tour's own description,
+ * which names its parks in visit order. Every day was checked back against that
+ * description by readers whose instruction was to find anything it does not say.
+ * A tour that already has days in the export ignores this file entirely.
+ */
+const fillPath = new URL('./goldfinch-itinerary-fill.json', import.meta.url);
+let fill: Record<string, SourceDay[]> = {};
+try {
+	fill = JSON.parse(readFileSync(fillPath, 'utf8')) as Record<string, SourceDay[]>;
+} catch {
+	console.warn('WARN  no goldfinch-itinerary-fill.json — three tours will import with no itinerary.');
+}
+
 /* ------------------------------------------------------------------- text -- */
 
 const ENTITIES: Record<string, string> = {
@@ -164,6 +181,13 @@ const splitLines = (value: string | null | undefined): string[] =>
 		.split(/\r?\n|;/)
 		.map((line) => line.replace(/^[\s•*-]+/, '').trim())
 		.filter(Boolean);
+
+/** List items carry markup too: ten highlights arrive wrapped in <p>. */
+const textList = (values: string[] | null | undefined, max: number, cap: number): string[] =>
+	(values ?? [])
+		.map((v) => clamp(htmlToText(v)?.replace(/\n+/g, ' '), max))
+		.filter((v): v is string => Boolean(v))
+		.slice(0, cap);
 
 const clamp = (value: string | null | undefined, max: number): string | null => {
 	if (!value) return null;
@@ -294,6 +318,55 @@ function placeFor(day: SourceDay, phrases: [string, string][]): string | null {
 	return null;
 }
 
+/**
+ * What this operator charges for a tour of this length.
+ *
+ * Goldfinch stores "ask us" as a price of zero, and Connect will not publish a
+ * listing with no starting price — so fourteen of these would sit as drafts
+ * forever. Rather than invent a number, each takes the MEDIAN of the operator's
+ * own priced tours of the same duration: twenty-four of the thirty-eight carry a
+ * real price, and every unpriced duration has at least one real comparable.
+ *
+ * It is still an estimate and it is recorded as one — `metadata.priceDerived`
+ * carries the basis, so every derived price can be found and corrected. The four
+ * tours the operator calls luxury will read LOW: there is no priced luxury tour
+ * in the catalogue to compare them with, so they take the mid-range figure.
+ */
+const pricedByDuration = new Map<number, number[]>();
+for (const pkg of packages) {
+	if (!pkg.priceFrom || pkg.priceFrom <= 0) continue;
+	const days = pkg.durationDays && pkg.durationDays > 0 ? pkg.durationDays : 1;
+	pricedByDuration.set(days, [...(pricedByDuration.get(days) ?? []), pkg.priceFrom]);
+}
+
+function derivePrice(days: number): { amount: number; basis: string } | null {
+	const median = (xs: number[]) => {
+		const v = [...xs].sort((a, b) => a - b);
+		const mid = Math.floor(v.length / 2);
+		return v.length % 2 ? v[mid] : Math.round((v[mid - 1] + v[mid]) / 2);
+	};
+	const exact = pricedByDuration.get(days);
+	if (exact?.length) {
+		return {
+			amount: median(exact),
+			basis: `median of ${exact.length} of this operator's own ${days}-day tours`
+		};
+	}
+	// No same-length comparable: sit between the nearest real ones either side.
+	const known = [...pricedByDuration.keys()].sort((a, b) => a - b);
+	const below = known.filter((d) => d < days).pop();
+	const above = known.find((d) => d > days);
+	if (below !== undefined && above !== undefined) {
+		const lo = median(pricedByDuration.get(below)!);
+		const hi = median(pricedByDuration.get(above)!);
+		return {
+			amount: Math.round(lo + ((hi - lo) * (days - below)) / (above - below)),
+			basis: `between this operator's ${below}-day and ${above}-day tours`
+		};
+	}
+	return null;
+}
+
 /* ------------------------------------------------------------------- main -- */
 
 const [tenant] = await db
@@ -360,6 +433,9 @@ const report = {
 	notSubmittable: [] as { slug: string; missing: string[] }[],
 	nightsCorrected: [] as { slug: string; was: number; now: number }[],
 	groupSizeDropped: 0,
+	pricesDerived: [] as { slug: string; amount: number; basis: string }[],
+	destinationsRead: [] as { slug: string; count: number }[],
+	itineraryFilled: [] as string[],
 	unmatchedDestinations: new Set<string>(),
 	unmatchedStays: new Set<string>()
 };
@@ -422,7 +498,10 @@ for (const pkg of packages) {
 	// A price of zero is not a price. Goldfinch stores it for "ask us"; here it
 	// is null, which is what the marketplace already renders as a quote request
 	// and what the publish check reads as missing.
-	const priceFrom = pkg.priceFrom && pkg.priceFrom > 0 ? pkg.priceFrom.toFixed(2) : null;
+	const stated = pkg.priceFrom && pkg.priceFrom > 0 ? pkg.priceFrom : null;
+	const derived = stated ? null : derivePrice(pkg.durationDays && pkg.durationDays > 0 ? pkg.durationDays : 1);
+	const priceFrom = (stated ?? derived?.amount)?.toFixed(2) ?? null;
+	if (derived) report.pricesDerived.push({ slug: pkg.slug, amount: derived.amount, basis: derived.basis });
 
 	/*
 	 * A trip cannot have more nights than days. One export row says 6 days and 8
@@ -444,8 +523,28 @@ for (const pkg of packages) {
 	const destinationIds: string[] = [];
 	for (const s of [...new Set(destinationSlugs)]) {
 		const id = destinationBySlug.get(s);
-		if (id) destinationIds.push(id);
-		else report.unmatchedDestinations.add(s);
+		if (id && !destinationIds.includes(id)) destinationIds.push(id);
+		else if (!id) report.unmatchedDestinations.add(s);
+	}
+
+	/*
+	 * One tour lists no destinations at all, which is a listing that appears on no
+	 * destination page. Its own description names four parks in order — reading
+	 * them from there is using the operator's words, not choosing for them.
+	 */
+	if (!destinationIds.length) {
+		const prose = norm(`${pkg.title} ${htmlToText(pkg.fullDescription) ?? ''}`);
+		const seen: { at: number; slug: string }[] = [];
+		for (const [phrase, slug] of PLACE_PHRASES) {
+			const at = prose.indexOf(phrase);
+			if (at >= 0 && !seen.some((x) => x.slug === slug)) seen.push({ at, slug });
+		}
+		seen.sort((a, b) => a.at - b.at);
+		for (const { slug: s } of seen) {
+			const id = destinationBySlug.get(s);
+			if (id && !destinationIds.includes(id)) destinationIds.push(id);
+		}
+		if (destinationIds.length) report.destinationsRead.push({ slug, count: destinationIds.length });
 	}
 
 	const styleIds = travelStylesFor(pkg)
@@ -462,6 +561,9 @@ for (const pkg of packages) {
 		importedFrom: 'goldfinch',
 		sourceSlug: slug,
 		sourceStatus: pkg.status ?? null,
+		// The operator stated no price; this one is an estimate from their own
+		// catalogue and is here so it can be found and corrected.
+		priceDerived: derived ? { amount: derived.amount, basis: derived.basis } : null,
 		sourceCategory: pkg.category?.name ?? null,
 		experienceType: pkg.experienceType ?? null,
 		budgetTier: pkg.budgetTier ?? null,
@@ -522,9 +624,9 @@ for (const pkg of packages) {
 		availabilityType: 'YEAR_ROUND',
 		seoTitle: clamp(pkg.seoTitle, 200),
 		seoDescription: clamp(pkg.metaDescription, 400),
-		highlights: (pkg.highlights ?? []).map((h) => clamp(h, 300)).filter((h): h is string => Boolean(h)).slice(0, 20),
-		included: (pkg.inclusions ?? []).map((h) => clamp(h, 300)).filter((h): h is string => Boolean(h)).slice(0, 40),
-		excluded: (pkg.exclusions ?? []).map((h) => clamp(h, 300)).filter((h): h is string => Boolean(h)).slice(0, 40),
+		highlights: textList(pkg.highlights, 300, 20),
+		included: textList(pkg.inclusions, 300, 40),
+		excluded: textList(pkg.exclusions, 300, 40),
 		metadata,
 		updatedAt: new Date()
 	};
@@ -586,7 +688,9 @@ for (const pkg of packages) {
 
 	/* ------------------------------------------------------------ itinerary -- */
 
-	const days = [...(pkg.itinerary ?? [])].sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+	const supplied = pkg.itinerary?.length ? pkg.itinerary : (fill[pkg.slug] ?? []);
+	if (!pkg.itinerary?.length && supplied.length) report.itineraryFilled.push(slug);
+	const days = [...supplied].sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
 	await db.delete(schema.tourItineraryDays).where(eq(schema.tourItineraryDays.tourId, tourId));
 
 	/*
@@ -620,7 +724,7 @@ for (const pkg of packages) {
 		await db.insert(schema.tourItineraryDays).values({
 			tourId,
 			dayNumber: index + 1,
-			title: clamp(day.title, 200) ?? `Day ${index + 1}`,
+			title: clamp(htmlToText(day.title)?.replace(/\n+/g, ' '), 200) ?? `Day ${index + 1}`,
 			description: htmlToText(day.description),
 			destinationId: dayDestinationId,
 			accommodation: stayText,
@@ -759,6 +863,18 @@ if (APPLY && SUBMIT) {
 	console.log(`submitted          ${report.submitted}`);
 	console.log(`held as draft      ${report.notSubmittable.length}`);
 	for (const t of report.notSubmittable) console.log(`  ${t.slug} — needs ${t.missing.join(', ')}`);
+}
+if (report.pricesDerived.length) {
+	console.log(`\nPrices estimated from this operator's own catalogue (metadata.priceDerived):`);
+	for (const t of report.pricesDerived) console.log(`  ${t.slug} — $${t.amount}, ${t.basis}`);
+}
+if (report.itineraryFilled.length) {
+	console.log(`\nItineraries laid out from the tour's own description (the export had none):`);
+	for (const t of report.itineraryFilled) console.log(`  ${t}`);
+}
+if (report.destinationsRead.length) {
+	console.log(`\nDestinations read from the tour's own description (it listed none):`);
+	for (const t of report.destinationsRead) console.log(`  ${t.slug} — ${t.count} places`);
 }
 if (report.nightsCorrected.length) {
 	console.log(`\nNights brought back in line with days:`);
