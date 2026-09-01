@@ -55,6 +55,15 @@ export type MediaRef = {
 	altText: string | null;
 	width: number | null;
 	height: number | null;
+	/**
+	 * How many bytes the file is.
+	 *
+	 * A page that has a choice of photograph — the homepage hero picks one out of
+	 * the featured listings — cannot make it well without knowing the cost. The
+	 * spread between the lightest and heaviest hero on this marketplace is ten to
+	 * one, and that difference is paid entirely by the first paint.
+	 */
+	bytes: number | null;
 	attribution: string | null;
 	license: string | null;
 	sourceUrl: string | null;
@@ -328,6 +337,7 @@ type MediaSelection = {
 	altText: PgColumn;
 	width: PgColumn;
 	height: PgColumn;
+	size: PgColumn;
 	attribution: PgColumn;
 	license: PgColumn;
 	sourceUrl: PgColumn;
@@ -352,6 +362,7 @@ const mediaColumns = <T extends MediaSelection>(
 	altText: T['altText'];
 	width: T['width'];
 	height: T['height'];
+	size: T['size'];
 	attribution: T['attribution'];
 	license: T['license'];
 	sourceUrl: T['sourceUrl'];
@@ -360,6 +371,7 @@ const mediaColumns = <T extends MediaSelection>(
 	altText: t.altText,
 	width: t.width,
 	height: t.height,
+	size: t.size,
 	attribution: t.attribution,
 	license: t.license,
 	sourceUrl: t.sourceUrl
@@ -370,6 +382,7 @@ type JoinedMedia = {
 	altText: string | null;
 	width: number | null;
 	height: number | null;
+	size?: number | null;
 	attribution?: string | null;
 	license?: string | null;
 	sourceUrl?: string | null;
@@ -390,6 +403,7 @@ const mediaOf = (m: JoinedMedia): MediaRef | null =>
 				altText: m.altText,
 				width: m.width,
 				height: m.height,
+				bytes: m.size ?? null,
 				attribution: m.attribution ?? null,
 				license: m.license ?? null,
 				sourceUrl: m.sourceUrl ?? null
