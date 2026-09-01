@@ -108,9 +108,19 @@
 				</p>
 			{/if}
 
+			<!-- Verification is about the OPERATOR, not this listing, which is why it
+			     sits with the editorial controls rather than the review buttons. It is
+			     here because this is the moment a human is actually looking at them. -->
+			<form method="POST" action="?/setVerified" use:enhance class="ml-auto flex items-center gap-2">
+				<input type="hidden" name="verified" value={data.operator.verified ? 'false' : 'true'} />
+				<button class="btn-secondary !py-1.5 text-[12.5px]">
+					{data.operator.verified ? 'Withdraw verification' : 'Verify this operator'}
+				</button>
+			</form>
+
 			<!-- Featured is the marketplace's own editorial slot, not a lifecycle step, so it
 			     sits apart from the review buttons and stays available at any status. -->
-			<form method="POST" action="?/feature" use:enhance class="ml-auto flex items-center gap-2">
+			<form method="POST" action="?/feature" use:enhance class="flex items-center gap-2">
 				<input type="hidden" name="featured" value={t.featured ? 'false' : 'true'} />
 				<button class="btn-secondary !py-1.5 text-[12.5px]">
 					{t.featured ? 'Remove from featured' : 'Feature on the marketplace'}
