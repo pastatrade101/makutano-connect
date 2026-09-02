@@ -6,6 +6,7 @@ import { sendExistingAccountNotice, sendVerificationEmail } from '$lib/server/au
 import { emailReady } from '$lib/server/env';
 import { toAppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
+import { marketplaceScale } from '$lib/server/marketplace';
 import { signupEnabled } from '$lib/server/provisioning';
 import {
 	assertTermsAccepted,
@@ -25,7 +26,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export const load: PageServerLoad = async ({ locals }) => {
 	if (locals.user) redirect(303, pathForStage(await stageForUser(locals.user)));
 	if (!signupEnabled()) redirect(303, '/login');
-	return { turnstileSiteKey: turnstileEnabled() ? turnstileSiteKey() : null };
+	// The panel's numbers are counted, never written down. Null when the count
+	// fails — the panel then shows no numbers rather than wrong ones.
+	return {
+		turnstileSiteKey: turnstileEnabled() ? turnstileSiteKey() : null,
+		scale: await marketplaceScale()
+	};
 };
 
 export const actions: Actions = {

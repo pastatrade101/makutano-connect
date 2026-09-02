@@ -1801,3 +1801,68 @@ export async function resolveTourOwner(slugOrId: string): Promise<{ tourId: stri
 		.limit(1);
 	return row ?? null;
 }
+
+/**
+ * What the marketplace currently holds, counted live.
+ *
+ * Exists so the signup page can say something true about the catalogue an
+ * operator is joining. Hard-coding these numbers is how a page starts lying:
+ * the count that was right the week it was written keeps being displayed long
+ * after it stopped being right, and there is nothing in the codebase to notice.
+ *
+ * Returns null rather than zeros when the query fails. A signup form is more
+ * important than the panel beside it, and "0 destinations" is a worse thing to
+ * show a prospective operator than no number at all.
+ */
+export interface MarketplaceScale {
+	journeys: number;
+	destinations: number;
+	stays: number;
+	styles: number;
+}
+
+/*
+ * Cached, because /signup is public and unauthenticated.
+ *
+ * Five counts on every render — including every render driven by a bot probing
+ * the form — is a database round trip bought for nothing. The numbers move a
+ * handful of times a week; a stale minute costs the reader nothing.
+ */
+let scaleCache: { at: number; value: MarketplaceScale | null } | null = null;
+const SCALE_TTL_MS = 5 * 60 * 1000;
+
+export async function marketplaceScale(): Promise<MarketplaceScale | null> {
+	if (scaleCache && Date.now() - scaleCache.at < SCALE_TTL_MS) return scaleCache.value;
+
+	try {
+		const [journeys, destinations, stays, styles] = await Promise.all([
+			db().select({ value: count() }).from(schema.tours).where(publishedTour()),
+			db()
+				.select({ value: count() })
+				.from(schema.destinations)
+				.where(eq(schema.destinations.status, 'PUBLISHED')),
+			db()
+				.select({ value: count() })
+				.from(schema.accommodations)
+				.where(eq(schema.accommodations.isActive, true)),
+			db()
+				.select({ value: count() })
+				.from(schema.travelStyles)
+				.where(eq(schema.travelStyles.isActive, true))
+		]);
+
+		const value: MarketplaceScale = {
+			journeys: journeys[0]?.value ?? 0,
+			destinations: destinations[0]?.value ?? 0,
+			stays: stays[0]?.value ?? 0,
+			styles: styles[0]?.value ?? 0
+		};
+		scaleCache = { at: Date.now(), value };
+		return value;
+	} catch {
+		// Cached as null too, so a database that is down is not re-asked on
+		// every request by a page that only wanted decoration.
+		scaleCache = { at: Date.now(), value: null };
+		return null;
+	}
+}

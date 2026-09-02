@@ -12,9 +12,9 @@
 	<meta name="description" content="Sign in to manage your Makutano Connect customer operations workspace." />
 </svelte:head>
 
-<div class="min-h-screen bg-[#f7f9fc] md:grid md:grid-cols-[minmax(330px,0.86fr)_minmax(430px,1.14fr)]">
+<div class="min-h-screen bg-[#f7f5f1] md:grid md:grid-cols-[minmax(330px,0.86fr)_minmax(430px,1.14fr)]">
 	<main class="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10 sm:px-8 md:py-12">
-		<div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_5%,rgba(28,132,238,0.07),transparent_25rem)]" aria-hidden="true"></div>
+		<div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_5%,rgba(180,83,42,0.07),transparent_25rem)]" aria-hidden="true"></div>
 		<div class="relative w-full max-w-md">
 			<BrandLockup size="md" />
 

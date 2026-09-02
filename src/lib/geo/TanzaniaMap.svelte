@@ -322,7 +322,7 @@
 		pointer-events: none;
 	}
 
-	.mk-map__route path {
+	.mk-map__route > path {
 		fill: none;
 		stroke: var(--map-route, #c8553d);
 		stroke-width: 1.8;
@@ -330,16 +330,16 @@
 		pointer-events: none;
 	}
 	/* Solid ground, dashes for air, dots for water — readable before the legend. */
-	.mk-map__route path.is-drive {
+	.mk-map__route > path.is-drive {
 		stroke-dasharray: none;
 	}
-	.mk-map__route path.is-fly {
+	.mk-map__route > path.is-fly {
 		stroke-dasharray: 6 5;
 	}
-	.mk-map__route path.is-boat {
+	.mk-map__route > path.is-boat {
 		stroke-dasharray: 1.5 4;
 	}
-	.mk-map__route path.is-unstated {
+	.mk-map__route > path.is-unstated {
 		stroke-dasharray: 4 3.5;
 		opacity: 0.75;
 	}

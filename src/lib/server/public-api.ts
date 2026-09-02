@@ -33,9 +33,16 @@ export function clientKey(event: RequestEvent): string {
 export const CACHE_REFERENCE = 'public, max-age=300, stale-while-revalidate=600';
 export const CACHE_LISTING = 'public, max-age=60, stale-while-revalidate=300';
 
+/*
+ * PATCH is here because the review endpoint exports it — a traveller editing a
+ * review they already submitted. Without it the browser's preflight rejects the
+ * edit before it is ever sent, and the failure reads as a CORS error rather than
+ * anything about reviews. Every method any public endpoint exports has to be
+ * listed here or it cannot be called cross-origin from the marketplace.
+ */
 const CORS = {
 	'access-control-allow-origin': '*',
-	'access-control-allow-methods': 'GET, POST, OPTIONS',
+	'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS',
 	'access-control-allow-headers': 'content-type'
 };
 

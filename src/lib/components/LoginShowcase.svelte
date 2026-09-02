@@ -74,7 +74,7 @@
 				out:fade={{ duration: reducedMotion ? 0 : 160 }}
 			>
 				<div class="mb-7">
-					<div class="flex items-center gap-2 text-[11.5px] font-bold tracking-[0.18em] text-blue-200 uppercase">
+					<div class="flex items-center gap-2 text-[11.5px] font-bold tracking-[0.18em] text-brand-200 uppercase">
 						<span class="size-1.5 rounded-full bg-[#7fc79f] shadow-[0_0_0_5px_rgba(127,199,159,0.12)]"></span>
 						{stories[slide].eyebrow}
 					</div>
@@ -151,7 +151,7 @@
 					{/if}
 				</div>
 
-				<p class="mt-5 max-w-xl text-[14.5px] leading-6 text-blue-100/80">{stories[slide].caption}</p>
+				<p class="mt-5 max-w-xl text-[14.5px] leading-6 text-white/75">{stories[slide].caption}</p>
 			</div>
 		{/key}
 		</div>
