@@ -3,7 +3,7 @@
 	"version": "1.0.0",
 	"private": true,
 	"type": "module",
-	"description": "Makutano Connect — multi-tenant SaaS engine for WhatsApp, bookings, leads, quotations and payments.",
+	"description": "Makutano Connect \u2014 multi-tenant SaaS engine for WhatsApp, bookings, leads, quotations and payments.",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
@@ -21,7 +21,8 @@
 		"db:seed": "node --experimental-strip-types scripts/seed.ts",
 		"db:check": "node --experimental-strip-types scripts/check-migrations.ts",
 		"verify:r2": "node --env-file-if-exists=.env --experimental-strip-types scripts/verify-r2.ts",
-		"media:destinations": "node --experimental-strip-types scripts/fetch-destination-images.ts"
+		"media:destinations": "node --experimental-strip-types scripts/fetch-destination-images.ts",
+		"media:migrate": "node --env-file-if-exists=.env --experimental-strip-types scripts/migrate-media-to-r2.ts"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.120.0",
