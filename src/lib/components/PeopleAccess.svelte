@@ -1,10 +1,48 @@
+<!--
+	App access, as a component.
+
+	Lifted out of /app/settings/team when Crew and Team became one People page.
+	A component rather than a second copy: the invite banner, the resend button
+	and the permission editor are fiddly enough that two copies would drift, and
+	the pending-invite handling in here took a full audit to get right once.
+-->
 <script lang="ts">
+	type Member = {
+		membershipId: string; userId: string; fullName: string | null; email: string;
+		role: string; roleLabel: string; status: string; customized: boolean;
+		overrides: Record<string, boolean>; effective: string[];
+		lastActiveAt: Date | string | null; inviteSentAt: Date | string | null;
+		inviteExpiresAt: Date | string | null; assignedOpen: number; repliesToday: number;
+	};
+	type RoleOption = { readonly value: string; readonly label: string; readonly hint: string };
+	type PermissionGroup = {
+		readonly group: string;
+		readonly items: readonly { readonly key: string; readonly label: string }[];
+	};
+
 	// The office roster: invite, role presets, grouped permission toggles, one-tap
 	// deactivate with reassignment. Cards on phones, table on wide screens (§30).
 	import { enhance } from '$lib/forms';
-	import FormToast from '$components/FormToast.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
-	let { data, form } = $props();
+	let {
+		team,
+		form,
+		workload,
+		canManage = false,
+		roleOptions,
+		permissionGroups,
+		myUserId,
+		timezone
+	}: {
+		team: Member[];
+		form: Record<string, any> | null;
+		workload: { open_total: number; open_unassigned: number; replies_today: number };
+		canManage?: boolean;
+		roleOptions: readonly RoleOption[];
+		permissionGroups: readonly PermissionGroup[];
+		myUserId: string;
+		timezone: string;
+	} = $props();
 
 	let showInvite = $state(false);
 	let editing = $state<string | null>(null);
@@ -12,11 +50,11 @@
 	/** Working copy of the member being edited: permission key → granted. */
 	let draft = $state<Record<string, boolean>>({});
 
-	const member = $derived(data.team.find((m) => m.membershipId === editing) ?? null);
+	const member = $derived(team.find((m) => m.membershipId === editing) ?? null);
 
-	function startEdit(m: (typeof data.team)[number]) {
+	function startEdit(m: (typeof team)[number]) {
 		editing = m.membershipId;
-		draft = Object.fromEntries(data.permissionGroups.flatMap((g) => g.items.map((i) => [i.key, m.effective.includes(i.key)])));
+		draft = Object.fromEntries(permissionGroups.flatMap((g) => g.items.map((i) => [i.key, m.effective.includes(i.key)])));
 	}
 	const STATUS_TONE: Record<string, string> = {
 		Active: 'bg-success/10 text-success',
@@ -39,20 +77,12 @@
 	}
 </script>
 
-<svelte:head><title>Team · {data.tenant.name}</title></svelte:head>
 
-<FormToast {form} successTitle="Saved" />
-
-<div class="space-y-3">
-	<div class="flex items-center justify-between">
-		<div>
-			<a href="/app/settings" class="text-xs text-slate-500 hover:underline">← Settings</a>
-			<h1 class="text-base font-semibold text-slate-900">Team</h1>
-		</div>
-		{#if data.canManage}
-			<button class="btn-primary" onclick={() => (showInvite = !showInvite)}>Invite team member</button>
-		{/if}
+{#if canManage}
+	<div class="mb-3 flex justify-end">
+		<button class="btn-primary" onclick={() => (showInvite = !showInvite)}>Invite a colleague</button>
 	</div>
+{/if}
 
 	<!--
 		What actually happened, not what we hope happened.
@@ -96,10 +126,10 @@
 		</div>
 	{/if}
 
-	{#if showInvite && data.canManage}
+	{#if showInvite && canManage}
 		<form
 			method="POST"
-			action="?/invite"
+			action="?/inviteUser"
 			use:enhance={() => async ({ update }) => { await update({ reset: true }); showInvite = false; }}
 			class="card grid gap-3 p-4 sm:grid-cols-[1.5fr_2fr_1.5fr_auto]"
 		>
@@ -108,7 +138,7 @@
 			<div>
 				<label class="label" for="i-role">Role</label>
 				<select id="i-role" name="role" class="input">
-					{#each data.roleOptions as r (r.value)}
+					{#each roleOptions as r (r.value)}
 						<option value={r.value} selected={r.value === 'SALES'}>{r.label} — {r.hint.toLowerCase()}</option>
 					{/each}
 				</select>
@@ -119,15 +149,15 @@
 
 	<!-- Workload at a glance (§23): open threads, unassigned, per-person today -->
 	<div class="grid grid-cols-3 gap-2">
-		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Open conversations</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.workload.open_total}</div></div>
-		<a href="/app/conversations?filter=unassigned" class="card px-3 py-2 transition hover:border-brand-300"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Unassigned</div><div class="text-lg font-bold tabular-nums {data.workload.open_unassigned > 0 ? 'text-warning' : 'text-slate-800'}">{data.workload.open_unassigned}</div></a>
-		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Replies today</div><div class="text-lg font-bold tabular-nums text-slate-800">{data.workload.replies_today}</div></div>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Open conversations</div><div class="text-lg font-bold tabular-nums text-slate-800">{workload.open_total}</div></div>
+		<a href="/app/conversations?filter=unassigned" class="card px-3 py-2 transition hover:border-brand-300"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Unassigned</div><div class="text-lg font-bold tabular-nums {workload.open_unassigned > 0 ? 'text-warning' : 'text-slate-800'}">{workload.open_unassigned}</div></a>
+		<div class="card px-3 py-2"><div class="text-[11.5px] font-semibold uppercase tracking-wide text-slate-500">Replies today</div><div class="text-lg font-bold tabular-nums text-slate-800">{workload.replies_today}</div></div>
 	</div>
 
 	<div class="card overflow-hidden">
 		<!-- Phones: cards -->
 		<ul class="divide-y divide-slate-100 sm:hidden">
-			{#each data.team as m (m.membershipId)}
+			{#each team as m (m.membershipId)}
 				<li class="space-y-2 p-3">
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
@@ -139,9 +169,9 @@
 					<div class="flex flex-wrap items-center gap-2 text-[12.5px] text-slate-500">
 						<span class="badge bg-brand-50 text-brand-600">{m.roleLabel}{m.customized ? ' · Customized' : ''}</span>
 						<span>{m.assignedOpen} open · {m.repliesToday} replies today</span>
-						<span class="ml-auto">{#if m.lastActiveAt}<TimeAgo value={m.lastActiveAt} timezone={data.tenant.timezone} />{:else}Never active{/if}</span>
+						<span class="ml-auto">{#if m.lastActiveAt}<TimeAgo value={m.lastActiveAt} timezone={timezone} />{:else}Never active{/if}</span>
 					</div>
-					{#if data.canManage && m.role !== 'OWNER'}
+					{#if canManage && m.role !== 'OWNER'}
 						<div class="flex flex-wrap gap-1.5">
 							<button class="btn-secondary !px-2.5 !py-1.5 text-[12.5px]" onclick={() => startEdit(m)}>Permissions</button>
 							{#if m.status === 'Deactivated'}
@@ -164,10 +194,10 @@
 				<thead class="bg-slate-50"><tr>
 					<th class="table-head">Name</th><th class="table-head">Role</th><th class="table-head">Status</th>
 					<th class="table-head">Open assigned</th><th class="table-head">Last active</th>
-					{#if data.canManage}<th class="table-head text-right">Actions</th>{/if}
+					{#if canManage}<th class="table-head text-right">Actions</th>{/if}
 				</tr></thead>
 				<tbody class="divide-y divide-slate-100">
-					{#each data.team as m (m.membershipId)}
+					{#each team as m (m.membershipId)}
 						<tr class="hover:bg-slate-50">
 							<td class="table-cell">
 								<div class="font-medium text-slate-800">{m.fullName || '—'}</div>
@@ -183,16 +213,16 @@
 							     link was sent is the fact that actually helps. -->
 							<td class="table-cell text-slate-500">
 								{#if m.lastActiveAt}
-									<TimeAgo value={m.lastActiveAt} timezone={data.tenant.timezone} />
+									<TimeAgo value={m.lastActiveAt} timezone={timezone} />
 								{:else if m.inviteSentAt}
 									<span class="text-[12.5px]">
-										Invited <TimeAgo value={m.inviteSentAt} timezone={data.tenant.timezone} />
+										Invited <TimeAgo value={m.inviteSentAt} timezone={timezone} />
 									</span>
 								{:else}
 									—
 								{/if}
 							</td>
-							{#if data.canManage}
+							{#if canManage}
 								<td class="table-cell">
 									{#if m.role !== 'OWNER'}
 										<div class="flex justify-end gap-1.5">
@@ -202,7 +232,7 @@
 													<input type="hidden" name="membershipId" value={m.membershipId} /><input type="hidden" name="active" value="1" />
 													<button class="btn-secondary !px-2 !py-1 text-[12.5px]">Reactivate</button>
 												</form>
-												<form method="POST" action="?/remove" use:enhance>
+												<form method="POST" action="?/removeUser" use:enhance>
 													<input type="hidden" name="membershipId" value={m.membershipId} />
 													<button class="!px-2 !py-1 text-[12.5px] text-slate-400 hover:text-danger hover:underline">Remove</button>
 												</form>
@@ -235,7 +265,7 @@
 
 	<!-- Deactivate with reassignment (§24, §36) -->
 	{#if deactivating}
-		{@const target = data.team.find((t) => t.membershipId === deactivating)}
+		{@const target = team.find((t) => t.membershipId === deactivating)}
 		<form method="POST" action="?/setActive" use:enhance={() => async ({ update }) => { await update(); deactivating = null; }} class="card space-y-3 border-danger/30 p-4">
 			<input type="hidden" name="membershipId" value={deactivating} />
 			<input type="hidden" name="active" value="0" />
@@ -247,7 +277,7 @@
 					<label class="label" for="reassign">Reassign their {target?.assignedOpen} open conversation{target?.assignedOpen === 1 ? '' : 's'} to</label>
 					<select id="reassign" name="reassignTo" class="input w-auto">
 						<option value="">— back to the team pool —</option>
-						{#each data.team.filter((t) => t.status === 'Active' && t.membershipId !== deactivating) as t (t.membershipId)}
+						{#each team.filter((t) => t.status === 'Active' && t.membershipId !== deactivating) as t (t.membershipId)}
 							<option value={t.userId}>{t.fullName || t.email}</option>
 						{/each}
 					</select>
@@ -261,7 +291,7 @@
 	{/if}
 
 	<!-- Per-member permission editor (§10-§11): role preset + grouped toggles -->
-	{#if member && data.canManage}
+	{#if member && canManage}
 		<div class="card p-4">
 			<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
 				<div>
@@ -274,7 +304,7 @@
 					<form method="POST" action="?/role" use:enhance class="flex items-center gap-1.5">
 						<input type="hidden" name="membershipId" value={member.membershipId} />
 						<select name="role" class="input w-auto !py-1.5 text-xs">
-							{#each data.roleOptions as r (r.value)}
+							{#each roleOptions as r (r.value)}
 								<option value={r.value} selected={r.value === member.role}>{r.label}</option>
 							{/each}
 						</select>
@@ -296,7 +326,7 @@
 				<input type="hidden" name="membershipId" value={member.membershipId} />
 				<input type="hidden" name="overrides" value={JSON.stringify(draft)} />
 				<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-					{#each data.permissionGroups as group (group.group)}
+					{#each permissionGroups as group (group.group)}
 						<section class="rounded-panel border border-slate-200 p-3">
 							<h3 class="mb-2 text-[12.5px] font-bold tracking-wide text-slate-500 uppercase">{group.group}</h3>
 							<div class="space-y-1.5">
@@ -316,4 +346,3 @@
 			</form>
 		</div>
 	{/if}
-</div>

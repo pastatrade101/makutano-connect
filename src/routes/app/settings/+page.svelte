@@ -148,7 +148,7 @@
 	<section class="card">
 		<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
 			<h2 class="text-sm font-semibold text-slate-800">Team</h2>
-			<a href="/app/settings/team" class="btn-primary !py-1.5 text-xs">Manage team</a>
+			<a href="/app/crew" class="btn-primary !py-1.5 text-xs">Manage people</a>
 			<a href="/app/settings/profile" class="btn-secondary !py-1.5 text-xs">Business profile</a>
 		</header>
 		<p class="px-3 py-3 text-xs text-slate-500">

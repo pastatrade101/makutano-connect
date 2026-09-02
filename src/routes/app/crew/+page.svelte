@@ -2,6 +2,7 @@
 	import { enhance } from '$lib/forms';
 	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import EmptyState from '$components/EmptyState.svelte';
+	import PeopleAccess from '$components/PeopleAccess.svelte';
 	let { data, form } = $props();
 	let inviting = $state<string | null>(null);
 	let copied = $state(false);
@@ -42,19 +43,27 @@
 	);
 </script>
 
-<svelte:head><title>Crew · {data.tenant.name}</title></svelte:head>
+<svelte:head><title>People · {data.tenant.name}</title></svelte:head>
 
-{#if !data.workspaceRelevant}
-	<WorkspaceNotice module="Crew" />
-{:else}
-<div class="mx-auto max-w-3xl space-y-4">
+<!--
+	The page itself is never gated on the trips module.
+
+	The crew roster is a trips idea; app access is not, and Team used to live under
+	Settings where it was always reachable. Hiding the whole page for a tenant that
+	does not run departures would take user management away with it.
+-->
+<div class="mx-auto max-w-5xl space-y-4">
 	<div>
-		<h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-lg">Crew</h1>
+		<h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-lg">People</h1>
 		<p class="mt-0.5 text-sm text-slate-500">
-			The drivers, guides and specialists a trip can be assigned. They do not need a login — add an account only for
-			someone who needs the app itself.
+			Everyone who works here — the drivers and guides a trip is assigned, and the colleagues who sign in.
+			Crew do not need a login; add an account only for someone who needs the app itself.
 		</p>
 	</div>
+
+	{#if !data.workspaceRelevant}
+		<WorkspaceNotice module="Crew" />
+	{/if}
 
 	{#if form?.error}
 		<div class="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{form.error}</div>
@@ -202,5 +211,31 @@
 			People are deactivated rather than removed, so a trip that has already run still names whoever ran it.
 		</p>
 	{/if}
+
+	<!--
+		App access.
+
+		Absent, not disabled, for a viewer without members:read — a driver holds
+		crew:read and nothing else, and an empty table they cannot explain is worse
+		than no table at all.
+	-->
+	{#if data.seesUsers}
+		<div class="border-t border-slate-200 pt-5">
+			<h2 class="text-base font-semibold text-slate-900">App access</h2>
+			<p class="mt-0.5 mb-3 text-sm text-slate-500">
+				Colleagues who sign in to Connect, what they may do, and who is still waiting on an
+				invitation.
+			</p>
+			<PeopleAccess
+				team={data.team}
+				workload={data.workload}
+				{form}
+				canManage={data.canManageUsers}
+				roleOptions={data.roleOptions}
+				permissionGroups={data.permissionGroups}
+				myUserId={data.myUserId}
+				timezone={data.tenant.timezone}
+			/>
+		</div>
+	{/if}
 </div>
-{/if}

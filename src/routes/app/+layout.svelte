@@ -48,7 +48,7 @@
 				{ href: '/app/quotations', label: 'Quotations', icon: 'M5 3h7l3 3v11H5V3Zm7 0v3h3', permission: 'quotations:read', module: 'quotations', entitlement: 'quotations.enabled' },
 				{ href: '/app/trips', label: 'Trips', icon: 'M2 12h16M6 12V7l3-3 3 3v5M4 12v4h12v-4', permission: 'trips:read', module: 'trips' },
 				{ href: '/app/reviews', label: 'Reviews', icon: 'm10 2.6 2.3 4.7 5.2.7-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L2.5 8l5.2-.7L10 2.6Z', permission: 'reviews:read', module: 'bookings' },
-				{ href: '/app/crew', label: 'Crew', icon: 'M7 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-5 7a5 5 0 0 1 10 0M13 5.5a2 2 0 1 1 0 4M14 16a4.5 4.5 0 0 0-1.2-3', permission: 'crew:read', module: 'trips' },
+				{ href: '/app/crew', label: 'People', icon: 'M7 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-5 7a5 5 0 0 1 10 0M13 5.5a2 2 0 1 1 0 4M14 16a4.5 4.5 0 0 0-1.2-3', permission: 'crew:read' },
 				{ href: '/app/payments', label: 'Payments', icon: 'M2 6h16v8H2V6Zm0 3h16', permission: 'payments:read' }
 			]
 		},

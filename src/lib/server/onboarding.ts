@@ -166,7 +166,7 @@ export async function onboardingState(
 			key: 'team',
 			label: 'Invite a colleague',
 			description: 'Share the inbox so nothing waits on one person.',
-			href: '/app/settings/team',
+			href: '/app/crew',
 			done: members.length > 1
 		},
 		{

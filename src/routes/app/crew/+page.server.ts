@@ -3,6 +3,20 @@ import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { audit } from '$lib/server/audit';
 import { can } from '$lib/server/auth/permissions';
 import { createCrew, getCrew, listCrew, updateCrew } from '$lib/server/crew';
+import {
+	changeRole,
+	inviteMember as inviteUser,
+	listTeam,
+	PERMISSION_GROUPS,
+	removeMember,
+	resendInvite,
+	resetPermissions,
+	ROLE_OPTIONS,
+	setMemberActive,
+	setPermissionOverrides,
+	teamWorkload
+} from '$lib/server/team';
+import { parseUuid } from '$lib/server/http';
 import { inviteMember } from '$lib/server/team';
 import { AppError } from '$lib/server/errors';
 import { moduleRelevant, normalizeWorkspace } from '$lib/workspace';
@@ -17,15 +31,42 @@ export const load: PageServerLoad = async ({ locals }) => {
 		normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities),
 		'trips'
 	);
+	/*
+	 * One page, two halves, each behind its OWN permission.
+	 *
+	 * Guarding the page on members:read would take it away from drivers: CREW is
+	 * ['trips:read','trips:write','crew:read'] — the only role in the matrix
+	 * without members:read — and every role including VIEWER has crew:read. So the
+	 * page is reachable on crew:read, and the app-access half simply is not built
+	 * for somebody who may not see it. A section the viewer cannot have is absent,
+	 * not disabled: an empty table they cannot explain is worse than no table.
+	 */
 	requireTenantPermission(locals, 'crew:read');
-	const rows = await listCrew(requireTenant(locals).id);
+	const tenantId = requireTenant(locals).id;
+	const seesUsers = can(locals.permissions, 'members:read');
+
+	const [rows, team, workload] = await Promise.all([
+		listCrew(tenantId),
+		seesUsers ? listTeam(tenantId) : Promise.resolve([]),
+		seesUsers
+			? teamWorkload(tenantId)
+			: Promise.resolve({ open_total: 0, open_unassigned: 0, replies_today: 0 })
+	]);
+
 	return {
 		workspaceRelevant,
 		crew: rows,
 		canWrite: can(locals.permissions, 'crew:write'),
-		// Inviting is a members:write act, not a crew one — giving somebody a login
-		// is a different decision from writing down who drives.
-		canInvite: can(locals.permissions, 'members:write')
+		// Giving somebody a login is a different decision from writing down who
+		// drives, and a different permission. Only OWNER and ADMIN hold it.
+		canInvite: can(locals.permissions, 'members:write'),
+		seesUsers,
+		team,
+		workload,
+		canManageUsers: can(locals.permissions, 'members:write'),
+		roleOptions: ROLE_OPTIONS,
+		permissionGroups: PERMISSION_GROUPS,
+		myUserId: locals.user!.id
 	};
 };
 
@@ -165,6 +206,137 @@ export const actions: Actions = {
 				{ type: 'user', userId: locals.user?.id },
 				{ type: 'crew', id },
 				{ after: { isActive } }
+			);
+			return { success: true };
+		} catch (error) {
+			return asFailure(error);
+		}
+	}
+,
+
+	/* ----------------------------------------------------- app access ----- */
+	//
+	// Moved here from /app/settings/team so that "who works here" is one page
+	// rather than two, under two different parts of the nav. Every one of these
+	// gates on members:write, which only OWNER and ADMIN hold — a Manager can add
+	// a driver to the roster but cannot hand anyone a login.
+
+	inviteUser: async ({ locals, request }) => {
+		requireTenantPermission(locals, 'members:write');
+		const data = await request.formData();
+		try {
+			const result = await inviteUser(requireTenant(locals).id, {
+				fullName: String(data.get('fullName') ?? ''),
+				email: String(data.get('email') ?? ''),
+				role: String(data.get('role') ?? 'SALES') as never,
+				invitedByUserId: locals.user!.id
+			});
+			return { invited: true, inviteLink: result.inviteLink, emailed: result.emailed };
+		} catch (error) {
+			return asFailure(error);
+		}
+	},
+
+	resendInvite: async ({ locals, request }) => {
+		requireTenantPermission(locals, 'members:write');
+		const data = await request.formData();
+		try {
+			const result = await resendInvite(
+				requireTenant(locals).id,
+				parseUuid(String(data.get('membershipId') ?? ''), 'membership id'),
+				{ userId: locals.user!.id }
+			);
+			return {
+				resent: true,
+				inviteLink: result.inviteLink,
+				emailed: result.emailed,
+				resentTo: result.email
+			};
+		} catch (error) {
+			return asFailure(error);
+		}
+	},
+
+	role: async ({ locals, request }) => {
+		requireTenantPermission(locals, 'members:write');
+		const data = await request.formData();
+		try {
+			await changeRole(
+				requireTenant(locals).id,
+				parseUuid(String(data.get('membershipId') ?? ''), 'membership id'),
+				String(data.get('role') ?? '') as never,
+				{ userId: locals.user!.id }
+			);
+			return { success: true };
+		} catch (error) {
+			return asFailure(error);
+		}
+	},
+
+	permissions: async ({ locals, request }) => {
+		requireTenantPermission(locals, 'members:write');
+		const data = await request.formData();
+		try {
+			// Only the keys the form actually carried: an absent group must mean
+			// "unchanged", never "revoke everything in it".
+			const overrides: Record<string, boolean> = {};
+			for (const [key, value] of data.entries()) {
+				if (key.startsWith('perm:')) overrides[key.slice(5)] = value === 'on' || value === 'true';
+			}
+			await setPermissionOverrides(
+				requireTenant(locals).id,
+				parseUuid(String(data.get('membershipId') ?? ''), 'membership id'),
+				overrides,
+				{ userId: locals.user!.id }
+			);
+			return { success: true };
+		} catch (error) {
+			return asFailure(error);
+		}
+	},
+
+	resetPermissions: async ({ locals, request }) => {
+		requireTenantPermission(locals, 'members:write');
+		const data = await request.formData();
+		try {
+			await resetPermissions(
+				requireTenant(locals).id,
+				parseUuid(String(data.get('membershipId') ?? ''), 'membership id'),
+				{ userId: locals.user!.id }
+			);
+			return { success: true };
+		} catch (error) {
+			return asFailure(error);
+		}
+	},
+
+	setActive: async ({ locals, request }) => {
+		requireTenantPermission(locals, 'members:write');
+		const data = await request.formData();
+		try {
+			await setMemberActive(
+				requireTenant(locals).id,
+				parseUuid(String(data.get('membershipId') ?? ''), 'membership id'),
+				String(data.get('active') ?? '') === '1',
+				{ userId: locals.user!.id },
+				// Deactivating hands the person's open conversations somewhere, or
+				// they are simply unassigned. The option, not a bare id.
+				{ reassignToUserId: String(data.get('reassignTo') ?? '') || null }
+			);
+			return { success: true };
+		} catch (error) {
+			return asFailure(error);
+		}
+	},
+
+	removeUser: async ({ locals, request }) => {
+		requireTenantPermission(locals, 'members:write');
+		const data = await request.formData();
+		try {
+			await removeMember(
+				requireTenant(locals).id,
+				parseUuid(String(data.get('membershipId') ?? ''), 'membership id'),
+				{ userId: locals.user!.id }
 			);
 			return { success: true };
 		} catch (error) {
