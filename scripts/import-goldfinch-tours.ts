@@ -143,9 +143,19 @@ try {
 /* ------------------------------------------------------------------- text -- */
 
 const ENTITIES: Record<string, string> = {
-	amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
-	rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”',
-	mdash: '—', ndash: '–', hellip: '…'
+	amp: '&',
+	lt: '<',
+	gt: '>',
+	quot: '"',
+	apos: "'",
+	nbsp: ' ',
+	rsquo: '’',
+	lsquo: '‘',
+	ldquo: '“',
+	rdquo: '”',
+	mdash: '—',
+	ndash: '–',
+	hellip: '…'
 };
 
 /**
@@ -237,6 +247,12 @@ const PLACE_WORDS: Record<string, string> = {
 	'northern serengeti': 'serengeti-national-park',
 	'western serengeti': 'serengeti-national-park',
 	serengeti: 'serengeti-national-park',
+	// The bare park names, as day titles actually write them ("Full Day
+	// Tarangire"). Without these a day resolves to nothing and drops off the
+	// route the composer draws.
+	tarangire: 'tarangire-national-park',
+	'lake manyara': 'lake-manyara-national-park',
+	manyara: 'lake-manyara-national-park',
 	'stone town': 'zanzibar',
 	nyerere: 'nyerere-national-park',
 	selous: 'nyerere-national-park',
@@ -259,9 +275,7 @@ const CATEGORY_SLUG = 'safari';
  * turned into a badge on the listing.
  */
 function travelStylesFor(pkg: SourcePackage): string[] {
-	const text = norm(
-		[pkg.experienceType, ...(pkg.personaTags ?? []), pkg.category?.name, pkg.title].join(' ')
-	);
+	const text = norm([pkg.experienceType, ...(pkg.personaTags ?? []), pkg.category?.name, pkg.title].join(' '));
 	const styles = new Set<string>();
 	if (/wildlife|safari|migration|game drive/.test(text)) styles.add('wildlife');
 	if (/couple|honeymoon|romance/.test(text)) styles.add('honeymoon-romance');
@@ -270,6 +284,10 @@ function travelStylesFor(pkg: SourcePackage): string[] {
 	if (/culture|cultural/.test(text)) styles.add('cultural-immersion');
 	if (/bird/.test(text)) styles.add('birding');
 	if (/dive|diving|snorkel|marine|reef/.test(text)) styles.add('marine-diving');
+	// A tour the operator named "Luxury" or tagged luxury is one, whatever the
+	// budget tier happens to be called — several exports use 'prestige' for it.
+	if (/luxur/.test(text)) styles.add('luxury');
+	if (/fly-?in/.test(text)) styles.add('fly-in-safari');
 	if (norm(pkg.budgetTier) === 'luxury') styles.add('luxury');
 	if (norm(pkg.budgetTier) === 'budget') styles.add('budget');
 	// The composer caps a listing at five, and so does the service.
@@ -381,7 +399,8 @@ function derivePrice(days: number): { amount: number; basis: string } | null {
  * say the traveller crossed the sea when they did not.
  */
 const FLY = /\bfly\b|\bflight\b|\bfly ?in\b|\bairstrip\b|\bby air\b/i;
-const DRIVE = /\btransfer\b|\bdrive to\b|\bby road\b|\bdriving\b|\bcontinue (?:to|on)\b|\bhead (?:to|for)\b|\bjourney to\b/i;
+const DRIVE =
+	/\btransfer\b|\bdrive to\b|\bby road\b|\bdriving\b|\bcontinue (?:to|on)\b|\bhead (?:to|for)\b|\bjourney to\b/i;
 
 function travelModeFor(day: SourceDay): 'FLY' | 'DRIVE' | null {
 	const text = `${day.title ?? ''}. ${(htmlToText(day.description) ?? '').slice(0, 200)}`;
@@ -418,7 +437,7 @@ function modeFromGeography(fromSlug: string | null, toSlug: string | null): 'FLY
 /* ------------------------------------------------------------------- main -- */
 
 const [tenant] = await db
-	.select({ id: schema.tenants.id, name: schema.tenants.name })
+	.select({ id: schema.tenants.id, name: schema.tenants.name, country: schema.tenants.country })
 	.from(schema.tenants)
 	.where(eq(schema.tenants.slug, TENANT_SLUG))
 	.limit(1);
@@ -462,6 +481,57 @@ const accommodationByName = new Map(accommodationRows.map((a) => [norm(a.name), 
 
 if (!country) console.warn('WARN  no country row for "tanzania" — listings will have no country.');
 if (!category) console.warn(`WARN  no tour category "${CATEGORY_SLUG}" — listings will have no category.`);
+
+/*
+ * The public operator behind these listings.
+ *
+ * createTour() calls ensureOperatorProfile() as its very first step (see
+ * src/lib/server/tours.ts) precisely because "run by the operator who listed it"
+ * is the marketplace's promise, and a listing with no operator renders as an
+ * empty card. This script writes tour rows DIRECTLY and so skips that call —
+ * which is how a published listing ended up on the public site with no operator
+ * name on it. Mirrored here rather than imported because the service reads its
+ * connection through the $lib alias, which this standalone script cannot resolve.
+ *
+ * Idempotent: an operator who already has a profile keeps it untouched, and
+ * `is_verified` is never set — verification is the platform's call, made on the
+ * operator's own admin page, and a badge handed out by an import is not a signal.
+ */
+async function ensureOperatorProfile() {
+	const [existing] = await db
+		.select({ id: schema.operatorProfiles.id, slug: schema.operatorProfiles.slug })
+		.from(schema.operatorProfiles)
+		.where(eq(schema.operatorProfiles.tenantId, tenant.id))
+		.limit(1);
+	if (existing) {
+		console.log(`operator profile  ${existing.slug} (already present)`);
+		return;
+	}
+	if (!APPLY) {
+		console.log(`operator profile  WOULD CREATE for ${tenant.name} — none exists`);
+		return;
+	}
+	const base = tourSlug(TENANT_SLUG || tenant.name) || 'operator';
+	for (let attempt = 0; attempt < 25; attempt++) {
+		const slug = attempt === 0 ? base : `${base}-${attempt + 1}`;
+		try {
+			await db
+				.insert(schema.operatorProfiles)
+				.values({ tenantId: tenant.id, slug, displayName: tenant.name, location: tenant.country, isActive: true });
+			console.log(`operator profile  created: ${slug}`);
+			return;
+		} catch {
+			const [raced] = await db
+				.select({ id: schema.operatorProfiles.id })
+				.from(schema.operatorProfiles)
+				.where(eq(schema.operatorProfiles.tenantId, tenant.id))
+				.limit(1);
+			if (raced) return;
+			if (attempt === 24) throw new Error('Could not create an operator profile.');
+		}
+	}
+}
+await ensureOperatorProfile();
 
 console.log(`${APPLY ? 'IMPORT' : 'DRY RUN'}  ${packages.length} packages -> ${tenant.name} (${TENANT_SLUG})`);
 console.log('');
@@ -511,10 +581,7 @@ async function mediaFor(url: string, altText: string | null): Promise<string | n
 
 	const ext = clean.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
 	const mime =
-		ext === 'avif' ? 'image/avif'
-		: ext === 'webp' ? 'image/webp'
-		: ext === 'png' ? 'image/png'
-		: 'image/jpeg';
+		ext === 'avif' ? 'image/avif' : ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
 
 	const [row] = await db
 		.insert(schema.media)
@@ -567,9 +634,7 @@ for (const pkg of packages) {
 		durationNights = durationDays - 1;
 	}
 
-	const destinationSlugs = (pkg.destinations ?? [])
-		.map((d) => DESTINATION_ALIAS[d.slug] ?? d.slug)
-		.filter(Boolean);
+	const destinationSlugs = (pkg.destinations ?? []).map((d) => DESTINATION_ALIAS[d.slug] ?? d.slug).filter(Boolean);
 	const destinationIds: string[] = [];
 	for (const s of [...new Set(destinationSlugs)]) {
 		const id = destinationBySlug.get(s);
@@ -719,16 +784,16 @@ for (const pkg of packages) {
 
 	await db.delete(schema.tourDestinations).where(eq(schema.tourDestinations.tourId, tourId));
 	if (destinationIds.length) {
-		await db.insert(schema.tourDestinations).values(
-			destinationIds.map((destinationId, index) => ({ tourId, destinationId, sortOrder: index }))
-		);
+		await db
+			.insert(schema.tourDestinations)
+			.values(destinationIds.map((destinationId, index) => ({ tourId, destinationId, sortOrder: index })));
 	}
 
 	await db.delete(schema.tourTravelStyles).where(eq(schema.tourTravelStyles.tourId, tourId));
 	if (styleIds.length) {
-		await db.insert(schema.tourTravelStyles).values(
-			styleIds.map((travelStyleId, index) => ({ tourId, travelStyleId, sortOrder: index }))
-		);
+		await db
+			.insert(schema.tourTravelStyles)
+			.values(styleIds.map((travelStyleId, index) => ({ tourId, travelStyleId, sortOrder: index })));
 	}
 
 	await db.delete(schema.tourCategoryLinks).where(eq(schema.tourCategoryLinks.tourId, tourId));
