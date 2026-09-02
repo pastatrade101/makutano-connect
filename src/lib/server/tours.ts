@@ -1206,6 +1206,31 @@ const TRANSITIONS: Record<TourAction, TransitionRule> = {
 };
 
 /**
+ * The moves the PLATFORM may make, and the statuses each is legal from.
+ *
+ * Derived from TRANSITIONS rather than retyped, because the review desk had
+ * already copied this table once and a bulk endpoint would have made three
+ * copies free to disagree. `unpublish` is included even though it is not
+ * platform-only: taking a live listing down is a moderation move, and the review
+ * desk is where it is made.
+ *
+ * This decides what to OFFER. transitionTour re-checks the from-status on every
+ * single row and throws CONFLICT, so a stale page cannot move anything it should
+ * not — the caller must never treat this as the enforcement.
+ */
+export const PLATFORM_TOUR_ACTIONS = Object.fromEntries(
+	(Object.entries(TRANSITIONS) as [TourAction, TransitionRule][])
+		.filter(([action, rule]) => rule.platform || action === 'unpublish')
+		.map(([action, rule]) => [action, rule.from])
+) as Record<string, readonly schema.Tour['status'][]>;
+
+/** Which platform moves are legal from this status. */
+export const platformActionsFor = (status: schema.Tour['status']): string[] =>
+	Object.entries(PLATFORM_TOUR_ACTIONS)
+		.filter(([, from]) => from.includes(status))
+		.map(([action]) => action);
+
+/**
  * Move a listing through its lifecycle.
  *
  * `canPublish` is passed IN. Reading the permission here would make this file the second
