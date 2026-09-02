@@ -59,6 +59,14 @@ export const load: PageServerLoad = async () => {
 			/* ---- what is waiting on the PLATFORM ---- */
 			(select count(*) from tours
 			  where status in ('SUBMITTED','IN_REVIEW') and deleted_at is null)::int as tours_awaiting,
+			/* APPROVED is a PLATFORM queue, not a finished state.
+			   publish goes from APPROVED and is platform-only (tours.ts), so an approved
+			   listing is one the owner has said yes to and not yet put in front of
+			   anybody. Counting only SUBMITTED made this page announce "nothing is
+			   waiting on you" while seventeen listings sat approved and invisible. */
+			(select count(*) from tours where status = 'APPROVED' and deleted_at is null)::int as tours_ready,
+			(select min(reviewed_at) from tours where status = 'APPROVED' and deleted_at is null) as tours_ready_since,
+			(select count(*) from reviews where status = 'PENDING')::int as reviews_pending,
 			(select count(*) from operator_profiles where is_active and not is_verified)::int as operators_awaiting,
 			/* The platform's own service level: hours from submission to a decision. The
 			   one number on this page that nobody else can move. */
@@ -85,9 +93,12 @@ export const load: PageServerLoad = async () => {
 			(select count(*) from webhook_deliveries where status = 'DEAD')::int as webhooks_dead,
 			(select count(*) from payments where status = 'FAILED')::int as payments_failed,
 			(select count(*) from whatsapp_connections where status in ('ERROR','REAUTH_REQUIRED'))::int as connections_unhealthy
-	`)) as unknown as Array<Record<string, number | null>>;
+		// One of these columns is a timestamp (the oldest approved listing), so the row
+		// is not the all-numbers shape the rest of it looks like.
+	`)) as unknown as Array<Record<string, number | string | Date | null>>;
 
 	const n = (k: string) => Number(row?.[k] ?? 0);
+	const at = (k: string) => (row?.[k] as string | Date | null) ?? null;
 
 	/*
 	 * Every operator, and how far each has actually got.
@@ -133,6 +144,9 @@ export const load: PageServerLoad = async () => {
 			oldestDays: n('oldest_unanswered_days'),
 			staleAfterHours: STALE_ENQUIRY_HOURS,
 			toursAwaiting: n('tours_awaiting'),
+			toursReady: n('tours_ready'),
+			toursReadySince: at('tours_ready_since'),
+			reviewsPending: n('reviews_pending'),
 			operatorsAwaiting: n('operators_awaiting'),
 			reviewHoursAvg: row?.review_hours_avg == null ? null : Number(row.review_hours_avg)
 		},

@@ -2,6 +2,7 @@
 	// The marketplace at a glance. One question answered in words, then the loop, then
 	// the operators behind it. Infrastructure only speaks when it is broken.
 	import StatusBadge from '$components/StatusBadge.svelte';
+	import TimeAgo from '$components/TimeAgo.svelte';
 	let { data } = $props();
 
 	const { waiting, demand, supply, loop, operators, infrastructure } = $derived(data);
@@ -28,18 +29,32 @@
 			parts.push({ tone: 'good', text: 'Every enquiry has been answered.' });
 		}
 
-		const onUs = waiting.toursAwaiting + waiting.operatorsAwaiting;
+		const onUs = queues.reduce((sum, q) => sum + q.count, 0);
 		parts.push(
 			onUs > 0
-				? {
-						tone: 'warn',
-						text: `${waiting.toursAwaiting} ${waiting.toursAwaiting === 1 ? 'listing' : 'listings'} and ${waiting.operatorsAwaiting} ${waiting.operatorsAwaiting === 1 ? 'operator' : 'operators'} are waiting on you.`
-					}
+				? { tone: 'warn', text: `${onUs} ${onUs === 1 ? 'thing is' : 'things are'} waiting on you.` }
 				: { tone: 'good', text: 'Nothing is waiting on you.' }
 		);
 		if (broken.length) parts.push({ tone: 'bad', text: `${broken.length} system ${broken.length === 1 ? 'area needs' : 'areas need'} attention.` });
 		return parts;
 	});
+
+	/*
+	 * Every decision only the platform can make.
+	 *
+	 * APPROVED belongs here and was the one I missed: publish runs from APPROVED and
+	 * is platform-only, so an approved listing is one nobody can see yet and only the
+	 * owner can release. Leaving it out let this page say "nothing is waiting on you"
+	 * with seventeen listings sitting invisible.
+	 */
+	const queues = $derived(
+		[
+			{ label: 'Approved, not yet published', count: waiting.toursReady, href: '/admin/marketplace/tours?tab=approved', since: waiting.toursReadySince },
+			{ label: 'Listings awaiting review', count: waiting.toursAwaiting, href: '/admin/marketplace/tours?tab=pending', since: null },
+			{ label: 'Reviews to moderate', count: waiting.reviewsPending, href: '/admin/reviews', since: null },
+			{ label: 'Operators to verify', count: waiting.operatorsAwaiting, href: '/admin/marketplace/operators', since: null }
+		].filter((q) => q.count > 0)
+	);
 
 	const TONE: Record<string, string> = {
 		bad: 'text-danger',
@@ -78,6 +93,30 @@
 				<span class="{TONE[part.tone]} font-medium">{part.text}</span>
 			{/each}
 		</p>
+	</section>
+
+	<!-- The owner's actual to-do list. Only non-empty queues appear; when they all
+	     empty the block states the good news once, naming what was checked, rather
+	     than leaving four zero tiles behind as furniture. -->
+	<section class="card">
+		<header class="card-header"><h2 class="card-title">Waiting on you</h2></header>
+		{#if queues.length}
+			<ul class="divide-y divide-slate-100">
+				{#each queues as q (q.label)}
+					<li class="flex items-center gap-3 px-4 py-2.5">
+						<span class="w-10 shrink-0 text-lg font-semibold tabular-nums text-warning">{q.count}</span>
+						<a href={q.href} class="flex-1 text-sm text-brand-600 hover:underline">{q.label}</a>
+						{#if q.since}
+							<span class="text-[11.5px] text-slate-400">oldest <TimeAgo value={q.since} /></span>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="px-4 py-4 text-xs text-success">
+				Nothing — no listings to publish or review, no reviews to moderate, no operator unverified.
+			</p>
+		{/if}
 	</section>
 
 	<!-- Demand, as a direction. -->
