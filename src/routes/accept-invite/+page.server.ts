@@ -42,7 +42,18 @@ export const load: PageServerLoad = async ({ url }) => {
 	return {
 		state: dead ? ('dead' as const) : ('live' as const),
 		email: maskEmail(owner.user.email),
-		emailConfigured: emailReady()
+		emailConfigured: emailReady(),
+		/*
+		 * Whether this person still has to choose a password, known BEFORE they
+		 * press anything.
+		 *
+		 * The fields used to appear only after a failed submit, which meant the
+		 * first submit was always password-less — and the action spent the token
+		 * before it checked. Every brand-new invitee therefore burned their own
+		 * link on the first click and could never accept. Rendering the fields up
+		 * front is half the fix; the other half is the order in the action below.
+		 */
+		needsPassword: !owner.user.passwordHash
 	};
 };
 
@@ -62,16 +73,40 @@ export const actions: Actions = {
 		const password = String(data.get('password') ?? '');
 		const confirm = String(data.get('confirmPassword') ?? '');
 
+		/*
+		 * ORDER MATTERS, and it was wrong.
+		 *
+		 * consumeInviteToken SPENDS the token. It used to run first, before the
+		 * password was even looked at, so a new invitee's first submit — always
+		 * password-less, because the fields only rendered after a failure — burned
+		 * the link and every retry then read "expired or already used". No brand-new
+		 * member could accept an invitation at all.
+		 *
+		 * reset-password in this same codebase already does it the right way round:
+		 * check everything that can fail, and only then spend the one-use token.
+		 * The read below does not consume; the consume happens once the request is
+		 * certain to succeed, and it is still the atomic single-use guard that stops
+		 * two browsers accepting the same invitation.
+		 */
+		const held = await inviteTokenOwner(token);
+		if (!held || held.consumedAt || held.expiresAt.getTime() <= Date.now()) {
+			return fail(400, { dead: true, message: 'This invitation link has expired or was already used.' });
+		}
+
+		const pendingPassword = !held.user.passwordHash;
+		if (pendingPassword) {
+			if (!password) return fail(400, { needsPassword: true, message: 'Choose a password to finish setting up your account.' });
+			if (password !== confirm) return fail(400, { needsPassword: true, message: 'Those passwords do not match.' });
+			const strength = checkPassword(password, held.user.email);
+			if (!strength.ok) return fail(400, { needsPassword: true, message: strength.message });
+		}
+
+		// Everything that can be refused has been. Now spend it.
 		const invite = await consumeInviteToken(token);
 		if (!invite) return fail(400, { dead: true, message: 'This invitation link has expired or was already used.' });
 		const { user, tenantId } = invite;
 
-		// New accounts choose a password now; existing accounts keep theirs.
-		if (!user.passwordHash) {
-			if (!password) return fail(400, { needsPassword: true, message: 'Choose a password to finish setting up your account.' });
-			if (password !== confirm) return fail(400, { needsPassword: true, message: 'Those passwords do not match.' });
-			const strength = checkPassword(password, user.email);
-			if (!strength.ok) return fail(400, { needsPassword: true, message: strength.message });
+		if (pendingPassword) {
 			await db()
 				.update(schema.users)
 				.set({ passwordHash: await hashPassword(password), emailVerifiedAt: user.emailVerifiedAt ?? new Date(), updatedAt: new Date() })

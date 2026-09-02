@@ -117,7 +117,15 @@
 				{#if form?.message}
 					<p class="rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form.message}</p>
 				{/if}
-				{#if form?.needsPassword}
+				<!--
+					Shown from the FIRST view, not after a failure.
+
+					These fields used to appear only once a submit had already failed,
+					which guaranteed the first submit carried no password — and the server
+					spent the invitation before it checked. That pairing is what made a new
+					member's link die on their first click.
+				-->
+				{#if data.needsPassword || form?.needsPassword}
 					<div>
 						<label class="label" for="password">Choose a password</label>
 						<input
