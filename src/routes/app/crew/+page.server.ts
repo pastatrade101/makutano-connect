@@ -277,12 +277,26 @@ export const actions: Actions = {
 		requireTenantPermission(locals, 'members:write');
 		const data = await request.formData();
 		try {
-			// Only the keys the form actually carried: an absent group must mean
-			// "unchanged", never "revoke everything in it".
-			const overrides: Record<string, boolean> = {};
-			for (const [key, value] of data.entries()) {
-				if (key.startsWith('perm:')) overrides[key.slice(5)] = value === 'on' || value === 'true';
+			/*
+			 * The editor posts ONE hidden field holding a JSON snapshot of the whole
+			 * draft — the checkboxes are bind:checked and carry no name, so they send
+			 * nothing on their own.
+			 *
+			 * I first wrote this to collect `perm:`-prefixed fields, which do not
+			 * exist. It found none, passed {}, and setPermissionOverrides REPLACES
+			 * what it is given: every save both discarded the edit and reset that
+			 * member to their role defaults, while returning success. Read the form
+			 * before writing the action that consumes it.
+			 */
+			const raw = data.get('overrides');
+			// An ABSENT field is a bug, not an instruction. setPermissionOverrides
+			// replaces what it is given, so defaulting to {} turns any future naming
+			// slip into a silent reset that reports success — which is precisely what
+			// happened here. Fail loudly instead.
+			if (typeof raw !== 'string' || !raw) {
+				return fail(400, { error: 'Nothing to save — the permission form did not send its changes.' });
 			}
+			const overrides = JSON.parse(raw) as Record<string, boolean>;
 			await setPermissionOverrides(
 				requireTenant(locals).id,
 				parseUuid(String(data.get('membershipId') ?? ''), 'membership id'),
