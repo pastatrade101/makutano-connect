@@ -255,8 +255,12 @@ Not yet fixed. Each was verified against code.
 - **`npm run lint` is broken repo-wide** — `prettier-plugin-svelte` is not
   installed and `.prettierrc` has `plugins: []`, so prettier cannot parse any
   `.svelte` file.
-- **The mobile repo's history still contains the production SSH host** (removed
-  going forward on 2 Sep 2026; rewriting published history is a separate call).
+- **The public mobile repo carries the production SSH host** in
+  `docs/PUSH-SETUP.md` (host, port `2807`, username), plus eight tracked
+  `.idea/*` files and a `flutter_01.log` crash dump that `.gitignore` claims to
+  exclude. Not a credential — the deploy key is not there, and the IP resolves
+  from public DNS anyway — so this is reconnaissance, not a breach. Left as-is by
+  the owner's decision; do not "fix" it unprompted.
 
 ---
 
