@@ -2625,6 +2625,58 @@ export const tourTravelStyles = pgTable(
 );
 
 /**
+ * What a traveller DOES on the trip.
+ *
+ * A fourth axis, deliberately separate from the other three: a category is what
+ * the trip IS, a travel style is HOW it is experienced, a destination is WHERE.
+ * "Game drive" is none of those — two tours can share a category, a style and a
+ * country and still differ on whether anybody gets in a boat.
+ *
+ * Platform taxonomy, exactly like categories and styles: an operator selects
+ * from it and cannot add to it. One flat list, no parent/child — a hierarchy
+ * here would be a guess about a shape nobody has needed yet.
+ */
+export const activities = pgTable(
+	'activities',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		name: text('name').notNull(),
+		slug: text('slug').notNull(),
+		shortDescription: text('short_description'),
+		/** A theme icon name, not an uploaded asset — same as styles and categories. */
+		icon: text('icon'),
+		isActive: boolean('is_active').notNull().default(true),
+		sortOrder: integer('sort_order').notNull().default(0),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('activities_slug_idx').on(t.slug),
+		index('activities_active_idx')
+			.on(t.sortOrder, t.name)
+			.where(sql`${t.isActive}`)
+	]
+);
+
+export const tourActivities = pgTable(
+	'tour_activities',
+	{
+		tourId: uuid('tour_id')
+			.notNull()
+			.references(() => tours.id, { onDelete: 'cascade' }),
+		/** RESTRICT, as with styles: an activity in use is deactivated, never deleted. */
+		activityId: uuid('activity_id')
+			.notNull()
+			.references(() => activities.id, { onDelete: 'restrict' }),
+		sortOrder: integer('sort_order').notNull().default(0)
+	},
+	(t) => [
+		primaryKey({ name: 'tour_activities_pkey', columns: [t.tourId, t.activityId] }),
+		index('tour_activities_activity_idx').on(t.activityId, t.sortOrder)
+	]
+);
+
+/**
  * Reusable PACKAGE content — deliberately not `tripItems`, which belong to one
  * operational departure that actually ran. Blurring those two would make a
  * template and a record of a real trip the same row.
@@ -2880,6 +2932,11 @@ export const travelStylesRelations = relations(travelStyles, ({ many }) => ({
 	tourLinks: many(tourTravelStyles)
 }));
 
+export const tourActivitiesRelations = relations(tourActivities, ({ one }) => ({
+	tour: one(tours, { fields: [tourActivities.tourId], references: [tours.id] }),
+	activity: one(activities, { fields: [tourActivities.activityId], references: [activities.id] })
+}));
+
 export const tourTravelStylesRelations = relations(tourTravelStyles, ({ one }) => ({
 	tour: one(tours, { fields: [tourTravelStyles.tourId], references: [tours.id] }),
 	style: one(travelStyles, { fields: [tourTravelStyles.travelStyleId], references: [travelStyles.id] })
@@ -3014,6 +3071,8 @@ export type TravelStyle = typeof travelStyles.$inferSelect;
 export type TourCategory = typeof tourCategories.$inferSelect;
 export type TourCategoryLink = typeof tourCategoryLinks.$inferSelect;
 export type TourTravelStyle = typeof tourTravelStyles.$inferSelect;
+export type Activity = typeof activities.$inferSelect;
+export type TourActivity = typeof tourActivities.$inferSelect;
 export type TourItineraryDay = typeof tourItineraryDays.$inferSelect;
 export type Accommodation = typeof accommodations.$inferSelect;
 export type AccommodationImage = typeof accommodationImages.$inferSelect;

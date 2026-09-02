@@ -219,6 +219,14 @@ export type TourDetail = {
 	 */
 	category: TaxonomyRef | null;
 	styles: TaxonomyRef[];
+	/**
+	 * What the traveller DOES — the fourth axis, beside where, what and how.
+	 *
+	 * On the detail only. Cards do not carry it: nothing filters on activities
+	 * yet, and a key every card query must remember to supply is how a type
+	 * starts describing something other than what the page receives.
+	 */
+	activities: TaxonomyRef[];
 };
 
 export type ItineraryDay = {
@@ -1424,12 +1432,20 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 
 	// Styles are many per tour, so they are their own statement; the category is
 	// one, and rides along on the join above.
-	const styleRows = await db()
-		.select({ name: schema.travelStyles.name, slug: schema.travelStyles.slug })
-		.from(schema.tourTravelStyles)
-		.innerJoin(schema.travelStyles, eq(schema.travelStyles.id, schema.tourTravelStyles.travelStyleId))
-		.where(and(eq(schema.tourTravelStyles.tourId, tourId), eq(schema.travelStyles.isActive, true)))
-		.orderBy(asc(schema.travelStyles.name));
+	const [styleRows, activityRows] = await Promise.all([
+		db()
+			.select({ name: schema.travelStyles.name, slug: schema.travelStyles.slug })
+			.from(schema.tourTravelStyles)
+			.innerJoin(schema.travelStyles, eq(schema.travelStyles.id, schema.tourTravelStyles.travelStyleId))
+			.where(and(eq(schema.tourTravelStyles.tourId, tourId), eq(schema.travelStyles.isActive, true)))
+			.orderBy(asc(schema.travelStyles.name)),
+		db()
+			.select({ name: schema.activities.name, slug: schema.activities.slug })
+			.from(schema.tourActivities)
+			.innerJoin(schema.activities, eq(schema.activities.id, schema.tourActivities.activityId))
+			.where(and(eq(schema.tourActivities.tourId, tourId), eq(schema.activities.isActive, true)))
+			.orderBy(asc(schema.tourActivities.sortOrder))
+	]);
 
 	const [destinationRows, itineraryRows, galleryRows] = await Promise.all([
 		db()
@@ -1636,7 +1652,8 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 			publishedAt: row.tour.publishedAt,
 			updatedAt: row.tour.updatedAt,
 			category: row.category?.slug ? { name: row.category.name, slug: row.category.slug } : null,
-			styles: styleRows.map((r) => ({ name: r.name, slug: r.slug }))
+			styles: styleRows.map((r) => ({ name: r.name, slug: r.slug })),
+			activities: activityRows.map((r) => ({ name: r.name, slug: r.slug }))
 		},
 		country: countryRefOf(row.country),
 		destinations,

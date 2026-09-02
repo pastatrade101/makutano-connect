@@ -411,7 +411,7 @@ export async function getTour(tenantId: string, id: string): Promise<schema.Tour
  */
 export async function getTourDetail(tenantId: string, id: string) {
 	const tour = await getTour(tenantId, id);
-	const [destinationRows, itinerary, galleryRows, styleRows, categoryRows] = await Promise.all([
+	const [destinationRows, itinerary, galleryRows, styleRows, categoryRows, activityRows] = await Promise.all([
 		db()
 			.select({ destination: schema.destinations, sortOrder: schema.tourDestinations.sortOrder })
 			.from(schema.tourDestinations)
@@ -438,7 +438,12 @@ export async function getTourDetail(tenantId: string, id: string) {
 			.select({ id: schema.tourCategoryLinks.categoryId })
 			.from(schema.tourCategoryLinks)
 			.where(eq(schema.tourCategoryLinks.tourId, id))
-			.orderBy(asc(schema.tourCategoryLinks.sortOrder))
+			.orderBy(asc(schema.tourCategoryLinks.sortOrder)),
+		db()
+			.select({ id: schema.tourActivities.activityId })
+			.from(schema.tourActivities)
+			.where(eq(schema.tourActivities.tourId, id))
+			.orderBy(asc(schema.tourActivities.sortOrder))
 	]);
 	// Where the traveller sleeps, and the directory to pick from. Loaded here so
 	// the composer and the public tour page read the same list.
@@ -454,6 +459,7 @@ export async function getTourDetail(tenantId: string, id: string) {
 		gallery: galleryRows.map((r) => r.asset),
 		travelStyleIds: styleRows.map((r) => r.id),
 		categoryIds: categoryRows.map((r) => r.id),
+		activityIds: activityRows.map((r) => r.id),
 		accommodations: stays.get(id) ?? [],
 		accommodationOptions: stayOptions
 	};
@@ -852,6 +858,75 @@ export async function listActiveTravelStyles() {
 		.from(schema.travelStyles)
 		.where(eq(schema.travelStyles.isActive, true))
 		.orderBy(asc(schema.travelStyles.sortOrder), asc(schema.travelStyles.name));
+}
+
+export async function listActiveActivities() {
+	return db()
+		.select()
+		.from(schema.activities)
+		.where(eq(schema.activities.isActive, true))
+		.orderBy(asc(schema.activities.sortOrder), asc(schema.activities.name));
+}
+
+/**
+ * What the traveller does on this trip.
+ *
+ * Whole-set replace and the same ownership proof as travel styles: the join
+ * table carries no tenant id, so the tour row is re-read inside the transaction
+ * that rewrites the links. Deliberately uncapped — a fortnight in the north
+ * genuinely does a game drive, a walk, a boat and a village, and a limit here
+ * would only push an operator into choosing which true things to omit.
+ */
+export async function setTourActivities(
+	tenantId: string,
+	tourId: string,
+	activityIds: string[],
+	actor: TourActor = {}
+): Promise<void> {
+	await assertAllowed(tenantId);
+	const tour = await getTour(tenantId, tourId);
+
+	const ids: string[] = [];
+	for (const raw of activityIds) {
+		const id = raw?.trim();
+		if (!id || ids.includes(id)) continue;
+		assertUuid(id, 'activity id');
+		ids.push(id);
+	}
+
+	if (ids.length) {
+		// Only ACTIVE canonical activities. An operator selects from the taxonomy;
+		// they cannot invent one, and a retired activity cannot be re-attached.
+		const found = await db()
+			.select({ id: schema.activities.id })
+			.from(schema.activities)
+			.where(and(inArray(schema.activities.id, ids), eq(schema.activities.isActive, true)));
+		if (found.length !== ids.length) {
+			throw new AppError('VALIDATION_ERROR', 'One of those activities is not available.');
+		}
+	}
+
+	await txDb().transaction(async (tx) => {
+		const owned = await tx
+			.select({ id: schema.tours.id })
+			.from(schema.tours)
+			.where(and(eq(schema.tours.id, tourId), eq(schema.tours.tenantId, tenantId), isNull(schema.tours.deletedAt)))
+			.limit(1);
+		if (!owned.length) throw new AppError('NOT_FOUND', 'Tour could not be found.');
+
+		await tx.delete(schema.tourActivities).where(eq(schema.tourActivities.tourId, tourId));
+		if (ids.length) {
+			await tx
+				.insert(schema.tourActivities)
+				.values(ids.map((activityId, index) => ({ tourId, activityId, sortOrder: index })));
+		}
+		await tx.update(schema.tours).set({ updatedAt: new Date() }).where(eq(schema.tours.id, tourId));
+	});
+
+	await audit(tenantId, 'tour.updated', auditActor(actor), { type: 'tour', id: tourId }, {
+		title: tour.title,
+		activities: ids.length
+	});
 }
 
 /**

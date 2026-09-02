@@ -22,6 +22,8 @@ import {
 	getTourDetail,
 	listActiveCategories,
 	listActiveTravelStyles,
+	listActiveActivities,
+	setTourActivities,
 	replaceItinerary,
 	setTourCategories,
 	setTourDestinations,
@@ -49,7 +51,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const tenantId = requireTenant(locals).id;
 	const detail = await getTourDetail(tenantId, params.id);
 
-	const [countries, destinations, categories, travelStyles, missing] = await Promise.all([
+	const [countries, destinations, categories, travelStyles, activities, missing] = await Promise.all([
 		db()
 			.select({ id: schema.countries.id, name: schema.countries.name })
 			.from(schema.countries)
@@ -77,6 +79,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			.orderBy(asc(schema.destinations.name)),
 		listActiveCategories(),
 		listActiveTravelStyles(),
+		listActiveActivities(),
 		assertPublishable(tenantId, params.id)
 	]);
 
@@ -118,6 +121,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		destinationIds: detail.destinations.map((d) => d.id),
 		travelStyleIds: detail.travelStyleIds,
 		categoryIds: detail.categoryIds,
+		activityIds: detail.activityIds,
 		itinerary: detail.itinerary.map((d) => ({
 			dayNumber: d.dayNumber,
 			title: d.title,
@@ -147,6 +151,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		})),
 		categories: categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug, shortDescription: c.shortDescription })),
 		travelStyles: travelStyles.map((s) => ({ id: s.id, name: s.name, slug: s.slug, shortDescription: s.shortDescription })),
+		activities: activities.map((a) => ({ id: a.id, name: a.name, slug: a.slug, shortDescription: a.shortDescription })),
 		maxTravelStyles: MAX_TRAVEL_STYLES,
 		// The service's own words for what is still missing. The page ticks off the rest
 		// against this; it never decides for itself whether a listing is ready.
@@ -207,6 +212,7 @@ export const actions: Actions = {
 		const tenantId = requireTenant(locals).id;
 		const f = await request.formData();
 		const styleIds = f.getAll('travelStyleIds').map(String).filter(Boolean);
+		const activityIds = f.getAll('activityIds').map(String).filter(Boolean);
 		// A package belongs to exactly ONE category. The link table stays — the
 		// marketplace filters through it — but it now holds a single row, derived
 		// from the primary category rather than from a separate multi-select the
@@ -246,6 +252,7 @@ export const actions: Actions = {
 			// category off it so the primary can never be missing from the set.
 			await setTourCategories(tenantId, params.id, categoryIds, { userId: locals.user?.id });
 			await setTourTravelStyles(tenantId, params.id, styleIds, { userId: locals.user?.id });
+			await setTourActivities(tenantId, params.id, activityIds, { userId: locals.user?.id });
 			return { success: true, notice: 'Basics saved' };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });

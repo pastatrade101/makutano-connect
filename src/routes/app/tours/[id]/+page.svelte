@@ -204,6 +204,7 @@
 			durationNights: t.durationNights == null ? '' : String(t.durationNights),
 			primaryCategoryId: t.primaryCategoryId ?? '',
 			travelStyleIds: [...data.travelStyleIds],
+			activityIds: [...data.activityIds],
 			groupType: t.groupType ?? '',
 			groupSizeMin: t.groupSizeMin == null ? '' : String(t.groupSizeMin),
 			groupSizeMax: t.groupSizeMax == null ? '' : String(t.groupSizeMax),
@@ -336,6 +337,21 @@
 		const at = draft.travelStyleIds.indexOf(id);
 		if (at >= 0) draft.travelStyleIds.splice(at, 1);
 		else if (!styleLimitReached) draft.travelStyleIds.push(id);
+	}
+
+	/*
+	 * Activities carry no cap, unlike travel styles.
+	 *
+	 * A style says how the whole trip feels, so five is already generous and a
+	 * sixth is usually the operator hedging. An activity is a thing that happens
+	 * — a fortnight in the north genuinely does a game drive, a walk, a boat and
+	 * a village, and a limit would only make somebody choose which true things to
+	 * leave out.
+	 */
+	function toggleActivity(id: string) {
+		const at = draft.activityIds.indexOf(id);
+		if (at >= 0) draft.activityIds.splice(at, 1);
+		else draft.activityIds.push(id);
 	}
 
 	/** The primary category is always in the set, so it cannot be toggled off here. */
@@ -1173,6 +1189,40 @@
 							</div>
 							{#each draft.travelStyleIds as id (id)}
 								<input type="hidden" name="travelStyleIds" value={id} />
+							{/each}
+						</div>
+
+						<!--
+							Activities: what the traveller DOES, as against how the trip feels.
+							Platform taxonomy, like styles and categories — an operator picks
+							from the list and cannot add to it, which is what keeps one word
+							meaning one thing across every operator and every country.
+						-->
+						<div class="sm:col-span-2">
+							<span class="label mb-0">Activities</span>
+							<p class="mb-2 mt-1 text-xs text-slate-500">
+								What travellers actually do on this trip. Tick only what the trip
+								really includes — each one is a promise on the listing.
+							</p>
+							<div class="flex flex-wrap gap-2">
+								{#each data.activities as a (a.id)}
+									{@const on = draft.activityIds.includes(a.id)}
+									<button
+										type="button"
+										class="rounded-full border px-3 py-1.5 text-sm transition
+											{on
+											? 'border-emerald-600 bg-emerald-600 text-white'
+											: 'border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50'}"
+										aria-pressed={on}
+										title={a.shortDescription ?? a.name}
+										onclick={() => toggleActivity(a.id)}
+									>
+										{a.name}
+									</button>
+								{/each}
+							</div>
+							{#each draft.activityIds as id (id)}
+								<input type="hidden" name="activityIds" value={id} />
 							{/each}
 						</div>
 
