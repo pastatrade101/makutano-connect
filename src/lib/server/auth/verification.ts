@@ -103,6 +103,41 @@ export async function consumeInviteToken(
 	return users[0] ? { user: users[0], tenantId: row.tenant_id } : null;
 }
 
+/**
+ * Who a TEAM_INVITE token belongs to, alive or dead — WITHOUT spending it.
+ *
+ * consumeInviteToken deliberately matches only tokens that are unspent and
+ * unexpired, which is right for acceptance and useless for the case that
+ * actually strands people: a link that has expired. Somebody holding a real but
+ * dead token has still PROVED they were invited, and the token names the exact
+ * user and tenant, so a new link can be issued to them without anyone having to
+ * type an address. The new link goes to the invited address, never to whoever
+ * presented the token — so a stale link that leaks gains an attacker nothing.
+ *
+ * Read-only on purpose: an email scanner prefetching the page must not burn the
+ * invitation, which is why the acceptance path spends the token on submit only.
+ */
+export async function inviteTokenOwner(
+	token: string
+): Promise<{ user: schema.User; tenantId: string; expiresAt: Date; consumedAt: Date | null } | null> {
+	if (!token) return null;
+	const [row] = await db()
+		.select()
+		.from(schema.verificationTokens)
+		.where(
+			and(
+				eq(schema.verificationTokens.tokenHash, sha256(token)),
+				eq(schema.verificationTokens.purpose, 'TEAM_INVITE')
+			)
+		)
+		.limit(1);
+	if (!row?.tenantId) return null;
+	const users = await db().select().from(schema.users).where(eq(schema.users.id, row.userId)).limit(1);
+	return users[0]
+		? { user: users[0], tenantId: row.tenantId, expiresAt: row.expiresAt, consumedAt: row.consumedAt }
+		: null;
+}
+
 function appUrl(): string {
 	return env().PUBLIC_APP_URL.replace(/\/+$/, '');
 }

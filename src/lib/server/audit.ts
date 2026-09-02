@@ -36,6 +36,7 @@ export type AuditAction =
 	| 'entitlement.overridden'
 	| 'entitlement.override_removed'
 	| 'user.invited'
+	| 'user.invite_resent'
 	| 'user.invite_accepted'
 	| 'user.deactivated'
 	| 'user.reactivated'

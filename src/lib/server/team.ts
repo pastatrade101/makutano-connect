@@ -186,6 +186,33 @@ export async function listTeam(tenantId: string) {
 					and m.sent_by_user_id = ${schema.tenantMemberships.userId}
 					and m.direction = 'OUTBOUND'
 					and m.created_at::date = current_date
+			)`,
+			/*
+			 * The live invitation, read from the token itself.
+			 *
+			 * The page used to show a bare "Invited" chip and the user's last login,
+			 * which for someone who never accepted is null — so an invite sent an hour
+			 * ago and one that died three weeks ago looked identical, and the admin had
+			 * no way to tell a slow colleague from a broken link. These two come from
+			 * the token row that actually governs the link, so they cannot drift from
+			 * the truth: issueToken consumes any previous unspent token for the same
+			 * user and purpose, so at most one row here is live at a time.
+			 */
+			inviteSentAt: sql<Date | null>`(
+				select vt.created_at from verification_tokens vt
+				where vt.user_id = ${schema.tenantMemberships.userId}
+					and vt.tenant_id = ${tenantId}::uuid
+					and vt.purpose = 'TEAM_INVITE'
+					and vt.consumed_at is null
+				order by vt.created_at desc limit 1
+			)`,
+			inviteExpiresAt: sql<Date | null>`(
+				select vt.expires_at from verification_tokens vt
+				where vt.user_id = ${schema.tenantMemberships.userId}
+					and vt.tenant_id = ${tenantId}::uuid
+					and vt.purpose = 'TEAM_INVITE'
+					and vt.consumed_at is null
+				order by vt.created_at desc limit 1
 			)`
 		})
 		.from(schema.tenantMemberships)
@@ -200,7 +227,15 @@ export async function listTeam(tenantId: string) {
 		email: r.user.email,
 		role: r.membership.role,
 		roleLabel: roleLabel(r.membership.role),
-		status: r.membership.disabledAt ? 'Deactivated' : r.membership.acceptedAt ? 'Active' : 'Invited',
+		status: r.membership.disabledAt
+			? 'Deactivated'
+			: r.membership.acceptedAt
+				? 'Active'
+				: inviteLive(r.inviteExpiresAt)
+					? 'Invited'
+					: 'Invite expired',
+		inviteSentAt: r.membership.acceptedAt ? null : (r.inviteSentAt ?? null),
+		inviteExpiresAt: r.membership.acceptedAt ? null : (r.inviteExpiresAt ?? null),
 		customized: isCustomized(r.membership.role, r.membership.permissionOverrides),
 		overrides: r.membership.permissionOverrides ?? {},
 		effective: effectivePermissions(r.membership.role, r.membership.permissionOverrides),
@@ -301,7 +336,17 @@ export async function inviteMember(tenantId: string, input: InviteInput) {
 		.from(schema.tenantMemberships)
 		.where(and(eq(schema.tenantMemberships.tenantId, tenantId), eq(schema.tenantMemberships.userId, user.id)))
 		.limit(1);
-	if (existing && !existing.disabledAt) throw new AppError('CONFLICT', 'That person is already on the team.');
+	if (existing && !existing.disabledAt) {
+		// "Already on the team" is false for somebody who never accepted, and it was
+		// the whole of the feedback an admin got when re-inviting a pending member.
+		// Now it names the action that actually helps.
+		throw new AppError(
+			'CONFLICT',
+			existing.acceptedAt
+				? 'That person is already on the team.'
+				: 'They have already been invited and have not accepted yet. Use Resend invite on their row to send a fresh link.'
+		);
+	}
 	if (existing) {
 		// Re-inviting a deactivated member reactivates the seat with the new role.
 		await db()
@@ -360,6 +405,111 @@ export async function inviteMember(tenantId: string, input: InviteInput) {
 }
 
 /* --------------------------------------------------------------- mutations ---- */
+
+/** A link is only live while its token is unspent AND unexpired. */
+const inviteLive = (expiresAt: Date | string | null | undefined): boolean =>
+	expiresAt ? new Date(expiresAt).getTime() > Date.now() : false;
+
+/**
+ * Mint a fresh invite link and queue the mail. Shared by the admin's resend and
+ * by a stranded invitee asking for a new one, so the two cannot drift apart.
+ *
+ * issueToken consumes any previous unspent token for this user and purpose, so
+ * the old link dies the moment this one is born. Deliberate: two live
+ * invitations to one seat is a state nobody can reason about.
+ */
+async function issueInviteLink(tenantId: string, user: schema.User, role: schema.Role): Promise<string> {
+	const { token } = await issueToken(user.id, 'TEAM_INVITE', null, tenantId);
+	const tenant = await getTenantById(tenantId);
+	const base = env().PUBLIC_APP_URL.replace(/\/+$/, '');
+	const link = `${base}/accept-invite?token=${encodeURIComponent(token)}`;
+
+	await enqueue('email.send', {
+		to: user.email,
+		subject: `Your invitation to ${tenant?.name ?? 'a team'} on Makutano Connect`,
+		text: `${tenant?.name ?? 'A business'} has sent you a new invitation link to join their team on Makutano Connect as ${roleLabel(role)}.\n\nAccept the invitation:\n${link}\n\nThis link expires in 7 days and can only be used once. Any earlier link no longer works.`,
+		html: `<p><b>${tenant?.name ?? 'A business'}</b> has sent you a new invitation link to join their team on Makutano Connect as <b>${roleLabel(role)}</b>.</p><p><a href="${link}">Accept the invitation</a></p><p style="color:#94a3b8;font-size:12px">This link expires in 7 days and can only be used once. Any earlier link no longer works.</p>`
+	});
+	return link;
+}
+
+/**
+ * A stranded invitee asking for their own new link.
+ *
+ * Reached only by presenting a real TEAM_INVITE token — expired or spent, but
+ * genuinely issued — so there is nothing to enumerate: the caller cannot name an
+ * address, and the link goes to the invited address regardless of who asked.
+ * Returns false rather than throwing when the seat is gone or already accepted,
+ * because the page must say the same thing either way.
+ */
+export async function resendInviteToUser(tenantId: string, userId: string): Promise<boolean> {
+	const [membership] = await db()
+		.select()
+		.from(schema.tenantMemberships)
+		.where(and(eq(schema.tenantMemberships.tenantId, tenantId), eq(schema.tenantMemberships.userId, userId)))
+		.limit(1);
+	if (!membership || membership.acceptedAt || membership.disabledAt) return false;
+
+	const [user] = await db().select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+	if (!user) return false;
+
+	await issueInviteLink(tenantId, user, membership.role);
+	await audit(
+		tenantId,
+		'user.invite_resent',
+		{ type: 'user', userId },
+		{ type: 'user', id: userId },
+		{ email: user.email, role: membership.role, requestedByInvitee: true }
+	);
+	log.info('team_invite_self_resent', { tenantId, role: membership.role });
+	return true;
+}
+
+/**
+ * Send a pending member a fresh invitation link.
+ *
+ * This exists because inviteMember() REFUSES a pending member — it throws
+ * CONFLICT "That person is already on the team" for any membership that is not
+ * disabled, and a person who was invited but never accepted is exactly that. The
+ * only way out was Remove then Invite, and removeMember deletes the membership
+ * row along with its permission overrides. Losing a member's configured
+ * permissions should not be the price of a link that expired.
+ *
+ * No seat check: the seat is already occupied by this very membership, so
+ * re-counting it would refuse a resend on a full plan for no reason.
+ *
+ * issueToken consumes any previous unspent token for this user and purpose, so
+ * the old link dies the moment a new one is issued. That is deliberate — two
+ * live invitations to one seat is a thing nobody can reason about.
+ */
+export async function resendInvite(
+	tenantId: string,
+	membershipId: string,
+	actor: { userId: string }
+): Promise<{ inviteLink: string; emailed: boolean; email: string }> {
+	const target = await membershipOf(tenantId, membershipId);
+
+	if (target.membership.acceptedAt)
+		throw new AppError('CONFLICT', 'They have already accepted — there is nothing to resend.');
+	if (target.membership.disabledAt)
+		throw new AppError('CONFLICT', 'That member is deactivated. Reactivate the seat first.');
+
+	const link = await issueInviteLink(tenantId, target.user, target.membership.role);
+
+	await audit(
+		tenantId,
+		'user.invite_resent',
+		{ type: 'user', userId: actor.userId },
+		{ type: 'user', id: target.user.id },
+		{ email: target.user.email, role: target.membership.role }
+	);
+	log.info('team_invite_resent', { tenantId, role: target.membership.role });
+
+	// Same reason inviteMember hands the link back: email is the wrong channel for
+	// half the people this invites, and a deployment with no mail provider drops it
+	// silently. Whoever resent it can pass this on however they actually reach them.
+	return { inviteLink: link, emailed: emailReady(), email: target.user.email };
+}
 
 export async function changeRole(tenantId: string, membershipId: string, role: schema.Role, actor: { userId: string }) {
 	if (!INVITABLE_ROLES.includes(role)) throw new AppError('VALIDATION_ERROR', 'That role cannot be assigned here.');

@@ -21,8 +21,22 @@
 	const STATUS_TONE: Record<string, string> = {
 		Active: 'bg-success/10 text-success',
 		Invited: 'bg-warning/10 text-warning',
+		'Invite expired': 'bg-danger/10 text-danger',
 		Deactivated: 'bg-slate-100 text-slate-500'
 	};
+
+	/** Copy-to-clipboard for the invite link, with a confirmation that fades. */
+	let copied = $state(false);
+	async function copyLink(link: string) {
+		try {
+			await navigator.clipboard.writeText(link);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
+		} catch {
+			// Clipboard denied (insecure context, or the user said no). The link is
+			// on screen and selectable, so there is nothing to recover from.
+		}
+	}
 </script>
 
 <svelte:head><title>Team · {data.tenant.name}</title></svelte:head>
@@ -40,10 +54,46 @@
 		{/if}
 	</div>
 
-	{#if form?.invited}
-		<p class="rounded-panel bg-success/10 px-3 py-2 text-xs text-success">
-			Invitation sent — they'll get an email with a link that expires in 7 days.
-		</p>
+	<!--
+		What actually happened, not what we hope happened.
+
+		This used to read "Invitation sent — they'll get an email" unconditionally,
+		on a deployment that may have no mail provider at all. The link is shown
+		either way, because email is the wrong channel for half the people invited
+		here — a driver has WhatsApp, not an inbox he checks.
+	-->
+	{#if form?.invited || form?.resent}
+		<div class="rounded-panel border border-slate-200 bg-white px-3 py-2.5">
+			{#if form?.emailed}
+				<p class="text-xs font-medium text-success">
+					{form?.resent ? 'New invitation sent' : 'Invitation sent'}{form?.resentTo ? ` to ${form.resentTo}` : ''} — the
+					link expires in 7 days.{form?.resent ? ' Any earlier link has stopped working.' : ''}
+				</p>
+			{:else}
+				<p class="text-xs font-medium text-warning">
+					Email is not configured on this deployment, so nothing was sent. Pass this link on
+					yourself.
+				</p>
+			{/if}
+			{#if form?.inviteLink}
+				<div class="mt-2 flex items-center gap-2">
+					<input
+						class="input flex-1 !py-1.5 font-mono text-[11.5px]"
+						readonly
+						value={form.inviteLink}
+						onfocus={(e) => e.currentTarget.select()}
+						aria-label="Invitation link"
+					/>
+					<button
+						type="button"
+						class="btn-secondary !px-2.5 !py-1.5 text-[12.5px]"
+						onclick={() => copyLink(form.inviteLink)}
+					>
+						{copied ? 'Copied' : 'Copy'}
+					</button>
+				</div>
+			{/if}
+		</div>
 	{/if}
 
 	{#if showInvite && data.canManage}
@@ -129,7 +179,19 @@
 							</td>
 							<td class="table-cell"><span class="badge {STATUS_TONE[m.status]}">{m.status}</span></td>
 							<td class="table-cell tabular-nums">{m.assignedOpen} <span class="text-[11.5px] text-slate-400">open</span> · {m.repliesToday} <span class="text-[11.5px] text-slate-400">today</span></td>
-							<td class="table-cell text-slate-500">{#if m.lastActiveAt}<TimeAgo value={m.lastActiveAt} timezone={data.tenant.timezone} />{:else}—{/if}</td>
+							<!-- For a pending invite, last-login is null forever. Showing when the
+							     link was sent is the fact that actually helps. -->
+							<td class="table-cell text-slate-500">
+								{#if m.lastActiveAt}
+									<TimeAgo value={m.lastActiveAt} timezone={data.tenant.timezone} />
+								{:else if m.inviteSentAt}
+									<span class="text-[12.5px]">
+										Invited <TimeAgo value={m.inviteSentAt} timezone={data.tenant.timezone} />
+									</span>
+								{:else}
+									—
+								{/if}
+							</td>
 							{#if data.canManage}
 								<td class="table-cell">
 									{#if m.role !== 'OWNER'}
@@ -145,6 +207,17 @@
 													<button class="!px-2 !py-1 text-[12.5px] text-slate-400 hover:text-danger hover:underline">Remove</button>
 												</form>
 											{:else}
+												{#if m.status === 'Invited' || m.status === 'Invite expired'}
+													<!-- The only route out of a stuck invite used to be Remove and
+													     re-invite, and Remove deletes the membership along with its
+													     permission overrides. -->
+													<form method="POST" action="?/resendInvite" use:enhance>
+														<input type="hidden" name="membershipId" value={m.membershipId} />
+														<button class="btn-secondary !px-2 !py-1 text-[12.5px]">
+															{m.status === 'Invite expired' ? 'Send a new link' : 'Resend invite'}
+														</button>
+													</form>
+												{/if}
 												<button class="btn-secondary !px-2 !py-1 text-[12.5px] text-danger" onclick={() => (deactivating = m.membershipId)}>Deactivate</button>
 											{/if}
 										</div>

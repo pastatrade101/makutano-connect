@@ -12,6 +12,7 @@ import {
 	listTeam,
 	PERMISSION_GROUPS,
 	removeMember,
+	resendInvite,
 	resetPermissions,
 	ROLE_OPTIONS,
 	setMemberActive,
@@ -38,13 +39,37 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'members:write');
 		const data = await request.formData();
 		try {
-			await inviteMember(requireTenant(locals).id, {
+			// The link and the delivery result both come back and both go to the page.
+			// They were being discarded, so the admin saw "Invitation sent" whether or
+			// not this deployment can send mail at all, and never got the link that
+			// would have let them pass it on by WhatsApp instead.
+			const result = await inviteMember(requireTenant(locals).id, {
 				fullName: String(data.get('fullName') ?? ''),
 				email: String(data.get('email') ?? ''),
 				role: String(data.get('role') ?? 'SALES') as never,
 				invitedByUserId: locals.user!.id
 			});
-			return { invited: true };
+			return { invited: true, inviteLink: result.inviteLink, emailed: result.emailed };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
+	resendInvite: async ({ locals, request }) => {
+		requirePermission(locals.permissions, 'members:write');
+		const data = await request.formData();
+		try {
+			const result = await resendInvite(
+				requireTenant(locals).id,
+				parseUuid(String(data.get('membershipId') ?? ''), 'membership id'),
+				{ userId: locals.user!.id }
+			);
+			return {
+				resent: true,
+				inviteLink: result.inviteLink,
+				emailed: result.emailed,
+				resentTo: result.email
+			};
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}
