@@ -4,6 +4,7 @@
 // /api/v1 authenticates by API key (tenant from the key, never the payload);
 // /app and /admin authenticate by session cookie; webhooks bypass both because Meta
 // authenticates with a signature instead. Security headers are applied to everything.
+import { error, redirect } from '@sveltejs/kit';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { authenticateApiKey } from '$lib/server/api-keys';
 import { permissionsForRole } from '$lib/server/auth/permissions';
@@ -92,6 +93,27 @@ export const handle: Handle = async ({ event, resolve }) => {
 				event.locals.permissions = permissionsForRole('SUPER_ADMIN');
 			}
 		}
+	}
+
+	/*
+	 * The super-admin gate, HERE and not only in src/routes/admin/+layout.server.ts.
+	 *
+	 * A layout `load` does not protect a form action. SvelteKit runs the action
+	 * FIRST and only then loads data for the response — see the runtime's own
+	 * comment, "for action requests, first call handler in +page.server.js"
+	 * (@sveltejs/kit/src/runtime/server/page/index.js:75). So every POST to an
+	 * ?/action under /admin was executing with no check on who sent it: any signed-in
+	 * operator could suspend a tenant, publish a listing, hand out a verification
+	 * badge, or — worst — call ?/openPortal, which writes another tenant's id into
+	 * their own session and hands them that operator's entire account.
+	 *
+	 * A hook runs before routing, so it covers actions, loads, and anything added
+	 * later. The layout check stays: defence in depth, and it is what produces the
+	 * friendly 403 page for a normal visit.
+	 */
+	if (path === '/admin' || path.startsWith('/admin/')) {
+		if (!event.locals.user) redirect(303, '/login');
+		if (!event.locals.user.isSuperAdmin) error(403, 'This area is restricted.');
 	}
 
 	const response = await resolve(event, {
