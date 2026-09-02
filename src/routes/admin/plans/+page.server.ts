@@ -26,7 +26,23 @@ export const actions: Actions = {
 			if (definition.kind === 'boolean') {
 				entitlements[definition.key] = data.get(`e_${definition.key}`) === 'on';
 			} else {
-				entitlements[definition.key] = Math.max(0, Number(data.get(`e_${definition.key}`) ?? 0) || 0);
+				/*
+				 * An empty field means "not set", not "zero".
+				 *
+				 * 0 means UNLIMITED here (see isUnlimited), and this loop ran over EVERY
+				 * entitlement on every save while updatePlan REPLACES the object rather
+				 * than merging it. So a key the form did not carry was written as 0, and
+				 * one click on Save to correct a plan's PRICE could quietly grant that
+				 * plan unlimited API throughput. Skipping leaves the key absent, and the
+				 * registry fallback applies as it is meant to.
+				 */
+				const raw = data.get(`e_${definition.key}`);
+				if (raw === null || String(raw).trim() === '') continue;
+				const n = Number(raw);
+				if (!Number.isFinite(n) || n < 0) {
+					return fail(400, { message: `${definition.label} must be a number of zero or more.` });
+				}
+				entitlements[definition.key] = n;
 			}
 		}
 		try {

@@ -9,7 +9,7 @@ import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { authenticateApiKey } from '$lib/server/api-keys';
 import { permissionsForRole } from '$lib/server/auth/permissions';
 import { resolveSession, SESSION_COOKIE } from '$lib/server/auth/session';
-import { assertFeature, assertTenantActive, getLimit } from '$lib/server/entitlements';
+import { assertFeature, assertTenantActive, getLimit, isUnlimited } from '$lib/server/entitlements';
 import { sha256 } from '$lib/server/encryption';
 import { assertEnv, isProduction } from '$lib/server/env';
 import { errorResponse, toAppError } from '$lib/server/errors';
@@ -67,8 +67,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 			await assertTenantActive(auth.tenant.id);
 			await assertFeature(auth.tenant.id, 'api.enabled');
 			// Per-tenant, per-plan limit — never one global bucket (§28).
-			const limit = (await getLimit(auth.tenant.id, 'api.requestsPerMinute')) || 60;
-			await enforce(`api:${auth.tenant.id}`, limit, 60);
+			/*
+			 * `0` means UNLIMITED everywhere else in this system — isUnlimited() in
+			 * entitlements.ts, and every assertWithinLimit honours it. Here `|| 60`
+			 * turned it into SIXTY, so the one value an admin would set to lift a
+			 * tenant's ceiling was silently the tightest setting available.
+			 *
+			 * No default is needed: the registry already gives this key a fallback
+			 * of 60, so an unconfigured plan resolves to 60 and never to 0.
+			 */
+			const limit = await getLimit(auth.tenant.id, 'api.requestsPerMinute');
+			if (!isUnlimited(limit)) await enforce(`api:${auth.tenant.id}`, limit, 60);
 		} catch (err) {
 			const appError = toAppError(err);
 			log.info('api_auth_rejected', { requestId: event.locals.requestId, path, code: appError.code });

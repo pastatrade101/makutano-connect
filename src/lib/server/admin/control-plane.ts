@@ -440,7 +440,22 @@ export async function setEntitlementOverride(
 	const tenant = (await db().select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)).limit(1))[0];
 	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant not found.');
 
-	const normalised = definition.kind === 'boolean' ? value === true : Math.max(0, Number(value) || 0);
+	/*
+	 * A blank or unparseable override used to become 0 — which means UNLIMITED —
+	 * so a typo in an admin box silently removed a tenant's ceiling and returned a
+	 * success toast. Refused now, because "I could not read that" and "no limit"
+	 * are not the same answer.
+	 */
+	let normalised: EntitlementValue;
+	if (definition.kind === 'boolean') {
+		normalised = value === true;
+	} else {
+		const n = Number(value);
+		if (value === null || value === undefined || String(value).trim() === '' || !Number.isFinite(n) || n < 0) {
+			throw new AppError('VALIDATION_ERROR', `${definition.label} must be a number of zero or more.`);
+		}
+		normalised = n;
+	}
 	const before = (tenant.entitlementOverrides ?? {}) as Record<string, EntitlementValue>;
 	const overrides = { ...before, [key]: normalised };
 

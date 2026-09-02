@@ -68,7 +68,7 @@
 										{#if e.kind === 'boolean'}
 											<input type="checkbox" name="e_{e.key}" checked={valueOf(plan, e.key) === true} class="shrink-0 rounded border-slate-300" />
 										{:else}
-											<input type="number" min="0" name="e_{e.key}" value={String(valueOf(plan, e.key) ?? 0)} title="0 = unlimited" class="input w-24 shrink-0 py-1 text-xs" />
+											<input type="number" min="0" name="e_{e.key}" value={String(valueOf(plan, e.key) ?? e.fallback)} title="0 = unlimited" class="input w-24 shrink-0 py-1 text-xs" />
 										{/if}
 									</div>
 								{/each}

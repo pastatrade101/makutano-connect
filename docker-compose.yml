@@ -29,6 +29,13 @@ services:
       # Let adapter-node build correct https URLs from Caddy's forwarded headers.
       PROTOCOL_HEADER: x-forwarded-proto
       HOST_HEADER: x-forwarded-host
+      # Without this, adapter-node reads the socket peer address — which behind the
+      # shared Caddy is Caddy's own container IP for EVERY visitor. Per-IP rate
+      # limiting then collapses into one bucket shared by the whole internet: one
+      # busy crawler exhausts it and the marketplace, whose API client swallows
+      # errors and renders empty, quietly shows nothing to everyone else.
+      ADDRESS_HEADER: x-forwarded-for
+      XFF_DEPTH: "1"
       # The in-process queue drains WhatsApp sends and webhook processing.
       JOB_WORKER: "on"
 
