@@ -99,7 +99,7 @@
 </script>
 
 <section
-	class="showcase relative hidden min-h-screen overflow-hidden bg-[#241d16] md:flex md:items-center md:justify-center"
+	class="showcase relative hidden min-h-screen overflow-hidden bg-[#241d16] lg:flex lg:items-center lg:justify-center"
 	aria-label="What happens after you sign up"
 	onmouseenter={() => (paused = true)}
 	onmouseleave={() => (paused = false)}
@@ -173,21 +173,16 @@
 				<p class="text-[10.5px] font-semibold tracking-[0.14em] text-white/40 uppercase">
 					In the catalogue right now
 				</p>
-				<dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+				<ul class="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
 					{#each FIGURES as figure (figure.label)}
-						<div>
-							<dt class="sr-only">{figure.label}</dt>
-							<dd>
-								<span class="block text-[26px] leading-none font-bold tracking-[-0.03em] text-white">
-									{figure.value}
-								</span>
-								<span class="mt-1.5 block text-[11.5px] leading-4 text-white/50">
-									{figure.label}
-								</span>
-							</dd>
-						</div>
+						<li>
+							<span class="block text-[26px] leading-none font-bold tracking-[-0.03em] text-white">
+								{figure.value}
+							</span>
+							<span class="mt-1.5 block text-[11.5px] leading-4 text-white/50">{figure.label}</span>
+						</li>
 					{/each}
-				</dl>
+				</ul>
 			</div>
 		{/if}
 

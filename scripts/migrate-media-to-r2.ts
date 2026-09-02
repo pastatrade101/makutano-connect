@@ -75,6 +75,27 @@ const s3 = new S3Client({
 
 const sql = postgres(process.env.DATABASE_URL!, { prepare: false, max: 4 });
 
+/**
+ * Sources this migration does not touch.
+ *
+ * The Goldfinch bucket is left exactly as it is, by instruction. Its 48 images
+ * are neither read nor copied, and their rows keep pointing at it.
+ *
+ * Be clear about what that means: those tour photographs stay in storage this
+ * project does not control, so they remain pictures that disappear the day that
+ * bucket does. That is a deliberate choice, not an oversight — delete the host
+ * from this list and re-run to bring them across.
+ */
+const SKIP_HOSTS = ['pub-8de96adc0f804576b6233fa914136e0d.r2.dev'];
+
+const hostOf = (url: string): string => {
+	try {
+		return new URL(url).host;
+	} catch {
+		return '';
+	}
+};
+
 /** The same allowlist media.ts enforces on upload. Anything else is not copied. */
 const EXT: Record<string, string> = {
 	'image/jpeg': 'jpg',
@@ -157,6 +178,7 @@ console.log(`${rows.length} media rows\n`);
 
 let moved = 0;
 let skipped = 0;
+let left = 0;
 const failures: { id: string; url: string; why: string }[] = [];
 
 for (const row of rows) {
@@ -165,6 +187,12 @@ for (const row of rows) {
 	// Already home. This is what makes the script resumable.
 	if (row.url.startsWith(`${PUBLIC}/`)) {
 		skipped++;
+		continue;
+	}
+
+	// Left alone on purpose. Not read, not copied, row not touched.
+	if (SKIP_HOSTS.includes(hostOf(row.url))) {
+		left++;
 		continue;
 	}
 
@@ -220,6 +248,7 @@ for (const row of rows) {
 console.log('');
 console.log(`moved    ${moved}`);
 console.log(`skipped  ${skipped} (already on ${PUBLIC})`);
+console.log(`left     ${left} untouched on ${SKIP_HOSTS.join(', ')}`);
 console.log(`failed   ${failures.length}`);
 for (const f of failures) console.log(`  ${f.id}  ${f.why}\n    ${f.url}`);
 

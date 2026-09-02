@@ -50,7 +50,15 @@
 	{/if}
 </svelte:head>
 
-<div class="min-h-screen bg-[#f7f5f1] md:grid md:grid-cols-[minmax(330px,0.86fr)_minmax(430px,1.14fr)]">
+<!--
+	The split waits for lg.
+
+	At md it gave the form 0.86fr against the panel's 1.14fr, and a 768px tablet
+	got a 266px form card — narrower than the 343px the same form gets on a 375px
+	phone, with 208px inputs. The panel is decoration; the form is the page. It
+	does not get to take half the screen until there is a screen to halve.
+-->
+<div class="min-h-screen bg-[#f7f5f1] lg:grid lg:grid-cols-[minmax(430px,1fr)_minmax(420px,1fr)]">
 	<main class="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10 sm:px-8 md:py-12">
 		<div
 			class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_5%,rgba(180,83,42,0.07),transparent_25rem)]"
@@ -235,7 +243,7 @@
 
 			<!-- The showcase is hidden below md, so the small screen gets the one
 			     line it would otherwise lose entirely. -->
-			<div class="mt-7 border-t border-slate-200 pt-5 text-center md:hidden">
+			<div class="mt-7 border-t border-slate-200 pt-5 text-center lg:hidden">
 				<p class="text-xs font-medium text-slate-600">
 					List your tours. Answer on your own WhatsApp. Quote, book and get paid.
 				</p>
