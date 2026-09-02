@@ -9,7 +9,53 @@ import { db, schema } from '$lib/server/db';
 import { normalizeWorkspace } from '$lib/workspace';
 import { paymentMethodIssue, paymentMethods, type PaymentMethod } from '$lib/server/payment-requests';
 import { availableProviders } from '$lib/server/payments/providers';
+import { CURRENCIES } from '$lib/tour-options';
 import type { PageServerLoad } from './$types';
+
+/*
+ * The four settings that were free text and should never have been.
+ *
+ * "Country (ISO-2)" asked an operator to know that Tanzania is TZ; "Locale"
+ * asked for a BCP-47 tag. Both are codes the system needs and the person does
+ * not have — a box that accepts "Tanzania" and silently stores "TA" is worse
+ * than a list. Currencies come from tour-options so pricing and settings cannot
+ * disagree about what this marketplace supports.
+ *
+ * Short on purpose. These are the places Makutano operators actually work from;
+ * adding one is a decision about what the product supports, not something an
+ * operator does by typing.
+ */
+const COUNTRY_OPTIONS = [
+	{ code: 'TZ', name: 'Tanzania' },
+	{ code: 'KE', name: 'Kenya' },
+	{ code: 'UG', name: 'Uganda' },
+	{ code: 'RW', name: 'Rwanda' },
+	{ code: 'BI', name: 'Burundi' },
+	{ code: 'ZM', name: 'Zambia' },
+	{ code: 'MW', name: 'Malawi' },
+	{ code: 'ZA', name: 'South Africa' },
+	{ code: 'GB', name: 'United Kingdom' },
+	{ code: 'US', name: 'United States' },
+	{ code: 'AE', name: 'United Arab Emirates' }
+];
+
+const TIMEZONE_OPTIONS = [
+	'Africa/Dar_es_Salaam',
+	'Africa/Nairobi',
+	'Africa/Kampala',
+	'Africa/Kigali',
+	'Africa/Lusaka',
+	'Africa/Johannesburg',
+	'Europe/London',
+	'Asia/Dubai',
+	'UTC'
+];
+
+const LOCALE_OPTIONS = [
+	{ code: 'en', name: 'English' },
+	{ code: 'sw', name: 'Kiswahili' },
+	{ code: 'fr', name: 'French' }
+];
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const tenant = requireTenantPermission(locals, 'tenant:read');
@@ -38,6 +84,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 			logoUrl: tenant.logoUrl,
 			bookingReferencePrefix: tenant.bookingReferencePrefix,
 			quotationPrefix: tenant.quotationPrefix
+		},
+		options: {
+			countries: COUNTRY_OPTIONS,
+			timezones: TIMEZONE_OPTIONS,
+			locales: LOCALE_OPTIONS,
+			currencies: CURRENCIES.map((c) => ({ code: c.code, label: c.label }))
 		},
 		onlinePaymentProviders: availableProviders().filter(
 			(provider) => provider.configured && provider.code !== 'MANUAL' && provider.code !== 'BANK_TRANSFER'
@@ -188,7 +240,12 @@ export const actions: Actions = {
 						.toUpperCase()
 						.slice(0, 2) || null,
 				locale: String(data.get('locale') ?? 'en'),
-				logoUrl: String(data.get('logoUrl') ?? '') || null,
+				// logoUrl is deliberately NOT read from this form any more. It is a mirror
+				// of the uploaded brand logo (see settings/profile), and a free-text box
+				// here let an operator set a URL the marketplace never reads — they
+				// changed their logo and nothing happened. Absent from the form means
+				// untouched, never blanked.
+				logoUrl: tenant.logoUrl,
 				// Changing a prefix only affects NEW references; existing ones are immutable.
 				bookingReferencePrefix:
 					String(data.get('bookingReferencePrefix') ?? 'MKT')

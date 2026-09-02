@@ -217,6 +217,21 @@ export const actions: Actions = {
 				.update(schema.operatorProfiles)
 				.set({ [slot === 'logo' ? 'logoMediaId' : 'coverMediaId']: media.id, updatedAt: new Date() })
 				.where(eq(schema.operatorProfiles.tenantId, tenant.id));
+
+			// The logo has to reach the readers that never learned about media rows.
+			//
+			// Quotes, emails and order links render `tenants.logo_url`, a free-text
+			// column an operator used to type a URL into; the marketplace renders
+			// `operator_profiles.logo_media_id`. An operator who changed one saw
+			// nothing change in the other, which is exactly the bug this mirrors away.
+			// One upload, every surface. The column stays as the legacy readers'
+			// interface rather than being chased through five call sites.
+			if (slot === 'logo') {
+				await db()
+					.update(schema.tenants)
+					.set({ logoUrl: publicMedia(media)?.url ?? null, updatedAt: new Date() })
+					.where(eq(schema.tenants.id, tenant.id));
+			}
 			return { success: true, saved: slot };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -236,6 +251,15 @@ export const actions: Actions = {
 			.update(schema.operatorProfiles)
 			.set({ [slot === 'logo' ? 'logoMediaId' : 'coverMediaId']: null, updatedAt: new Date() })
 			.where(eq(schema.operatorProfiles.tenantId, tenant.id));
+
+		// Clear the mirror as well: a logo that survives its own removal on quotes
+		// and emails is worse than one that never uploaded.
+		if (slot === 'logo') {
+			await db()
+				.update(schema.tenants)
+				.set({ logoUrl: null, updatedAt: new Date() })
+				.where(eq(schema.tenants.id, tenant.id));
+		}
 		return { success: true, saved: slot };
 	}
 };

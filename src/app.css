@@ -213,6 +213,17 @@ input[type='submit'][aria-busy='true']::after {
 	.input {
 		@apply w-full rounded-panel border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-0;
 	}
+	/* A file picker that matches the other controls.
+	   The browser's default button is styled in place through
+	   ::file-selector-button rather than hidden behind a fake one, so keyboard
+	   focus, the file name, and screen-reader behaviour all stay native. */
+	.file-input {
+		@apply w-full rounded-panel border border-slate-200 bg-white text-xs text-slate-500;
+		@apply file:mr-3 file:cursor-pointer file:rounded-l-panel file:border-0 file:bg-slate-100;
+		@apply file:px-3 file:py-2 file:text-xs file:font-medium file:text-slate-700;
+		@apply hover:file:bg-slate-200;
+	}
+
 	.label {
 		@apply mb-1.5 block text-xs font-semibold text-slate-600;
 	}

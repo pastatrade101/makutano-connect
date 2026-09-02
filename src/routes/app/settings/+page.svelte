@@ -21,11 +21,59 @@
 		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Business</header>
 		<div class="grid gap-3 p-3 sm:grid-cols-2">
 			<div><label class="label" for="name">Business name</label><input id="name" name="name" value={data.settings.name} class="input" disabled={!canWrite} /></div>
-			<div><label class="label" for="logoUrl">Logo URL</label><input id="logoUrl" name="logoUrl" value={data.settings.logoUrl ?? ''} class="input" disabled={!canWrite} /></div>
-			<div><label class="label" for="timezone">Timezone</label><input id="timezone" name="timezone" value={data.settings.timezone} class="input" disabled={!canWrite} /></div>
-			<div><label class="label" for="currency">Currency</label><input id="currency" name="currency" value={data.settings.currency} maxlength="3" class="input" disabled={!canWrite} /></div>
-			<div><label class="label" for="country">Country (ISO-2)</label><input id="country" name="country" value={data.settings.country ?? ''} maxlength="2" class="input" disabled={!canWrite} /></div>
-			<div><label class="label" for="locale">Locale</label><input id="locale" name="locale" value={data.settings.locale} class="input" disabled={!canWrite} /></div>
+
+			<!-- The logo is NOT editable here.
+			     It used to be a free-text "Logo URL" box, and that box was a lie: the
+			     marketplace renders the uploaded brand logo, so an operator could change
+			     this field and watch nothing happen on their storefront. One logo, set
+			     in one place, shown here so this page still answers "what is my logo?" -->
+			<div>
+				<span class="label">Logo</span>
+				<div class="flex items-center gap-3 rounded-panel border border-slate-200 bg-slate-50 px-3 py-2">
+					{#if data.settings.logoUrl}
+						<img src={data.settings.logoUrl} alt="" class="size-9 shrink-0 rounded-panel border border-slate-200 bg-white object-contain" />
+					{:else}
+						<span class="flex size-9 shrink-0 items-center justify-center rounded-panel border border-dashed border-slate-300 text-[11px] text-slate-400">—</span>
+					{/if}
+					<a href="/app/settings/profile" class="text-xs font-medium text-brand-600 hover:underline">
+						{data.settings.logoUrl ? 'Change logo and banner' : 'Add your logo and banner'}
+					</a>
+				</div>
+			</div>
+
+			<div>
+				<label class="label" for="timezone">Timezone</label>
+				<select id="timezone" name="timezone" class="input" disabled={!canWrite}>
+					{#each data.options.timezones as tz (tz)}
+						<option value={tz} selected={data.settings.timezone === tz}>{tz.replace(/_/g, ' ')}</option>
+					{/each}
+				</select>
+			</div>
+			<div>
+				<label class="label" for="currency">Currency</label>
+				<select id="currency" name="currency" class="input" disabled={!canWrite}>
+					{#each data.options.currencies as c (c.code)}
+						<option value={c.code} selected={data.settings.currency === c.code}>{c.code} — {c.label}</option>
+					{/each}
+				</select>
+			</div>
+			<div>
+				<label class="label" for="country">Country</label>
+				<select id="country" name="country" class="input" disabled={!canWrite}>
+					<option value="">Not set</option>
+					{#each data.options.countries as c (c.code)}
+						<option value={c.code} selected={data.settings.country === c.code}>{c.name}</option>
+					{/each}
+				</select>
+			</div>
+			<div>
+				<label class="label" for="locale">Language</label>
+				<select id="locale" name="locale" class="input" disabled={!canWrite}>
+					{#each data.options.locales as l (l.code)}
+						<option value={l.code} selected={data.settings.locale === l.code}>{l.name}</option>
+					{/each}
+				</select>
+			</div>
 			<div>
 				<label class="label" for="bookingReferencePrefix">Booking reference prefix</label>
 				<input id="bookingReferencePrefix" name="bookingReferencePrefix" value={data.settings.bookingReferencePrefix} class="input" disabled={!canWrite} />
@@ -42,7 +90,6 @@
 				<p class="mt-1 text-[12.5px] text-slate-400">
 					This organises your menus and dashboard around your kind of work. It never adds or removes plan features.
 				</p>
-				<p class="mt-1 text-[12.5px] text-slate-400">Controls which features appear in navigation — nothing is deleted by switching.</p>
 			</div>
 		</div>
 		{#if canWrite}<div class="border-t border-slate-200 p-3"><button class="btn-primary">Save settings</button></div>{/if}

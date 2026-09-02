@@ -4,6 +4,27 @@
 	import FormToast from '$components/FormToast.svelte';
 	let { data, form } = $props();
 
+	/** Each brand image, with the shape it actually becomes. */
+	const BRAND_SLOTS = [
+		{
+			slot: 'logo',
+			label: 'Logo',
+			ratio: 'square',
+			hint: 'Square works best. Shown beside your name on the marketplace, and on your quotes and emails.'
+		},
+		{
+			slot: 'cover',
+			label: 'Banner',
+			ratio: 'wide  3:1',
+			hint: 'A wide photo across the top of your storefront. Around 1600 x 500 keeps it sharp.'
+		}
+	] as const;
+
+	// Which slot has a file chosen. The upload button stays disabled until there is
+	// something to upload, so the commonest mistake — pressing Upload having picked
+	// nothing, and getting a validation error back — cannot happen.
+	let busy = $state<string | null>(null);
+
 	const publicUrl = $derived(`https://journeys.makutano.co.tz/operators/${data.profile.slug}`);
 	// Seeded once, then owned by the operator while they type — untrack makes
 	// that a stated intent rather than an accidental snapshot.
@@ -141,31 +162,75 @@
 		</form>
 
 		<div class="mt-6 border-t border-slate-100 pt-5">
-			<h3 class="text-xs font-semibold text-slate-700">Logo and cover</h3>
+			<h3 class="text-sm font-semibold text-slate-800">Brand images</h3>
+			<p class="mt-0.5 text-xs text-slate-500">
+				This is the only place your logo is set. It appears on your marketplace storefront and on
+				every quote and email you send.
+			</p>
+
 			{#if !data.mediaEnabled}
-				<p class="mt-2 text-[12px] text-amber-700">Image upload is not configured on this deployment yet.</p>
+				<p class="mt-3 rounded-panel border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-slate-700">
+					Image upload is not configured on this deployment yet.
+				</p>
 			{:else}
-				<div class="mt-3 grid gap-4 sm:grid-cols-2">
-					{#each [{ slot: 'logo', label: 'Logo', current: data.profile.logo }, { slot: 'cover', label: 'Cover image', current: data.profile.cover }] as item (item.slot)}
-						<div class="rounded-lg border border-slate-200 p-3">
-							<p class="text-xs font-medium text-slate-600">{item.label}</p>
-							{#if item.current}
-								<img src={item.current.url} alt={item.current.altText ?? item.label} class="mt-2 h-24 w-full rounded object-cover" />
-								<form method="POST" action="?/removeImage" use:enhance class="mt-2">
-									<input type="hidden" name="slot" value={item.slot} />
-									<button class="btn-secondary !py-1 !text-[12px]" type="submit">Remove</button>
-								</form>
-							{:else}
-								<p class="mt-2 text-[11px] text-slate-400">Nothing uploaded yet.</p>
-							{/if}
-							{#if data.canWrite}
-								<form method="POST" action="?/uploadImage" enctype="multipart/form-data" use:enhance class="mt-2 space-y-2">
-									<input type="hidden" name="slot" value={item.slot} />
-									<input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/avif" class="block w-full text-[11px]" required />
-									<input name="altText" class="input !py-1 !text-[12px]" placeholder="Describe the image" />
-									<button class="btn-secondary !py-1 !text-[12px]" type="submit">Upload</button>
-								</form>
-							{/if}
+				<!-- Logo and banner are not the same control.
+				     One is a small square that sits beside your name; the other is a wide
+				     header behind it. Rendering both as identical grey boxes — which is what
+				     this did — tells an operator nothing about what shape of picture to bring,
+				     so each preview is now the shape and size of the thing it becomes. -->
+				<div class="mt-4 space-y-4">
+					{#each BRAND_SLOTS as item (item.slot)}
+						{@const current = item.slot === 'logo' ? data.profile.logo : data.profile.cover}
+						<div class="rounded-panel border border-slate-200 p-3 sm:flex sm:items-start sm:gap-4">
+							<div class="{item.slot === 'logo' ? 'size-20' : 'h-20 w-full sm:w-60'} shrink-0 overflow-hidden rounded-panel border border-slate-200 bg-slate-50">
+								{#if current}
+									<img src={current.url} alt={current.altText ?? item.label} class="size-full {item.slot === 'logo' ? 'object-contain p-1.5' : 'object-cover'}" />
+								{:else}
+									<span class="flex size-full items-center justify-center text-center text-[11px] leading-tight text-slate-400">{item.ratio}</span>
+								{/if}
+							</div>
+
+							<div class="mt-3 min-w-0 flex-1 sm:mt-0">
+								<p class="text-sm font-medium text-slate-800">{item.label}</p>
+								<p class="mt-0.5 text-xs text-slate-500">{item.hint}</p>
+
+								{#if data.canWrite}
+									<form
+										method="POST"
+										action="?/uploadImage"
+										enctype="multipart/form-data"
+										use:enhance={() => async ({ update }) => { busy = null; await update(); }}
+										class="mt-3 flex flex-wrap items-center gap-2"
+									>
+										<input type="hidden" name="slot" value={item.slot} />
+										<!-- The file input is styled through ::file-selector-button (see app.css)
+										     rather than hidden behind a fake button: a real input keeps the
+										     keyboard and screen-reader behaviour the browser already gives us. -->
+										<input
+											type="file"
+											name="file"
+											accept="image/jpeg,image/png,image/webp,image/avif"
+											required
+											aria-label="{current ? 'Replace' : 'Upload'} {item.label.toLowerCase()}"
+											class="file-input min-w-0 flex-1"
+											onchange={(e) => (busy = e.currentTarget.files?.length ? item.slot : null)}
+										/>
+										<button class="btn-secondary !py-1.5 text-xs" type="submit" disabled={busy !== item.slot}>
+											{current ? 'Replace' : 'Upload'}
+										</button>
+									</form>
+									{#if current}
+										<form method="POST" action="?/removeImage" use:enhance class="mt-2">
+											<input type="hidden" name="slot" value={item.slot} />
+											<button class="text-xs font-medium text-slate-500 hover:text-danger hover:underline" type="submit">
+												Remove {item.label.toLowerCase()}
+											</button>
+										</form>
+									{/if}
+								{:else if !current}
+									<p class="mt-3 text-xs text-slate-400">Nothing uploaded yet.</p>
+								{/if}
+							</div>
 						</div>
 					{/each}
 				</div>

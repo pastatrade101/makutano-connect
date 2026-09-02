@@ -52,12 +52,10 @@ const gaps = await db.execute(raw`
 `);
 
 if (!gaps.length) {
-	console.log('Every tenant with listings has an operator profile. Nothing to do.');
-	await client.end();
-	process.exit(0);
+	console.log('Every tenant with listings has an operator profile.');
+} else {
+	console.log(`${APPLY ? 'BACKFILL' : 'DRY RUN'}  ${gaps.length} tenant(s) with listings and no operator profile\n`);
 }
-
-console.log(`${APPLY ? 'BACKFILL' : 'DRY RUN'}  ${gaps.length} tenant(s) with listings and no operator profile\n`);
 for (const row of gaps as unknown as {
 	id: string;
 	slug: string;
@@ -97,6 +95,67 @@ for (const row of gaps as unknown as {
 			if (raced) break;
 			if (attempt === 24) throw new Error(`Could not create a profile for ${label}.`);
 		}
+	}
+}
+
+/* ------------------------------------------------------- legacy logos ---- */
+
+/*
+ * A logo that exists but nothing points at.
+ *
+ * `tenants.logo_url` was once a free-text box on the settings page; the
+ * marketplace has always rendered `operator_profiles.logo_media_id`. Operators
+ * who typed a URL into that box saw their storefront stay blank — and had no way
+ * to tell why. The box is gone and uploads now mirror both ways, but the
+ * operators who already used it need their existing image adopted.
+ *
+ * Only URLs already in our own media host are adopted: a row is a handle the
+ * product may later resize or delete, and pointing one at somebody else's server
+ * would be claiming a file we do not hold.
+ */
+const mediaHost = (process.env.R2_PUBLIC_URL || '').replace(/\/+$/, '');
+
+const orphanLogos = await db.execute(raw`
+	select t.id as tenant_id, t.name, t.logo_url, p.id as profile_id
+	from tenants t
+	join operator_profiles p on p.tenant_id = t.id
+	where t.deleted_at is null
+	  and t.logo_url is not null and t.logo_url <> ''
+	  and p.logo_media_id is null
+`);
+
+if (orphanLogos.length) {
+	console.log(`\n${APPLY ? 'ADOPT' : 'DRY RUN'}  ${orphanLogos.length} operator(s) with a logo the marketplace cannot see`);
+	for (const row of orphanLogos as unknown as { tenant_id: string; name: string; logo_url: string; profile_id: string }[]) {
+		const ours = mediaHost && row.logo_url.startsWith(mediaHost);
+		console.log(`  ${row.name.padEnd(24)} ${ours ? 'adoptable' : 'SKIPPED — not on our media host'}  ${row.logo_url}`);
+		if (!ours || !APPLY) continue;
+
+		const key = row.logo_url.slice(mediaHost.length).replace(/^\/+/, '');
+		const ext = key.split('.').pop()?.toLowerCase() ?? '';
+		const mime =
+			ext === 'avif' ? 'image/avif'
+			: ext === 'webp' ? 'image/webp'
+			: ext === 'png' ? 'image/png'
+			: 'image/jpeg';
+
+		const [media] = await db
+			.insert(schema.media)
+			.values({
+				tenantId: row.tenant_id,
+				storageProvider: 'R2',
+				objectKey: key,
+				url: row.logo_url,
+				mimeType: mime,
+				altText: `${row.name} logo`
+			})
+			.returning({ id: schema.media.id });
+
+		await db
+			.update(schema.operatorProfiles)
+			.set({ logoMediaId: media.id, updatedAt: new Date() })
+			.where(eq(schema.operatorProfiles.tenantId, row.tenant_id));
+		console.log(`      linked as media ${media.id}`);
 	}
 }
 
