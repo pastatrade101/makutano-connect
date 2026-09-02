@@ -16,6 +16,21 @@
 		unpublish: 'Unpublish'
 	};
 
+	/*
+	 * The one move this row is most likely to need, offered inline.
+	 *
+	 * Bulk is for fifteen; it should not be the ONLY way to move one. The queue
+	 * previously sent a reviewer to the detail page to publish a single listing —
+	 * a page load to press a button they had already decided on.
+	 */
+	const PRIMARY: Record<string, string> = {
+		SUBMITTED: 'approve',
+		IN_REVIEW: 'approve',
+		APPROVED: 'publish',
+		UNPUBLISHED: 'publish',
+		PUBLISHED: 'unpublish'
+	};
+
 	let selected = $state<string[]>([]);
 	let note = $state('');
 	// Selection belongs to the list you were looking at. Changing tab or filter
@@ -225,6 +240,14 @@
 				<span class="text-[11.5px] text-slate-500">
 					{selected.length ? `${selected.length} of ${data.rows.length} on this page` : `${data.total} listing${data.total === 1 ? '' : 's'}`}
 				</span>
+				<!-- The bulk bar only exists once something is ticked, so without this the
+				     instruction "select them and choose Publish" has no visible starting
+				     point. -->
+				{#if !selected.length && data.rows.length > 1}
+					<button type="button" class="text-[11.5px] font-medium text-brand-600 hover:underline" onclick={toggleAll}>
+						Select all {data.rows.length}
+					</button>
+				{/if}
 			</div>
 		{/if}
 
@@ -268,7 +291,14 @@
 						{#if row.priceFrom}<span class="tabular-nums text-slate-600">{row.currency} {Number(row.priceFrom).toLocaleString()}</span>{/if}
 						{#if row.durationDays}<span class="text-slate-400">· {row.durationDays} days</span>{/if}
 						{#if row.submittedAt}
-							<span class={ageTone(row.submittedAt)}>· waiting <TimeAgo value={row.submittedAt} /></span>
+							<!-- "Waiting" is only true while the listing is waiting on US. On the
+							     approved and published tabs the same timestamp is just when it
+							     arrived, and the age tone means nothing there either. -->
+							{#if data.tab === 'pending' || data.tab === 'changes'}
+								<span class={ageTone(row.submittedAt)}>· waiting <TimeAgo value={row.submittedAt} /></span>
+							{:else}
+								<span class="text-slate-400">· submitted <TimeAgo value={row.submittedAt} /></span>
+							{/if}
 						{/if}
 						{#if row.editedSinceSubmitted}<span class="text-slate-400">· edited since</span>{/if}
 						{#if row.reviewer}<span class="text-slate-400">· with {row.reviewer}</span>{/if}
@@ -281,7 +311,23 @@
 
 				<div class="flex shrink-0 flex-col items-end gap-1.5">
 					<StatusBadge value={row.status} />
-					<a href="/admin/marketplace/tours/{row.id}" class="text-xs font-medium text-brand-600 hover:underline">Review</a>
+					{#if PRIMARY[row.status] && row.actions.includes(PRIMARY[row.status])}
+						{@const primary = PRIMARY[row.status]}
+						{@const blocked = primary === 'publish' && row.gaps.length > 0}
+						<form method="POST" action="?/bulk" use:enhance>
+							<input type="hidden" name="ids" value={row.id} />
+							<button
+								name="action"
+								value={primary}
+								disabled={blocked}
+								title={blocked ? `Still needs ${row.gaps.join(', ')}` : undefined}
+								class="{primary === 'publish' || primary === 'approve' ? 'btn-primary' : 'btn-secondary'} !py-1 text-[11.5px] disabled:opacity-40"
+							>
+								{LABELS[primary]}
+							</button>
+						</form>
+					{/if}
+					<a href="/admin/marketplace/tours/{row.id}" class="text-[11.5px] font-medium text-brand-600 hover:underline">Review</a>
 				</div>
 			</div>
 		{:else}
