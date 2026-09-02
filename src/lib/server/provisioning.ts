@@ -21,7 +21,16 @@ import { workspaceForIndustry } from '$lib/workspace';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
-/** Industries offered at signup. `capabilities` seeds the tenant's default modules. */
+/**
+ * Every industry this database has ever stored. `capabilities` seeds the
+ * tenant's default modules.
+ *
+ * KEPT COMPLETE ON PURPOSE, even though signup no longer offers most of it.
+ * Tenants created before the narrowing still carry these values — production has
+ * an OTHER — and dropping a value from here would leave their industry unable to
+ * resolve to a label. What signup ACCEPTS is SIGNUP_INDUSTRIES below; this list
+ * is what the product can still read.
+ */
 export const INDUSTRIES = [
 	{ value: 'TRAVEL_TOURISM', label: 'Travel & Tourism', capabilities: 'BOOKINGS' },
 	{ value: 'HOSPITALITY', label: 'Hospitality', capabilities: 'BOOKINGS' },
@@ -36,6 +45,25 @@ export const INDUSTRIES = [
 ] as const;
 
 export type Industry = (typeof INDUSTRIES)[number]['value'];
+
+/**
+ * What a new account may be. Makutano sells one journey — a Tanzanian tour
+ * operator reaching a traveller — and docs/PRODUCT.md is explicit that breadth
+ * is worth less than that one journey working end to end. A restaurant signing
+ * up got a workspace with an Orders module and no route to the marketplace,
+ * which serves neither them nor the product.
+ *
+ * This is enforced in the onboarding action, not merely rendered: the industry
+ * arrived from a form field with no validation at all, so anything the browser
+ * posted was stored verbatim.
+ */
+export const SIGNUP_INDUSTRIES = INDUSTRIES.filter((i) => i.value === 'TRAVEL_TOURISM');
+
+export const isSignupIndustry = (value: string): boolean =>
+	SIGNUP_INDUSTRIES.some((i) => i.value === value);
+
+/** The one industry signup creates, used when the question is not worth asking. */
+export const DEFAULT_SIGNUP_INDUSTRY: Industry = 'TRAVEL_TOURISM';
 
 /**
  * Short, honest plan-card bullets derived from the plan row itself.

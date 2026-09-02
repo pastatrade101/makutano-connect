@@ -18,7 +18,8 @@
 	let submitting = $state(false);
 	let step = $state(initial.step);
 	let primaryGoal = $state(initial.primaryGoal);
-	let industry = $state(initial.industry);
+	// Fixed: signup creates tour and travel operators and nothing else.
+	let industry = $state(initial.industry || 'TRAVEL_TOURISM');
 	let systemSource = $state(initial.systemSource);
 	let businessName = $state(initial.businessName);
 	let country = $state(initial.country);
@@ -28,10 +29,8 @@
 
 	const goals = [
 		{ value: 'BOOKINGS', label: 'Bookings & enquiries', hint: 'Reservations, trips, stays and appointments', icon: 'M4 5h12v11H4V5Zm3-2v4m6-4v4M7 10h6' },
-		{ value: 'ORDERS', label: 'Orders & sales', hint: 'Products, food and customer orders', icon: 'M5 5h10l1 3v8H4V8l1-3Zm-1 3h12M8 11a2 2 0 0 0 4 0' },
 		{ value: 'SERVICE', label: 'Customer service', hint: 'Enquiries, quotations and client follow-up', icon: 'M3 4h14v9H7l-4 3V4Zm4 4h6m-6 3h4' },
-		{ value: 'PAYMENTS', label: 'Payments & follow-up', hint: 'Payment requests, verification and notifications', icon: 'M3 6h14v9H3V6Zm0 3h14m-11 3h3' },
-		{ value: 'HYBRID', label: 'Multiple workflows', hint: 'A genuine mix of bookings and customer orders', icon: 'M4 4h5v5H4V4Zm7 7h5v5h-5v-5M9 6h4a2 2 0 0 1 2 2v3M11 14H7a2 2 0 0 1-2-2V9' }
+		{ value: 'PAYMENTS', label: 'Payments & follow-up', hint: 'Payment requests, verification and notifications', icon: 'M3 6h14v9H3V6Zm0 3h14m-11 3h3' }
 	] as const;
 
 	const systemOptions = [
@@ -42,16 +41,11 @@
 	] as const;
 
 	const selectedGoal = $derived(goals.find((goal) => goal.value === primaryGoal));
-	const selectedIndustry = $derived(data.industries.find((item) => item.value === industry));
 	const selectedSource = $derived(systemOptions.find((item) => item.value === systemSource));
 	const recommendedPlanCode = $derived(data.plans.find((plan) => plan.code === 'BUSINESS')?.code ?? data.defaultPlanCode);
-	const needsSystemSource = $derived(['TRAVEL_TOURISM', 'RETAIL', 'RESTAURANT_FOOD'].includes(industry));
-	const sourceQuestion = $derived(
-		industry === 'TRAVEL_TOURISM'
-			? 'Where do you currently manage your tours?'
-			: 'Where do you currently manage products and orders?'
-	);
-	const stepOneReady = $derived(Boolean(primaryGoal && industry));
+	const needsSystemSource = $derived(industry === 'TRAVEL_TOURISM');
+	const sourceQuestion = 'Where do you currently manage your tours?';
+	const stepOneReady = $derived(Boolean(primaryGoal));
 	const stepTwoReady = $derived(
 		Boolean(businessName.trim() && country && businessPhone.trim() && (!needsSystemSource || systemSource))
 	);
@@ -156,24 +150,26 @@
 
 				<div class="grid gap-2.5 sm:grid-cols-2">
 					{#each goals as goal (goal.value)}
-						<label class="group cursor-pointer rounded-xl border p-4 transition {primaryGoal === goal.value ? 'border-brand-400 bg-brand-50/70 ring-1 ring-brand-300' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/70'} {goal.value === 'HYBRID' ? 'sm:col-span-2' : ''}">
+						<label class="group cursor-pointer rounded-xl border p-4 transition {primaryGoal === goal.value ? 'border-brand-400 bg-brand-50/70 ring-1 ring-brand-300' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/70'}">
 							<input type="radio" name="primaryGoal" value={goal.value} bind:group={primaryGoal} class="sr-only" />
 							<span class="flex items-start gap-3"><span class="flex size-9 shrink-0 items-center justify-center rounded-lg {primaryGoal === goal.value ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-white'}"><svg class="size-4.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={goal.icon} /></svg></span><span><span class="block text-sm font-semibold text-slate-800">{goal.label}</span><span class="mt-1 block text-[11px] leading-4 text-slate-500">{goal.hint}</span></span></span>
 						</label>
 					{/each}
 				</div>
 
-				<div class="mt-8 border-t border-slate-100 pt-7">
-					<h3 class="text-sm font-semibold text-slate-800">What best describes your business?</h3>
-					<div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-						{#each data.industries as item (item.value)}
-							<label class="cursor-pointer rounded-lg border px-3 py-2.5 text-xs font-medium transition {industry === item.value ? 'border-brand-400 bg-brand-50 text-brand-700 ring-1 ring-brand-300' : 'border-slate-200 text-slate-600 hover:border-slate-300'}">
-								<input type="radio" name="industry" value={item.value} bind:group={industry} class="sr-only" />
-								{item.label}
-							</label>
-						{/each}
-					</div>
-				</div>
+				<!--
+					The industry question is gone: there is one answer.
+
+					Makutano is for Tanzanian tour and travel operators, and asking a
+					question with a single option is a step that only costs the operator
+					time. The value still posts, and the server allowlists it — hiding
+					options in markup restricts nothing on its own.
+				-->
+				<input type="hidden" name="industry" value={industry} />
+				<p class="mt-6 border-t border-slate-100 pt-6 text-xs leading-relaxed text-slate-500">
+					Makutano Connect is built for tour and travel operators — listing trips on Makutano
+					Journeys and running the enquiries, quotations and bookings that follow.
+				</p>
 
 				<div class="mt-8 flex justify-end"><button type="button" class="btn-primary min-h-11 !rounded-lg !px-6" disabled={!stepOneReady} onclick={() => forward(2)}>Continue →</button></div>
 			</section>
@@ -225,7 +221,7 @@
 
 				<div class="mt-6 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
 					<p class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Your starting workspace</p>
-					<div class="mt-3 grid gap-3 text-xs sm:grid-cols-3"><div><span class="block text-slate-400">Main use</span><span class="mt-0.5 block font-semibold text-slate-700">{selectedGoal?.label}</span></div><div><span class="block text-slate-400">Business</span><span class="mt-0.5 block font-semibold text-slate-700">{selectedIndustry?.label}</span></div><div><span class="block text-slate-400">Existing system</span><span class="mt-0.5 block font-semibold text-slate-700">{selectedSource?.label ?? 'Not specified'}</span></div></div>
+					<div class="mt-3 grid gap-3 text-xs sm:grid-cols-3"><div><span class="block text-slate-400">Main use</span><span class="mt-0.5 block font-semibold text-slate-700">{selectedGoal?.label}</span></div><div><span class="block text-slate-400">Business</span><span class="mt-0.5 block font-semibold text-slate-700">Tour &amp; travel operator</span></div><div><span class="block text-slate-400">Existing system</span><span class="mt-0.5 block font-semibold text-slate-700">{selectedSource?.label ?? 'Not specified'}</span></div></div>
 				</div>
 
 				{#if data.trialDays > 0}<p class="mt-5 text-center text-[11px] font-medium text-success">{data.trialDays}-day free trial · No card required · Upgrade when Connect becomes part of your operation</p>{/if}

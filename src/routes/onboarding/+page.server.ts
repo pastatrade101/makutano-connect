@@ -6,7 +6,9 @@ import { setActiveTenant } from '$lib/server/auth/session';
 import { toAppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
 import {
-	INDUSTRIES,
+	DEFAULT_SIGNUP_INDUSTRY,
+	isSignupIndustry,
+	SIGNUP_INDUSTRIES,
 	defaultSignupPlanCode,
 	planHighlights,
 	provisionTenant,
@@ -52,12 +54,16 @@ const LOCALE_DEFAULTS: Record<string, { currency: string; timezone: string }> = 
 	US: { currency: 'USD', timezone: 'America/New_York' }
 };
 
+/*
+ * ORDERS and HYBRID are gone with the industries that needed them. A tour
+ * operator does not sell products, and offering a workspace nothing in the
+ * marketplace feeds was a way to end up in the wrong half of the product on the
+ * first screen.
+ */
 const GOAL_WORKSPACE = {
 	BOOKINGS: 'BOOKINGS',
-	ORDERS: 'ORDERS',
 	SERVICE: 'SERVICE',
-	PAYMENTS: 'SERVICE',
-	HYBRID: 'HYBRID'
+	PAYMENTS: 'SERVICE'
 } as const;
 
 const SYSTEM_SOURCES = new Set(['WEBSITE_CMS', 'BOOKING_SYSTEM', 'OTHER_SYSTEM', 'CONNECT_MANUAL']);
@@ -70,7 +76,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const plans = await selectablePlans();
 	return {
 		fullName: locals.user.fullName,
-		industries: INDUSTRIES.map((i) => ({ value: i.value, label: i.label })),
+		industries: SIGNUP_INDUSTRIES.map((i) => ({ value: i.value, label: i.label })),
 		countries: COUNTRIES,
 		plans: plans.map((p) => ({
 			id: p.id,
@@ -103,7 +109,14 @@ export const actions: Actions = {
 
 		const data = await event.request.formData();
 		const businessName = String(data.get('businessName') ?? '').trim();
-		const industry = String(data.get('industry') ?? '').trim();
+		/*
+		 * Whatever the browser sent is checked, not trusted. This field had no
+		 * validation whatsoever — any string posted here was written to the tenant —
+		 * so hiding the other options in the markup would have restricted nothing.
+		 * Blank is normal now that signup offers a single industry and stops asking.
+		 */
+		const submittedIndustry = String(data.get('industry') ?? '').trim();
+		const industry = submittedIndustry || DEFAULT_SIGNUP_INDUSTRY;
 		const country = String(data.get('country') ?? '')
 			.trim()
 			.toUpperCase()
@@ -126,6 +139,15 @@ export const actions: Actions = {
 		 * operator can change beats a question they must answer to continue.
 		 */
 		if (!signupEnabled()) return fail(403, { ...values, message: 'Signup is currently closed.' });
+		if (!isSignupIndustry(industry)) {
+			return fail(400, {
+				...values,
+				message: 'Makutano Connect is for tour and travel operators. Please contact us if you run a different kind of business.'
+			});
+		}
+		if (primaryGoal && !(primaryGoal in GOAL_WORKSPACE)) {
+			return fail(400, { ...values, message: 'Please choose how you plan to use Connect.' });
+		}
 		if (!businessName) return fail(400, { ...values, message: 'What is your business called?' });
 
 		// Optional means "may be blank", NEVER "may be malformed" — a broken phone
@@ -141,7 +163,8 @@ export const actions: Actions = {
 		// booking, payment — is the right shape to open with. It is a UI preference
 		// only and Settings can change it.
 		const workspace = mainUse ?? 'BOOKINGS';
-		const resolvedIndustry = INDUSTRIES.some((i) => i.value === industry) ? industry : 'TRAVEL_TOURISM';
+		// Already allowlisted above; this is the belt to that braces.
+		const resolvedIndustry = isSignupIndustry(industry) ? industry : DEFAULT_SIGNUP_INDUSTRY;
 		const resolvedCountry = COUNTRIES.some((c) => c.code === country) ? country : 'TZ';
 
 		const defaults = LOCALE_DEFAULTS[resolvedCountry] ?? { currency: 'USD', timezone: 'Africa/Dar_es_Salaam' };
