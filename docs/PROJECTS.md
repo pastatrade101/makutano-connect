@@ -14,9 +14,10 @@ Where a fact can go stale it is marked. **Check before relying on it.**
 |---|---|---|---|
 | What it is | Operator portal + platform admin | Public marketplace | Operator's phone app |
 | Local directory | `~/Desktop/pastatrade/makutano-connect` | `~/Desktop/pastatrade/makutano-marketplace` | `~/Desktop/pastatrade/makutano-connect-mobile` |
-| GitHub | `pastatrade101/makutano-connect` | `pastatrade101/makutano-journey` | **no remote** — local only |
-| Default branch | `main` | `main` | `master` |
-| Working branch* | `marketplace-ux-and-enquiry-routing` | `tour-and-operator-page-redesign` | `master` |
+| GitHub | `pastatrade101/makutano-connect` | `pastatrade101/makutano-journey` | `pastatrade101/connect-mobile` |
+| Default branch | `main` | `main` | `main` |
+| Visibility | private | private | **public** |
+| Working branch* | `marketplace-ux-and-enquiry-routing` | `tour-and-operator-page-redesign` | `main` |
 | Domain | connect.makutano.co.tz | journeys.makutano.co.tz | — |
 | Container | `makutano-connect` | `makutano-journeys` | — |
 | Compose dir | `/home/makutano/app/services/connect` | `/home/makutano/app/services/journeys` | — |
@@ -26,10 +27,21 @@ Where a fact can go stale it is marked. **Check before relying on it.**
 branch, **not `main`** — `main` on each is well behind. Confirm with
 `git rev-parse --abbrev-ref HEAD` rather than assuming.
 
-Two directory names are traps. The marketplace repo is **`makutano-journey`**
-(singular, no "s") in a directory called `makutano-marketplace`, serving a site
-called **Journeys**. And `makutano-digital` is a *different, older* application
-that still runs on the same host — it is not either of these.
+Three names are traps. The marketplace repo is **`makutano-journey`** (singular,
+no "s") in a directory called `makutano-marketplace`, serving a site called
+**Journeys**. The mobile repo is **`connect-mobile`**, without the `makutano-`
+prefix the other two carry, in a directory called `makutano-connect-mobile`. And
+`makutano-digital` is a *different, older* application that still runs on the
+same host — it is not any of these.
+
+**The mobile repo is public; the other two are private.** Audited at the time it
+was pushed: no `.env`, keystore, `google-services.json` or `GoogleService-Info.plist`
+in any of its 42 commits, no key-shaped strings in history, no hardcoded
+credentials in Dart, and the only URLs are the emulator loopback and the public
+API base. So nothing is leaked — but it does mean the operator app's source is
+readable by anyone, which is a choice worth making deliberately rather than by
+default. Its `.gitignore` already excludes the Firebase files and the Play upload
+keystore, and those exclusions are the thing to protect when Firebase is wired up.
 
 ## The server
 
