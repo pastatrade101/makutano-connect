@@ -163,10 +163,16 @@ remains, and the recolour was baked into the import commit, so `git diff` agains
 the vendor drop shows nothing. **Re-importing or "updating" the theme destroys
 the entire brand.** This is why that repo is private and deploys by rsync.
 
-**9. `0 means unlimited` is broken for `api.requestsPerMinute`.**
-`hooks.server.ts` reads `(await getLimit(…)) || 60`, so setting 0 to exempt a
-tenant yields 60/min — the opposite. The same `||` bug class applies to any
-numeric entitlement.
+**9. `0 means unlimited`, and the ways that gets written by accident.**
+Fixed 2 Sep 2026: `hooks.server.ts` now uses `isUnlimited()` like every other
+consumer. The trap was never the read — it was the WRITES. The plans editor
+rendered every absent numeric as a literal `0`, the save loop ran over every
+entitlement, and `updatePlan` replaces rather than merges, so one click on Save
+to change a plan's PRICE persisted `api.requestsPerMinute: 0`. Harmless while the
+reader said `|| 60`; "no limit at all" once the reader was correct. A blank
+per-tenant override did the same through `Number(value) || 0`. Empty now means
+unset, and an unreadable override is refused. **If you touch entitlement writes,
+check what an absent field persists as.**
 
 **10. `--exclude .env` is load-bearing.** The server's `.env` is the real one and
 is `600`; an rsync without that exclusion overwrites production secrets.
@@ -228,10 +234,6 @@ built and live for existing tenants, but signup now accepts only
 
 Not yet fixed. Each was verified against code.
 
-- **Mobile login has no rate limit** while the web login is 10 per 5 minutes —
-  an unthrottled password oracle against the same users table.
-- **Mobile login ignores `membership.disabledAt`** and picks a tenant with no
-  `orderBy`; a disabled member still signs in.
 - **`/api/mobile/*` also accepts the browser session cookie**, not just the
   bearer header.
 - **The phone stores its 30-day session token as plain JSON** in
@@ -239,8 +241,6 @@ Not yet fixed. Each was verified against code.
   code, so a revoked session strands the app.
 - **Signing out does not deregister push**; the handset keeps receiving customer
   names in notification titles.
-- **No `ADDRESS_HEADER`** in Connect's compose file, so the per-IP rate limit
-  behind the shared Caddy collapses into one bucket for the whole internet.
 - **Nine marketplace routes hardcode the production canonical URL** instead of
   using the `canonical()` helper, so staging would tell Google it is production.
 - **`stays/[slug]` renders operator text with `{@html}`** and nothing sanitises;
