@@ -22,7 +22,8 @@
 		"db:check": "node --experimental-strip-types scripts/check-migrations.ts",
 		"verify:r2": "node --env-file-if-exists=.env --experimental-strip-types scripts/verify-r2.ts",
 		"media:destinations": "node --experimental-strip-types scripts/fetch-destination-images.ts",
-		"media:migrate": "node --env-file-if-exists=.env --experimental-strip-types scripts/migrate-media-to-r2.ts"
+		"media:migrate": "node --env-file-if-exists=.env --experimental-strip-types scripts/migrate-media-to-r2.ts",
+		"users:orphans": "node --env-file-if-exists=.env --experimental-strip-types scripts/orphaned-users.ts"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.120.0",

@@ -1,6 +1,6 @@
 // Platform Admin operations. Every mutation here is a privileged act, so each one
 // writes an audit row carrying before/after state — and never a secret.
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { audit } from '../audit';
 import { db, schema } from '../db';
 import {
@@ -12,6 +12,7 @@ import {
 	type EntitlementValue
 } from '../entitlements';
 import { AppError } from '../errors';
+import { log } from '../logger';
 import { industryLabel } from '../provisioning';
 
 export type AdminActor = { userId: string; requestId?: string | null };
@@ -202,6 +203,62 @@ export async function tenantControlCenter(tenantId: string) {
 }
 
 /**
+ * Close the accounts a tenant's deletion just stranded.
+ *
+ * Deleting a business left its people behind entirely. The tenant delete is soft
+ * — deliberately, so the row survives for audit — so nothing cascades, and the
+ * memberships and users simply stayed. Production had four such accounts, three
+ * of which had SIGNED IN on the day this was found, weeks after their business
+ * was deleted. They landed nowhere useful, but the password still worked.
+ *
+ * A user is not owned by a tenant: the same person can be on two. So this only
+ * touches someone with NO remaining membership in a live tenant, and never a
+ * platform admin. Everyone else keeps their account exactly as it was.
+ *
+ * isActive is the right lever rather than a DELETE. It is checked at login and
+ * again when a session is resolved, so flipping it ends access immediately —
+ * and 30 columns across the schema reference users.id with ON DELETE SET NULL,
+ * meaning a hard delete would quietly blank the actor out of audit rows,
+ * conversations and quotations. Deactivating mirrors what the tenant itself
+ * does. Sessions are deleted outright so nothing survives on a phone.
+ */
+async function closeStrandedAccounts(tenantId: string): Promise<string[]> {
+	const members = await db()
+		.select({ userId: schema.tenantMemberships.userId })
+		.from(schema.tenantMemberships)
+		.where(eq(schema.tenantMemberships.tenantId, tenantId));
+
+	const stranded: string[] = [];
+	for (const { userId } of members) {
+		const [user] = await db().select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+		if (!user || user.isSuperAdmin || !user.isActive) continue;
+
+		// Any membership in a tenant that is still live keeps the account open.
+		const [alive] = await db()
+			.select({ id: schema.tenantMemberships.id })
+			.from(schema.tenantMemberships)
+			.innerJoin(schema.tenants, eq(schema.tenants.id, schema.tenantMemberships.tenantId))
+			.where(
+				and(
+					eq(schema.tenantMemberships.userId, userId),
+					ne(schema.tenantMemberships.tenantId, tenantId),
+					isNull(schema.tenants.deletedAt)
+				)
+			)
+			.limit(1);
+		if (alive) continue;
+
+		await db()
+			.update(schema.users)
+			.set({ isActive: false, updatedAt: new Date() })
+			.where(eq(schema.users.id, userId));
+		await db().delete(schema.sessions).where(eq(schema.sessions.userId, userId));
+		stranded.push(userId);
+	}
+	return stranded;
+}
+
+/**
  * Soft-delete a tenant. The row survives for audit, but every resolution path
  * (getTenant, slug lookup, memberships) filters deleted_at — the portal, API keys
  * and admin lists all stop seeing it immediately. Two rails: the admin must type
@@ -232,13 +289,22 @@ export async function deleteTenant(tenantId: string, confirmSlug: string, actor:
 		.set({ deletedAt: new Date(), status: 'CANCELLED', updatedAt: new Date() })
 		.where(eq(schema.tenants.id, tenantId))
 		.returning();
+	// The people go with the business, unless they belong to another one.
+	const closed = await closeStrandedAccounts(tenantId);
+
 	await audit(
 		tenantId,
 		'tenant.deleted',
 		{ type: 'user', userId: actor.userId, requestId: actor.requestId },
 		{ type: 'tenant', id: tenantId },
-		{ name: tenant.name, slug: tenant.slug, previousStatus: tenant.status }
+		{
+			name: tenant.name,
+			slug: tenant.slug,
+			previousStatus: tenant.status,
+			accountsClosed: closed.length
+		}
 	);
+	log.info('tenant_deleted', { tenantId, accountsClosed: closed.length });
 	return after;
 }
 
