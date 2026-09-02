@@ -2,6 +2,7 @@
 	import { enhance } from '$lib/forms';
 	import BrandLockup from '$lib/components/BrandLockup.svelte';
 	import LoginShowcase from '$lib/components/LoginShowcase.svelte';
+	import PasswordField from '$lib/components/PasswordField.svelte';
 
 	let { data, form } = $props();
 	let submitting = $state(false);
@@ -49,7 +50,7 @@
 						<label class="label mb-0" for="password">Password</label>
 						<a href="/forgot-password" class="text-[11px] font-medium text-brand-600 hover:underline">Forgot password?</a>
 					</div>
-					<input id="password" name="password" type="password" autocomplete="current-password" required class="input min-h-11 !rounded-lg" />
+					<PasswordField id="password" label="password" autocomplete="current-password" required class="min-h-11 !rounded-lg" />
 				</div>
 
 				<button type="submit" class="btn-primary min-h-11 w-full !rounded-lg" disabled={submitting}>

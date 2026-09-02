@@ -34,6 +34,16 @@ export const load: PageServerLoad = async ({ url }) => {
 				where tm.tenant_id = tenants.id and tm.role = 'OWNER'
 				order by tm.created_at limit 1
 			)`,
+			// The operator's public mark and marketplace standing. Both are one join
+			// away and neither was on a page called "Operators".
+			logoUrl: sql<string | null>`(
+				select m.url from operator_profiles p
+				left join media m on m.id = p.logo_media_id
+				where p.tenant_id = tenants.id limit 1
+			)`,
+			marketplaceVerified: sql<boolean | null>`(
+				select p.is_verified from operator_profiles p where p.tenant_id = tenants.id limit 1
+			)`,
 			subscriptionStatus: sql<string | null>`(
 				select s.status::text from subscriptions s
 				where s.tenant_id = tenants.id order by s.created_at desc limit 1

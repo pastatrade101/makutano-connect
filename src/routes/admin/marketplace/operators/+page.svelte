@@ -94,12 +94,26 @@
 					{#each data.rows as row (row.tenantId)}
 						<tr class="hover:bg-slate-50">
 							<td class="table-cell">
-								<a href="/admin/tenants/{row.tenantId}" class="font-medium text-brand-600 hover:underline">{row.name}</a>
-								{#if row.isVerified}
-									<span class="badge ml-1.5 bg-success/10 text-success">Verified</span>
-								{/if}
-								<div class="font-mono text-[11.5px] text-slate-400">
-									{row.tenantSlug} · joined <TimeAgo value={row.createdAt} />
+								<div class="flex items-center gap-2.5">
+									{#if row.logoUrl}
+										<img src={row.logoUrl} alt="" class="size-9 shrink-0 rounded-panel border border-slate-200 bg-white object-contain" />
+									{:else}
+										<!-- An operator with no mark is a fact worth seeing on a page about
+										     whether to vouch for them, so the placeholder carries their
+										     initial rather than being an empty grey square. -->
+										<span class="flex size-9 shrink-0 items-center justify-center rounded-panel border border-dashed border-slate-300 text-xs font-semibold text-slate-400">
+											{row.name.trim().charAt(0).toUpperCase()}
+										</span>
+									{/if}
+									<div class="min-w-0">
+										<a href="/admin/tenants/{row.tenantId}" class="font-medium text-brand-600 hover:underline">{row.name}</a>
+										{#if row.isVerified}
+											<span class="badge ml-1.5 bg-success/10 text-success">Verified</span>
+										{/if}
+										<div class="truncate font-mono text-[11.5px] text-slate-400">
+											{row.tenantSlug} · joined <TimeAgo value={row.createdAt} />
+										</div>
+									</div>
 								</div>
 							</td>
 

@@ -68,6 +68,9 @@ export const load: PageServerLoad = async ({ url }) => {
 			displayName: schema.operatorProfiles.displayName,
 			profileSlug: schema.operatorProfiles.slug,
 			isVerified: schema.operatorProfiles.isVerified,
+			// The company's own mark. Verification is a judgement about a business, and
+			// a row of names tells you nothing about whether there is a business there.
+			logoUrl: schema.media.url,
 			verifiedAt: schema.operatorProfiles.verifiedAt,
 			isActive: schema.operatorProfiles.isActive,
 			about: schema.operatorProfiles.about,
@@ -97,6 +100,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		})
 		.from(schema.tenants)
 		.leftJoin(schema.operatorProfiles, eq(schema.operatorProfiles.tenantId, schema.tenants.id))
+		.leftJoin(schema.media, eq(schema.media.id, schema.operatorProfiles.logoMediaId))
 		.where(isNull(schema.tenants.deletedAt));
 
 	const shaped = rows.map((r) => {

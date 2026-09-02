@@ -2,6 +2,7 @@
 	import { enhance } from '$lib/forms';
 	import { page } from '$app/state';
 	import AuthShell from '$lib/components/AuthShell.svelte';
+	import PasswordField from '$lib/components/PasswordField.svelte';
 
 	let { data, form } = $props();
 	let submitting = $state(false);
@@ -35,12 +36,12 @@
 				{/if}
 				<div>
 					<label class="label" for="password">New password</label>
-					<input id="password" name="password" type="password" required autocomplete="new-password" class="input" />
+					<PasswordField id="password" label="new password" autocomplete="new-password" required />
 					<p class="mt-1.5 text-[11px] text-slate-400">At least 10 characters, mixing letters with numbers or symbols.</p>
 				</div>
 				<div>
 					<label class="label" for="confirmPassword">Confirm new password</label>
-					<input id="confirmPassword" name="confirmPassword" type="password" required autocomplete="new-password" class="input" />
+					<PasswordField id="confirmPassword" label="password confirmation" autocomplete="new-password" required />
 				</div>
 				<button type="submit" class="btn-primary w-full" disabled={submitting}>
 					{submitting ? 'Saving…' : 'Save and sign in'}

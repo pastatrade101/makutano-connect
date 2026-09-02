@@ -113,14 +113,28 @@
 				{#each data.tenants as row (row.tenant.id)}
 					<tr class="hover:bg-slate-50">
 						<td class="table-cell">
-							<a href="/admin/tenants/{row.tenant.id}" class="font-medium text-brand-600 hover:underline">{row.tenant.name}</a>
-							<div class="font-mono text-[12.5px] text-slate-500">{row.tenant.slug}</div>
+							<div class="flex items-center gap-2.5">
+								{#if row.logoUrl}
+									<img src={row.logoUrl} alt="" class="size-9 shrink-0 rounded-panel border border-slate-200 bg-white object-contain" />
+								{:else}
+									<span class="flex size-9 shrink-0 items-center justify-center rounded-panel border border-dashed border-slate-300 text-xs font-semibold text-slate-400">
+										{row.tenant.name.trim().charAt(0).toUpperCase()}
+									</span>
+								{/if}
+								<div class="min-w-0">
+									<a href="/admin/tenants/{row.tenant.id}" class="font-medium text-brand-600 hover:underline">{row.tenant.name}</a>
+									{#if row.marketplaceVerified}
+										<span class="badge ml-1 bg-success/10 text-success">Verified</span>
+									{/if}
+									<div class="truncate font-mono text-[12.5px] text-slate-500">{row.tenant.slug}</div>
+								</div>
+							</div>
 						</td>
 						<td class="table-cell">
 							{#if row.ownerEmail}
 								<span class="text-xs text-slate-600">{row.ownerEmail}</span>
 								{#if !row.ownerVerified}
-									<span class="badge ml-1 bg-warning/15 text-[#b58514]">unverified</span>
+									<span class="badge ml-1 bg-warning/10 text-warning">email not confirmed</span>
 								{/if}
 							{:else}
 								<span class="text-xs text-slate-400">no owner</span>

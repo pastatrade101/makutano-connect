@@ -10,6 +10,7 @@
 	import { enhance } from '$lib/forms';
 	import BrandLockup from '$lib/components/BrandLockup.svelte';
 	import SignupShowcase from '$lib/components/SignupShowcase.svelte';
+	import PasswordField from '$lib/components/PasswordField.svelte';
 
 	let { data, form } = $props();
 	let submitting = $state(false);
@@ -164,15 +165,7 @@
 
 				<div>
 					<label class="label" for="password">Password</label>
-					<input
-						id="password"
-						name="password"
-						type="password"
-						required
-						autocomplete="new-password"
-						bind:value={password}
-						class="input min-h-11 !rounded-lg"
-					/>
+					<PasswordField id="password" label="password" autocomplete="new-password" required bind:value={password} class="min-h-11 !rounded-lg" />
 					{#if strength.label}
 						<div class="mt-1.5 flex items-center gap-2">
 							<div class="h-1 flex-1 overflow-hidden rounded-full bg-slate-200">
@@ -192,15 +185,7 @@
 
 				<div>
 					<label class="label" for="confirmPassword">Confirm password</label>
-					<input
-						id="confirmPassword"
-						name="confirmPassword"
-						type="password"
-						required
-						autocomplete="new-password"
-						bind:value={confirm}
-						class="input min-h-11 !rounded-lg"
-					/>
+					<PasswordField id="confirmPassword" label="password confirmation" autocomplete="new-password" required bind:value={confirm} class="min-h-11 !rounded-lg" />
 					{#if mismatch}<p class="mt-1 text-[11px] text-danger">Passwords do not match.</p>{/if}
 				</div>
 
