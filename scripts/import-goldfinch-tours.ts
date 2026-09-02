@@ -390,6 +390,31 @@ function travelModeFor(day: SourceDay): 'FLY' | 'DRIVE' | null {
 	return null;
 }
 
+/** Everything across the water from the mainland. */
+const ISLAND = /^(zanzibar|stone-town-zanzibar|nungwi|kendwa|paje|jambiani|matemwe|michamvi|mnemba|pemba)/;
+
+/**
+ * The mode two places imply, where the operator's words did not say.
+ *
+ * Geography, not guesswork, for the first case: there is no road between the
+ * mainland and Zanzibar, so a leg with one end on each is flown — and every tour
+ * in this catalogue is sold as a fly-in safari. An operator who runs the ferry
+ * instead can say so in the composer and that wins.
+ *
+ * The second is a convention rather than a fact: two mainland stops on a safari
+ * are driven. A bush flight between airstrips happens, but an operator doing
+ * that says so, and the words are read first.
+ *
+ * Both are recorded as inferred in metadata rather than passed off as stated.
+ */
+function modeFromGeography(fromSlug: string | null, toSlug: string | null): 'FLY' | 'DRIVE' | null {
+	if (!fromSlug || !toSlug || fromSlug === toSlug) return null;
+	const a = ISLAND.test(fromSlug);
+	const b = ISLAND.test(toSlug);
+	if (a !== b) return 'FLY';
+	return a ? null : 'DRIVE';
+}
+
 /* ------------------------------------------------------------------- main -- */
 
 const [tenant] = await db
@@ -452,6 +477,7 @@ const report = {
 	stays: 0,
 	dayPlaces: 0,
 	travelModes: { FLY: 0, DRIVE: 0 } as Record<string, number>,
+	inferredModes: { FLY: 0, DRIVE: 0 } as Record<string, number>,
 	customStays: 0,
 	submitted: 0,
 	notSubmittable: [] as { slug: string; missing: string[] }[],
@@ -715,6 +741,8 @@ for (const pkg of packages) {
 	const supplied = pkg.itinerary?.length ? pkg.itinerary : (fill[pkg.slug] ?? []);
 	if (!pkg.itinerary?.length && supplied.length) report.itineraryFilled.push(slug);
 	const days = [...supplied].sort((a, b) => (a.day ?? 0) - (b.day ?? 0));
+	/** The place the last day ended, so a leg knows where it started. */
+	let previousSlug: string | null = null;
 	await db.delete(schema.tourItineraryDays).where(eq(schema.tourItineraryDays.tourId, tourId));
 
 	/*
@@ -742,11 +770,16 @@ for (const pkg of packages) {
 		}
 
 		const dayMediaId = day.image?.url ? await mediaFor(day.image.url, day.title ?? pkg.title) : null;
-		const dayDestinationId = destinationBySlug.get(placeFor(day, PLACE_PHRASES) ?? '') ?? null;
+		const daySlug = placeFor(day, PLACE_PHRASES);
+		const dayDestinationId = destinationBySlug.get(daySlug ?? '') ?? null;
 		if (dayDestinationId) report.dayPlaces++;
 		// Day one is arrived at, not travelled to from anywhere on this itinerary.
-		const travelMode = index === 0 ? null : travelModeFor(day);
-		if (travelMode) report.travelModes[travelMode]++;
+		const stated = index === 0 ? null : travelModeFor(day);
+		const inferred = stated || index === 0 ? null : modeFromGeography(previousSlug, daySlug);
+		const travelMode = stated ?? inferred;
+		if (stated) report.travelModes[stated]++;
+		if (inferred) report.inferredModes[inferred]++;
+		previousSlug = daySlug;
 
 		await db.insert(schema.tourItineraryDays).values({
 			tourId,
@@ -885,6 +918,8 @@ console.log(`itinerary days     ${report.days}`);
 console.log(`  placed on the map ${report.dayPlaces}`);
 console.log(`  reached by flight  ${report.travelModes.FLY}`);
 console.log(`  reached by road    ${report.travelModes.DRIVE}`);
+console.log(`  inferred: flown    ${report.inferredModes.FLY}   (a leg with one end across the water)`);
+console.log(`  inferred: driven   ${report.inferredModes.DRIVE}   (two mainland stops)`);
 console.log(`media linked       ${report.images}`);
 console.log(`stays from list    ${report.stays}`);
 console.log(`stays typed in     ${report.customStays}`);
