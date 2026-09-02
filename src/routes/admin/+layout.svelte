@@ -22,6 +22,18 @@
 		 */
 		{ href: '/admin/marketplace/tours', label: 'Tour listings', icon: 'M3 15l4.5-6 3 4 2.5-3L17 15M3 5h14v10H3z' },
 		{ href: '/admin/tenants', label: 'Operators', icon: 'M3 17V7l4-3 4 3v10M11 17V9l3-2 3 2v8M3 17h14' },
+		/*
+		 * Verification sits beside the listings it stands behind, not inside the
+		 * operator list — the badge is a marketplace claim about a company, and the
+		 * count rides in the nav so nobody has to open the page to learn that
+		 * somebody is waiting.
+		 */
+		{
+			href: '/admin/marketplace/operators',
+			label: 'Operator verification',
+			icon: 'M10 2.5 3.5 5v5c0 3.2 2.7 6.1 6.5 7.5 3.8-1.4 6.5-4.3 6.5-7.5V5L10 2.5Zm-.7 9.6L7 9.8l1-1 1.3 1.3L12.9 6.5l1 1-4.6 4.6Z',
+			badge: 'operatorsAwaiting'
+		},
 		{ href: '/admin/reviews', label: 'Review moderation', icon: 'm10 2.6 2.3 4.7 5.2.7-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L2.5 8l5.2-.7L10 2.6Z' },
 		{ href: '/admin/marketplace/taxonomy', label: 'Categories & styles', icon: 'M4 5h12M4 10h12M4 15h7' },
 		{ href: '/admin/plans', label: 'Plans & entitlements', icon: 'M3 6h14M3 10h14M3 14h9' },
@@ -99,7 +111,16 @@
 							: 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}"
 					>
 						<svg class="size-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
-						{#if !collapsed || mobileOpen}{item.label}{/if}
+						{#if !collapsed || mobileOpen}
+							<span class="flex-1">{item.label}</span>
+							<!-- Only when there is something waiting: a badge that is always
+							     present, zero included, is furniture rather than a signal. -->
+							{#if item.badge === 'operatorsAwaiting' && data.operatorsAwaiting > 0}
+								<span class="rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-warning">
+									{data.operatorsAwaiting}
+								</span>
+							{/if}
+						{/if}
 					</a>
 				{/each}
 			</div>
