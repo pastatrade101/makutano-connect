@@ -29,6 +29,9 @@ const filterSchema = z.object({
 		.enum(['true', 'false'])
 		.transform((v) => v === 'true')
 		.optional(),
+	// Whole stars only: half-star precision on an average nobody can see the
+	// inputs of is false exactness.
+	minRating: z.coerce.number().int().min(1).max(5).optional(),
 	search: z.string().trim().max(120).optional(),
 	sort: z.enum(TOUR_SORTS as unknown as [string, ...string[]]).optional()
 });
@@ -49,6 +52,7 @@ export const GET: RequestHandler = async (event) =>
 			countrySlug: f.country,
 			destinationSlug: f.destination,
 			categorySlug: f.category,
+			minRating: f.minRating,
 			/*
 			 * The join table, and ONLY the join table.
 			 *

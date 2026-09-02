@@ -36,7 +36,12 @@ import {
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
 import { mealsLabel, normaliseMeals } from '../tour-options';
 import { accommodationsForTours, imagesForAccommodations, type TourStay } from './accommodations';
-import { getOperatorReviewSummary, getTourReviewSummary, type ReviewSummary } from './reviews';
+import {
+	getOperatorReviewSummary,
+	getTourReviewSummary,
+	tourReviewSummaries,
+	type ReviewSummary
+} from './reviews';
 import { db, schema } from './db';
 import type { Pagination } from './http';
 
@@ -150,6 +155,15 @@ export type TourCard = {
 	id: string;
 	slug: string;
 	title: string;
+	/**
+	 * Published reviews only, attached in one batched query for the whole page.
+	 *
+	 * `count: 0` is the honest state and the common one — no traveller has left a
+	 * review yet, because submitting one was broken until it was fixed. The
+	 * marketplace uses this to decide whether a rating filter is worth offering
+	 * at all rather than showing an empty control.
+	 */
+	reviews?: ReviewSummary;
 	shortDescription: string | null;
 	durationDays: number;
 	durationNights: number | null;
@@ -280,6 +294,14 @@ export type TourFilters = {
 	categorySlug?: string;
 	/** Travel style, matched through tour_travel_styles. */
 	styleSlug?: string;
+	/**
+	 * Minimum average rating from PUBLISHED reviews, 1–5.
+	 *
+	 * A tour with no reviews is excluded rather than treated as zero: "4 stars and
+	 * up" is a claim about what travellers said, and a tour nobody has reviewed
+	 * has not earned a place in that list or been condemned to fail it.
+	 */
+	minRating?: number;
 	/** @deprecated free-text column; use styleSlug. */
 	travelStyle?: string;
 	groupType?: string;
@@ -772,10 +794,14 @@ async function hydrateTourCards(rows: TourCardRow[]): Promise<TourCard[]> {
 	};
 	const byDest = group(destRows);
 	const byStyle = group(styleRows);
+	// One query for the page, not one per card. tourReviewSummaries was written
+	// for a listing and had no caller until now.
+	const byReviews = await tourReviewSummaries(ids);
 
 	for (const card of cards) {
 		card.destinations = byDest.get(card.id) ?? [];
 		card.styles = byStyle.get(card.id) ?? [];
+		card.reviews = byReviews.get(card.id) ?? { average: null, count: 0, distribution: {} };
 	}
 	return cards;
 }
@@ -1157,6 +1183,17 @@ export async function listPublishedTours(
 	if (filters.destinationSlug) conditions.push(visitsDestination(filters.destinationSlug));
 	if (filters.categorySlug) conditions.push(inCategory(filters.categorySlug));
 	if (filters.styleSlug) conditions.push(hasStyle(filters.styleSlug));
+	if (filters.minRating && filters.minRating >= 1 && filters.minRating <= 5) {
+		// Averaged over published reviews for THIS tour. EXISTS-style subquery
+		// rather than a join, so a tour with many reviews is still one row.
+		conditions.push(
+			sql`(
+				select avg(r.rating) from reviews r
+				where r.tour_id = ${schema.tours.id}
+					and r.status = 'PUBLISHED'
+			) >= ${filters.minRating}` as SQL
+		);
+	}
 	if (filters.travelStyle) conditions.push(eq(schema.tours.travelStyle, filters.travelStyle));
 	if (filters.groupType) conditions.push(eq(schema.tours.groupType, filters.groupType));
 	if (filters.travellers && Number.isFinite(filters.travellers)) {
