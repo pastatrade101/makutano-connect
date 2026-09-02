@@ -2,13 +2,29 @@
 <script lang="ts">
 	import { enhance } from '$lib/forms';
 
-	type Item = { key: string; label: string; description: string; href: string; done: boolean };
+	type Item = {
+		key: string;
+		label: string;
+		description: string;
+		href: string;
+		done: boolean;
+		permission?: string;
+		optional?: boolean;
+	};
 	let {
 		items,
 		completed,
 		total,
-		welcome = false
-	}: { items: Item[]; completed: number; total: number; welcome?: boolean } = $props();
+		welcome = false,
+		canEditSettings = false
+	}: {
+		items: Item[];
+		completed: number;
+		total: number;
+		welcome?: boolean;
+		/** Whether this viewer may declare an optional item unnecessary. */
+		canEditSettings?: boolean;
+	} = $props();
 
 	const percent = $derived(total ? Math.round((completed / total) * 100) : 0);
 	let open = $state(true);
@@ -53,7 +69,23 @@
 						{/if}
 					</div>
 					{#if !item.done}
-						<a href={item.href} class="btn-secondary shrink-0 px-2.5 py-1 text-xs">Set up</a>
+						<div class="flex shrink-0 items-center gap-2">
+							{#if item.optional && canEditSettings}
+								<!-- An optional row needs a way OUT, not only a way in. This one
+								     exists purely because signup asked what you used before, and
+								     until now the only escape was building the integration. -->
+								<form method="POST" action="?/systemSourceInternal" use:enhance>
+									<button
+										type="submit"
+										class="text-xs text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+										title="Remove this step — we work entirely inside Connect"
+									>
+										Not needed
+									</button>
+								</form>
+							{/if}
+							<a href={item.href} class="btn-secondary px-2.5 py-1 text-xs">Set up</a>
+						</div>
 					{/if}
 				</li>
 			{/each}

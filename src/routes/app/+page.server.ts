@@ -1,8 +1,9 @@
 import { attentionFor, continueWorking } from '$lib/server/attention';
 import { normalizeWorkspace } from '$lib/workspace';
 import { bookingRequestStats } from '$lib/server/booking-requests';
+import { requirePermission } from '$lib/server/auth/permissions';
 import { requireTenant } from '$lib/server/guards';
-import { dismissOnboarding, onboardingState } from '$lib/server/onboarding';
+import { dismissOnboarding, markSystemSourceInternal, onboardingState } from '$lib/server/onboarding';
 import type { Actions } from './$types';
 import { bookingStats } from '$lib/server/bookings';
 import { customerStats } from '$lib/server/customers';
@@ -170,7 +171,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			marketplaceState(tenantId)
 		]);
 
-	const onboarding = await onboardingState(tenantId);
+	// Built for the person looking, not just the tenant: an item they could never
+	// action is not offered to them.
+	const onboarding = await onboardingState(tenantId, locals.permissions);
 
 	return {
 		marketplace,
@@ -186,7 +189,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		whatsapp: connection ? toSafeConnection(connection) : null,
 		activity,
 		// Hidden once dismissed or finished — a checklist that never goes away is nagging.
-		onboarding: onboarding.dismissed || onboarding.allDone ? null : onboarding
+		onboarding: onboarding.dismissed || onboarding.allDone ? null : onboarding,
+		canEditSettings: locals.permissions.includes('tenant:write')
 	};
 };
 
@@ -194,5 +198,18 @@ export const actions: Actions = {
 	dismissOnboarding: async ({ locals }) => {
 		await dismissOnboarding(requireTenant(locals).id);
 		return { dismissed: true };
+	},
+
+	/**
+	 * "We do not use an outside system."
+	 *
+	 * Clears the integration row by correcting the signup answer behind it, rather
+	 * than by pretending an API key exists. Needs settings:write, because it edits
+	 * a tenant setting — the same bar as changing it anywhere else would be.
+	 */
+	systemSourceInternal: async ({ locals }) => {
+		requirePermission(locals.permissions, 'tenant:write');
+		await markSystemSourceInternal(requireTenant(locals).id);
+		return { systemSourceCleared: true };
 	}
 };

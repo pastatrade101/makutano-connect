@@ -16,6 +16,19 @@ export type ChecklistItem = {
 	description: string;
 	href: string;
 	done: boolean;
+	/**
+	 * What the VIEWER needs to be able to do this, if anything.
+	 *
+	 * The checklist used to be built from the tenant alone, so it offered a
+	 * "Set up" button to whoever was looking regardless of whether that person
+	 * could act on it. A Manager (BOOKING_AGENT) has no api_keys:read, and
+	 * /app/developers requires it — so the integration row sent them to a page
+	 * that refuses them. An item nobody in the room can complete is worse than no
+	 * item: it holds the counter below 100% forever with no way to move it.
+	 */
+	permission?: string;
+	/** True when the item is optional and can be declared unnecessary. */
+	optional?: boolean;
 };
 
 export type OnboardingState = {
@@ -34,7 +47,10 @@ async function count(table: string, tenantId: string, extra = ''): Promise<numbe
 	return Number(rows[0]?.n ?? 0);
 }
 
-export async function onboardingState(tenantId: string): Promise<OnboardingState> {
+export async function onboardingState(
+	tenantId: string,
+	viewerPermissions: readonly string[] = []
+): Promise<OnboardingState> {
 	const tenant = (await db().select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)).limit(1))[0];
 	if (!tenant) return { items: [], completed: 0, total: 0, allDone: true, dismissed: true };
 
@@ -136,7 +152,12 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 			label: workspace === 'ORDERS' ? 'Connect your product or order system' : 'Connect your website or booking system',
 			description: 'Create an API key or webhook so Connect can work beside your existing system.',
 			href: '/app/developers',
-			done: integrations > 0
+			done: integrations > 0,
+			permission: 'api_keys:read',
+			// The only item here that is a genuine "if you want it". It appears
+			// solely because signup asked what you used before and the answer was
+			// not "nothing" — an answer nothing in the product could ever revise.
+			optional: true
 		});
 	}
 
@@ -157,8 +178,23 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 		}
 	);
 
-	const completed = items.filter((i) => i.done).length;
-	const allDone = completed === items.length;
+	/*
+	 * Only what this viewer can actually do.
+	 *
+	 * A row nobody in the room can complete is worse than no row: it pins the
+	 * counter below 100% permanently and offers a button that leads to a refusal.
+	 * An undone item the viewer lacks the permission for is dropped; a DONE one is
+	 * kept, because "your business already did this" is useful to everybody.
+	 *
+	 * Passing no permissions keeps every item, so a caller that does not care —
+	 * a report, a test — is unaffected.
+	 */
+	const visible = viewerPermissions.length
+		? items.filter((i) => i.done || !i.permission || viewerPermissions.includes(i.permission))
+		: items;
+
+	const completed = visible.filter((i) => i.done).length;
+	const allDone = completed === visible.length;
 
 	// Record completion once, so admins can see who actually finished setting up.
 	if (allDone && !tenant.onboardingCompletedAt) {
@@ -166,9 +202,9 @@ export async function onboardingState(tenantId: string): Promise<OnboardingState
 	}
 
 	return {
-		items,
+		items: visible,
 		completed,
-		total: items.length,
+		total: visible.length,
 		allDone,
 		dismissed
 	};
@@ -191,5 +227,29 @@ export async function dismissOnboarding(tenantId: string): Promise<void> {
 			settings: sql`jsonb_set(coalesce(${schema.tenants.settings}, '{}'::jsonb), '{onboardingDismissed}', 'true'::jsonb, true)`,
 			updatedAt: new Date()
 		})
+		.where(eq(schema.tenants.id, tenantId));
+}
+
+/**
+ * "We do not need that" — recorded as the answer it actually is.
+ *
+ * The integration row appears because signup asked what the business used
+ * before and got WEBSITE_CMS / BOOKING_SYSTEM / OTHER_SYSTEM. Nothing in the
+ * product could ever change that answer afterwards, so an operator who has since
+ * moved their work INTO Connect was stuck with a permanent to-do whose only
+ * escape was creating an API key they did not want.
+ *
+ * This writes the answer signup would have stored had they said "just Connect",
+ * so the row disappears for the reason it should: it is no longer true. It does
+ * not invent a new kind of state, and it is reversible from the same place the
+ * value came from.
+ */
+export async function markSystemSourceInternal(tenantId: string): Promise<void> {
+	const [tenant] = await db().select().from(schema.tenants).where(eq(schema.tenants.id, tenantId)).limit(1);
+	if (!tenant) return;
+	const settings = (tenant.settings ?? {}) as Record<string, unknown>;
+	await db()
+		.update(schema.tenants)
+		.set({ settings: { ...settings, systemSource: 'CONNECT_MANUAL' }, updatedAt: new Date() })
 		.where(eq(schema.tenants.id, tenantId));
 }

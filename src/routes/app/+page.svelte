@@ -216,6 +216,7 @@
 			completed={data.onboarding.completed}
 			total={data.onboarding.total}
 			welcome={justSignedUp}
+			canEditSettings={data.canEditSettings}
 		/>
 	{/if}
 
