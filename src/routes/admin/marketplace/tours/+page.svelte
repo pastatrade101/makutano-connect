@@ -107,6 +107,18 @@
 		{/each}
 	</nav>
 
+	<!-- "Approved" is not "live", and the word does not say so.
+	     A reviewer who has just approved fifteen listings reasonably expects to see
+	     them on the marketplace; the public API returns PUBLISHED only, so nothing
+	     changed. Publishing is a second, deliberate move — this says that where the
+	     confusion happens rather than in documentation nobody is reading. -->
+	{#if data.tab === 'approved' && data.rows.length}
+		<p class="rounded-panel border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-slate-700">
+			These are approved but <span class="font-semibold">not on the marketplace yet</span>. Select them
+			and choose Publish to make them public.
+		</p>
+	{/if}
+
 	<!-- A real filter row. The old one was a single search box behind a button
 	     labelled "Filter" that did nothing visible when the box was empty. -->
 	<form method="GET" class="card flex flex-wrap items-end gap-2 p-3">
