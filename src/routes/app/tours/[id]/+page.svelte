@@ -271,10 +271,30 @@
 	 * inside the Serengeti meant the camp.
 	 */
 	/** Day 1 is arrival, so it has nothing to be reached FROM. */
+	/*
+	 * The same three vehicles the marketplace sends along the route, drawn from
+	 * the same paths — so what an operator picks here is literally what a
+	 * traveller watches make that leg of the journey, not an abstraction of it.
+	 */
 	const TRAVEL_MODES = [
-		{ value: 'DRIVE', label: 'Drive' },
-		{ value: 'FLY', label: 'Fly' },
-		{ value: 'BOAT', label: 'Boat' }
+		{
+			value: 'DRIVE',
+			label: 'Drive',
+			says: 'A solid line, and a car makes this leg on the route map.',
+			icon: 'M-3.4 -1.7h4.6l2 1.1v1.2l-2 1.1h-4.6a1 1 0 0 1-1-1v-1.4a1 1 0 0 1 1-1Z'
+		},
+		{
+			value: 'FLY',
+			label: 'Fly',
+			says: 'A dashed line, and a plane makes this leg on the route map.',
+			icon: 'M5.4 0 -1.4 3.4 -0.2 0.9 -3.6 1.6 -4.4 0.6 -1.6 0 -4.4 -0.6 -3.6 -1.6 -0.2 -0.9 -1.4 -3.4Z'
+		},
+		{
+			value: 'BOAT',
+			label: 'Boat',
+			says: 'A dotted line, and a boat makes this leg on the route map.',
+			icon: 'M-3.2 -1.5h4l2.4 1.5-2.4 1.5h-4l-1-1.5Z'
+		}
 	];
 
 	const stops = $derived(
@@ -1442,19 +1462,28 @@
 												{#each TRAVEL_MODES as m (m.value)}
 													<button
 														type="button"
-														class="rounded-md px-2.5 py-1 text-xs transition {day.travelMode === m.value
+														class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition {day.travelMode ===
+														m.value
 															? 'bg-slate-900 text-white'
 															: 'text-slate-600 hover:bg-slate-50'}"
 														aria-pressed={day.travelMode === m.value}
 														onclick={() => (day.travelMode = day.travelMode === m.value ? null : m.value)}
 													>
+														<svg viewBox="-6 -4 12 8" class="h-3 w-4 shrink-0" aria-hidden="true">
+															<path d={m.icon} fill="currentColor" />
+														</svg>
 														{m.label}
 													</button>
 												{/each}
 											</div>
-											{#if !day.travelMode}
-												<p class="mt-1 text-xs text-slate-400">Optional — left blank the map draws a neutral line.</p>
-											{/if}
+											<p class="mt-1 text-xs text-slate-400">
+												{#if day.travelMode}
+													{TRAVEL_MODES.find((m) => m.value === day.travelMode)?.says}
+												{:else}
+													Optional. Left blank the map draws a neutral line and nothing travels
+													it — pick one and travellers watch that vehicle make the journey.
+												{/if}
+											</p>
 										</div>
 									{/if}
 								</div>

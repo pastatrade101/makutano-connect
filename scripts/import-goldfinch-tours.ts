@@ -367,6 +367,29 @@ function derivePrice(days: number): { amount: number; basis: string } | null {
 	return null;
 }
 
+/**
+ * How a day's stop is reached, where the operator says so.
+ *
+ * The route map draws the leg into a stop by this — solid for a drive, dashed
+ * for a flight — and sends the matching vehicle along it, so a wrong value is a
+ * claim about the trip, not a decoration. Only movement wording counts: "game
+ * drive" is what you do once you are there, not how you got there.
+ *
+ * BOAT is deliberately NOT derived. Every candidate in this export turned out to
+ * be a dhow cruise or a snorkelling trip listed as an activity on a beach day,
+ * never a transfer between two stops. A dotted water leg drawn from that would
+ * say the traveller crossed the sea when they did not.
+ */
+const FLY = /\bfly\b|\bflight\b|\bfly ?in\b|\bairstrip\b|\bby air\b/i;
+const DRIVE = /\btransfer\b|\bdrive to\b|\bby road\b|\bdriving\b|\bcontinue (?:to|on)\b|\bhead (?:to|for)\b|\bjourney to\b/i;
+
+function travelModeFor(day: SourceDay): 'FLY' | 'DRIVE' | null {
+	const text = `${day.title ?? ''}. ${(htmlToText(day.description) ?? '').slice(0, 200)}`;
+	if (FLY.test(text)) return 'FLY';
+	if (DRIVE.test(text)) return 'DRIVE';
+	return null;
+}
+
 /* ------------------------------------------------------------------- main -- */
 
 const [tenant] = await db
@@ -428,6 +451,7 @@ const report = {
 	images: 0,
 	stays: 0,
 	dayPlaces: 0,
+	travelModes: { FLY: 0, DRIVE: 0 } as Record<string, number>,
 	customStays: 0,
 	submitted: 0,
 	notSubmittable: [] as { slug: string; missing: string[] }[],
@@ -720,6 +744,9 @@ for (const pkg of packages) {
 		const dayMediaId = day.image?.url ? await mediaFor(day.image.url, day.title ?? pkg.title) : null;
 		const dayDestinationId = destinationBySlug.get(placeFor(day, PLACE_PHRASES) ?? '') ?? null;
 		if (dayDestinationId) report.dayPlaces++;
+		// Day one is arrived at, not travelled to from anywhere on this itinerary.
+		const travelMode = index === 0 ? null : travelModeFor(day);
+		if (travelMode) report.travelModes[travelMode]++;
 
 		await db.insert(schema.tourItineraryDays).values({
 			tourId,
@@ -730,6 +757,7 @@ for (const pkg of packages) {
 			accommodation: stayText,
 			accommodationId,
 			accommodationImages: [],
+			travelMode,
 			meals: parseMeals(day.meals),
 			mealsNote: clamp(day.meals, 200),
 			activities: splitLines(day.activities).slice(0, 20),
@@ -855,6 +883,8 @@ console.log(`created            ${report.created}`);
 console.log(`updated            ${report.updated}`);
 console.log(`itinerary days     ${report.days}`);
 console.log(`  placed on the map ${report.dayPlaces}`);
+console.log(`  reached by flight  ${report.travelModes.FLY}`);
+console.log(`  reached by road    ${report.travelModes.DRIVE}`);
 console.log(`media linked       ${report.images}`);
 console.log(`stays from list    ${report.stays}`);
 console.log(`stays typed in     ${report.customStays}`);
