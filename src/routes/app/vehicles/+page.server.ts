@@ -38,12 +38,29 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const ids = vehicles.map((v) => v.id);
 	const assigned = ids.length
 		? await db()
-				.select({ vehicleId: schema.trips.vehicleId, tripId: schema.trips.id, reference: schema.trips.tripReference })
+				.select({
+					vehicleId: schema.trips.vehicleId,
+					tripId: schema.trips.id,
+					reference: schema.trips.tripReference,
+					status: schema.trips.status
+				})
 				.from(schema.trips)
-				// Only trips actually running or about to. A COMPLETED trip still names
-				// its vehicle, and saying that vehicle is "on trip" months later would
-				// be wrong.
-				.where(and(inArray(schema.trips.vehicleId, ids), inArray(schema.trips.status, ['READY', 'IN_PROGRESS'])))
+				/*
+				 * Every trip this vehicle is committed to and has not finished.
+				 *
+				 * This asked only for READY and IN_PROGRESS, which excluded PREPARING —
+				 * the DEFAULT status, and where nearly every upcoming trip sits. So the
+				 * trip page showed a vehicle assigned while this page said "Not
+				 * assigned" about the same vehicle. Excluding COMPLETED and CANCELLED is
+				 * the real requirement: a trip that ran last year still names its
+				 * vehicle, and calling that vehicle busy months later would be wrong.
+				 */
+				.where(
+					and(
+						inArray(schema.trips.vehicleId, ids),
+						inArray(schema.trips.status, ['PREPARING', 'READY', 'IN_PROGRESS'])
+					)
+				)
 		: [];
 	const onTrip = new Map(assigned.map((a) => [a.vehicleId as string, a]));
 
@@ -75,7 +92,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				speedKph: snap?.position?.speedKph ?? null,
 				latitude: snap?.position?.latitude ?? null,
 				longitude: snap?.position?.longitude ?? null,
-				assignment: trip ? { tripId: trip.tripId, reference: trip.reference } : null
+				assignment: trip ? { tripId: trip.tripId, reference: trip.reference, status: trip.status } : null
 			};
 		})
 	};

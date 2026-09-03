@@ -92,8 +92,16 @@
 			<p class="mt-0.5 text-sm text-slate-900">{vehicleLabel ?? 'No vehicle assigned'}</p>
 		</div>
 		<div class="text-right">
-			<p class="text-xs font-medium {TONE[trackState] ?? 'text-slate-400'}">
-				{#if trackState === 'LIVE'}<span aria-hidden="true">●</span> {/if}{LABEL[trackState] ?? trackState}
+			<!-- Nothing is known until the first fetch returns. This printed the
+			     initial NOT_CONFIGURED label during that window, so a vehicle that is
+			     tracked announced "Tracking not configured" on every page load — the
+			     exact false claim the state machine exists to prevent. -->
+			<p class="text-xs font-medium {loading ? 'text-slate-400' : (TONE[trackState] ?? 'text-slate-400')}">
+				{#if loading}
+					Checking…
+				{:else}
+					{#if trackState === 'LIVE'}<span aria-hidden="true">●</span> {/if}{LABEL[trackState] ?? trackState}
+				{/if}
 			</p>
 			{#if position}
 				<p class="text-[11.5px] text-slate-400">
@@ -105,7 +113,7 @@
 	</div>
 
 	{#if loading}
-		<p class="mt-2 text-[11.5px] text-slate-400">Checking…</p>
+		<!-- The header already says Checking…; saying it twice is noise. -->
 	{:else if trackState === 'NOT_CONFIGURED'}
 		<!-- Not an outage, so not warning colour: nothing is broken and nobody needs
 		     to go looking for a fault. -->

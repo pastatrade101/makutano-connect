@@ -25,6 +25,12 @@
 		UNAVAILABLE: 'bg-warning/10 text-warning ring-warning/20'
 	};
 
+	const TRIP_STAGE: Record<string, string> = {
+		PREPARING: '· being prepared',
+		READY: '· ready to leave',
+		IN_PROGRESS: '· out now'
+	};
+
 	// A vehicle sitting still and a vehicle driving are different facts, and an
 	// operator reads them differently. Below walking pace is parked.
 	const MOVING_KPH = 3;
@@ -32,7 +38,7 @@
 	const summary = $derived({
 		total: data.vehicles.length,
 		live: data.vehicles.filter((v) => v.trackingState === 'LIVE' || v.trackingState === 'RECENT').length,
-		onTrip: data.vehicles.filter((v) => v.assignment).length,
+		onTrip: data.vehicles.filter((v) => v.assignment?.status === 'IN_PROGRESS').length,
 		untracked: data.vehicles.filter((v) => !v.tracked).length
 	});
 </script>
@@ -58,7 +64,7 @@
 			{#each [
 				{ label: 'Vehicles', value: summary.total, tone: 'text-slate-900' },
 				{ label: 'Reporting now', value: summary.live, tone: summary.live ? 'text-success' : 'text-slate-400' },
-				{ label: 'On a trip', value: summary.onTrip, tone: summary.onTrip ? 'text-slate-900' : 'text-slate-400' },
+				{ label: 'Out now', value: summary.onTrip, tone: summary.onTrip ? 'text-slate-900' : 'text-slate-400' },
 				{ label: 'No tracker', value: summary.untracked, tone: summary.untracked ? 'text-warning' : 'text-slate-400' }
 			] as s (s.label)}
 				<div class="card p-3">
@@ -136,6 +142,8 @@
 									<a href="/app/trips/{v.assignment.tripId}" class="font-medium text-brand-600 hover:underline">
 										{v.assignment.reference}
 									</a>
+									<!-- Assigned and out on the road are different facts. -->
+									<span class="ml-1 text-slate-500">{TRIP_STAGE[v.assignment.status] ?? ''}</span>
 								{:else}
 									<span class="text-slate-500">Not assigned</span>
 								{/if}
