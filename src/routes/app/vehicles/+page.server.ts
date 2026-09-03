@@ -1,9 +1,8 @@
 // The fleet list. A registry an operator maintains, not a fleet-management system.
 //
-// Tracking state is read for the whole page in ONE pass rather than per row, and
-// it is read from the cached last fix on the vehicle row — never by calling the
-// provider once per vehicle. A list that fans out to a GPS server is a list that
-// stops loading when the GPS server does.
+// Tracking state is read for the whole page in ONE provider call rather than one
+// per row. A list that fans out to a GPS server is a list that stops loading
+// when the GPS server does.
 import { fail } from '@sveltejs/kit';
 import { requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
@@ -71,6 +70,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 				trackingState: state,
 				trackingLabel: TRACKING_LABEL[state],
 				lastFixAt: snap?.position?.recordedAt ?? v.lastFixAt,
+				// Enough of the fix for the card to say something useful without
+				// opening a map: how fast, and where.
+				speedKph: snap?.position?.speedKph ?? null,
+				latitude: snap?.position?.latitude ?? null,
+				longitude: snap?.position?.longitude ?? null,
 				assignment: trip ? { tripId: trip.tripId, reference: trip.reference } : null
 			};
 		})
