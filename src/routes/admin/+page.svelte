@@ -228,19 +228,27 @@
 		</div>
 	</section>
 
-	<!-- Supply gap: pages the marketplace is selling and cannot fulfil. -->
-	{#if stocked !== null && supply.destinationsStocked < supply.destinations}
+	<!-- Catalogue coverage, deliberately NOT an alarm.
+	     I first shipped this in warning tone, describing the uncovered places as pages
+	     "a traveller lands on and finds nothing to book". That is not what happens: a
+	     destination with no listing still carries its editorial page — why visit, when
+	     to go, the gateway airport, nearby places — and ends with "There are no
+	     published journeys here yet. Share your dates and interests, and we'll help
+	     shape a route that includes this place." It converts an empty shelf into an
+	     enquiry, which on a young marketplace is where demand signal comes from.
+	     So this is growth, tracked neutrally, not a fault to be scolded about. -->
+	{#if stocked !== null}
 		<section class="card p-4">
-			<p class="text-xs text-slate-500">Destination pages with something to sell</p>
+			<p class="text-xs text-slate-500">Destinations with a live listing</p>
 			<p class="mt-1 flex items-baseline gap-2">
 				<span class="text-xl font-semibold tabular-nums text-slate-900">
 					{supply.destinationsStocked} <span class="text-sm font-normal text-slate-400">of {supply.destinations}</span>
 				</span>
-				<span class="text-xs font-medium {stocked < 50 ? 'text-warning' : 'text-slate-400'}">{stocked}%</span>
+				<span class="text-xs font-medium text-slate-400">{stocked}%</span>
 			</p>
 			<p class="mt-1 text-[11.5px] text-slate-400">
-				The rest are published pages with no live listing behind them — a traveller who lands there
-				finds nothing to book.
+				The rest still publish their guide and invite a traveller to plan a trip around the place —
+				each one is somewhere to recruit an operator next.
 			</p>
 		</section>
 	{/if}
