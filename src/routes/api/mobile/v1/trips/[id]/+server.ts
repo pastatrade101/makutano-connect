@@ -11,12 +11,18 @@ import { listAssignableMembers } from '$lib/server/team';
 import { accommodationsForPicker, crewForPicker } from '$lib/server/crew';
 import { blockerLabel, statusLabel } from '$lib/labels';
 import { ok, problem, requirePermissionOrThrow, requireViewer } from '$lib/server/mobile';
+import { AppError } from '$lib/server/errors';
 
 const updateSchema = z
 	.object({
 		title: z.string().min(1).max(300),
 		operationsUserId: z.string().uuid().nullable(),
 		vehicle: z.string().max(200).nullable(),
+		// Without this the phone could only ever send free text — and free text
+		// deliberately CLEARS trips.vehicle_id (see trips.ts). So retyping the same
+		// plate on a phone unlinked the tracker, readiness still passed because it
+		// reads the text column, and nothing anywhere said so.
+		vehicleId: z.string().uuid().nullable(),
 		driver: z.string().max(200).nullable(),
 		guide: z.string().max(200).nullable(),
 		specialist: z.string().max(200).nullable(),
@@ -68,6 +74,9 @@ export const GET: RequestHandler = async (event) => {
 				children: detail.trip.children,
 				accommodation: detail.trip.accommodation,
 				vehicle: detail.trip.vehicle,
+				// The registry link itself. The web gates its tracking card on exactly
+				// this; without it the phone would have to guess from a text string.
+				vehicleId: detail.trip.vehicleId,
 				driver: detail.trip.driver,
 				driverCrewId: detail.trip.driverCrewId,
 				guide: detail.trip.guide,
@@ -164,6 +173,23 @@ export const PATCH: RequestHandler = async (event) => {
 		const viewer = requireViewer(event);
 		requirePermissionOrThrow(viewer, 'trips:write');
 		const body = updateSchema.parse(await event.request.json());
+
+		/*
+		 * A typed vehicle name with no registry id would unlink the tracker, and the
+		 * trip would look perfectly correct afterwards: the text column still reads
+		 * "Toyota Land Cruiser T 123 ABC", readiness still passes, and only the map
+		 * quietly stops working. Refusing is the honest answer — the client sends
+		 * both fields, or clears both.
+		 *
+		 * Older builds (1.1.2 and earlier) can only send the text, so they now get
+		 * this sentence instead of destroying data. That is the right trade.
+		 */
+		if (body.vehicle !== undefined && body.vehicleId === undefined) {
+			throw new AppError(
+				'VALIDATION_ERROR',
+				'Update the app to change the vehicle. Saving a typed name here would unlink its tracker.'
+			);
+		}
 		// Deciding whose problem a departure is, separately from preparing it.
 		if (body.operationsUserId !== undefined) requirePermissionOrThrow(viewer, 'trips:assign');
 

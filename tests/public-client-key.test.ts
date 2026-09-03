@@ -112,6 +112,9 @@ describe('a secret must never be named so SvelteKit calls it public', () => {
 	 * server calls at startup — so the runner cannot paper over it.
 	 */
 	it('routes ORIGIN_SHARED_SECRET to the server and never to the browser', async () => {
+		// Untyped internal module on purpose: this test must call the REAL function
+		// SvelteKit runs, not a typed re-declaration that could drift from it.
+		// @ts-expect-error - internal module ships no types
 		const { filter_env } = await import('../node_modules/@sveltejs/kit/src/utils/env.js');
 		const sample = { ORIGIN_SHARED_SECRET: 'value', PUBLIC_ORIGIN_SHARED_SECRET: 'value' };
 		const priv = filter_env(sample, '', 'PUBLIC_');
