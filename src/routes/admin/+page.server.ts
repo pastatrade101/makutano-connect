@@ -93,9 +93,11 @@ export const load: PageServerLoad = async () => {
 			(select count(*) from webhook_deliveries where status = 'DEAD')::int as webhooks_dead,
 			(select count(*) from payments where status = 'FAILED')::int as payments_failed,
 			(select count(*) from whatsapp_connections where status in ('ERROR','REAUTH_REQUIRED'))::int as connections_unhealthy
+	`)) as unknown as Array<
 		// One of these columns is a timestamp (the oldest approved listing), so the row
 		// is not the all-numbers shape the rest of it looks like.
-	`)) as unknown as Array<Record<string, number | string | Date | null>>;
+		Record<string, number | string | Date | null>
+	>;
 
 	const n = (k: string) => Number(row?.[k] ?? 0);
 	const at = (k: string) => (row?.[k] as string | Date | null) ?? null;
