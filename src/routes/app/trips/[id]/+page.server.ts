@@ -4,6 +4,7 @@ import { audit } from '$lib/server/audit';
 import { changeTripStatus, getTripDetail, scopeFor, updateTrip } from '$lib/server/trips';
 import { listAssignableMembers } from '$lib/server/team';
 import { accommodationsForPicker, crewForPicker } from '$lib/server/crew';
+import { vehiclesForPicker } from '$lib/server/vehicles';
 import { can } from '$lib/server/auth/permissions';
 import { AppError } from '$lib/server/errors';
 import type { Actions, PageServerLoad } from './$types';
@@ -21,10 +22,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const sensitive = can(locals.permissions, 'travelers:read_sensitive');
 
 	// Who a trip can be handed to. Anyone who can prepare one.
-	const [members, crew, accommodations] = await Promise.all([
+	const [members, crew, accommodations, vehicles] = await Promise.all([
 		can(locals.permissions, 'trips:assign') ? listAssignableMembers(tenantId) : Promise.resolve([]),
 		crewForPicker(tenantId),
-		accommodationsForPicker(tenantId)
+		accommodationsForPicker(tenantId),
+		// Active vehicles only. Nothing here calls the tracking provider — the trip
+		// page must render whether or not a GPS server is reachable.
+		can(locals.permissions, 'vehicles:read') ? vehiclesForPicker(tenantId) : Promise.resolve([])
 	]);
 
 	// The same projection the public API applies. getTripDetail returns the whole
@@ -63,7 +67,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		// driver is registered yet, and a trip must never be blocked on
 		// bookkeeping somebody has not done.
 		crew,
-		accommodations
+		accommodations,
+		// Free text stays available for vehicles too, for exactly the reason above:
+		// not every vehicle is in the registry yet, and a trip must never be blocked
+		// on bookkeeping somebody has not done.
+		vehicles
 	};
 };
 
@@ -101,6 +109,7 @@ export const actions: Actions = {
 			guideCrewId: pickId('guideCrewId'),
 			specialistCrewId: pickId('specialistCrewId'),
 			accommodationItemId: pickId('accommodationItemId'),
+			vehicleId: pickId('vehicleId'),
 			title: text('title') ?? undefined,
 			vehicle: text('vehicle'),
 			driver: text('driver'),

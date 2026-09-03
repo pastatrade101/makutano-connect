@@ -46,6 +46,13 @@ export const PERMISSIONS = [
 	// works here is an office decision, not a field one.
 	'crew:read',
 	'crew:write',
+	// The fleet list, split the same way as crew and for the same reason: reading
+	// it is part of preparing a trip, editing who is in it is an office decision.
+	// Tracking deliberately gets NO permission of its own — where a vehicle is, is
+	// a property of the trip and of the vehicle, so it is covered by trips:read and
+	// vehicles:read. A third key would only be a third thing to forget to grant.
+	'vehicles:read',
+	'vehicles:write',
 	'webhooks:read',
 	'webhooks:write',
 	'billing:read',
@@ -106,6 +113,7 @@ const READ_ONLY: Permission[] = [
 	'orders:read',
 	'trips:read',
 	'crew:read',
+	'vehicles:read',
 	'order_links:read',
 	'forms:read',
 	'tenant:read',
@@ -167,6 +175,7 @@ const OPERATIONS: Permission[] = [
 	'trips:write',
 	'trips:assign',
 	'crew:write',
+	'vehicles:write',
 	'travelers:read_sensitive',
 	'customers:write',
 	'conversations:write',

@@ -91,6 +91,18 @@ const schema = z.object({
 	R2_ACCESS_KEY_ID: z.string().default(''),
 	R2_SECRET_ACCESS_KEY: z.string().default(''),
 	R2_BUCKET_NAME: z.string().default(''),
+
+	/*
+	 * --- Vehicle tracking (optional) ---
+	 * The GPS backend behind Operations > Vehicles. Absent on a deployment that
+	 * does not sell tracking, and the feature simply reports NOT_CONFIGURED — it
+	 * is never required for trips, bookings or the mobile API to work.
+	 * Either a token or a username/password, depending on the server's version.
+	 */
+	TRACCAR_BASE_URL: z.string().default(''),
+	TRACCAR_TOKEN: z.string().default(''),
+	TRACCAR_USERNAME: z.string().default(''),
+	TRACCAR_PASSWORD: z.string().default(''),
 	/** Public CDN origin for the bucket. The only R2 value a browser ever sees. */
 	R2_PUBLIC_URL: z.string().default('')
 });

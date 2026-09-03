@@ -11,6 +11,7 @@
 // touching what the customer was quoted. Nothing here writes to the booking.
 import { and, asc, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
+import { resolveVehicle } from './vehicles';
 import { nextReference } from './db/references';
 import { emit } from './events';
 import { assertAllowed } from './entitlements';
@@ -747,6 +748,7 @@ export type UpdateTripInput = {
 	notes?: string | null;
 	/** Assign from the registry. Sets the link AND the name in one go. */
 	driverCrewId?: string | null;
+	vehicleId?: string | null;
 	guideCrewId?: string | null;
 	specialistCrewId?: string | null;
 	accommodationItemId?: string | null;
@@ -800,7 +802,29 @@ export async function updateTrip(
 	if (input.operationsUserId !== undefined) patch.operationsUserId = input.operationsUserId;
 	if (input.startDate !== undefined) patch.startDate = toDate(input.startDate);
 	if (input.endDate !== undefined) patch.endDate = toDate(input.endDate);
-	if (input.vehicle !== undefined) patch.vehicle = input.vehicle;
+	/*
+	 * Picking from the fleet registry writes BOTH columns; typing a name clears
+	 * the link. Exactly the driver/driverCrewId rule below, and for a sharper
+	 * reason: trips.vehicle is what the readiness check and the blocked-trip SQL
+	 * aggregate both read, and what a shipped Flutter client renders as a plain
+	 * String. Writing only vehicleId would mark every trip in the tenant as
+	 * unable to depart while looking, in the database, like an assignment.
+	 */
+	if (input.vehicleId !== undefined) {
+		const resolved = await resolveVehicle(tenantId, input.vehicleId);
+		patch.vehicleId = resolved.id;
+		// Clearing the registry link deliberately clears the snapshot with it: a
+		// name left behind would claim a vehicle the trip no longer has. A caller
+		// that wants to keep the text sends `vehicle` in the same update.
+		patch.vehicle = resolved.snapshot;
+	}
+	if (input.vehicle !== undefined) {
+		patch.vehicle = input.vehicle;
+		// A typed-in vehicle is explicitly NOT the registered one, so the link goes.
+		// Unless the same update also picked from the registry, in which case that
+		// choice above is the one that stands.
+		if (input.vehicleId === undefined) patch.vehicleId = null;
+	}
 
 	// A registry pick wins over free text and sets both columns; free text alone
 	// clears the link, because a typed-in name is explicitly NOT the registered

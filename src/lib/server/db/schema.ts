@@ -1050,6 +1050,15 @@ export const trips = pgTable(
 		// trips teach us the shape; promoting these to real records later is a
 		// migration, whereas guessing the shape now and being wrong is a rewrite.
 		vehicle: text('vehicle'),
+		/*
+		 * The registry link, paired with the snapshot above.
+		 *
+		 * Nullable and additive on purpose: `vehicle` text remains authoritative for
+		 * readiness (the CHECKS entry and the blocked-trip SQL both read it), and a
+		 * trip written before the registry existed must keep working untouched.
+		 * Assigning from the registry writes BOTH.
+		 */
+		vehicleId: uuid('vehicle_id').references(() => vehicles.id, { onDelete: 'set null' }),
 		// The NAME stays on the trip as a snapshot, and the id links to the
 		// registry. Two reasons for keeping both: a trip that ran last year must
 		// still say who drove it even if that person has since left, and every
@@ -1175,6 +1184,91 @@ export const crew = pgTable(
 		index('crew_tenant_type_idx').on(t.tenantId, t.type, t.isActive),
 		index('crew_user_idx').on(t.userId),
 		index('crew_source_idx').on(t.tenantId, t.externalSource, t.externalReference)
+	]
+);
+
+/**
+ * The vehicles a tenant runs, and where a tracker is mapped to them.
+ *
+ * A twin of `crew`, deliberately: same ownership, same deactivate-never-delete
+ * rule, same provenance columns. A trip has always NAMED its vehicle as free
+ * text, which is right for "2x Land Cruiser T 123 ABC / T 456 DEF" and wrong for
+ * "which physical vehicle is this, and where is it". This is the promotion the
+ * comment on trips.vehicle already prescribes — the text snapshot stays, and the
+ * id points at the registry.
+ *
+ * The tracker lives on this row rather than in its own table because V1 maps one
+ * device to one vehicle and stores NO positions: a join table would buy nothing
+ * until trackers move between vehicles. The ceiling, stated plainly: swapping a
+ * tracker between vehicles keeps no history of the swap.
+ */
+export const vehicles = pgTable(
+	'vehicles',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		/** What an operator calls it on the radio: "Land Cruiser 3". */
+		name: text('name').notNull(),
+		/** The plate. The vehicle's analogue of crew.licence_number. */
+		registration: text('registration'),
+		make: text('make'),
+		model: text('model'),
+		/** Free-form on purpose — 4X4, MINIBUS, SEDAN, BOAT. Not a lifecycle, so not an enum. */
+		type: text('type'),
+		seats: integer('seats'),
+		notes: text('notes'),
+		externalReference: text('external_reference'),
+		externalSource: text('external_source'),
+		// Deactivated rather than deleted, for the same reason as crew: a trip that
+		// ran last year still names the vehicle that ran it.
+		isActive: boolean('is_active').notNull().default(true),
+
+		/* ---------------------------------------------------------- tracking ---- */
+
+		/** Named by provider so the column outlives the provider. 'TRACCAR' today. */
+		trackerProvider: text('tracker_provider'),
+		/*
+		 * The provider's identifier for the tracker.
+		 *
+		 * NOT called device_id: `device_tokens` and /api/mobile/v1/devices already
+		 * own the word "device" in this schema and mean a Firebase push handle.
+		 */
+		trackerDeviceRef: text('tracker_device_ref'),
+		trackerLinkedAt: timestamp('tracker_linked_at', { withTimezone: true }),
+
+		/*
+		 * The newest fix, cached as ONE row — not a time series.
+		 *
+		 * The tracking provider stays the source of truth for history (V1 stores no
+		 * position table). This exists so a trip list can say "last seen 2h ago"
+		 * without calling out to the provider once per row.
+		 */
+		lastFixAt: timestamp('last_fix_at', { withTimezone: true }),
+		lastFixLat: numeric('last_fix_lat', { precision: 9, scale: 6 }),
+		lastFixLng: numeric('last_fix_lng', { precision: 9, scale: 6 }),
+		lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+		lastErrorAt: timestamp('last_error_at', { withTimezone: true }),
+		lastErrorCode: text('last_error_code'),
+
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		index('vehicles_tenant_active_idx').on(t.tenantId, t.isActive),
+		index('vehicles_source_idx').on(t.tenantId, t.externalSource, t.externalReference),
+		/*
+		 * GLOBALLY unique, not tenant-scoped, and that is the point.
+		 *
+		 * On a shared tracking server the device reference is what says whose
+		 * position stream this is. Scoped per tenant, tenant B could map tenant A's
+		 * device and quietly receive its positions. The cost is real and accepted:
+		 * two tenants cannot share one physical tracker.
+		 */
+		uniqueIndex('vehicles_tracker_ref_key')
+			.on(t.trackerProvider, t.trackerDeviceRef)
+			.where(sql`${t.trackerDeviceRef} is not null`)
 	]
 );
 
@@ -1800,6 +1894,7 @@ export type BookingRequest = typeof bookingRequests.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type Trip = typeof trips.$inferSelect;
 export type Crew = typeof crew.$inferSelect;
+export type Vehicle = typeof vehicles.$inferSelect;
 export type TripItem = typeof tripItems.$inferSelect;
 export type Quotation = typeof quotations.$inferSelect;
 export type Payment = typeof payments.$inferSelect;

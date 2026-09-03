@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TripTracking from '$components/TripTracking.svelte';
 	import { enhance } from '$lib/forms';
 	import Money from '$components/Money.svelte';
 	import StatusBadge from '$components/StatusBadge.svelte';
@@ -56,6 +57,14 @@
 	/** Which rows pick from a list, and what that list is. */
 	const options = $derived({
 		accommodation: { field: 'accommodationItemId', list: data.accommodations, selected: data.trip.accommodationItemId },
+		// Same seam as the crew pickers: choosing from the registry writes the id AND
+		// the snapshot text, and typing a name instead clears the id. The label is
+		// what gets written, which is why the picker shows it verbatim.
+		vehicle: {
+			field: 'vehicleId',
+			list: (data.vehicles ?? []).map((v) => ({ id: v.id, name: v.label })),
+			selected: data.trip.vehicleId
+		},
 		driver: { field: 'driverCrewId', list: data.crew.drivers, selected: data.trip.driverCrewId },
 		guide: { field: 'guideCrewId', list: data.crew.guides, selected: data.trip.guideCrewId },
 		specialist: { field: 'specialistCrewId', list: data.crew.specialists, selected: data.trip.specialistCrewId }
@@ -134,6 +143,12 @@
 				{/if}
 			</form>
 		</div>
+	{/if}
+
+	<!-- Where the vehicle is. Renders on its own and fails on its own: this card
+	     going grey must never take the trip page with it. -->
+	{#if data.trip.vehicleId}
+		<TripTracking tripId={data.trip.id} vehicleLabel={data.trip.vehicle} />
 	{/if}
 
 	<div class="card overflow-hidden">
