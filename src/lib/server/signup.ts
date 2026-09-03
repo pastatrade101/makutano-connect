@@ -121,6 +121,24 @@ export async function stageForUser(user: schema.User): Promise<SignupStage> {
 	return 'BUSINESS';
 }
 
+/**
+ * Where this user belongs after signing in, resetting a password, or landing on
+ * the site already authenticated.
+ *
+ * A SUPER ADMIN has no tenant membership — that is the whole point of the role —
+ * so stageForUser() reads "no workspace yet" and sends them to the onboarding
+ * wizard to set up a business they will never have. /login had a special case for
+ * this and six other entry points did not, so resetting a password dropped the
+ * platform owner into "Set up your operation".
+ *
+ * The rule now lives in one function instead of at each call site, because the
+ * evidence is that call sites forget it.
+ */
+export async function landingPathFor(user: schema.User): Promise<string> {
+	if (user.isSuperAdmin) return '/admin';
+	return pathForStage(await stageForUser(user));
+}
+
 /** The path a user in a given stage should be looking at. */
 export function pathForStage(stage: SignupStage): string {
 	if (stage === 'VERIFY_EMAIL') return '/verify-email';

@@ -7,7 +7,7 @@ import { createSession, setSessionCookie } from '$lib/server/auth/session';
 import { consumeToken } from '$lib/server/auth/verification';
 import { db, schema } from '$lib/server/db';
 import { log } from '$lib/server/logger';
-import { checkPassword, markEmailVerified, pathForStage, stageForUser } from '$lib/server/signup';
+import { checkPassword, markEmailVerified, pathForStage, stageForUser, landingPathFor } from '$lib/server/signup';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -49,6 +49,6 @@ export const actions: Actions = {
 		});
 		setSessionCookie(event.cookies, session.token, session.expiresAt);
 
-		redirect(303, pathForStage(await stageForUser(verified)));
+		redirect(303, await landingPathFor(verified));
 	}
 };

@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { planHighlights, selectablePlans, signupEnabled, trialDays } from '$lib/server/provisioning';
-import { pathForStage, stageForUser } from '$lib/server/signup';
+import { pathForStage, stageForUser, landingPathFor } from '$lib/server/signup';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// public product site.
 	if (locals.user) {
 		if (locals.user.isSuperAdmin && !locals.tenant) redirect(303, '/admin');
-		redirect(303, pathForStage(await stageForUser(locals.user)));
+		redirect(303, await landingPathFor(locals.user));
 	}
 
 	// Real plans, straight from the same source signup uses — the marketing page never

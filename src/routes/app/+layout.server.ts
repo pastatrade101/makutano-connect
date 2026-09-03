@@ -3,7 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db, schema } from '$lib/server/db';
 import { approachingLimits, effectiveEntitlements } from '$lib/server/entitlements';
 import { membershipsForUser } from '$lib/server/tenants';
-import { pathForStage, stageForUser } from '$lib/server/signup';
+import { pathForStage, stageForUser, landingPathFor } from '$lib/server/signup';
 import { normalizeWorkspace } from '$lib/workspace';
 import type { LayoutServerLoad } from './$types';
 
@@ -13,7 +13,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		// A super admin with no tenant selected belongs in the admin area, not here.
 		if (locals.user.isSuperAdmin) redirect(303, '/admin');
 		// Everyone else is mid-signup: send them to the step they have not finished.
-		redirect(303, pathForStage(await stageForUser(locals.user)));
+		redirect(303, await landingPathFor(locals.user));
 	}
 	// A blocked account gets one honest explanation instead of a wall of failed actions.
 	// Super admins are exempt: inspecting a suspended tenant's portal is exactly how

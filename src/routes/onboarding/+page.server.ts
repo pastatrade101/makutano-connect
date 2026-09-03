@@ -70,6 +70,9 @@ const SYSTEM_SOURCES = new Set(['WEBSITE_CMS', 'BOOKING_SYSTEM', 'OTHER_SYSTEM',
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) redirect(303, '/login');
+	// A super admin has no workspace to set up and never will, so their stage reads
+	// BUSINESS forever — this wizard would hold the platform owner indefinitely.
+	if (locals.user.isSuperAdmin) redirect(303, '/admin');
 	const stage = await stageForUser(locals.user);
 	if (stage !== 'BUSINESS') redirect(303, pathForStage(stage));
 
@@ -104,6 +107,7 @@ export const actions: Actions = {
 
 		// Re-derive the stage on submit: a verified user who already owns a tenant must
 		// not be able to POST this form a second time and create another one.
+		if (event.locals.user.isSuperAdmin) redirect(303, '/admin');
 		const stage = await stageForUser(event.locals.user);
 		if (stage !== 'BUSINESS') redirect(303, pathForStage(stage));
 

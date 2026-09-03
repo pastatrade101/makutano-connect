@@ -17,14 +17,13 @@ import {
 	stageForUser,
 	turnstileEnabled,
 	turnstileSiteKey,
-	verifyTurnstile
-} from '$lib/server/signup';
+	verifyTurnstile, landingPathFor } from '$lib/server/signup';
 import type { PageServerLoad } from './$types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user) redirect(303, pathForStage(await stageForUser(locals.user)));
+	if (locals.user) redirect(303, await landingPathFor(locals.user));
 	if (!signupEnabled()) redirect(303, '/login');
 	// The panel's numbers are counted, never written down. Null when the count
 	// fails — the panel then shows no numbers rather than wrong ones.

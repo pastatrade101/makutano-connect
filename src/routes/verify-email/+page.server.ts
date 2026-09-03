@@ -8,7 +8,7 @@ import { createSession, setSessionCookie } from '$lib/server/auth/session';
 import { emailReady } from '$lib/server/env';
 import { toAppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
-import { limitResend, markEmailVerified, pathForStage, stageForUser } from '$lib/server/signup';
+import { landingPathFor, limitResend, markEmailVerified, pathForStage, stageForUser } from '$lib/server/signup';
 import type { PageServerLoad } from './$types';
 
 /** Show only enough of an address to recognise it: a****@example.com. */
@@ -42,10 +42,11 @@ export const load: PageServerLoad = async (event) => {
 		await db().update(schema.users).set({ lastLoginAt: new Date() }).where(eq(schema.users.id, user.id));
 
 		const fresh = (await db().select().from(schema.users).where(eq(schema.users.id, user.id)).limit(1))[0];
-		redirect(303, pathForStage(await stageForUser(fresh)));
+		redirect(303, await landingPathFor(fresh));
 	}
 
 	if (!event.locals.user) redirect(303, '/login');
+	if (event.locals.user.isSuperAdmin) redirect(303, '/admin');
 	const stage = await stageForUser(event.locals.user);
 	if (stage !== 'VERIFY_EMAIL') redirect(303, pathForStage(stage));
 
