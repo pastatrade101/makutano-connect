@@ -13,7 +13,7 @@
 
 <svelte:head><title>Search · {data.tenant.name}</title></svelte:head>
 
-<div class="mx-auto max-w-2xl space-y-3">
+<div class="mx-auto w-full max-w-2xl space-y-3">
 	<form method="GET" class="flex gap-2">
 		<input
 			name="q"

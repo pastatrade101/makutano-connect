@@ -78,7 +78,7 @@
 {#if !data.workspaceRelevant}
 	<WorkspaceNotice module="Orders" />
 {:else}
-<div class="mx-auto max-w-4xl space-y-3">
+<div class="mx-auto w-full max-w-4xl space-y-3">
 	<div>
 		<a href="/app/orders" class="text-xs text-slate-500 hover:underline">← Orders</a>
 		<h1 class="text-base font-semibold text-slate-800">New order</h1>

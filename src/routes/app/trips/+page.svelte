@@ -25,7 +25,7 @@
 {#if !data.workspaceRelevant}
 	<WorkspaceNotice module="Trips" />
 {:else}
-<div class="mx-auto max-w-4xl space-y-4">
+<div class="space-y-4">
 	<!-- One honest line instead of a row of zeroes. What an operations person needs
 	     on arrival is not five counters, it is whether anything is going wrong. -->
 	<header class="flex flex-wrap items-end justify-between gap-3">
@@ -79,7 +79,10 @@
 						{group.rows.length}
 					</span>
 				</h2>
-				<div class="space-y-2">
+				<!-- Two abreast on a wide screen. Not three: a trip card carries a
+				     title, a reference, dates, guests and a blocker line, and at three
+				     columns every one of those wraps. -->
+				<div class="grid gap-2 xl:grid-cols-2">
 					{#each group.rows as row (row.trip.id)}
 						<TripCard {row} timezone={data.tenant.timezone} />
 					{/each}

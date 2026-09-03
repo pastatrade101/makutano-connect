@@ -14,7 +14,7 @@
 {#if !data.workspaceRelevant}
 	<WorkspaceNotice module="Enquiries" />
 {:else}
-	<div class="mx-auto max-w-2xl space-y-3">
+	<div class="mx-auto w-full max-w-2xl space-y-3">
 		<div>
 			<a href="/app/booking-requests" class="text-xs text-slate-500 hover:underline">← Enquiries</a>
 			<h1 class="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-lg">New enquiry</h1>

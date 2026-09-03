@@ -104,6 +104,21 @@
 		<div class="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{form.error}</div>
 	{/if}
 
+	<!--
+		Two columns once there is room for them.
+
+		The page already spanned the full window; what it did with the width was
+		stretch every label/value row across it, so the eye travelled the width of a
+		monitor to get from "Driver" to "Change". The rail fixes that by giving the
+		width a job: what to DECIDE and where the vehicle IS sit beside the set-up
+		list instead of above it, and the list keeps a readable measure.
+
+		DOM order is rail-then-tabs, which is the right priority on a phone; xl:order
+		moves the rail to the right on a wide screen without moving it in the
+		accessibility tree's reading order on a small one.
+	-->
+	<div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+	<aside class="space-y-3 xl:order-2">
 	<!-- The one action that matters, decided by the readiness model rather than by
 	     which button someone felt like showing. -->
 	{#if data.canWrite && !['COMPLETED', 'CANCELLED'].includes(data.trip.status)}
@@ -183,7 +198,9 @@
 	{#if data.trip.vehicleId}
 		<TripTracking tripId={data.trip.id} vehicleLabel={data.trip.vehicle} />
 	{/if}
+	</aside>
 
+	<div class="min-w-0 space-y-3 xl:order-1">
 	<div class="card overflow-hidden">
 		<div class="flex gap-1 border-b border-slate-100 px-3 py-2">
 			{#each [['setup', 'Setup'], ['overview', 'Overview'], ['itinerary', 'Itinerary'], ['guests', `Guests (${guests})`]] as [key, label]}
@@ -471,5 +488,7 @@
 				</table>
 			{/if}
 		{/if}
+	</div>
+	</div>
 	</div>
 </div>

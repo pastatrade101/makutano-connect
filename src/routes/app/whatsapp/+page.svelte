@@ -16,7 +16,7 @@
 
 <FormToast {form} successTitle="Done" />
 
-<div class="mx-auto max-w-5xl space-y-3">
+<div class="mx-auto w-full max-w-5xl space-y-3">
 	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">WhatsApp</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Connection and notifications</p></div>
 
 	{#if !data.featureEnabled}

@@ -35,7 +35,7 @@
 
 <FormToast {form} successTitle="Quotation updated" />
 
-<div class="mx-auto max-w-4xl space-y-3">
+<div class="mx-auto w-full max-w-4xl space-y-3">
 	<!--
 		Arrived straight from an enquiry. Three outcomes, said plainly: saved,
 		sent, or saved-but-not-delivered — because "created" over a failed send

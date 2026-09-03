@@ -228,7 +228,7 @@
 
 <FormToast {form} successTitle="Saved" />
 
-<div class="mx-auto max-w-3xl space-y-3">
+<div class="mx-auto w-full max-w-3xl space-y-3">
 	<a href="/app/customers" class="text-xs text-slate-500 hover:underline">← Travellers</a>
 
 	<!-- Who is this? Identity and the one action, nothing technical. -->
