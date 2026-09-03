@@ -99,6 +99,16 @@ const schema = z.object({
 	 * is never required for trips, bookings or the mobile API to work.
 	 * Either a token or a username/password, depending on the server's version.
 	 */
+	/*
+	 * Lets a TRUSTED first-party origin (the marketplace) speak for the traveller
+	 * whose request it is relaying.
+	 *
+	 * Empty by default, and empty means the feature does not exist: an unset
+	 * secret can never match, so a forwarded address is always ignored. That is
+	 * the safe direction — the failure mode is today's behaviour, not an open
+	 * door.
+	 */
+	PUBLIC_ORIGIN_SHARED_SECRET: z.string().default(''),
 	TRACCAR_BASE_URL: z.string().default(''),
 	TRACCAR_TOKEN: z.string().default(''),
 	TRACCAR_USERNAME: z.string().default(''),

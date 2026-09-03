@@ -15,14 +15,72 @@ import { AppError, errorResponse, toAppError } from './errors';
 import { enforce } from './rate-limit';
 import { sha256 } from './encryption';
 import { log } from './logger';
+import { env } from './env';
+import { createHash, timingSafeEqual } from 'node:crypto';
 
-/** Never store or log a raw address — the hash is enough to rate-limit by. */
+/** Headers a trusted first-party origin uses to speak for the person it relays. */
+const ORIGIN_SECRET_HEADER = 'x-makutano-origin-secret';
+const ORIGIN_CLIENT_IP_HEADER = 'x-makutano-client-ip';
+
+/**
+ * Longest plausible address. An IPv6 address with a zone is 45 characters; this
+ * is generous and still refuses a header used as a smuggling channel.
+ */
+const MAX_ADDRESS_LENGTH = 64;
+/** Hex, digits, dots, colons — everything a v4 or v6 address needs, nothing else. */
+const ADDRESS_SHAPE = /^[0-9a-fA-F.:%]+$/;
+
+/**
+ * Compare secrets without leaking their contents through timing.
+ *
+ * Both sides are hashed first so the buffers are always the same length, which
+ * timingSafeEqual requires and which stops the comparison revealing the secret's
+ * length.
+ */
+function secretMatches(presented: string | null): boolean {
+	const expected = env().PUBLIC_ORIGIN_SHARED_SECRET;
+	// No secret configured means the feature is off. Never treat "" as a match.
+	if (!expected || !presented) return false;
+	const a = createHash('sha256').update(presented).digest();
+	const b = createHash('sha256').update(expected).digest();
+	return timingSafeEqual(a, b);
+}
+
+/**
+ * Who the rate limiter should count this request against.
+ *
+ * Normally the peer address, hashed — never stored or logged raw.
+ *
+ * THE RELAY CASE. The marketplace submits enquiries from a SERVER-SIDE form
+ * action, so Connect sees the marketplace container for every traveller on the
+ * internet. That collapsed the whole public into one bucket of ten per ten
+ * minutes: the eleventh traveller in that window would have been told "Too many
+ * requests" and lost their enquiry, having done nothing wrong. (Browsing is
+ * unaffected — those loads run in the traveller's own browser, which is why
+ * production shows sixteen distinct keys for tours and none for enquiries.)
+ *
+ * So a trusted origin may name the person it is relaying — but ONLY when it
+ * proves who it is with the shared secret. Without a valid secret the header is
+ * ignored completely, because a rate limiter that believes an unauthenticated
+ * "here is my IP" header is not a rate limiter at all: anyone could send a fresh
+ * value per request and never be limited.
+ */
 export function clientKey(event: RequestEvent): string {
 	try {
-		return sha256(event.getClientAddress()).slice(0, 24);
+		const forwarded = relayedAddress(event);
+		return sha256(forwarded ?? event.getClientAddress()).slice(0, 24);
 	} catch {
 		return 'unknown';
 	}
+}
+
+/** The address a trusted origin vouched for, or null — null meaning "use the peer". */
+function relayedAddress(event: RequestEvent): string | null {
+	if (!secretMatches(event.request.headers.get(ORIGIN_SECRET_HEADER))) return null;
+	const raw = event.request.headers.get(ORIGIN_CLIENT_IP_HEADER)?.trim();
+	// A trusted origin that sends nothing usable gets the peer key, not a pass.
+	if (!raw || raw.length > MAX_ADDRESS_LENGTH || !ADDRESS_SHAPE.test(raw)) return null;
+	return raw;
 }
 
 /**
