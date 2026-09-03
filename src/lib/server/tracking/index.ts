@@ -17,7 +17,7 @@
  *   whose tracking card says "unavailable" is a working trip page; a trip page
  *   that 500s because a GPS server is slow is a broken product.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { db, schema } from '$lib/server/db';
 import { TraccarProvider } from './traccar';
 import type { TrackingHistory, TrackingProvider, TrackingSnapshot } from './types';
@@ -77,6 +77,35 @@ export async function vehicleSnapshot(tenantId: string, vehicleId: string): Prom
 	const provider = providerFor(vehicle.trackerProvider);
 	if (!provider || !provider.isConfigured()) return notConfigured;
 	return provider.snapshot(vehicle.trackerDeviceRef);
+}
+
+/**
+ * Latest state for every tracked vehicle a tenant owns, in one provider call.
+ *
+ * Ownership is still resolved here: the device references handed to the provider
+ * come from rows read under this tenantId, never from a caller.
+ */
+export async function fleetSnapshot(tenantId: string): Promise<Map<string, TrackingSnapshot>> {
+	const rows = await db()
+		.select({ id: schema.vehicles.id, provider: schema.vehicles.trackerProvider, ref: schema.vehicles.trackerDeviceRef })
+		.from(schema.vehicles)
+		.where(and(eq(schema.vehicles.tenantId, tenantId), isNotNull(schema.vehicles.trackerDeviceRef)));
+
+	const byVehicle = new Map<string, TrackingSnapshot>();
+	if (!rows.length) return byVehicle;
+
+	// Grouped by provider so a second provider later costs one more call, not one
+	// per vehicle.
+	for (const [name, provider] of Object.entries(providers)) {
+		const mine = rows.filter((r) => r.provider === name && r.ref);
+		if (!mine.length || !provider.isConfigured()) continue;
+		const snaps = await provider.snapshotAll(mine.map((r) => r.ref as string));
+		for (const r of mine) {
+			const s = snaps.get(r.ref as string);
+			if (s) byVehicle.set(r.id, s);
+		}
+	}
+	return byVehicle;
 }
 
 /** Where a tenant's TRIP is now, resolved through the vehicle assigned to it. */

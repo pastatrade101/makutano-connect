@@ -9,7 +9,7 @@ import { requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { toAppError } from '$lib/server/errors';
 import { createVehicle, listVehicles, setVehicleTracker, updateVehicle } from '$lib/server/vehicles';
-import { stateForAge, TRACKING_LABEL, trackingEnabled } from '$lib/server/tracking';
+import { fleetSnapshot, TRACKING_LABEL, trackingEnabled, type TrackingState } from '$lib/server/tracking';
 import { db, schema } from '$lib/server/db';
 import { and, inArray } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
@@ -17,6 +17,21 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals }) => {
 	const tenant = requireTenantPermission(locals, 'vehicles:read');
 	const vehicles = await listVehicles(tenant.id);
+
+	/*
+	 * Live state for the whole fleet in ONE provider call.
+	 *
+	 * This used to read a cached last_fix_at column on the vehicle row — and
+	 * nothing ever wrote that column, so every tracked vehicle reported "Tracker
+	 * offline" while its position was seconds old. The cache was the right idea
+	 * and the wrong half of it: there was no writer.
+	 *
+	 * Asking the provider directly is correct here because it is ONE request for
+	 * the page however long the list is, not one per row. If the provider is slow
+	 * or down the call returns UNAVAILABLE for each vehicle and the page still
+	 * renders — a fleet list must never fail because a GPS server did.
+	 */
+	const live = trackingEnabled() ? await fleetSnapshot(tenant.id) : new Map();
 
 	// Which vehicles are out on a trip right now. One query for the page, keyed on
 	// the ids we already have, so an operator can see "On trip" without the list
@@ -37,8 +52,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		trackingEnabled: trackingEnabled(),
 		canWrite: locals.permissions.includes('vehicles:write'),
 		vehicles: vehicles.map((v) => {
-			// Derived from the cached fix, so the list never waits on a third party.
-			const state = v.trackerDeviceRef ? stateForAge(v.lastFixAt) : 'NOT_CONFIGURED';
+			const snap = live.get(v.id);
+			// No tracker mapped is NOT_CONFIGURED; a mapped tracker takes whatever the
+			// provider just said about it.
+			const state: TrackingState = !v.trackerDeviceRef ? 'NOT_CONFIGURED' : (snap?.state ?? 'UNAVAILABLE');
 			const trip = onTrip.get(v.id);
 			return {
 				id: v.id,
@@ -53,7 +70,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				trackerDeviceRef: v.trackerDeviceRef,
 				trackingState: state,
 				trackingLabel: TRACKING_LABEL[state],
-				lastFixAt: v.lastFixAt,
+				lastFixAt: snap?.position?.recordedAt ?? v.lastFixAt,
 				assignment: trip ? { tripId: trip.tripId, reference: trip.reference } : null
 			};
 		})

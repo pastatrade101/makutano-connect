@@ -168,6 +168,53 @@ export class TraccarProvider implements TrackingProvider {
 		}
 	}
 
+	/**
+	 * Every device's latest position in ONE request.
+	 *
+	 * /api/positions with no parameters returns the newest fix for each device the
+	 * token can see, so a fleet list costs one call regardless of its length. The
+	 * alternative — snapshot() per row — is how a ten-vehicle page becomes twenty
+	 * outbound requests and starts timing out for everybody.
+	 */
+	async snapshotAll(deviceRefs: string[]): Promise<Map<string, TrackingSnapshot>> {
+		const out = new Map<string, TrackingSnapshot>();
+		if (!deviceRefs.length || !this.isConfigured()) return out;
+		try {
+			// Positions carry a numeric deviceId, not the reference we store, so the
+			// device list is what maps one to the other.
+			const [devices, positions] = await Promise.all([
+				this.request<TraccarDevice[]>('/devices'),
+				this.request<(TraccarPosition & { deviceId?: number })[]>('/positions')
+			]);
+			const refById = new Map(devices.map((d) => [d.id, d.uniqueId]));
+			const onlineByRef = new Map(devices.map((d) => [d.uniqueId, d.status?.toLowerCase() === 'online']));
+
+			for (const raw of positions) {
+				const ref = refById.get(raw.deviceId);
+				if (!ref || !deviceRefs.includes(ref)) continue;
+				const position = toPosition(raw);
+				if (!position) continue;
+				out.set(ref, {
+					state: stateForAge(position.recordedAt),
+					position,
+					providerOnline: onlineByRef.get(ref) ?? null
+				});
+			}
+			// A mapped device the provider has no position for is OFFLINE, not absent:
+			// the caller asked about it and deserves an answer.
+			for (const ref of deviceRefs) {
+				if (!out.has(ref)) out.set(ref, { state: 'OFFLINE', position: null, providerOnline: onlineByRef.get(ref) ?? null });
+			}
+			return out;
+		} catch (err) {
+			log.warn('tracking_snapshot_all_failed', { provider: this.name, reason: safeReason(err) });
+			// One failed call must not make the whole fleet look offline — say
+			// unavailable, which is the truth, and let the page render.
+			for (const ref of deviceRefs) out.set(ref, { state: 'UNAVAILABLE', position: null });
+			return out;
+		}
+	}
+
 	async history(deviceRef: string, from: Date, to: Date): Promise<TrackingHistory> {
 		if (!this.isConfigured()) return { positions: [], from, to, truncated: false };
 		try {

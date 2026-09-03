@@ -81,6 +81,14 @@ export interface TrackingProvider {
 	isConfigured(): boolean;
 	/** Latest position plus device state, in as few calls as the provider allows. */
 	snapshot(deviceRef: string): Promise<TrackingSnapshot>;
+	/**
+	 * The latest position for EVERY mapped device, in one request.
+	 *
+	 * A fleet list needs one row per vehicle and must not make one request per
+	 * vehicle to get it. Returns a map keyed by device reference; a device the
+	 * provider has never heard from is simply absent.
+	 */
+	snapshotAll(deviceRefs: string[]): Promise<Map<string, TrackingSnapshot>>;
 	history(deviceRef: string, from: Date, to: Date): Promise<TrackingHistory>;
 }
 
