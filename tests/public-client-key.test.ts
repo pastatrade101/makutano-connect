@@ -31,8 +31,8 @@ function eventWith(headers: Record<string, string>, peer = '203.0.113.9') {
 
 async function loadClientKey(secret: string | null) {
 	vi.resetModules();
-	if (secret === null) vi.stubEnv('PUBLIC_ORIGIN_SHARED_SECRET', '');
-	else vi.stubEnv('PUBLIC_ORIGIN_SHARED_SECRET', secret);
+	if (secret === null) vi.stubEnv('ORIGIN_SHARED_SECRET', '');
+	else vi.stubEnv('ORIGIN_SHARED_SECRET', secret);
 	const mod = await import('../src/lib/server/public-api');
 	return mod.clientKey;
 }
@@ -98,5 +98,43 @@ describe('a public caller is counted as the person, not the relay', () => {
 		const key = clientKey(eventWith({ 'x-makutano-origin-secret': SECRET, 'x-makutano-client-ip': '1.2.3.4' }, '10.0.0.5'));
 		expect(key).not.toContain('1.2.3.4');
 		expect(key).toHaveLength(24);
+	});
+});
+
+describe('a secret must never be named so SvelteKit calls it public', () => {
+	/*
+	 * This suite passes under vitest even when the variable is misnamed, because
+	 * the test runner maps $env/dynamic/private straight to process.env without
+	 * SvelteKit's prefix filter. Production does apply it, so the tests above can
+	 * be green while the feature is inert and the secret is browser-classified.
+	 *
+	 * This asserts against SvelteKit's OWN filter_env — the exact function the
+	 * server calls at startup — so the runner cannot paper over it.
+	 */
+	it('routes ORIGIN_SHARED_SECRET to the server and never to the browser', async () => {
+		const { filter_env } = await import('../node_modules/@sveltejs/kit/src/utils/env.js');
+		const sample = { ORIGIN_SHARED_SECRET: 'value', PUBLIC_ORIGIN_SHARED_SECRET: 'value' };
+		const priv = filter_env(sample, '', 'PUBLIC_');
+		const pub = filter_env(sample, 'PUBLIC_', '');
+
+		expect('ORIGIN_SHARED_SECRET' in priv).toBe(true);
+		expect('ORIGIN_SHARED_SECRET' in pub).toBe(false);
+
+		// And the trap this guards against, stated out loud: the PUBLIC_ name is
+		// unreadable by the server and handed to every visitor.
+		expect('PUBLIC_ORIGIN_SHARED_SECRET' in priv).toBe(false);
+		expect('PUBLIC_ORIGIN_SHARED_SECRET' in pub).toBe(true);
+	});
+
+	it('declares no PUBLIC_-prefixed SECRET in the server env schema', async () => {
+		const { readFileSync } = await import('node:fs');
+		const source = readFileSync('src/lib/server/env.ts', 'utf8');
+		const publicNames = [...source.matchAll(/^\s*(PUBLIC_[A-Z0-9_]+)\s*:/gm)].map((m) => m[1]);
+		// PUBLIC_APP_URL is deliberate and harmless — it is the console's own
+		// address, which every visitor already knows. What must never appear is a
+		// CREDENTIAL under that prefix, because the prefix is what decides which
+		// half of the environment the browser is allowed to see.
+		const secretish = publicNames.filter((n) => /SECRET|TOKEN|KEY|PASSWORD|CREDENTIAL/.test(n));
+		expect(secretish).toEqual([]);
 	});
 });

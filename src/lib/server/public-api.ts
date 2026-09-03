@@ -38,7 +38,7 @@ const ADDRESS_SHAPE = /^[0-9a-fA-F.:%]+$/;
  * length.
  */
 function secretMatches(presented: string | null): boolean {
-	const expected = env().PUBLIC_ORIGIN_SHARED_SECRET;
+	const expected = env().ORIGIN_SHARED_SECRET;
 	// No secret configured means the feature is off. Never treat "" as a match.
 	if (!expected || !presented) return false;
 	const a = createHash('sha256').update(presented).digest();

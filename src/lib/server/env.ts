@@ -103,12 +103,20 @@ const schema = z.object({
 	 * Lets a TRUSTED first-party origin (the marketplace) speak for the traveller
 	 * whose request it is relaying.
 	 *
+	 * DO NOT prefix this name with PUBLIC_. SvelteKit's filter_env puts every
+	 * PUBLIC_* variable into $env/dynamic/public — the browser's half — and
+	 * leaves it out of the private half. env() below happens to still see it via
+	 * the process.env merge, which is exactly why the hazard is easy to miss:
+	 * a PUBLIC_-named secret WORKS, while sitting one `$env/dynamic/public`
+	 * import away from being shipped to every visitor. Verified against the
+	 * installed filter_env; guarded by a test.
+	 *
 	 * Empty by default, and empty means the feature does not exist: an unset
 	 * secret can never match, so a forwarded address is always ignored. That is
 	 * the safe direction — the failure mode is today's behaviour, not an open
 	 * door.
 	 */
-	PUBLIC_ORIGIN_SHARED_SECRET: z.string().default(''),
+	ORIGIN_SHARED_SECRET: z.string().default(''),
 	TRACCAR_BASE_URL: z.string().default(''),
 	TRACCAR_TOKEN: z.string().default(''),
 	TRACCAR_USERNAME: z.string().default(''),
