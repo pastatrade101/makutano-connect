@@ -189,7 +189,21 @@ export async function resolvePublicForm(publicId: string): Promise<{ form: schem
 		.where(eq(schema.forms.publicId, publicId))
 		.limit(1);
 	const row = rows[0];
-	if (!row || !row.form.isActive || row.tenant.deletedAt || row.tenant.status !== 'ACTIVE') {
+	/*
+	 * Stated as an EXCLUSION, not as `status === 'ACTIVE'`.
+	 *
+	 * A tenant on a free trial is 'TRIAL' and a self-signup awaiting billing is
+	 * 'PENDING'. Both are real businesses whose forms are live on their websites.
+	 * Requiring ACTIVE 404'd every hosted form and every embedded widget they had
+	 * — and since production currently holds no ACTIVE tenant at all, that was the
+	 * entire feature, for everyone: an operator could create a form, copy its URL,
+	 * paste it on their site, and every visitor got a 404.
+	 *
+	 * marketplace.ts made exactly this mistake with enquiries and already carries
+	 * the same fix and the same reasoning; this file never got it.
+	 */
+	const reachable = row && !row.tenant.deletedAt && !['SUSPENDED', 'CANCELLED'].includes(row.tenant.status);
+	if (!reachable || !row.form.isActive) {
 		throw new AppError('NOT_FOUND', 'This form is not available.');
 	}
 	return row;
