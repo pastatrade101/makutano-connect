@@ -116,9 +116,28 @@
 					<p class="text-sm font-semibold text-slate-900">
 						{plural(data.readiness.missing.filter((c) => c.critical).length, 'thing')} still stopping this trip leaving
 					</p>
-					<p class="text-xs text-slate-500">
-						Still needs {data.readiness.missing.filter((c) => c.critical).map(blockerLabel).join(', ')}
-					</p>
+					<!-- Each blocker is a way IN, not just a name.
+					     Half of these are not fixable on this page — dates and the deposit
+					     live on the booking, passports on the travellers — so naming them
+					     and stopping there left an operator guessing which of four modules
+					     to open. Every one now carries the step that clears it. -->
+					<ul class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+						{#each data.readiness.missing.filter((c) => c.critical) as c (c.key)}
+							<li>
+								{#if c.fix?.href}
+									<a href={c.fix.href} class="font-medium text-brand-600 hover:underline">{c.fix.label} →</a>
+								{:else if c.fix?.tab}
+									{@const target = c.fix.tab as typeof tab}
+									{@const label = c.fix.label}
+									<button type="button" class="font-medium text-brand-600 hover:underline" onclick={() => (tab = target)}>
+										{label} →
+									</button>
+								{:else}
+									<span class="text-slate-500">{blockerLabel(c)}</span>
+								{/if}
+							</li>
+						{/each}
+					</ul>
 				{:else if data.trip.status === 'READY'}
 					<p class="text-sm font-semibold text-slate-900">Ready to go.</p>
 					<p class="text-xs text-slate-500">Start it when the travellers are on their way.</p>

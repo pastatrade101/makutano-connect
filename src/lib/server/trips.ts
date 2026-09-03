@@ -242,7 +242,17 @@ export async function getTripDetail(tenantId: string, id: string, scope?: SQL | 
 export type ReadinessInput = {
 	trip: Pick<
 		schema.Trip,
-		'adults' | 'children' | 'startDate' | 'accommodation' | 'vehicle' | 'driver' | 'guide' | 'hotelConfirmed'
+		// bookingId is here so a check can say WHERE it is fixed: dates, the deposit
+		// and the balance all live on the booking, not on the trip.
+		| 'bookingId'
+		| 'adults'
+		| 'children'
+		| 'startDate'
+		| 'accommodation'
+		| 'vehicle'
+		| 'driver'
+		| 'guide'
+		| 'hotelConfirmed'
 	>;
 	booking: Pick<schema.Booking, 'status' | 'amountPaid' | 'balanceDue'>;
 	/** How many travellers have a passport on file. */
@@ -257,6 +267,20 @@ type CheckDef = {
 	critical: boolean;
 	/** Needs traveller rows, which the cheap critical-only path does not load. */
 	needsTravelers?: boolean;
+	/*
+	 * Where this gets fixed.
+	 *
+	 * Half of these checks are not fixable on the trip at all — dates and the
+	 * deposit live on the booking, passports on the travellers, the balance on
+	 * payments. The readiness banner named them and stopped there, so an operator
+	 * read "still needs travel dates" on a page with no date field and had to
+	 * guess which of four modules to open. Naming a blocker without saying where
+	 * to go is only half an instruction.
+	 *
+	 * `tab` points at a section of the trip itself; `href` leaves for another
+	 * screen. Neither is authorization — they are signposts.
+	 */
+	fix?: (i: ReadinessInput) => { label: string; href?: string; tab?: string } | null;
 };
 
 const CHECKS: CheckDef[] = [
@@ -264,20 +288,36 @@ const CHECKS: CheckDef[] = [
 		key: 'booking_confirmed',
 		label: () => 'Booking confirmed',
 		done: (i) => ['CONFIRMED', 'IN_PROGRESS', 'COMPLETED'].includes(i.booking.status),
-		critical: true
+		critical: true,
+		fix: (i) => ({ label: 'Open the booking', href: `/app/bookings/${i.trip.bookingId}` })
 	},
-	{ key: 'deposit', label: () => 'Deposit received', done: (i) => Number(i.booking.amountPaid ?? 0) > 0, critical: true },
-	{ key: 'dates', label: () => 'Travel dates set', done: (i) => Boolean(i.trip.startDate), critical: true },
+	{
+		key: 'deposit',
+		label: () => 'Deposit received',
+		done: (i) => Number(i.booking.amountPaid ?? 0) > 0,
+		critical: true,
+		fix: (i) => ({ label: 'Take a payment', href: `/app/bookings/${i.trip.bookingId}` })
+	},
+	{
+		key: 'dates',
+		label: () => 'Travel dates set',
+		done: (i) => Boolean(i.trip.startDate),
+		critical: true,
+		// Dates come from the booking; the trip has no field for them, which is why
+		// this blocker used to be a dead end.
+		fix: (i) => ({ label: 'Set dates on the booking', href: `/app/bookings/${i.trip.bookingId}` })
+	},
 	{
 		key: 'accommodation',
 		label: () => 'Accommodation booked',
 		done: (i) => Boolean(i.trip.accommodation?.trim()),
-		critical: true
+		critical: true,
+		fix: () => ({ label: 'Set accommodation', tab: 'setup' })
 	},
-	{ key: 'hotel_confirmed', label: () => 'Hotel confirmed', done: (i) => i.trip.hotelConfirmed, critical: false },
-	{ key: 'vehicle', label: () => 'Vehicle assigned', done: (i) => Boolean(i.trip.vehicle?.trim()), critical: true },
-	{ key: 'driver', label: () => 'Driver assigned', done: (i) => Boolean(i.trip.driver?.trim()), critical: true },
-	{ key: 'guide', label: () => 'Guide assigned', done: (i) => Boolean(i.trip.guide?.trim()), critical: false },
+	{ key: 'hotel_confirmed', label: () => 'Hotel confirmed', done: (i) => i.trip.hotelConfirmed, critical: false, fix: () => ({ label: 'Confirm the hotel', tab: 'setup' }) },
+	{ key: 'vehicle', label: () => 'Vehicle assigned', done: (i) => Boolean(i.trip.vehicle?.trim()), critical: true, fix: () => ({ label: 'Assign a vehicle', tab: 'setup' }) },
+	{ key: 'driver', label: () => 'Driver assigned', done: (i) => Boolean(i.trip.driver?.trim()), critical: true, fix: () => ({ label: 'Assign a driver', tab: 'setup' }) },
+	{ key: 'guide', label: () => 'Guide assigned', done: (i) => Boolean(i.trip.guide?.trim()), critical: false, fix: () => ({ label: 'Assign a guide', tab: 'setup' }) },
 	{
 		key: 'passports',
 		label: (i) => {
@@ -289,7 +329,8 @@ const CHECKS: CheckDef[] = [
 			return expected > 0 && i.passportsHeld >= expected;
 		},
 		critical: false,
-		needsTravelers: true
+		needsTravelers: true,
+		fix: () => ({ label: 'Add passport details', tab: 'guests' })
 	},
 	// Money still owed does not stop a trip departing — plenty of operators run
 	// the trip and collect on arrival — so this is visible but not blocking.
@@ -312,7 +353,14 @@ if (TRAVELER_DEPENDENT_CRITICAL.length) {
 	);
 }
 
-export type ReadinessCheck = { key: string; label: string; done: boolean; critical: boolean };
+export type ReadinessCheck = {
+	key: string;
+	label: string;
+	done: boolean;
+	critical: boolean;
+	/** Where this gets fixed — a link away, or a tab on the trip itself. */
+	fix: { label: string; href?: string; tab?: string } | null;
+};
 
 export type Readiness = {
 	percent: number;
@@ -336,7 +384,8 @@ export function readinessFor(
 		key: c.key,
 		label: c.label(input),
 		done: c.done(input),
-		critical: c.critical
+		critical: c.critical,
+		fix: c.fix?.(input) ?? null
 	}));
 	const done = checks.filter((c) => c.done).length;
 	return {
