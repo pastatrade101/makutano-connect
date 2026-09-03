@@ -69,9 +69,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		canWrite: locals.permissions.includes('vehicles:write'),
 		vehicles: vehicles.map((v) => {
 			const snap = live.get(v.id);
-			// No tracker mapped is NOT_CONFIGURED; a mapped tracker takes whatever the
-			// provider just said about it.
-			const state: TrackingState = !v.trackerDeviceRef ? 'NOT_CONFIGURED' : (snap?.state ?? 'UNAVAILABLE');
+			// No tracker mapped is NOT_CONFIGURED, and so is a mapped tracker the
+			// service could not answer for — it answers for every vehicle it is
+			// given, so a gap here means unconfigured, never an outage.
+			const state: TrackingState = !v.trackerDeviceRef ? 'NOT_CONFIGURED' : (snap?.state ?? 'NOT_CONFIGURED');
 			const trip = onTrip.get(v.id);
 			return {
 				id: v.id,

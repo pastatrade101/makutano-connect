@@ -139,21 +139,45 @@ export class TraccarProvider implements TrackingProvider {
 	/**
 	 * Latest position and device state.
 	 *
-	 * Two calls, not three: /positions?id= gives the newest fix and /devices?id=
-	 * gives the online flag, and Traccar has no single endpoint carrying both.
-	 * They run together rather than in sequence so the page waits once.
+	 * SEQUENTIAL ON PURPOSE, and this is a security property rather than a style
+	 * choice.
+	 *
+	 * /api/positions accepts deviceId. It does NOT accept uniqueId — it silently
+	 * IGNORES the parameter and returns the newest fix for every device the token
+	 * can see. Verified against Traccar 6.15.3:
+	 *
+	 *   GET /api/positions?uniqueId=DEFINITELY-NOT-A-REAL-DEVICE
+	 *   -> [{"deviceId":1,"latitude":-3.38,...}]      // a real, unrelated device
+	 *
+	 * This code used to pass uniqueId and take positions[0], so with more than one
+	 * tracker registered a trip would have shown an ARBITRARY vehicle's position —
+	 * and because the token is one shared account, that arbitrary vehicle could
+	 * belong to another tenant. It was invisible only because exactly one device
+	 * existed. An operator watching the wrong vehicle is worse than an operator
+	 * watching none.
+	 *
+	 * So the reference is resolved to a numeric id through /devices (which DOES
+	 * honour uniqueId — a bogus one returns []), and the position query is scoped
+	 * by that id. If the reference does not resolve there is no fallback: an
+	 * unscoped query is exactly the bug.
 	 */
 	async snapshot(deviceRef: string): Promise<TrackingSnapshot> {
 		// Defensive only — the service checks this first. Unconfigured is NOT a
 		// failure, so it must never surface as UNAVAILABLE.
 		if (!this.isConfigured()) return { state: 'NOT_CONFIGURED', position: null };
 		try {
-			const [devices, positions] = await Promise.all([
-				this.request<TraccarDevice[]>('/devices', { uniqueId: deviceRef }).catch(() => [] as TraccarDevice[]),
-				this.request<TraccarPosition[]>('/positions', { uniqueId: deviceRef })
-			]);
-			const device = devices[0];
-			const position = positions.map(toPosition).find((p): p is TrackingPosition => p !== null) ?? null;
+			const devices = await this.request<TraccarDevice[]>('/devices', { uniqueId: deviceRef });
+			const device = devices.find((d) => d.uniqueId === deviceRef);
+			// A reference the provider does not know is OFFLINE, never an excuse to
+			// ask an unscoped question.
+			if (!device) return { state: 'OFFLINE', position: null, providerOnline: null };
+
+			const positions = await this.request<TraccarPosition[]>('/positions', { deviceId: String(device.id) });
+			const position =
+				positions
+					.filter((raw) => raw.deviceId === undefined || raw.deviceId === device.id)
+					.map(toPosition)
+					.find((p): p is TrackingPosition => p !== null) ?? null;
 			const providerOnline = device?.status ? device.status.toLowerCase() === 'online' : null;
 
 			// The provider's own word beats an age calculation only when it says the
@@ -215,15 +239,23 @@ export class TraccarProvider implements TrackingProvider {
 		}
 	}
 
+	/** Scoped by numeric device id for the same reason snapshot() is. */
 	async history(deviceRef: string, from: Date, to: Date): Promise<TrackingHistory> {
 		if (!this.isConfigured()) return { positions: [], from, to, truncated: false };
 		try {
+			const devices = await this.request<TraccarDevice[]>('/devices', { uniqueId: deviceRef });
+			const device = devices.find((d) => d.uniqueId === deviceRef);
+			// Without a resolved id the honest answer is an empty track. Asking
+			// unscoped would draw a polyline joining OTHER vehicles' positions.
+			if (!device) return { positions: [], from, to, truncated: false };
+
 			const raw = await this.request<TraccarPosition[]>('/positions', {
-				uniqueId: deviceRef,
+				deviceId: String(device.id),
 				from: from.toISOString(),
 				to: to.toISOString()
 			});
 			const positions = raw
+				.filter((p) => p.deviceId === undefined || p.deviceId === device.id)
 				.map(toPosition)
 				.filter((p): p is TrackingPosition => p !== null)
 				.sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());

@@ -116,6 +116,24 @@ async function traccar(vars: Record<string, string> = {}) {
 	return new TraccarProvider();
 }
 
+/**
+ * Records the URL of every outgoing request AND routes the reply by path.
+ *
+ * The order-based stub below cannot catch a scoping bug, because it never looks
+ * at what was asked. This one does, which is the only way to prove the adapter
+ * asks about ONE device.
+ */
+const mockByPath = (routes: { devices: unknown; positions: unknown }) => {
+	const urls: string[] = [];
+	globalThis.fetch = vi.fn(async (input: string | URL | Request) => {
+		const url = String(input);
+		urls.push(url);
+		const body = url.includes('/devices') ? routes.devices : routes.positions;
+		return new Response(JSON.stringify(body), { status: 200 });
+	}) as unknown as typeof fetch;
+	return urls;
+};
+
 const mockJson = (payloads: unknown[]) => {
 	let call = 0;
 	globalThis.fetch = vi.fn(async () => {
@@ -127,10 +145,12 @@ const mockJson = (payloads: unknown[]) => {
 describe('the Traccar adapter normalises rather than leaks', () => {
 	it('converts knots to km/h and picks the fix time', async () => {
 		const provider = await traccar();
-		mockJson([
-			[{ status: 'online' }],
-			[{ latitude: -2.3333, longitude: 34.8333, speed: 10, course: 90, fixTime: new Date().toISOString() }]
-		]);
+		mockByPath({
+			devices: [{ id: 1, uniqueId: 'dev-1', status: 'online' }],
+			positions: [
+				{ deviceId: 1, latitude: -2.3333, longitude: 34.8333, speed: 10, course: 90, fixTime: new Date().toISOString() }
+			]
+		});
 		const snap = await provider.snapshot('dev-1');
 		expect(snap.position?.latitude).toBeCloseTo(-2.3333, 4);
 		// 10 knots is 18.52 km/h, and an operator reads km/h.
@@ -143,7 +163,12 @@ describe('the Traccar adapter normalises rather than leaks', () => {
 
 	it('drops a null-island fix instead of putting a safari in the Atlantic', async () => {
 		const provider = await traccar();
-		mockJson([[{ status: 'online' }], [{ latitude: 0, longitude: 0, fixTime: new Date().toISOString() }]]);
+		// Must reach the null-island check, so the device has to resolve first —
+		// otherwise this passes for the wrong reason.
+		mockByPath({
+			devices: [{ id: 1, uniqueId: 'dev-1', status: 'online' }],
+			positions: [{ deviceId: 1, latitude: 0, longitude: 0, fixTime: new Date().toISOString() }]
+		});
 		const snap = await provider.snapshot('dev-1');
 		expect(snap.position).toBeNull();
 		expect(snap.state).toBe('OFFLINE');
@@ -190,12 +215,13 @@ describe('the Traccar adapter normalises rather than leaks', () => {
 	it('orders history oldest-first and keeps true coordinates', async () => {
 		const provider = await traccar();
 		const t = (m: number) => new Date(Date.UTC(2026, 0, 1, 8, m)).toISOString();
-		mockJson([
-			[
-				{ latitude: -2.4, longitude: 34.9, fixTime: t(30) },
-				{ latitude: -2.3, longitude: 34.8, fixTime: t(0) }
+		mockByPath({
+			devices: [{ id: 1, uniqueId: 'dev-1', status: 'online' }],
+			positions: [
+				{ deviceId: 1, latitude: -2.4, longitude: 34.9, fixTime: t(30) },
+				{ deviceId: 1, latitude: -2.3, longitude: 34.8, fixTime: t(0) }
 			]
-		]);
+		});
 		const h = await provider.history('dev-1', new Date(0), new Date());
 		expect(h.positions.map((p) => p.longitude)).toEqual([34.8, 34.9]);
 		// A polyline is drawn from these verbatim. No bow, no smoothing, no
@@ -332,5 +358,76 @@ describe('who may see and edit the fleet', () => {
 		const locked = effectivePermissions('OPERATIONS', { 'vehicles:write': false });
 		expect(locked).not.toContain('vehicles:write');
 		expect(locked).toContain('vehicles:read');
+	});
+});
+
+describe('a tracker question names ONE device, and Traccar is not trusted to filter', () => {
+	/*
+	 * Traccar 6.15.3 accepts deviceId on /api/positions. It does NOT accept
+	 * uniqueId — it silently IGNORES the parameter and returns the newest fix for
+	 * every device the token can see. Verified against the live server:
+	 *
+	 *   GET /api/positions?uniqueId=DEFINITELY-NOT-A-REAL-DEVICE
+	 *   -> [{"deviceId":1,"latitude":-3.38,...}]
+	 *
+	 * The adapter passed uniqueId and took the first result, so with two trackers
+	 * registered a trip could have drawn ANOTHER tenant's vehicle. One shared
+	 * token means the blast radius is every customer. These tests fail if anybody
+	 * reintroduces an unscoped question.
+	 */
+	const device = { id: 7, uniqueId: 'device-a', status: 'online' };
+
+	it('resolves the reference to a numeric id and scopes the position query by it', async () => {
+		const provider = await traccar();
+		const urls = mockByPath({
+			devices: [device],
+			positions: [{ deviceId: 7, latitude: -3.1, longitude: 36.1, speed: 0, fixTime: new Date().toISOString() }]
+		});
+
+		const snap = await provider.snapshot('device-a');
+
+		expect(snap.position?.latitude).toBe(-3.1);
+		const positionCall = urls.find((u) => u.includes('/positions'))!;
+		expect(positionCall).toContain('deviceId=7');
+		// The whole bug in one assertion.
+		expect(positionCall).not.toContain('uniqueId');
+	});
+
+	it('reports OFFLINE for an unknown reference rather than asking an unscoped question', async () => {
+		const provider = await traccar();
+		// Traccar answers [] for a uniqueId it does not know — the one filter it
+		// does honour.
+		const urls = mockByPath({ devices: [], positions: [{ deviceId: 999, latitude: 9, longitude: 9 }] });
+
+		const snap = await provider.snapshot('not-a-device');
+
+		expect(snap.state).toBe('OFFLINE');
+		expect(snap.position).toBeNull();
+		// It must not have gone looking for positions at all.
+		expect(urls.some((u) => u.includes('/positions'))).toBe(false);
+	});
+
+	it('discards any position the provider returns for a different device', async () => {
+		const provider = await traccar();
+		// Belt and braces: even if a future Traccar ignores deviceId too, a fix
+		// belonging to someone else must not be rendered as this vehicle's.
+		mockByPath({
+			devices: [device],
+			positions: [{ deviceId: 8, latitude: 1, longitude: 1, fixTime: new Date().toISOString() }]
+		});
+
+		const snap = await provider.snapshot('device-a');
+		expect(snap.position).toBeNull();
+	});
+
+	it('draws no track at all when the reference does not resolve', async () => {
+		const provider = await traccar();
+		const urls = mockByPath({ devices: [], positions: [{ deviceId: 3, latitude: 5, longitude: 5 }] });
+
+		const h = await provider.history('not-a-device', new Date(0), new Date());
+
+		// A polyline joining other vehicles' positions is worse than no polyline.
+		expect(h.positions).toHaveLength(0);
+		expect(urls.some((u) => u.includes('/positions'))).toBe(false);
 	});
 });

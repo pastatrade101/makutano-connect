@@ -94,11 +94,30 @@ export async function fleetSnapshot(tenantId: string): Promise<Map<string, Track
 	const byVehicle = new Map<string, TrackingSnapshot>();
 	if (!rows.length) return byVehicle;
 
-	// Grouped by provider so a second provider later costs one more call, not one
-	// per vehicle.
+	// A row naming a provider this build does not have is not an outage either.
+	const known = new Set(Object.keys(providers));
+	for (const r of rows) {
+		if (!known.has(r.provider ?? '')) byVehicle.set(r.id, { state: 'NOT_CONFIGURED', position: null });
+	}
+
+	/*
+	 * Grouped by provider so a second provider later costs one more call, not one
+	 * per vehicle.
+	 *
+	 * A vehicle whose provider is missing or unconfigured is answered here as
+	 * NOT_CONFIGURED rather than left absent. Left absent, the caller had to
+	 * invent a default, and the default it invented was UNAVAILABLE — so a
+	 * workspace that had simply never switched tracking on read "Tracking
+	 * temporarily unavailable" on every vehicle, which sends somebody looking for
+	 * an outage that does not exist.
+	 */
 	for (const [name, provider] of Object.entries(providers)) {
 		const mine = rows.filter((r) => r.provider === name && r.ref);
-		if (!mine.length || !provider.isConfigured()) continue;
+		if (!mine.length) continue;
+		if (!provider.isConfigured()) {
+			for (const r of mine) byVehicle.set(r.id, { state: 'NOT_CONFIGURED', position: null });
+			continue;
+		}
 		const snaps = await provider.snapshotAll(mine.map((r) => r.ref as string));
 		for (const r of mine) {
 			const s = snaps.get(r.ref as string);
