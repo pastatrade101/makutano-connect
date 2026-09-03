@@ -43,6 +43,11 @@
 	let quoteMessage = $state('');
 	let quoteIncluded = $state('');
 	let validUntil = $state('');
+	// Seeded from the enquiry so the operator confirms a real date rather than
+	// retyping one the traveller already gave.
+	const asDay = (v: unknown) => (v ? String(v).slice(0, 10) : '');
+	let startDate = $state(asDay(data.request.startDate));
+	let endDate = $state(asDay(data.request.endDate));
 
 	const draft = $derived(data.quoteDraft);
 	const perGroup = $derived(draft?.items?.[0]?.basis === 'per group');
@@ -267,6 +272,17 @@
 				<button type="button" class="text-[13px] font-medium text-brand hover:underline" onclick={() => (showDetails = true)}>+ Add details</button>
 			{:else}
 				<div class="grid gap-3 sm:grid-cols-2">
+					<!-- Prefilled from what the traveller asked for, and editable because a
+					     date often moves during the conversation. Leaving them blank keeps
+					     the enquiry's dates rather than clearing them. -->
+					<label class="block">
+						<span class="text-[12.5px] text-slate-500">Travel starts</span>
+						<input type="date" name="startDate" bind:value={startDate} class="input mt-1" />
+					</label>
+					<label class="block">
+						<span class="text-[12.5px] text-slate-500">Travel ends</span>
+						<input type="date" name="endDate" bind:value={endDate} class="input mt-1" />
+					</label>
 					<label class="block">
 						<span class="text-[12.5px] text-slate-500">Valid until</span>
 						<input type="date" name="validUntil" bind:value={validUntil} class="input mt-1" />

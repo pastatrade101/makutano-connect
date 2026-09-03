@@ -101,6 +101,24 @@ export const actions: Actions = {
 			const included = String(data.get('included') ?? '').trim();
 			const message = String(data.get('message') ?? '').trim();
 			const validUntil = String(data.get('validUntil') ?? '').trim();
+
+			/*
+			 * The travel dates, which this action used to throw away.
+			 *
+			 * The traveller gives them on the marketplace form, they are stored on the
+			 * enquiry, and this page even DISPLAYS them — and then the quotation was
+			 * created without them, so the booking had none, so every trip made from a
+			 * web quotation was blocked on "Travel dates set" and the operator had to
+			 * ask the customer for something they had already said. The phone's create
+			 * endpoint always passed them; only this path did not.
+			 *
+			 * Read from the form so the operator can correct a date that moved during
+			 * negotiation, and fall back to what the traveller actually asked for.
+			 */
+			const asDay = (v: Date | string | null | undefined) =>
+				v ? String(v instanceof Date ? v.toISOString() : v).slice(0, 10) : null;
+			const startDate = String(data.get('startDate') ?? '').trim() || asDay(draft.enquiry.startDate);
+			const endDate = String(data.get('endDate') ?? '').trim() || asDay(draft.enquiry.endDate);
 			const title = String(data.get('title') ?? '').trim() || draft.tour?.title || 'Trip';
 
 			// The shared money rule — the same call the phone's create endpoint makes.
@@ -139,6 +157,8 @@ export const actions: Actions = {
 					children,
 					notes: message || null,
 					validUntil: validUntil || null,
+					startDate,
+					endDate,
 					items
 				},
 				locals.user!.id
