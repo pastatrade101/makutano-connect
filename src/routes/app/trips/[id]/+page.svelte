@@ -145,14 +145,28 @@
 					<p class="text-sm font-semibold text-slate-900">Trip under way.</p>
 					<p class="text-xs text-slate-500">Complete it when they are home.</p>
 				{/if}
+
+				<!-- What stage comes next, from next-action.ts — the same answer the
+				     mobile work feed gives, so the two cannot disagree. It sits WITH the
+				     blockers rather than instead of them: the blockers say what is
+				     missing, this says what the trip is waiting to become. -->
+				{#if data.next}
+					<p class="mt-2 text-xs">
+						<span class="font-semibold tracking-wide text-slate-400 uppercase">Next</span>
+						<span class="ml-1.5 font-medium text-slate-800">{data.next.label}</span>
+						{#if data.next.hint}<span class="ml-1 text-slate-500">{data.next.hint}</span>{/if}
+					</p>
+				{/if}
 			</div>
 			<form method="POST" action="?/status" use:enhance class="flex items-center gap-2">
 				{#if data.trip.status === 'PREPARING'}
+					<!-- Disabled whenever next-action says the trip is still being set up, so
+					     the button cannot imply a departure the resolver has not agreed to. -->
 					<button
 						name="status"
 						value="READY"
 						class="btn-primary"
-						disabled={!data.readiness.canBeReady}
+						disabled={!data.readiness.canBeReady || data.next?.key === 'complete_trip_setup'}
 						title={data.readiness.canBeReady ? '' : 'Some critical set-up is still missing'}>Mark ready</button>
 				{:else if data.trip.status === 'READY'}
 					<button name="status" value="PREPARING" class="btn-ghost">Back to preparing</button>

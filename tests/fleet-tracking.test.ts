@@ -26,6 +26,8 @@ process.env.JOB_WORKER = 'off';
 
 import { effectivePermissions, permissionsForRole } from '../src/lib/server/auth/permissions';
 import { vehicleSnapshotText } from '../src/lib/server/vehicles';
+import { nextForTrip } from '../src/lib/next-action';
+import { readinessFor } from '../src/lib/server/trips';
 import { LIVE_WITHIN_MS, RECENT_WITHIN_MS, TRACKING_LABEL, stateForAge } from '../src/lib/server/tracking/types';
 
 /* ------------------------------------------------------------ snapshot ----- */
@@ -203,11 +205,106 @@ describe('the Traccar adapter normalises rather than leaks', () => {
 		expect(h.positions[1].latitude).toBe(-2.4);
 	});
 
-	it('says nothing rather than guessing when it is not configured', async () => {
+	it('says NOT_CONFIGURED, not UNAVAILABLE, when there is no backend', async () => {
+		// This assertion used to expect UNAVAILABLE and that was the bug: a
+		// deployment without tracking has not failed at anything.
 		const provider = await traccar({ TRACCAR_BASE_URL: '', TRACCAR_TOKEN: '' });
 		expect(provider.isConfigured()).toBe(false);
 		const snap = await provider.snapshot('dev-1');
+		expect(snap.state).toBe('NOT_CONFIGURED');
+	});
+});
+
+/* ----------------------------------------------------- state precedence ----- */
+
+describe('NOT_CONFIGURED and UNAVAILABLE mean different things', () => {
+	it('an unconfigured deployment is NOT an outage, even with a device mapped', async () => {
+		// The bug this replaces: a vehicle with a tracker on a deployment with no
+		// tracking backend reported "temporarily unavailable" AND "not configured",
+		// sending an operator to look for a fault that did not exist.
+		const provider = await traccar({ TRACCAR_BASE_URL: '', TRACCAR_TOKEN: '' });
+		const snap = await provider.snapshot('a-real-device-ref');
+		expect(snap.state).toBe('NOT_CONFIGURED');
+		expect(snap.state).not.toBe('UNAVAILABLE');
+		// Nothing that reads like an outage.
+		expect(snap.message ?? '').not.toMatch(/unavailable|failed|error/i);
+	});
+
+	it('UNAVAILABLE is reserved for a request that really failed', async () => {
+		const provider = await traccar();
+		globalThis.fetch = vi.fn(async () => {
+			throw new Error('ETIMEDOUT');
+		}) as unknown as typeof fetch;
+		const snap = await provider.snapshot('dev-1');
 		expect(snap.state).toBe('UNAVAILABLE');
+	});
+
+	it('gives every state exactly one phrase, and no two share it', () => {
+		const phrases = Object.values(TRACKING_LABEL);
+		expect(new Set(phrases).size).toBe(phrases.length);
+		expect(TRACKING_LABEL.NOT_CONFIGURED).toBe('Tracking not configured');
+		expect(TRACKING_LABEL.UNAVAILABLE).toBe('Tracking temporarily unavailable');
+		expect(TRACKING_LABEL.OFFLINE).toBe('Tracker offline');
+		expect(TRACKING_LABEL.STALE).toBe('Last position is stale');
+		expect(TRACKING_LABEL.RECENT).toBe('Recently updated');
+		expect(TRACKING_LABEL.LIVE).toBe('Live');
+		// The two that used to appear together must not contain each other.
+		expect(TRACKING_LABEL.NOT_CONFIGURED).not.toContain('unavailable');
+		expect(TRACKING_LABEL.UNAVAILABLE).not.toContain('not configured');
+	});
+});
+
+/* ------------------------------------------------------- what to do next ----- */
+
+describe('the trip page uses the shared next-action resolver', () => {
+	const can = { trips: true, tripsWrite: true };
+
+	it('says complete setup while something critical is missing', () => {
+		const n = nextForTrip({ id: 't1', status: 'PREPARING', missingCritical: 1 }, can);
+		expect(n?.key).toBe('complete_trip_setup');
+		expect(n?.label).toBe('Complete setup');
+		// The web button must not offer a departure this resolver has not agreed to.
+		expect(n?.key).not.toBe('mark_trip_ready');
+	});
+
+	it('says mark ready once nothing critical is left', () => {
+		const n = nextForTrip({ id: 't1', status: 'PREPARING', missingCritical: 0 }, can);
+		expect(n?.key).toBe('mark_trip_ready');
+		expect(n?.label).toBe('Mark ready');
+	});
+
+	it('offers departure only once it is due', () => {
+		expect(nextForTrip({ id: 't1', status: 'READY', missingCritical: 0, daysToDeparture: 14 }, can)).toBeNull();
+		const due = nextForTrip({ id: 't1', status: 'READY', missingCritical: 0, daysToDeparture: 0 }, can);
+		expect(due?.label).toBe('Start trip');
+	});
+
+	it('says nothing once the trip is over', () => {
+		expect(nextForTrip({ id: 't1', status: 'COMPLETED', missingCritical: 0 }, can)).toBeNull();
+	});
+});
+
+/* --------------------------------------------------- blocker signposting ----- */
+
+describe('every readiness blocker still says where it is fixed', () => {
+	it('gives each check a destination', () => {
+		const r = readinessFor(
+			{
+				bookingId: 'b1', adults: 2, children: 0, startDate: null, accommodation: null,
+				vehicle: null, driver: null, guide: null, hotelConfirmed: false
+			} as never,
+			{ status: 'CONFIRMED', amountPaid: '0', balanceDue: '100' } as never,
+			[]
+		);
+		const blockers = r.missing.filter((c) => c.critical);
+		expect(blockers.length).toBeGreaterThan(0);
+		// The point of the earlier fix: a named blocker always has somewhere to go.
+		for (const b of blockers) {
+			expect(b.fix, `${b.key} has no destination`).toBeTruthy();
+			expect(Boolean(b.fix?.href || b.fix?.tab)).toBe(true);
+		}
+		// Dates live on the booking, which is why they were a dead end before.
+		expect(r.missing.find((c) => c.key === 'dates')?.fix?.href).toContain('/app/bookings/');
 	});
 });
 

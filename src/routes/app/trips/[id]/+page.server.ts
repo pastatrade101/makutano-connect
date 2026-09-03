@@ -6,6 +6,7 @@ import { listAssignableMembers } from '$lib/server/team';
 import { accommodationsForPicker, crewForPicker } from '$lib/server/crew';
 import { vehiclesForPicker } from '$lib/server/vehicles';
 import { can } from '$lib/server/auth/permissions';
+import { nextForTrip } from '$lib/next-action';
 import { AppError } from '$lib/server/errors';
 import type { Actions, PageServerLoad } from './$types';
 import type { Trip } from '$lib/server/db/schema';
@@ -58,6 +59,26 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			sensitive ? t : { ...t, passportNumber: null, passportExpiry: null, dateOfBirth: null }
 		),
 		canWrite: can(locals.permissions, 'trips:write'),
+		/*
+		 * What to do next, from the ONE module that answers that question.
+		 *
+		 * next-action.ts already decides this for bookings, quotations, orders,
+		 * conversations and the mobile work feed — this page was the only screen
+		 * still leaving the operator to work it out. Computed here rather than in
+		 * the component so the web and the phone cannot drift: if the rule changes,
+		 * it changes once.
+		 */
+		next: nextForTrip(
+			{
+				id: detail.trip.id,
+				status: detail.trip.status,
+				missingCritical: detail.readiness.missing.filter((c) => c.critical).length,
+				daysToDeparture: detail.trip.startDate
+					? Math.ceil((new Date(detail.trip.startDate).getTime() - Date.now()) / 86_400_000)
+					: null
+			},
+			{ trips: can(locals.permissions, 'trips:read'), tripsWrite: can(locals.permissions, 'trips:write') }
+		),
 		canAssign: can(locals.permissions, 'trips:assign'),
 		canSeeSensitive: sensitive,
 		// Already filtered to active members and shaped for the picker.

@@ -26,12 +26,20 @@
 	let showMap = $state(false);
 	let loading = $state(true);
 
+	/*
+	 * One phrase per state, and they are mutually exclusive.
+	 *
+	 * This card used to print the state label AND the server's message, which
+	 * could read "Tracking temporarily unavailable" above "Tracking is not
+	 * configured on this deployment" — an outage and a missing feature claimed at
+	 * once. The states now mean different things and each says one thing.
+	 */
 	const LABEL: Record<string, string> = {
 		NOT_CONFIGURED: 'Tracking not configured',
 		LIVE: 'Live',
-		RECENT: 'Recent',
-		STALE: 'Last seen',
-		OFFLINE: 'Offline',
+		RECENT: 'Recently updated',
+		STALE: 'Last position is stale',
+		OFFLINE: 'Tracker offline',
 		UNAVAILABLE: 'Tracking temporarily unavailable'
 	};
 	const TONE: Record<string, string> = {
@@ -99,12 +107,15 @@
 	{#if loading}
 		<p class="mt-2 text-[11.5px] text-slate-400">Checking…</p>
 	{:else if trackState === 'NOT_CONFIGURED'}
+		<!-- Not an outage, so not warning colour: nothing is broken and nobody needs
+		     to go looking for a fault. -->
 		<p class="mt-2 text-[11.5px] text-slate-400">
-			{vehicleLabel ? 'This vehicle has no tracking device mapped.' : 'Assign a vehicle to see where it is.'}
+			{vehicleLabel ? 'No live location for this vehicle yet.' : 'Assign a vehicle to see where it is.'}
 		</p>
 	{:else if trackState === 'UNAVAILABLE'}
-		<!-- Says what is wrong without implying anything about the vehicle. -->
-		<p class="mt-2 text-[11.5px] text-warning">{message ?? 'Tracking is temporarily unavailable. The rest of this trip is unaffected.'}</p>
+		<!-- A real request really failed. Says so without implying anything about
+		     where the vehicle is, and never repeats the label above it. -->
+		<p class="mt-2 text-[11.5px] text-warning">The rest of this trip is unaffected.</p>
 	{:else if position}
 		{#if showMap}
 			<div class="mt-3">

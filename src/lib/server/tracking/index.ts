@@ -54,12 +54,28 @@ async function ownedVehicle(tenantId: string, vehicleId: string) {
 
 const notConfigured: TrackingSnapshot = { state: 'NOT_CONFIGURED', position: null };
 
-/** Where a tenant's vehicle is now. Never throws. */
+/*
+ * The precedence, in one place.
+ *
+ *   provider not configured        -> NOT_CONFIGURED
+ *   no tracker mapped              -> NOT_CONFIGURED
+ *   provider request failed        -> UNAVAILABLE
+ *   request fine, no position      -> OFFLINE
+ *   position                       -> LIVE / RECENT / STALE by age
+ *
+ * The distinction that matters: UNAVAILABLE means WE tried and could not get an
+ * answer, so it is a temporary fault worth showing as one. A deployment with no
+ * tracking backend has not failed at anything — it simply does not have the
+ * feature, and telling an operator their tracking is "temporarily unavailable"
+ * when it was never configured sends them looking for an outage that is not
+ * there. Checked HERE rather than in the adapter, because "is this product
+ * configured for tracking" is the service's question, not one provider's.
+ */
 export async function vehicleSnapshot(tenantId: string, vehicleId: string): Promise<TrackingSnapshot> {
 	const vehicle = await ownedVehicle(tenantId, vehicleId);
 	if (!vehicle?.trackerDeviceRef) return notConfigured;
 	const provider = providerFor(vehicle.trackerProvider);
-	if (!provider) return notConfigured;
+	if (!provider || !provider.isConfigured()) return notConfigured;
 	return provider.snapshot(vehicle.trackerDeviceRef);
 }
 

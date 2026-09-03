@@ -144,9 +144,9 @@ export class TraccarProvider implements TrackingProvider {
 	 * They run together rather than in sequence so the page waits once.
 	 */
 	async snapshot(deviceRef: string): Promise<TrackingSnapshot> {
-		if (!this.isConfigured()) {
-			return { state: 'UNAVAILABLE', position: null, message: 'Tracking is not configured on this deployment.' };
-		}
+		// Defensive only — the service checks this first. Unconfigured is NOT a
+		// failure, so it must never surface as UNAVAILABLE.
+		if (!this.isConfigured()) return { state: 'NOT_CONFIGURED', position: null };
 		try {
 			const [devices, positions] = await Promise.all([
 				this.request<TraccarDevice[]>('/devices', { uniqueId: deviceRef }).catch(() => [] as TraccarDevice[]),
@@ -163,6 +163,7 @@ export class TraccarProvider implements TrackingProvider {
 			return { state, position, providerOnline };
 		} catch (err) {
 			log.warn('tracking_snapshot_failed', { provider: this.name, reason: safeReason(err) });
+			// A real request that really failed — the one case UNAVAILABLE describes.
 			return { state: 'UNAVAILABLE', position: null, message: 'Tracking is temporarily unavailable.' };
 		}
 	}

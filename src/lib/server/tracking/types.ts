@@ -96,10 +96,10 @@ export function stateForAge(recordedAt: Date | null | undefined, now = Date.now(
 
 /** What an operator reads. Kept next to the states so the two cannot drift. */
 export const TRACKING_LABEL: Record<TrackingState, string> = {
-	NOT_CONFIGURED: 'No tracker',
+	NOT_CONFIGURED: 'Tracking not configured',
 	LIVE: 'Live',
-	RECENT: 'Recent',
-	STALE: 'Last seen',
-	OFFLINE: 'Offline',
-	UNAVAILABLE: 'Tracking unavailable'
+	RECENT: 'Recently updated',
+	STALE: 'Last position is stale',
+	OFFLINE: 'Tracker offline',
+	UNAVAILABLE: 'Tracking temporarily unavailable'
 };
