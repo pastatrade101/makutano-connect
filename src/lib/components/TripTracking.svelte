@@ -14,7 +14,10 @@
 	import TimeAgo from '$components/TimeAgo.svelte';
 	import TrackingMap from '$components/TrackingMap.svelte';
 
-	let { tripId, vehicleLabel = null }: { tripId: string; vehicleLabel?: string | null } = $props();
+	let { tripId,
+		vehicleId = null, vehicleLabel = null }: { tripId: string;
+		/** Which vehicle the full tracking page should open on. */
+		vehicleId?: string | null; vehicleLabel?: string | null } = $props();
 
 	const POLL_MS = 25_000;
 
@@ -86,10 +89,15 @@
 </script>
 
 <div class="card p-3">
-	<div class="flex flex-wrap items-start justify-between gap-2">
+	<a
+		href={vehicleId ? `/app/tracking?vehicle=${vehicleId}` : '/app/tracking'}
+		class="-m-1 flex flex-wrap items-start justify-between gap-2 rounded-lg p-1 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">
 		<div>
 			<p class="text-xs font-semibold text-slate-700">Vehicle</p>
-			<p class="mt-0.5 text-sm text-slate-900">{vehicleLabel ?? 'No vehicle assigned'}</p>
+			<p class="mt-0.5 flex items-center gap-1 text-sm text-slate-900">
+				{vehicleLabel ?? 'No vehicle assigned'}
+				<span aria-hidden="true" class="text-slate-400">›</span>
+			</p>
 		</div>
 		<div class="text-right">
 			<!-- Nothing is known until the first fetch returns. This printed the
@@ -110,7 +118,7 @@
 				</p>
 			{/if}
 		</div>
-	</div>
+	</a>
 
 	{#if loading}
 		<!-- The header already says Checking…; saying it twice is noise. -->
@@ -127,10 +135,23 @@
 	{:else if position}
 		{#if showMap}
 			<div class="mt-3">
-				<TrackingMap latitude={position.latitude} longitude={position.longitude} label={vehicleLabel ?? 'Vehicle'} {track} />
-				<p class="mt-1 text-[11.5px] text-slate-400">
-					Last known position{track.length > 1 ? ` · ${track.length} points from the last 24 hours` : ''}
-				</p>
+				<!-- The whole preview is a way in. An operator should not have to
+				     guess that a map is clickable. -->
+				<a
+					href={vehicleId ? `/app/tracking?vehicle=${vehicleId}` : '/app/tracking'}
+					class="group relative block overflow-hidden rounded-panel focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600">
+					<TrackingMap latitude={position.latitude} longitude={position.longitude} label={vehicleLabel ?? 'Vehicle'} {track} />
+					<span class="pointer-events-none absolute inset-0 z-[600] bg-slate-900/0 transition group-hover:bg-slate-900/5"></span>
+					<span class="pointer-events-none absolute right-2 top-2 z-[600] rounded-md border border-slate-200 bg-white/95 px-1.5 py-1 text-[11px] text-slate-600 shadow-sm">⛶</span>
+				</a>
+				<div class="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11.5px]">
+					<span class="text-slate-400">
+						Last GPS update <TimeAgo value={position.recordedAt} />
+					</span>
+					<a
+						href={vehicleId ? `/app/tracking?vehicle=${vehicleId}` : '/app/tracking'}
+						class="font-medium text-brand-600 hover:underline">View live tracking →</a>
+				</div>
 			</div>
 		{:else}
 			<button class="btn-secondary mt-3 !py-1.5 text-xs" onclick={openMap}>View live map</button>

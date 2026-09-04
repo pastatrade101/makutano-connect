@@ -49,6 +49,7 @@
 				{ href: '/app/trips', label: 'Trips', icon: 'M2 12h16M6 12V7l3-3 3 3v5M4 12v4h12v-4', permission: 'trips:read', module: 'trips' },
 				{ href: '/app/reviews', label: 'Reviews', icon: 'm10 2.6 2.3 4.7 5.2.7-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L2.5 8l5.2-.7L10 2.6Z', permission: 'reviews:read', module: 'bookings' },
 				{ href: '/app/vehicles', label: 'Vehicles', icon: 'M3 13h14v3H3v-3Zm1-3 1.5-3.5A1 1 0 0 1 6.4 6h7.2a1 1 0 0 1 .9.5L16 10M5.5 16v1M14.5 16v1', permission: 'vehicles:read', module: 'trips' },
+				{ href: '/app/tracking', label: 'Live map', icon: 'M10 2a5 5 0 0 0-5 5c0 3.5 5 11 5 11s5-7.5 5-11a5 5 0 0 0-5-5Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z', permission: 'vehicles:read', module: 'trips' },
 				{ href: '/app/crew', label: 'People', icon: 'M7 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-5 7a5 5 0 0 1 10 0M13 5.5a2 2 0 1 1 0 4M14 16a4.5 4.5 0 0 0-1.2-3', permission: 'crew:read' },
 				{ href: '/app/payments', label: 'Payments', icon: 'M2 6h16v8H2V6Zm0 3h16', permission: 'payments:read' }
 			]

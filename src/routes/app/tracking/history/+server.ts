@@ -14,8 +14,8 @@ import type { RequestHandler } from './$types';
 const MAX_HOURS = 24;
 
 export const GET: RequestHandler = async ({ locals, url }) => {
+	const tenant = requireTenantPermission(locals, 'vehicles:read');
 	try {
-		const tenant = requireTenantPermission(locals, 'vehicles:read');
 		const vehicleId = parseUuid(url.searchParams.get('vehicle') ?? '', 'vehicle id');
 
 		// Clamped server-side. The UI offers 6 and 24 hours today and the shape

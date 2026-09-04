@@ -210,9 +210,14 @@
 									A driver's phone is enough — no GPS hardware needed.
 								</p>
 							{/if}
-							<a href="/app/vehicles/{v.id}/tracking" class="btn-secondary mt-2 inline-block">
-								{v.tracked ? 'Manage tracking' : 'Set up tracking'}
-							</a>
+							<div class="mt-2 flex flex-wrap gap-2">
+								{#if v.tracked}
+									<a href="/app/tracking?vehicle={v.id}" class="btn-secondary">View tracking</a>
+								{/if}
+								<a href="/app/vehicles/{v.id}/tracking" class="btn-ghost text-xs">
+									{v.tracked ? 'Manage tracker' : 'Set up tracking'}
+								</a>
+							</div>
 						</div>
 					{/if}
 

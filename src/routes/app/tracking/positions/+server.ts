@@ -11,8 +11,8 @@ import { fleetSnapshot, TRACKING_LABEL, trackingEnabled, type TrackingState } fr
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals }) => {
+	const tenant = requireTenantPermission(locals, 'vehicles:read');
 	try {
-		const tenant = requireTenantPermission(locals, 'vehicles:read');
 		const vehicles = await listVehicles(tenant.id);
 		const live = trackingEnabled() ? await fleetSnapshot(tenant.id) : new Map();
 

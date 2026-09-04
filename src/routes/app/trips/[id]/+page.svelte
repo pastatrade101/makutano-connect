@@ -196,7 +196,7 @@
 	<!-- Where the vehicle is. Renders on its own and fails on its own: this card
 	     going grey must never take the trip page with it. -->
 	{#if data.trip.vehicleId}
-		<TripTracking tripId={data.trip.id} vehicleLabel={data.trip.vehicle} />
+		<TripTracking tripId={data.trip.id} vehicleId={data.trip.vehicleId} vehicleLabel={data.trip.vehicle} />
 	{/if}
 	</aside>
 
