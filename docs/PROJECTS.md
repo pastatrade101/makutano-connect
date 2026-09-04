@@ -304,10 +304,17 @@ the repo asked for it. Use `tool/ios-device-install.sh`, which re-signs
 anything still ad-hoc and re-seals the bundle.
 
 **This affects the development path ONLY.** Verified 4 Sep 2026 against a real
-Release Archive: every embedded framework, `objective_c.framework` included,
-carries `TeamIdentifier=25X3LP3BZ6`, and the archive passes `codesign --verify
---deep --strict`. Do not carry the re-signing workaround into Archive,
-TestFlight or App Store builds. Re-check after a Flutter or Xcode upgrade.
+Release Archive and the exported App Store IPA: every embedded framework,
+`objective_c.framework` included, carries `TeamIdentifier=25X3LP3BZ6`, and both
+pass `codesign --verify --deep --strict`. Do not carry the re-signing workaround
+into Archive, TestFlight or App Store builds. Re-check after a Flutter or Xcode
+upgrade.
+
+The same gap costs one dSYM. Because the framework is built outside Xcode's
+normal compile and link, no `objective_c.framework.dSYM` is produced — every
+other framework has one — and the upload warns `Upload Symbols Failed`. It is a
+warning, not a rejection: the build uploads and ships. The only consequence is
+that a crash inside that FFI glue reports raw addresses instead of symbols.
 
 **16. In Traccar, `disabled` is NOT revocation.** A disabled device keeps
 accepting and storing positions — proven against 6.15.3. The only revocation is
