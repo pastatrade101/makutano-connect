@@ -13,6 +13,61 @@ _(dated)_. **Check before relying on them.**
 
 ---
 
+## 0. Agent rules
+
+**Read this section before touching anything.** Each rule is here because
+breaking it has already cost real time or real production state. Where a rule
+has a number in brackets, that is the trap in section 4 that explains it.
+
+Before modifying anything:
+
+1. **Read this document completely.** Not this section — the document. The
+   traps are the part that saves you.
+2. **Identify which of the four projects the task belongs to.** Connect,
+   Journeys, Connect Mobile, or Traccar. Three of the four names are
+   misleading; check section 2 rather than trusting a directory name.
+3. **Confirm the local repository path.** `~/Desktop/pastatrade/makutano-…`,
+   and the marketplace directory does not match its repo name.
+4. **Confirm the current Git branch and HEAD** — `git rev-parse --abbrev-ref
+   HEAD` and `git log -1`. Two repos sit on feature branches; `main` matching
+   production is a snapshot, not a rule.
+5. **If deploying, confirm the live Compose working directory from the RUNNING
+   CONTAINER**, never from a path that looks right:
+   `docker inspect <container> --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'`.
+   For Connect, use `tool/deploy.sh`, which refuses to run unless the container
+   agrees. [12]
+6. **Never infer production state from a local directory.** A stale copy of
+   this repo exists on the server and nothing runs from it. Local files, local
+   `.env`, local `docker-compose.yml` and the local git checkout all describe
+   your machine, not production. [12] [13]
+7. **Never deploy `.env`.** Production's is the real one, is `600`, and lives
+   only on the server. `tool/deploy.sh` proves it is untouched by comparing its
+   sha256 before and after. [10]
+8. **Never overwrite Connect's production `docker-compose.yml`** until the repo
+   and server Compose are reconciled — the server defines `tracking-worker` and
+   the repo does not, so syncing the file deletes the worker service. [13]
+9. **Never run a migration until its journal entry and production ordering are
+   verified.** Migrations apply by timestamp and are run by hand; a `.sql`
+   without a journal entry never runs, and editing an applied one changes
+   nothing. [4]
+10. **Never use production databases for tests.** Sourcing `.env` into a shell
+    leaves `DIRECT_DATABASE_URL` pointing at production, which is how
+    production acquired test tenants once already. [5]
+11. **Do not modify another project merely because it is related.** A tracking
+    change in Connect is not a licence to touch the mobile app. If a second
+    project genuinely needs a change, say so and get agreement first.
+12. **If this document conflicts with observed production state: STOP, report
+    the discrepancy, and update this document only after establishing which is
+    true.** The document is evidence, not authority. A document that has lied
+    once gets re-checked against the code every time, which costs more than
+    having no document at all.
+
+Two habits that are not rules but prevent most of the above: prove a claim
+against the running system before acting on it, and when something "did not
+work", first check that what you changed is the thing that is running.
+
+---
+
 ## 1. What this product is for
 
 One journey, done properly: **a Tanzanian tour operator and a traveller finding
@@ -241,9 +296,18 @@ re-sign it. Ad-hoc is accepted on the simulator and rejected on a handset, so
 `flutter install` dies with `0xe8008014 (The executable contains an invalid
 signature.)` — which reads like a provisioning or team-id fault and is not one.
 The team is fine; one nested bundle is not. Clearing `build/` **and**
-`build/native_assets/` does not help; it comes out ad-hoc every time. Use
-`tool/ios-device-install.sh` in the mobile repo, which re-signs anything still
-ad-hoc with the identity Xcode already chose and re-seals the app bundle.
+`build/native_assets/` does not help; it comes out ad-hoc every time. Root
+cause is in `flutter_tools/bin/xcode_backend.dart`, which gates native-asset
+codesigning on `platform == TargetPlatform.macos` — so iOS never re-signs them.
+`objective_c` arrives transitively via `path_provider_foundation`; nothing in
+the repo asked for it. Use `tool/ios-device-install.sh`, which re-signs
+anything still ad-hoc and re-seals the bundle.
+
+**This affects the development path ONLY.** Verified 4 Sep 2026 against a real
+Release Archive: every embedded framework, `objective_c.framework` included,
+carries `TeamIdentifier=25X3LP3BZ6`, and the archive passes `codesign --verify
+--deep --strict`. Do not carry the re-signing workaround into Archive,
+TestFlight or App Store builds. Re-check after a Flutter or Xcode upgrade.
 
 **16. In Traccar, `disabled` is NOT revocation.** A disabled device keeps
 accepting and storing positions — proven against 6.15.3. The only revocation is
@@ -255,6 +319,20 @@ by `deviceId`. Both of these have already caused a cross-tenant leak once.
 ---
 
 ## 5. Deploying
+
+**For Connect, use `tool/deploy.sh`.** It is the only supported path and it
+refuses to run unless the destination matches the compose directory the running
+container reports, no `.env` or `docker-compose.yml` appears in the transfer
+list, and production's `.env` is byte-identical afterwards. It prints the commit
+before, stamps the deployed commit on the server, and asserts a 200 on a public
+route and a 303 on a guarded one.
+
+```bash
+DEPLOY_SSH_HOST=<user>@<host> DEPLOY_SSH_KEY=~/.ssh/<key> tool/deploy.sh
+```
+
+The manual form below is what that script does, and is documented because
+Journeys has no equivalent yet.
 
 **Not `git pull`.** Source is rsynced and the image is built on the server.
 
@@ -343,6 +421,13 @@ Facts that are easy to get wrong:
   is never rendered in the page. Anyone who photographs it can configure another
   phone — accepted for V1, and the reason the page says so in plain words.
 
+Traccar now holds exactly three identities and no more: the human
+administrator (`pastory56@gmail.com`), one per-tenant read-only user, and the
+worker's non-admin provisioning user. The Phase 1 identity
+`provisioning@tracking.invalid` was a leftover full administrator; it was
+proven unreferenced by environment, database, permissions, managed-user links,
+scripts and code, then deleted on 4 Sep 2026.
+
 **Phase 3 — position retention: not started.** `tc_positions` grows unbounded.
 This is the next piece of work, and it is deliberately not begun.
 
@@ -373,10 +458,11 @@ Not yet fixed. Each was verified against code.
 - **`npm run lint` is broken repo-wide** — `prettier-plugin-svelte` is not
   installed and `.prettierrc` has `plugins: []`, so prettier cannot parse any
   `.svelte` file.
-- **Traccar user 4, `provisioning@tracking.invalid`, is still an
-  administrator** (`administrator = t`). It is the superseded Phase 1
-  provisioning identity, owns no devices and is used by nothing — but it is a
-  live full-admin account on the tracking platform. It should be deleted.
+- **No Apple Distribution certificate exists for team `25X3LP3BZ6`** on the
+  build machine, and there is no App Store Connect API key. The only
+  distribution identity present belongs to a different organisation
+  (`J595B2ADAV`). A Release Archive validates, but an App Store / TestFlight
+  export has not been proven end to end.
 - **`cancelEnrollment` on an ACTIVE row is a silent no-op that reports
   success.** The action always returns `{cancelled: true}` regardless of whether
   a row matched. Unreachable from the UI (an ACTIVE tracker renders `remove`,
