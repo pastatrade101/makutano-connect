@@ -196,13 +196,23 @@ async function cleanupProvider(): Promise<number> {
 		try {
 			const account = await ensureTenantAccount(row.tenantId);
 			if (account.providerUserId) await unlinkDeviceFromTenant(account.providerUserId, row.providerDeviceId as number);
-			if (row.firstFixAt) {
-				// It reported at least once, so its positions are somebody's history.
-				// Disable rather than delete, or playback loses journeys that happened.
-				await deleteProviderDevice(row.providerDeviceId as number, { disableOnly: true });
-			} else {
-				await deleteProviderDevice(row.providerDeviceId as number, { disableOnly: false });
-			}
+			/*
+			 * DELETE, always. Never "disable".
+			 *
+			 * Proven against the deployed 6.15.3, not assumed: a device with
+			 * disabled=true KEEPS INGESTING. Positions posted to a disabled device
+			 * are still stored and the device's current-position pointer still
+			 * advances. Disabling affects what the provider's own UI and permissions
+			 * do; it is not revocation, and treating it as revocation would have
+			 * left every retired tracker able to keep writing.
+			 *
+			 * Deleting the device is the only thing that stops ingestion. Its past
+			 * positions are then orphaned rather than removed — there is no foreign
+			 * key from positions to devices in this schema — so trip history that
+			 * has already been read stays readable, and retention has to find those
+			 * rows by scanning positions rather than by walking devices.
+			 */
+			await deleteProviderDevice(row.providerDeviceId as number, { disableOnly: false });
 		} catch (err) {
 			state = 'RETRY';
 			log.warn('tracker_cleanup_failed', { enrollmentId: row.id, reason: String(err).slice(0, 120) });

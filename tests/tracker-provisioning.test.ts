@@ -145,11 +145,13 @@ describe('15 · cleanup cannot reach another tenant', () => {
 		expect(WORKER).not.toMatch(/all=true[\s\S]{0,200}delete/i);
 	});
 
-	it('retires a device that ever reported rather than deleting it', () => {
-		// Its positions are somebody's trip history; deleting would make playback
-		// show a journey that never happened.
-		expect(WORKER).toContain('disableOnly: true');
-		expect(WORKER).toContain('row.firstFixAt');
+	it('DELETES the device, because disabling does not revoke', () => {
+		// Proven against the deployed 6.15.3: a disabled device keeps accepting and
+		// storing positions and its current-position pointer keeps advancing.
+		// Treating disable as revocation would leave every retired tracker able to
+		// keep writing.
+		expect(WORKER).toContain('disableOnly: false');
+		expect(WORKER).not.toContain('disableOnly: true');
 	});
 
 	it('keeps the reference locked after cleanup', () => {

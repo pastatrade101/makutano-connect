@@ -225,9 +225,10 @@ export async function unlinkDeviceFromTenant(providerUserId: number, deviceId: n
 /**
  * Retire a provisioned device.
  *
- * Disabled rather than deleted once it has ever reported: its positions are
- * somebody's trip history, and deleting the device would make that playback show
- * a journey that never happened.
+ * `disableOnly` exists for callers that want the provider's UI to hide a device,
+ * and it is NOT revocation: proven against 6.15.3, a disabled device keeps
+ * accepting and storing positions, and its current-position pointer keeps
+ * advancing. Only deletion stops ingestion.
  */
 export async function deleteProviderDevice(deviceId: number, opts: { disableOnly: boolean }): Promise<void> {
 	if (opts.disableOnly) {

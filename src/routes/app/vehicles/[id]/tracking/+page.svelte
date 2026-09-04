@@ -127,6 +127,11 @@
 			<div class="flex justify-center rounded-panel bg-white p-3">
 				<img src="/app/vehicles/{data.vehicle.id}/tracking/qr" alt="Setup code" width="280" height="280" />
 			</div>
+			<p class="rounded-panel bg-slate-50 px-3 py-2 text-[11.5px] text-slate-600">
+				Keep this setup code private. Anyone with access to it may be able to configure another
+				tracking phone for this vehicle. If you think it has been seen by someone else, replace
+				the tracking device.
+			</p>
 
 			<ol class="space-y-1.5 text-sm text-slate-700" start="4">
 				<li>4. Turn on <strong>Continuous tracking</strong> — the app sends nothing until this is on.</li>
@@ -169,10 +174,12 @@
 			{#if showTyped}
 				<!--
 					The raw identifier is deliberately NOT here.
-					It is credential material, and the QR is the one intentional
-					delivery of it — to the phone, not to a screen that can be
-					photographed, shared or shoulder-read. What a driver may need by
-					hand is the address, which is public.
+
+					The QR itself is bearer-like configuration material: anyone who
+					photographs or copies it can configure another phone that reports
+					as this vehicle, and that remains true after this window closes.
+					Not showing the identifier separately narrows the exposure to one
+					artefact; it does not make the artefact safe.
 				-->
 				<div class="rounded-panel bg-slate-50 p-3 text-xs text-slate-600">
 					<p><strong>Server URL</strong> — in the app: Settings › Server URL</p>
