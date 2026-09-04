@@ -16,13 +16,22 @@
 		publicId,
 		baseUrl,
 		allowedOrigins = [],
-		tours = []
+		tours = [],
+		fields = {}
 	}: {
 		publicId: string;
 		baseUrl: string;
 		allowedOrigins?: string[];
 		tours?: { title: string; slug: string }[];
+		fields?: Record<string, { enabled?: boolean }>;
 	} = $props();
+
+	// A quotation needs a date and a party size. Without them every enquiry costs
+	// a "when, and how many?" message before it can be priced — worth saying here,
+	// where the operator is about to send the link out.
+	const missingForPricing = $derived(
+		['startDate', 'adults'].filter((k) => !fields?.[k]?.enabled)
+	);
 
 	/*
 	 * A link for ONE tour, with an optional offer.
@@ -139,6 +148,15 @@
 					<input id="share-offer-{publicId}" bind:value={offer} maxlength="120" class="input" placeholder="15% off October departures" />
 				</div>
 			</div>
+			{#if missingForPricing.length}
+				<p class="mt-2 rounded-panel border border-warning/30 bg-warning/5 px-3 py-2.5 text-[12px] leading-5 text-warning">
+					This form does not ask for
+					{missingForPricing.includes('startDate') ? 'travel dates' : ''}{missingForPricing.length === 2 ? ' or ' : ''}{missingForPricing.includes('adults') ? 'how many people' : ''}.
+					Enquiries will arrive without them, so every quotation needs a message first. Turn them on
+					under <strong class="font-semibold">Configure</strong>.
+				</p>
+			{/if}
+
 			<div class="mt-2 flex flex-wrap items-center gap-2">
 				<code class="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-600">{shareUrl}</code>
 				<button type="button" class="btn-primary !py-1.5 text-xs" onclick={() => copy(shareUrl, 'share')}>

@@ -79,7 +79,7 @@
 			</header>
 
 			{#if sharing === f.id}
-				<FormEmbedGuide publicId={f.publicId} baseUrl={data.baseUrl} allowedOrigins={f.allowedOrigins ?? []} tours={data.tours} />
+				<FormEmbedGuide publicId={f.publicId} baseUrl={data.baseUrl} allowedOrigins={f.allowedOrigins ?? []} tours={data.tours} fields={f.fields ?? {}} />
 			{/if}
 
 			{#if editing === f.id && canWrite}

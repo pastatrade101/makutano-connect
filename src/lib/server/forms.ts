@@ -48,6 +48,18 @@ export const FORM_FIELD_CATALOG: Record<FormType, Array<{ key: string; label: st
 		{ key: 'email', label: 'Email', defaultEnabled: true, defaultRequired: false },
 		{ key: 'phone', label: 'WhatsApp / phone', defaultEnabled: true, defaultRequired: true },
 		{ key: 'service', label: 'What do you need quoted?', defaultEnabled: true, defaultRequired: true },
+		/*
+		 * A quotation cannot be priced without a date and a party size.
+		 *
+		 * The QUOTE catalogue offered neither, so the one thing this form exists to
+		 * produce always needed a "when, and how many?" message first — and a
+		 * tour-linked enquiry arrived knowing the trip but not who or when. BOOKING
+		 * already enabled all three; QUOTE simply did not list them.
+		 */
+		{ key: 'startDate', label: 'Travel date', defaultEnabled: true, defaultRequired: false },
+		{ key: 'adults', label: 'Adults', defaultEnabled: true, defaultRequired: false },
+		{ key: 'children', label: 'Children', defaultEnabled: true, defaultRequired: false },
+		{ key: 'budget', label: 'Budget', defaultEnabled: false, defaultRequired: false },
 		{ key: 'message', label: 'Details', defaultEnabled: true, defaultRequired: false }
 	],
 	LEAD: [
