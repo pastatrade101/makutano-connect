@@ -282,7 +282,7 @@
 								title={collapsed ? item.label : undefined}
 								class="flex items-center gap-3 rounded-panel py-2 text-[15px] transition {collapsed ? 'justify-center px-0' : 'px-2.5'} {isActive(item.href)
 									? 'bg-brand-50 font-semibold text-brand-600'
-									: 'text-slate-500 hover:bg-[#f3f1fa] hover:text-slate-700'}"
+									: 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}"
 							>
 								<svg class="size-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d={item.icon} /></svg>
 								{#if !collapsed}{item.label}{/if}
@@ -295,7 +295,7 @@
 
 		{#if data.user.isSuperAdmin && !collapsed}
 			<div class="border-t border-slate-200 p-3">
-				<a href="/admin" class="block rounded-panel px-2.5 py-1.5 text-xs text-slate-500 hover:bg-[#f3f1fa]">Super admin →</a>
+				<a href="/admin" class="block rounded-panel px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-700">Super admin →</a>
 			</div>
 		{/if}
 	</aside>

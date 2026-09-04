@@ -90,6 +90,18 @@
 	--color-brand-100: #4a2c1e;
 	--color-brand-500: #e08a5f;
 	--color-brand-600: #e08a5f;
+	/*
+	 * 800 and 900 invert here; 700 deliberately does not.
+	 *
+	 * The dark theme flips brand-50 and brand-100 into dark SURFACES but left the
+	 * deep shades at their light-theme browns, so text-brand-800 on bg-brand-50
+	 * rendered dark-on-dark — measured at 1.69:1 on the trial banner, against a
+	 * 4.5:1 floor. These two are text-only in this codebase (zero bg- uses), so
+	 * inverting them is safe. brand-700 stays put because hover:bg-brand-700 is a
+	 * button background, and lightening it would break the hover instead.
+	 */
+	--color-brand-800: #f0c4ac;
+	--color-brand-900: #f7ded0;
 	--color-success: #6fbf92;
 	--color-warning: #e0a551;
 	--color-danger: #f08070;
