@@ -396,6 +396,14 @@ built and live for existing tenants, but signup now accepts only
 
 ### Vehicle tracking _(4 Sep 2026)_
 
+| | |
+| --- | --- |
+| V1 fleet & trip tracking | ✅ Live |
+| Phase 1 credential isolation | ✅ Verified |
+| Phase 2 phone enrollment | ⚠️ Live — one step short of verified (no handset scan yet) |
+| Phase 3 position retention | ⬜ Not started |
+| Tracking UX | ✅ Live |
+
 **Phase 1 — security prerequisites: live.** Two Traccar identities, split by
 job. Provisioning belongs to `tracking-worker@tracking.invalid` (NOT an
 administrator: `deviceLimit -1`, `userLimit -1`), held **only** by the
@@ -406,12 +414,31 @@ credentials — verify with
 `docker inspect makutano-connect ... | grep -c TRACCAR_ADMIN` and expect `0`.
 Migrations `0049` and `0050` are applied.
 
-**Phase 2 — phone enrollment: live, verified in production 4 Sep 2026.** An
-operator creates a setup code, the driver scans it with Traccar Client, and the
-worker binds the vehicle on the phone's first real fix. The full lifecycle was
-exercised end to end against production: provision, activate, worker restart
-mid-flight, cancel, expire, replace, and revoke. The web process makes **no**
-provider call during enrollment — `status` reads the ledger alone.
+**Phase 2 — phone enrollment: LIVE, one step short of verified _(4 Sep 2026)_.**
+An operator creates a setup code, the driver scans it with Traccar Client, and
+the worker binds the vehicle on the phone's first real fix.
+
+The server-side lifecycle was exercised end to end against production and
+passed: provision, activate, worker restart mid-flight, cancel, expire, replace
+and revoke. The web process makes **no** provider call during enrollment —
+`status` reads the ledger alone.
+
+**What has NOT been done: a real handset has never scanned a generated QR.**
+Activation was proven by posting protocol-identical OsmAnd fixes, because the
+only phone running Traccar Client is the live Toyota tracker, which was
+explicitly out of scope. So the server accepts and binds a first fix correctly;
+what remains unproven is the link before it — that Traccar Client parses our QR,
+stores exactly `https://tracking.makutano.co.tz/osmand` with no query string,
+and needs no manual identifier entry.
+
+One replacement bug was found by that verification and fixed (trap 15); it had
+shipped, so the flow was live and broken until 4 Sep.
+
+Note also that the single production enrollment row is a **backfill**, not a
+Phase 2 enrollment: `Land Cruiser 1` has `provider_device_id`, `provisioned_at`
+and `first_fix_at` all null, and its Traccar device carries a hand-made
+`uniqueid` rather than a minted 16-character reference. No vehicle in production
+has yet been onboarded through this flow and kept.
 
 Facts that are easy to get wrong:
 
