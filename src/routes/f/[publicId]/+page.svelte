@@ -26,7 +26,7 @@
 			const res = await fetch(`/api/public/widgets/${c.publicId}/submit`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ hp_company: hp, fields: values })
+				body: JSON.stringify({ hp_company: hp, fields: values, tour: data.tour?.slug ?? null, offer: data.offer ?? null })
 			});
 			const out = await res.json();
 			if (out.success) done = out.data.message;
@@ -70,6 +70,34 @@
 					<p class="text-sm text-slate-700">{done}</p>
 				</div>
 			{:else}
+				<!--
+					What the visitor clicked, shown back to them.
+
+					Somebody arriving from a WhatsApp broadcast has to recognise the trip
+					before they will fill anything in. Without this the link is a bare
+					form and the enquiry is a guess.
+				-->
+				{#if data.tour}
+					<div class="mb-4 overflow-hidden rounded-panel border border-slate-200">
+						{#if data.tour.heroUrl}
+							<img src={data.tour.heroUrl} alt="" class="h-32 w-full object-cover" />
+						{/if}
+						<div class="p-3">
+							{#if data.offer}
+								<span class="mb-1.5 inline-block rounded-full bg-brand-600 px-2.5 py-1 text-[11.5px] font-semibold text-white">{data.offer}</span>
+							{/if}
+							<p class="text-[15px] font-bold text-slate-800">{data.tour.title}</p>
+							<p class="mt-0.5 text-[12.5px] text-slate-500">
+								{#if data.tour.durationDays}{data.tour.durationDays} days{/if}
+								{#if data.tour.durationDays && data.tour.priceFrom} · {/if}
+								{#if data.tour.priceFrom}from {data.tour.currency} {data.tour.priceFrom}{/if}
+							</p>
+						</div>
+					</div>
+				{:else if data.offer}
+					<span class="mb-3 inline-block rounded-full bg-brand-600 px-2.5 py-1 text-[11.5px] font-semibold text-white">{data.offer}</span>
+				{/if}
+
 				{#if c.heading}<h1 class="text-lg font-bold text-slate-800">{c.heading}</h1>{/if}
 				{#if c.description}<p class="mt-1 text-[13px] text-slate-500">{c.description}</p>{/if}
 

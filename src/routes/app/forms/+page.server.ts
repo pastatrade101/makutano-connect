@@ -5,14 +5,24 @@ import { requirePermission } from '$lib/server/auth/permissions';
 import { env } from '$lib/server/env';
 import { toAppError } from '$lib/server/errors';
 import { createForm, FORM_FIELD_CATALOG, getForm, listForms, regeneratePublicId, updateForm } from '$lib/server/forms';
+import { listTours } from '$lib/server/tours';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	requireTenantPermission(locals, 'forms:read');
 	const tenantId = requireTenant(locals).id;
 	const formsList = await listForms(tenantId);
+	/*
+	 * Published tours only, for the shareable link builder.
+	 *
+	 * A link pointing at a draft would render a form with no trip on it — the
+	 * public page refuses to show an unpublished tour, and rightly — so the
+	 * builder must not offer one.
+	 */
+	const tours = await listTours(tenantId, { page: 1, limit: 200, order: 'asc' }, { status: ['PUBLISHED'] }).catch(() => ({ items: [] as { title: string; slug: string }[] }));
 	return {
 		forms: formsList,
+		tours: (tours.items ?? []).map((t) => ({ title: t.title, slug: t.slug })),
 		fieldCatalog: FORM_FIELD_CATALOG,
 		baseUrl: env().PUBLIC_APP_URL.replace(/\/+$/, '')
 	};

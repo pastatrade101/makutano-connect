@@ -1821,6 +1821,39 @@ export async function resolveOperatorOwner(slug: string): Promise<{ operatorId: 
 	return row ?? null;
 }
 
+/**
+ * The few facts a shareable enquiry link needs to show.
+ *
+ * A visitor arriving from a WhatsApp broadcast has to recognise the trip before
+ * they will fill anything in, so the form shows what they clicked: the title,
+ * how long it runs and what it costs from. Published tours only — the same bar
+ * the marketplace uses, so an unpublished draft cannot be leaked by link.
+ */
+export async function publicTourCard(tourId: string): Promise<{
+	title: string;
+	slug: string;
+	durationDays: number | null;
+	priceFrom: string | null;
+	currency: string | null;
+	heroUrl: string | null;
+} | null> {
+	const hero = alias(schema.media, 'tour_card_hero');
+	const [row] = await db()
+		.select({
+			title: schema.tours.title,
+			slug: schema.tours.slug,
+			durationDays: schema.tours.durationDays,
+			priceFrom: schema.tours.priceFrom,
+			currency: schema.tours.currency,
+			heroUrl: hero.url
+		})
+		.from(schema.tours)
+		.leftJoin(hero, eq(hero.id, schema.tours.heroMediaId))
+		.where(and(eq(schema.tours.id, tourId), publishedTour()))
+		.limit(1);
+	return row ? { ...row, priceFrom: row.priceFrom ? String(row.priceFrom) : null } : null;
+}
+
 export async function resolveTourOwner(slugOrId: string): Promise<{ tourId: string; tenantId: string } | null> {
 	const value = slugOrId?.trim();
 	if (!value) return null;

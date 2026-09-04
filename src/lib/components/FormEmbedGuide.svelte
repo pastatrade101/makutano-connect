@@ -15,8 +15,32 @@
 	let {
 		publicId,
 		baseUrl,
-		allowedOrigins = []
-	}: { publicId: string; baseUrl: string; allowedOrigins?: string[] } = $props();
+		allowedOrigins = [],
+		tours = []
+	}: {
+		publicId: string;
+		baseUrl: string;
+		allowedOrigins?: string[];
+		tours?: { title: string; slug: string }[];
+	} = $props();
+
+	/*
+	 * A link for ONE tour, with an optional offer.
+	 *
+	 * This is the version that suits how these operators actually sell — a
+	 * WhatsApp broadcast or an Instagram story, not a website. Because the link
+	 * names the tour, the enquiry arrives attached to it and the quotation prices
+	 * itself; a bare form makes the operator retype the trip they already sell.
+	 */
+	let tourSlug = $state('');
+	let offer = $state('');
+	const shareUrl = $derived.by(() => {
+		const params = new URLSearchParams();
+		if (tourSlug) params.set('tour', tourSlug);
+		if (offer.trim()) params.set('offer', offer.trim());
+		const qs = params.toString();
+		return qs ? `${baseUrl}/f/${publicId}?${qs}` : `${baseUrl}/f/${publicId}`;
+	});
 
 	const hostedUrl = $derived(`${baseUrl}/f/${publicId}`);
 	const embedCode = $derived(`<script src="${baseUrl}/widget.js" data-widget="${publicId}"><\/script>`);
@@ -93,6 +117,44 @@
 			<a href={hostedUrl} target="_blank" rel="noopener" class="btn-secondary !py-1.5 text-xs">Open</a>
 		</div>
 	</div>
+
+	<!-- Route 1b: one tour, one link — the version that needs no website. -->
+	{#if tours.length}
+		<div class="border-t border-slate-200 pt-4">
+			<h3 class="text-[13px] font-semibold text-slate-800">Or share one tour</h3>
+			<p class="mt-0.5 text-[12.5px] text-slate-500">
+				Pick a tour and the enquiry arrives already attached to it, so the quotation prices itself
+				instead of starting blank. Add an offer line if you are running one.
+			</p>
+			<div class="mt-2 grid gap-2 sm:grid-cols-2">
+				<div>
+					<label class="label" for="share-tour-{publicId}">Tour</label>
+					<select id="share-tour-{publicId}" bind:value={tourSlug} class="input">
+						<option value="">No particular tour</option>
+						{#each tours as t (t.slug)}<option value={t.slug}>{t.title}</option>{/each}
+					</select>
+				</div>
+				<div>
+					<label class="label" for="share-offer-{publicId}">Offer <span class="font-normal text-slate-400">(optional)</span></label>
+					<input id="share-offer-{publicId}" bind:value={offer} maxlength="120" class="input" placeholder="15% off October departures" />
+				</div>
+			</div>
+			<div class="mt-2 flex flex-wrap items-center gap-2">
+				<code class="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-600">{shareUrl}</code>
+				<button type="button" class="btn-primary !py-1.5 text-xs" onclick={() => copy(shareUrl, 'share')}>
+					{copied === 'share' ? 'Copied' : 'Copy link'}
+				</button>
+				<a href={shareUrl} target="_blank" rel="noopener" class="btn-secondary !py-1.5 text-xs">Open</a>
+			</div>
+			{#if offer.trim()}
+				<p class="mt-2 rounded-panel bg-white px-3 py-2 text-[12px] leading-5 text-slate-500 ring-1 ring-slate-200">
+					The offer is shown to the traveller and written onto the enquiry, so you see what was
+					promised before you price it. Connect does not apply the discount for you — you still set
+					the quotation.
+				</p>
+			{/if}
+		</div>
+	{/if}
 
 	<!-- Route 2: on their own site. -->
 	<div class="border-t border-slate-200 pt-4">

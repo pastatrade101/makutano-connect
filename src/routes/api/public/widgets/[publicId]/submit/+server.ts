@@ -19,6 +19,7 @@ import { findOrCreateCustomer } from '$lib/server/customers';
 import { sha256 } from '$lib/server/encryption';
 import { AppError, errorResponse, toAppError } from '$lib/server/errors';
 import { bumpSubmissionCount, originAllowed, resolvePublicForm, FORM_FIELD_CATALOG } from '$lib/server/forms';
+import { resolveTourOwner } from '$lib/server/marketplace';
 import { createLead } from '$lib/server/leads';
 import { log } from '$lib/server/logger';
 import { createOrder } from '$lib/server/orders';
@@ -30,6 +31,11 @@ const submissionSchema = z
 	.object({
 		// Honeypot: humans never see it; bots that fill it get a fake success.
 		hp_company: z.string().max(200).optional(),
+		// From a shareable per-tour link. Both are advisory: the tour is re-resolved
+		// server-side and refused unless it belongs to this form's tenant, and the
+		// offer is only ever recorded, never priced.
+		tour: z.string().trim().max(200).optional().nullable(),
+		offer: z.string().trim().max(120).optional().nullable(),
 		captchaToken: z.string().max(4096).optional(),
 		fields: z.record(z.union([z.string().max(2000), z.number(), z.boolean()])).default({}),
 		items: z
@@ -109,9 +115,33 @@ export const POST: RequestHandler = async (event) => {
 		// Drop anything not enabled on this form — a visitor cannot invent fields.
 		const f: Record<string, unknown> = Object.fromEntries(Object.entries(body.fields).filter(([k]) => enabledKeys.has(k)));
 
+		/*
+		 * Re-resolve the tour here rather than trusting the body.
+		 *
+		 * The page already checked it, but this endpoint is public and callable
+		 * directly, so the tenant check has to happen where the write happens.
+		 * A tour belonging to somebody else is dropped silently: the enquiry is
+		 * still worth having, it just arrives unattached.
+		 */
+		let tourId: string | null = null;
+		if (body.tour) {
+			const owner = await resolveTourOwner(body.tour);
+			if (owner && owner.tenantId === tenant.id) tourId = owner.tourId;
+		}
+
+		/*
+		 * The offer goes in the notes, at the top, not only in metadata.
+		 *
+		 * Whatever the link promised, the person writing the quotation has to see
+		 * it before they price — a discount shown to a traveller and invisible to
+		 * the operator is a promise the software cannot keep.
+		 */
+		const offerNote = body.offer ? `Arrived from an offer: ${body.offer}` : null;
+
 		let resultRef: string;
 		if (form.type === 'BOOKING' || form.type === 'QUOTE') {
 			const { request } = await createBookingRequest(tenant.id, {
+				tourId,
 				customer: {
 					firstName: str(f.firstName, 120) || str(f.name, 120) || 'Visitor',
 					lastName: str(f.lastName, 120),
@@ -126,8 +156,8 @@ export const POST: RequestHandler = async (event) => {
 				adults: num(f.adults, 1) || 1,
 				children: num(f.children, 0),
 				estimatedTotal: /^\d+(\.\d{1,2})?$/.test(str(f.budget, 20)) ? str(f.budget, 20) : null,
-				notes: [str(f.service, 300), str(f.message, 3000)].filter(Boolean).join('\n\n') || null,
-				metadata: { form_public_id: form.publicId, form_type: form.type, ...(form.type === 'QUOTE' ? { quote_request: true } : {}) },
+				notes: [offerNote, str(f.service, 300), str(f.message, 3000)].filter(Boolean).join('\n\n') || null,
+				metadata: { form_public_id: form.publicId, form_type: form.type, ...(body.offer ? { offer: body.offer } : {}), ...(form.type === 'QUOTE' ? { quote_request: true } : {}) },
 				items: str(f.service, 300) ? [{ title: str(f.service, 300) }] : undefined
 			});
 			resultRef = request.reference;
