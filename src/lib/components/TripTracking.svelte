@@ -26,7 +26,16 @@
 	let position = $state<Position | null>(null);
 	let message = $state<string | null>(null);
 	let track = $state<{ latitude: number; longitude: number }[]>([]);
-	let showMap = $state(false);
+	/*
+	 * The preview shows as soon as there is a position.
+	 *
+	 * It used to hide behind a "View live map" button, so the default state of
+	 * the card was a vehicle name and nothing to look at — the map an operator
+	 * came for was one click away and gave no hint it existed. The only reason it
+	 * was ever optional is that the track costs one extra request, which is not a
+	 * reason to hide the feature.
+	 */
+	let showMap = $state(true);
 	let loading = $state(true);
 
 	/*
@@ -72,11 +81,14 @@
 	}
 
 	onMount(() => {
-		refresh();
+		// With the map visible from the start, the first load fetches the track too.
+		refresh(true);
 		const tick = () => {
 			// Nothing to gain from polling a hidden tab, and a laptop full of them
 			// would be a lot of requests for a screen nobody is reading.
-			if (document.visibilityState === 'visible') refresh(showMap);
+			// Position only. Refetching the whole track on every poll would cost the
+			// operator's connection for a line that barely changes.
+			if (document.visibilityState === 'visible') refresh(false);
 		};
 		const timer = setInterval(tick, POLL_MS);
 		return () => clearInterval(timer);
@@ -154,7 +166,7 @@
 				</div>
 			</div>
 		{:else}
-			<button class="btn-secondary mt-3 !py-1.5 text-xs" onclick={openMap}>View live map</button>
+			<button class="btn-secondary mt-3 !py-1.5 text-xs" onclick={openMap}>Show map</button>
 		{/if}
 	{/if}
 </div>
