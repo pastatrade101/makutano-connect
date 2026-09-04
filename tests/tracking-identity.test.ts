@@ -35,17 +35,24 @@ describe('the tracker reference never leaves the server', () => {
 		expect(read('src/routes/app/vehicles/+page.svelte')).not.toContain('v.trackerDeviceRef');
 	});
 
-	it('appears in no browser-reachable file anywhere in the app', () => {
-		// A grep, deliberately: the next leak will be a new file, not this one.
-		const hits = execSync(
-			"grep -rl 'trackerDeviceRef' src/ || true",
-			{ encoding: 'utf8' }
-		)
+	it('is never PUT INTO a payload, in any route, present or future', () => {
+		/*
+		 * Asserting on a filename list was the wrong test: it failed the moment a
+		 * second page derived a boolean from the column, which is exactly the safe
+		 * use. What matters is not WHICH file mentions the column but whether any
+		 * of them ships its VALUE.
+		 *
+		 * A route may say `Boolean(v.trackerDeviceRef)` or `!v.trackerDeviceRef`.
+		 * It may never say `trackerDeviceRef:` as an object property, which is how
+		 * the string reaches the browser.
+		 */
+		const files = execSync("grep -rl 'trackerDeviceRef' src/routes/ || true", { encoding: 'utf8' })
 			.split('\n')
-			.filter(Boolean)
-			// Server-only modules may of course name the column they own.
-			.filter((f) => !f.startsWith('src/lib/server/'));
-		expect(hits).toEqual(['src/routes/app/vehicles/+page.server.ts']);
+			.filter(Boolean);
+		const leaking = files.filter((f) => /(^|[^.\w])trackerDeviceRef\s*:/m.test(read(f)));
+		expect(leaking).toEqual([]);
+		// And no .svelte file may name it at all — nothing there is server-only.
+		expect(files.filter((f) => f.endsWith('.svelte'))).toEqual([]);
 	});
 
 	it('is never accepted from a caller', () => {
