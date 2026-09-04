@@ -40,7 +40,13 @@
 	 * Orders is not in the sketch because it only exists for ORDERS workspaces;
 	 * it sits in Sales, where it belongs when it is there at all.
 	 */
-	const GROUPS: Array<{ label: string; items: Item[]; footer?: boolean }> = [
+	/*
+	 * One accent per group, taken from the existing palette rather than invented,
+	 * so both themes already define them. It is a wayfinding mark, not decoration:
+	 * the dot and the rule carry the grouping, the item labels stay neutral, and
+	 * the only strong colour in the list remains the page you are on.
+	 */
+	const GROUPS: Array<{ label: string; items: Item[]; footer?: boolean; accent?: string }> = [
 		{
 			label: '',
 			items: [
@@ -50,6 +56,7 @@
 		},
 		{
 			label: 'Sales',
+			accent: 'bg-brand-500',
 			items: [
 				{ href: '/app/customers', label: 'Travellers', icon: 'M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 7a6 6 0 0 1 12 0H4Z', permission: 'customers:read' },
 				{ href: '/app/booking-requests', label: 'Enquiries', icon: 'M4 3h12v14l-3-2-3 2-3-2-3 2V3Z', permission: 'booking_requests:read', primary: true, module: 'enquiries' },
@@ -61,6 +68,7 @@
 		},
 		{
 			label: 'Operations',
+			accent: 'bg-success',
 			items: [
 				{ href: '/app/trips', label: 'Trips', icon: 'M2 12h16M6 12V7l3-3 3 3v5M4 12v4h12v-4', permission: 'trips:read', module: 'trips' },
 				{ href: '/app/vehicles', label: 'Vehicles', icon: 'M3 13h14v3H3v-3Zm1-3 1.5-3.5A1 1 0 0 1 6.4 6h7.2a1 1 0 0 1 .9.5L16 10M5.5 16v1M14.5 16v1', permission: 'vehicles:read', module: 'trips' },
@@ -69,6 +77,7 @@
 		},
 		{
 			label: 'Marketplace',
+			accent: 'bg-info',
 			items: [
 				{ href: '/app/tours', label: 'Tours', icon: 'M10 2.5a4.5 4.5 0 0 0-4.5 4.5c0 3.4 4.5 10 4.5 10s4.5-6.6 4.5-10A4.5 4.5 0 0 0 10 2.5Zm0 6.2a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4Z', permission: 'tours:read', module: 'bookings' },
 				{ href: '/app/reviews', label: 'Reviews', icon: 'm10 2.6 2.3 4.7 5.2.7-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L2.5 8l5.2-.7L10 2.6Z', permission: 'reviews:read', module: 'bookings' }
@@ -76,6 +85,7 @@
 		},
 		{
 			label: 'Growth',
+			accent: 'bg-purple',
 			items: [
 				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read', module: 'leads' },
 				{ href: '/app/forms', label: 'Forms & widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read', entitlement: 'forms.hostedEnabled' }
@@ -83,6 +93,7 @@
 		},
 		{
 			label: 'Tools',
+			accent: 'bg-slate-400',
 			items: [
 				{ href: '/app/whatsapp/templates', label: 'Templates', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.enabled' },
 				{ href: '/app/developers', label: 'Integrations', icon: 'M7 5 3 10l4 5m6-10 4 5-4 5', permission: 'api_keys:read', entitlement: 'api.enabled' }
@@ -187,7 +198,7 @@
 	 * on is always shown, so the sidebar can never hide where you are.
 	 */
 	let folded = $state<string[]>([]);
-	const isOpen = (g: { label: string; items: Item[]; footer?: boolean }) =>
+	const isOpen = (g: { label: string; items: Item[]; footer?: boolean; accent?: string }) =>
 		!g.label || !folded.includes(g.label) || g.items.some((i) => isActive(i.href));
 
 	function toggleGroup(label: string) {
@@ -228,24 +239,29 @@
 		<nav class="flex-1 overflow-y-auto px-3 py-4">
 			{#each groups as group (group.label + group.items[0].href)}
 				{#if group.footer}
-					<div class="mx-2 my-3 border-t border-slate-200"></div>
+					<div class="mx-1 mt-4 mb-3 border-t-2 border-slate-200"></div>
 				{:else if !collapsed && group.label}
-					<!-- The heading is the toggle. A group you never use folds away and
-					     stays folded; the one you are standing in cannot, so the sidebar
-					     can never hide the page you are on. -->
+					<!-- A real rule between groups, not just space: the eye needs an edge
+					     to count sections by. The heading is also the toggle — a group you
+					     never use folds away and stays folded, and the one you are
+					     standing in cannot, so the sidebar can never hide where you are. -->
+					<div class="mx-1 mt-4 mb-1 border-t border-slate-200/70 first:mt-0 first:border-0"></div>
 					<button
 						onclick={() => toggleGroup(group.label)}
 						aria-expanded={isOpen(group)}
-						class="flex w-full items-center justify-between rounded-panel px-2.5 pt-3 pb-2 text-[11.5px] font-bold tracking-widest text-slate-400 uppercase transition hover:text-slate-600"
+						class="flex w-full items-center gap-2 rounded-panel px-2.5 pt-1.5 pb-2 text-[11px] font-bold tracking-[0.14em] text-slate-400 uppercase transition hover:text-slate-600"
 					>
-						{group.label}
+						<span class="size-1.5 shrink-0 rounded-full {group.accent ?? 'bg-slate-300'}"></span>
+						<span class="flex-1 text-left">{group.label}</span>
 						<svg
 							class="size-3 shrink-0 transition-transform {isOpen(group) ? '' : '-rotate-90'}"
 							viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"
 						><path d="m4 6 4 4 4-4" /></svg>
 					</button>
 				{:else if collapsed}
-					<div class="mx-2 my-3 border-t border-slate-100 first:hidden"></div>
+					<!-- On the narrow rail the labels are gone, so the accent becomes the
+					     separator — it is the only thing left that tells the groups apart. -->
+					<div class="mx-3 my-3 h-0.5 rounded-full {group.accent ?? 'bg-slate-200'} opacity-50 first:hidden"></div>
 				{/if}
 				<div class="space-y-0.5 {isOpen(group) ? '' : 'hidden'}">
 					{#each group.items as item (item.href)}
@@ -504,7 +520,16 @@
 				<div class="space-y-5 p-4">
 					{#each groups as group (group.label)}
 						<section>
-							{#if group.label}<h3 class="mb-2 px-1 text-[11px] font-bold tracking-widest text-slate-400 uppercase">{group.label}</h3>{/if}
+							<!-- Same accent and rule as the sidebar, so the grouping reads the
+							     same on a phone as it does on a laptop. -->
+							{#if group.label}
+								<h3 class="mb-2 flex items-center gap-2 border-t border-slate-200/70 px-1 pt-3 text-[11px] font-bold tracking-[0.14em] text-slate-400 uppercase">
+									<span class="size-1.5 shrink-0 rounded-full {group.accent ?? 'bg-slate-300'}"></span>
+									{group.label}
+								</h3>
+							{:else if group.footer}
+								<div class="mb-2 border-t-2 border-slate-200"></div>
+							{/if}
 							<div class="grid grid-cols-2 gap-2">
 								{#each group.items as item (item.href)}
 									{#if locked(item)}
