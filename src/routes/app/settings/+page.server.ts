@@ -61,17 +61,30 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const tenant = requireTenantPermission(locals, 'tenant:read');
 	const tenantId = requireTenant(locals).id;
 
-	const [ent, usage, members] = await Promise.all([
+	const [ent, usage, members, publicProfileRows] = await Promise.all([
 		effectiveEntitlements(tenantId),
 		usageSummary(tenantId),
 		db()
 			.select({ membership: schema.tenantMemberships, user: schema.users })
 			.from(schema.tenantMemberships)
 			.innerJoin(schema.users, eq(schema.users.id, schema.tenantMemberships.userId))
-			.where(eq(schema.tenantMemberships.tenantId, tenantId))
+			.where(eq(schema.tenantMemberships.tenantId, tenantId)),
+		db()
+			.select({
+				publicEmail: schema.operatorProfiles.publicEmail,
+				publicPhone: schema.operatorProfiles.publicPhone
+			})
+			.from(schema.operatorProfiles)
+			.where(eq(schema.operatorProfiles.tenantId, tenantId))
+			.limit(1)
 	]);
+	const publicProfile = publicProfileRows[0] ?? null;
 
 	return {
+		// A quotation the traveller cannot answer is a dead end, and the operator has
+		// no way to notice: the public page looks fine to them. So the settings page
+		// says it, rather than leaving it to be discovered by a lost customer.
+		publicContactMissing: !(publicProfile?.publicEmail?.trim() || publicProfile?.publicPhone?.trim()),
 		settings: {
 			capabilities: normalizeWorkspace((tenant.settings as Record<string, unknown>)?.capabilities),
 			paymentMethods: paymentMethods(tenant.settings as Record<string, unknown>),

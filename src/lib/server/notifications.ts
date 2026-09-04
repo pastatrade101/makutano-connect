@@ -77,12 +77,15 @@ export async function deliverNotification(notificationId: string): Promise<void>
 				break;
 			}
 			case 'EMAIL':
+				// `text`, not `body`: the email.send handler reads html ?? text, so a
+				// payload keyed `body` was dropped and every EMAIL notification would
+				// have been delivered blank. Nothing had exercised this path yet.
 				await enqueue(
 					'email.send',
 					{
 						to: notification.recipientAddress,
 						subject: notification.title,
-						body: notification.body
+						text: notification.body
 					},
 					{ tenantId: notification.tenantId }
 				);

@@ -228,15 +228,67 @@ export async function createBookingRequest(tenantId: string, input: CreateBookin
 		conversationId,
 		leadId
 	});
+	const who = `${customer.firstName} ${customer.lastName}`.trim() || 'A new traveller';
 	await notify({
 		tenantId,
 		channel: 'IN_APP',
 		event: 'booking_request.created',
 		title: `New booking request ${reference}`,
-		body: `${customer.firstName} ${customer.lastName}`.trim() || 'A new traveller inquiry has arrived.',
+		body: who || 'A new traveller inquiry has arrived.',
 		entityType: 'booking_request',
 		entityId: linked.id
 	});
+
+	/*
+	 * And by email, to the people who can act on it.
+	 *
+	 * IN_APP alone meant an enquiry reached nobody until somebody happened to open
+	 * Connect. An operator who has not connected WhatsApp — half of them, at the
+	 * time of writing — had no signal at all that a lead had arrived, which is the
+	 * one notification in this product that costs real money to miss.
+	 *
+	 * Best effort on purpose: a mail provider that is down must never fail the
+	 * enquiry itself. The traveller's request is already saved by this point.
+	 */
+	try {
+		const owners = await db()
+			.select({ email: schema.users.email })
+			.from(schema.tenantMemberships)
+			.innerJoin(schema.users, eq(schema.users.id, schema.tenantMemberships.userId))
+			.where(
+				and(
+					eq(schema.tenantMemberships.tenantId, tenantId),
+					inArray(schema.tenantMemberships.role, ['OWNER', 'ADMIN']),
+					// no status column on this table: disabled_at IS NULL is what active means
+					isNull(schema.tenantMemberships.disabledAt)
+				)
+			);
+		const lines = [
+			`${who} sent an enquiry through Makutano.`,
+			'',
+			`Reference: ${reference}`,
+			customer.email ? `Email: ${customer.email}` : null,
+			customer.phone ? `Phone: ${customer.phone}` : null,
+			'',
+			'Open Connect to read it and reply.'
+		].filter(Boolean) as string[];
+
+		for (const owner of owners) {
+			if (!owner.email) continue;
+			await notify({
+				tenantId,
+				channel: 'EMAIL',
+				event: 'booking_request.created',
+				title: `New enquiry ${reference} — ${who}`,
+				body: lines.join('\n'),
+				recipientAddress: owner.email,
+				entityType: 'booking_request',
+				entityId: linked.id
+			});
+		}
+	} catch (err) {
+		log.warn('enquiry_email_notify_failed', { tenantId, reference, error: (err as Error)?.message });
+	}
 
 	return { request: linked, customer, leadId, conversationId };
 }
