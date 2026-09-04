@@ -60,7 +60,7 @@
 
 <svelte:head><title>Set up tracking · {data.vehicle.name}</title></svelte:head>
 
-<div class="mx-auto w-full max-w-3xl space-y-4">
+<div class="w-full space-y-4">
 	<div>
 		<a href="/app/vehicles" class="text-xs text-slate-400 hover:underline">← Vehicles</a>
 		<h1 class="mt-0.5 text-lg font-semibold text-slate-900">{data.vehicle.name}</h1>
@@ -74,17 +74,18 @@
 	{#if data.active}
 		<!-- Tracked. The reference is never shown here; the tracker is identified
 		     by the name the operator gave it. -->
-		<div class="card space-y-3 p-4">
-			<div class="flex items-center justify-between gap-3">
-				<div>
-					<p class="text-sm font-semibold text-slate-900">Tracking is set up</p>
-					<p class="mt-0.5 text-xs text-slate-500">
-						{data.active.label || 'Driver’s phone'} · since {new Date(data.active.since).toLocaleDateString('en-GB')}
-					</p>
-				</div>
-				<span class="badge bg-success/10 text-success ring-1 ring-success/20">Connected</span>
+		<div class="card flex flex-wrap items-start justify-between gap-4 p-4">
+			<div>
+				<p class="text-sm font-semibold text-slate-900">Tracking is set up</p>
+				<p class="mt-0.5 text-xs text-slate-500">
+					{data.active.label || 'Driver’s phone'} · since {new Date(data.active.since).toLocaleDateString('en-GB')}
+				</p>
+				<p class="mt-2 text-[11.5px] text-slate-400">
+					Replacing keeps the current device working until the new one connects — nothing goes dark.
+				</p>
 			</div>
-			<div class="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+			<div class="flex flex-wrap items-center gap-2">
+				<span class="badge bg-success/10 text-success ring-1 ring-success/20">Connected</span>
 				<form method="POST" action="?/start" use:enhance>
 					<input type="hidden" name="profile" value={profile} />
 					<button class="btn-secondary">Replace tracking device</button>
@@ -93,9 +94,6 @@
 					<button class="btn-ghost text-danger">Remove tracking</button>
 				</form>
 			</div>
-			<p class="text-[11.5px] text-slate-400">
-				Replacing keeps the current device working until the new one connects — nothing goes dark.
-			</p>
 		</div>
 	{:else if data.preparing}
 		<div class="card space-y-2 p-4">
@@ -114,132 +112,157 @@
 			</form>
 		</div>
 	{:else if data.pending}
-		<div class="card space-y-4 p-4">
-			<div class="flex flex-wrap items-baseline justify-between gap-2">
-				<h2 class="text-sm font-semibold text-slate-900">Point the driver’s phone at this code</h2>
-				<span class="font-mono text-xs text-slate-500">Expires in {remaining}</span>
-			</div>
+		<!-- The code and the instructions sit side by side, so the operator can
+		     read the steps aloud to the driver without scrolling past the code. -->
+		<div class="grid items-start gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+			<div class="card space-y-3 p-4">
+				<div class="flex flex-wrap items-baseline justify-between gap-2">
+					<h2 class="text-sm font-semibold text-slate-900">Setup code</h2>
+					<span class="font-mono text-xs text-slate-500">Expires in {remaining}</span>
+				</div>
 
-			<ol class="space-y-1.5 text-sm text-slate-700">
-				<li>1. Install <strong>Traccar Client</strong> from the Play Store or App Store.</li>
-				<li>2. Open it, tap <strong>Settings</strong>, then the scan icon at the top.</li>
-				<li>3. Point it at this code.</li>
-			</ol>
+				<div class="flex justify-center rounded-panel bg-white p-3">
+					<img src="/app/vehicles/{data.vehicle.id}/tracking/qr" alt="Setup code" width="280" height="280" />
+				</div>
+				<p class="rounded-panel bg-slate-50 px-3 py-2 text-[11.5px] text-slate-600">
+					Keep this setup code private. Anyone with access to it may be able to configure another
+					tracking phone for this vehicle. If you think it has been seen by someone else, replace
+					the tracking device.
+				</p>
 
-			<div class="flex justify-center rounded-panel bg-white p-3">
-				<img src="/app/vehicles/{data.vehicle.id}/tracking/qr" alt="Setup code" width="280" height="280" />
-			</div>
-			<p class="rounded-panel bg-slate-50 px-3 py-2 text-[11.5px] text-slate-600">
-				Keep this setup code private. Anyone with access to it may be able to configure another
-				tracking phone for this vehicle. If you think it has been seen by someone else, replace
-				the tracking device.
-			</p>
+				<button type="button" class="text-xs text-brand-600 hover:underline" onclick={() => (showTyped = !showTyped)}>
+					Can’t scan? Type it instead
+				</button>
+				{#if showTyped}
+					<!--
+						The raw identifier is deliberately NOT here.
 
-			<ol class="space-y-1.5 text-sm text-slate-700" start="4">
-				<li>4. Turn on <strong>Continuous tracking</strong> — the app sends nothing until this is on.</li>
-				<li>5. When the phone asks about location, choose <strong>Allow all the time</strong>.</li>
-			</ol>
-			<p class="rounded-panel bg-warning/5 px-3 py-2 text-[11.5px] text-warning">{ANDROID}<br />{IPHONE}</p>
-
-			<div class="rounded-panel bg-slate-50 px-3 py-2.5">
-				{#if waiting === 'PREPARING'}
-					<p class="text-sm text-slate-600">Getting the code ready…</p>
-				{:else if waiting === 'WAITING' || waiting === null}
-					<p class="text-sm text-slate-600">Waiting for the first location…</p>
-					<p class="mt-1 text-[11.5px] text-slate-400">
-						Nothing yet? Check continuous tracking is on, location is set to allow all the time, and the phone
-						is outdoors or near a window.
-					</p>
-				{:else if waiting === 'EXPIRED'}
-					<p class="text-sm text-slate-600">This setup code has expired.</p>
+						The QR itself is bearer-like configuration material: anyone who
+						photographs or copies it can configure another phone that reports
+						as this vehicle, and that remains true after this window closes.
+						Not showing the identifier separately narrows the exposure to one
+						artefact; it does not make the artefact safe.
+					-->
+					<div class="rounded-panel bg-slate-50 p-3 text-xs text-slate-600">
+						<p><strong>Server URL</strong> — in the app: Settings › Server URL</p>
+						<p class="my-2 select-all font-mono text-slate-900">{data.pending.serverUrl}</p>
+						<p class="text-slate-400">Type nothing after /osmand.</p>
+						<p class="mt-2">
+							The device identifier is filled in by scanning the code above. If the camera
+							will not scan, start again and try in better light.
+						</p>
+					</div>
 				{/if}
 			</div>
 
-			<div class="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-				<form method="POST" action="?/start" use:enhance>
-					<input type="hidden" name="profile" value={profile} />
-					<button class="btn-secondary">Start again</button>
-				</form>
-				<form method="POST" action="?/extend" use:enhance>
-					<input type="hidden" name="enrollmentId" value={data.pending.id} />
-					<button class="btn-ghost text-xs">Give me {data.expiryMinutes} more minutes</button>
-				</form>
-				<form method="POST" action="?/cancel" use:enhance class="ml-auto">
-					<input type="hidden" name="enrollmentId" value={data.pending.id} />
-					<button class="btn-ghost text-xs text-slate-500">Cancel</button>
-				</form>
-			</div>
+			<div class="card space-y-4 p-4">
+				<h2 class="text-sm font-semibold text-slate-900">Point the driver’s phone at the code</h2>
 
-			<button type="button" class="text-xs text-brand-600 hover:underline" onclick={() => (showTyped = !showTyped)}>
-				Can’t scan? Type it instead
-			</button>
-			{#if showTyped}
-				<!--
-					The raw identifier is deliberately NOT here.
+				<ol class="space-y-1.5 text-sm text-slate-700">
+					<li>1. Install <strong>Traccar Client</strong> from the Play Store or App Store.</li>
+					<li>2. Open it, tap <strong>Settings</strong>, then the scan icon at the top.</li>
+					<li>3. Point it at the code.</li>
+					<li>4. Turn on <strong>Continuous tracking</strong> — the app sends nothing until this is on.</li>
+					<li>5. When the phone asks about location, choose <strong>Allow all the time</strong>.</li>
+				</ol>
 
-					The QR itself is bearer-like configuration material: anyone who
-					photographs or copies it can configure another phone that reports
-					as this vehicle, and that remains true after this window closes.
-					Not showing the identifier separately narrows the exposure to one
-					artefact; it does not make the artefact safe.
-				-->
-				<div class="rounded-panel bg-slate-50 p-3 text-xs text-slate-600">
-					<p><strong>Server URL</strong> — in the app: Settings › Server URL</p>
-					<p class="my-2 select-all font-mono text-slate-900">{data.pending.serverUrl}</p>
-					<p class="text-slate-400">Type nothing after /osmand.</p>
-					<p class="mt-2">
-						The device identifier is filled in by scanning the code above. If the camera
-						will not scan, start again and try in better light.
-					</p>
+				<p class="rounded-panel bg-warning/5 px-3 py-2 text-[11.5px] text-warning">{ANDROID}<br />{IPHONE}</p>
+
+				<div class="rounded-panel bg-slate-50 px-3 py-2.5">
+					{#if waiting === 'PREPARING'}
+						<p class="text-sm text-slate-600">Getting the code ready…</p>
+					{:else if waiting === 'WAITING' || waiting === null}
+						<p class="text-sm text-slate-600">Waiting for the first location…</p>
+						<p class="mt-1 text-[11.5px] text-slate-400">
+							Nothing yet? Check continuous tracking is on, location is set to allow all the time, and the phone
+							is outdoors or near a window.
+						</p>
+					{:else if waiting === 'EXPIRED'}
+						<p class="text-sm text-slate-600">This setup code has expired.</p>
+					{/if}
 				</div>
-			{/if}
+
+				<div class="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+					<form method="POST" action="?/start" use:enhance>
+						<input type="hidden" name="profile" value={profile} />
+						<button class="btn-secondary">Start again</button>
+					</form>
+					<form method="POST" action="?/extend" use:enhance>
+						<input type="hidden" name="enrollmentId" value={data.pending.id} />
+						<button class="btn-ghost text-xs">Give me {data.expiryMinutes} more minutes</button>
+					</form>
+					<form method="POST" action="?/cancel" use:enhance class="ml-auto">
+						<input type="hidden" name="enrollmentId" value={data.pending.id} />
+						<button class="btn-ghost text-xs text-slate-500">Cancel</button>
+					</form>
+				</div>
+			</div>
 		</div>
 	{:else}
-		<div class="card space-y-4 p-4">
-			<div>
-				<h2 class="text-sm font-semibold text-slate-900">How is this vehicle tracked?</h2>
-				{#if data.expiredJustNow}
-					<p class="mt-1 text-xs text-slate-500">
-						The last setup code expired. Codes last {data.expiryMinutes} minutes so an unused one can’t be used later.
-					</p>
-				{/if}
+		<div class="grid items-start gap-4 lg:grid-cols-2">
+			<div class="card space-y-4 p-4">
+				<div>
+					<h2 class="text-sm font-semibold text-slate-900">How is this vehicle tracked?</h2>
+					{#if data.expiredJustNow}
+						<p class="mt-1 text-xs text-slate-500">
+							The last setup code expired. Codes last {data.expiryMinutes} minutes so an unused one can’t be used later.
+						</p>
+					{/if}
+				</div>
+
+				<form method="POST" action="?/start" use:enhance class="space-y-3">
+					<div class="rounded-panel border border-brand-200 bg-brand-50/40 p-3">
+						<p class="text-sm font-medium text-slate-900">Driver’s phone</p>
+						<p class="mt-0.5 text-xs text-slate-500">Free. The driver installs a small app and scans a code.</p>
+					</div>
+
+					<label class="block max-w-md">
+						<span class="label">What should we call this tracker?</span>
+						<input name="label" bind:value={label} placeholder="Juma’s phone" class="input mt-1" />
+					</label>
+
+					<div>
+						<span class="label">How is it usually driven?</span>
+						<div class="mt-1 flex flex-wrap gap-2">
+							{#each data.profiles as p (p.key)}
+								<button
+									type="button"
+									onclick={() => (profile = p.key)}
+									class="rounded-lg border px-3 py-1.5 text-xs font-medium transition {profile === p.key
+										? 'border-brand-600 bg-brand-600 text-white'
+										: 'border-slate-200 text-slate-600 hover:bg-slate-50'}">{p.label}</button>
+							{/each}
+						</div>
+						<input type="hidden" name="profile" value={profile} />
+					</div>
+
+					<button type="submit" class="btn-primary" disabled={!data.trackingEnabled}>Create setup code</button>
+					{#if !data.trackingEnabled}
+						<p class="text-[11.5px] text-slate-400">Tracking is not switched on for this workspace yet.</p>
+					{/if}
+				</form>
+
+				<p class="border-t border-slate-100 pt-3 text-[11.5px] text-slate-400">
+					Fitted GPS tracker — contact support to set one up.
+				</p>
 			</div>
 
-			<form method="POST" action="?/start" use:enhance class="space-y-3">
-				<div class="rounded-panel border border-brand-200 bg-brand-50/40 p-3">
-					<p class="text-sm font-medium text-slate-900">Driver’s phone</p>
-					<p class="mt-0.5 text-xs text-slate-500">Free. The driver installs a small app and scans a code.</p>
-				</div>
-
-				<label class="block">
-					<span class="label">What should we call this tracker?</span>
-					<input name="label" bind:value={label} placeholder="Juma’s phone" class="input mt-1" />
-				</label>
-
-				<div>
-					<span class="label">How is it usually driven?</span>
-					<div class="mt-1 flex flex-wrap gap-2">
-						{#each data.profiles as p (p.key)}
-							<button
-								type="button"
-								onclick={() => (profile = p.key)}
-								class="rounded-lg border px-3 py-1.5 text-xs font-medium transition {profile === p.key
-									? 'border-brand-600 bg-brand-600 text-white'
-									: 'border-slate-200 text-slate-600 hover:bg-slate-50'}">{p.label}</button>
-						{/each}
-					</div>
-					<input type="hidden" name="profile" value={profile} />
-				</div>
-
-				<button class="btn-primary" disabled={!data.trackingEnabled}>Create setup code</button>
-				{#if !data.trackingEnabled}
-					<p class="text-[11.5px] text-slate-400">Tracking is not switched on for this workspace yet.</p>
-				{/if}
-			</form>
-
-			<p class="border-t border-slate-100 pt-3 text-[11.5px] text-slate-400">
-				Fitted GPS tracker — contact support to set one up.
-			</p>
+			<!-- Same words the operator will see once the code exists, so the driver
+			     can be briefed before anything is generated. -->
+			<div class="card space-y-3 p-4">
+				<h2 class="text-sm font-semibold text-slate-900">What the driver will do</h2>
+				<ol class="space-y-1.5 text-sm text-slate-600">
+					<li>1. Install <strong>Traccar Client</strong> from the Play Store or App Store.</li>
+					<li>2. Open it, tap <strong>Settings</strong>, then the scan icon at the top.</li>
+					<li>3. Point it at the code you are about to create.</li>
+					<li>4. Turn on <strong>Continuous tracking</strong>.</li>
+					<li>5. When the phone asks about location, choose <strong>Allow all the time</strong>.</li>
+				</ol>
+				<p class="rounded-panel bg-warning/5 px-3 py-2 text-[11.5px] text-warning">{ANDROID}<br />{IPHONE}</p>
+				<p class="text-[11.5px] text-slate-400">
+					The code lasts {data.expiryMinutes} minutes, so create it when the driver has the phone in hand.
+				</p>
+			</div>
 		</div>
 	{/if}
 </div>
