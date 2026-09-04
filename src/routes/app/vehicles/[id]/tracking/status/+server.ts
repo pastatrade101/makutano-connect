@@ -19,10 +19,12 @@ import { enrollmentStatus } from '$lib/server/tracking/enrollment';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, params }) => {
-	try {
-		const tenant = requireTenantPermission(locals, 'vehicles:read');
-		requirePermission(locals.permissions, 'vehicles:write');
+	// Hoisted out of the try: these throw a redirect for a signed-out caller, and
+	// catching it here would turn "sign in" into an opaque 500.
+	const tenant = requireTenantPermission(locals, 'vehicles:read');
+	requirePermission(locals.permissions, 'vehicles:write');
 
+	try {
 		// Scoped to this tenant AND this vehicle, so another tenant's vehicle id
 		// resolves to NONE rather than to somebody else's enrollment.
 		const state = await enrollmentStatus(tenant.id, params.id);
