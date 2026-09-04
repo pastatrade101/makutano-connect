@@ -11,6 +11,7 @@
 // cannot quote a figure the server disagrees with.
 import { z } from 'zod';
 import { audit } from '$lib/server/audit';
+import { getBookingRequest } from '$lib/server/booking-requests';
 import { createQuotation, sendQuotation } from '$lib/server/quotations';
 import { quotationLines } from '$lib/quotation-lines';
 import { AppError } from '$lib/server/errors';
@@ -77,6 +78,31 @@ export const POST: RequestHandler = async (event) => {
 		}
 		const body = parsed.data;
 
+		/*
+		 * Fall back to the enquiry for anything the phone did not send.
+		 *
+		 * The web composer already does this; this endpoint did not, so a quotation
+		 * raised on a phone silently dropped the travel date the traveller had
+		 * given — and then the booking and the trip inherited the null, which is
+		 * how a trip ends up reading "still needs travel dates" for a customer who
+		 * supplied one. Traveller counts happened to survive because the app sends
+		 * them; the date did not.
+		 */
+		let fallback: { startDate: Date | null; endDate: Date | null; adults: number | null; children: number | null } | null = null;
+		if (body.bookingRequestId && (!body.startDate || !body.endDate || body.adults == null || body.children == null)) {
+			const enquiry = await getBookingRequest(viewer.tenantId, body.bookingRequestId).catch(() => null);
+			if (enquiry) {
+				fallback = {
+					startDate: enquiry.startDate ?? null,
+					endDate: enquiry.endDate ?? null,
+					adults: enquiry.adults ?? null,
+					children: enquiry.children ?? null
+				};
+			}
+		}
+		const asDay = (v: Date | string | null | undefined) =>
+			v ? String(v instanceof Date ? v.toISOString() : v).slice(0, 10) : null;
+
 		const lines = body.party ? quotationLines(body.party) : (body.items ?? []);
 		if (!lines.length) throw new AppError('VALIDATION_ERROR', 'A quotation needs at least one line.');
 		if (body.party && body.party.adults + body.party.children < 1) {
@@ -90,10 +116,10 @@ export const POST: RequestHandler = async (event) => {
 				customerId: body.customerId ?? null,
 				currency: body.currency,
 				validUntil: body.validUntil ?? null,
-				startDate: body.startDate ?? null,
-				endDate: body.endDate ?? null,
-				adults: body.adults,
-				children: body.children,
+				startDate: body.startDate ?? asDay(fallback?.startDate),
+				endDate: body.endDate ?? asDay(fallback?.endDate),
+				adults: body.adults ?? fallback?.adults ?? undefined,
+				children: body.children ?? fallback?.children ?? undefined,
 				notes: body.notes ?? null,
 				items: lines.map((line) => ({
 					title: line.title,

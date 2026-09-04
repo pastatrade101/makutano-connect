@@ -126,8 +126,12 @@
 				<h3 class="text-xs font-semibold text-slate-700">Public contact</h3>
 				<!-- Said plainly, because publishing a personal mobile should be a
 				     decision rather than an accident. -->
-				<p class="mt-1 text-[11px] text-slate-400">
-					Shown on your public page, so these will be crawled and scraped. Leave any of them blank to show nothing.
+				<!-- Both sides of the trade-off. The privacy cost was already stated; the
+				     cost of leaving it blank was not, and that is the one that loses work. -->
+				<p class="mt-1 text-[11px] leading-5 text-slate-400">
+					Shown on your public page, so these will be crawled and scraped. Leave any of them blank to show nothing —
+					but a traveller reading a quotation you sent replies through these, so with none of them set they have no
+					way to accept it or ask for a change.
 				</p>
 			</div>
 			<div>

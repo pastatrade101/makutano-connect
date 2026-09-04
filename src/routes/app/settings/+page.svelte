@@ -169,6 +169,32 @@
 		{/if}
 	</section>
 
+	<!--
+		Public profile has its own card because it was previously reachable only
+		through a link labelled "Change logo and banner", which gives no hint that
+		the contact details travellers use to answer a quotation live behind it.
+		The owner of a live workspace looked for them here and did not find them.
+	-->
+	<section class="card">
+		<header class="card-header">
+			<h2 class="card-title">Public profile</h2>
+			<a href="/app/settings/profile" class="btn-secondary !py-1.5 text-xs">Edit public profile</a>
+		</header>
+		<div class="p-3">
+			<p class="text-xs text-slate-500">
+				Your logo, banner, description and the contact details shown to travellers on Makutano
+				Journeys — public email, public phone and website.
+			</p>
+			{#if data.publicContactMissing}
+				<p class="mt-3 rounded-panel border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs leading-6 text-warning">
+					<strong class="font-semibold">No public contact yet.</strong>
+					A traveller who opens a quotation you sent has no way to reply to you from it. Add a public
+					email or phone so they can accept it or ask for a change.
+				</p>
+			{/if}
+		</div>
+	</section>
+
 <section class="card">
 		<header class="card-header">
 			<h2 class="card-title">Plan &amp; usage</h2>
@@ -196,7 +222,6 @@
 		<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
 			<h2 class="text-sm font-semibold text-slate-800">Team</h2>
 			<a href="/app/crew" class="btn-primary !py-1.5 text-xs">Manage people</a>
-			<a href="/app/settings/profile" class="btn-secondary !py-1.5 text-xs">Business profile</a>
 		</header>
 		<p class="px-3 py-3 text-xs text-slate-500">
 			{data.members.length} member{data.members.length === 1 ? '' : 's'} — invite staff, set roles and control exactly what each person can see and do.
