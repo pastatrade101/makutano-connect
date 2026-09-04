@@ -91,6 +91,34 @@ export const load: PageServerLoad = async ({ locals }) => {
 			email: publicProfile?.publicEmail?.trim() || null,
 			phone: publicProfile?.publicPhone?.trim() || null
 		},
+		/*
+		 * What is still missing, read from records rather than remembered.
+		 *
+		 * Each item is a real column, so a tick cannot be earned by visiting a page
+		 * or clicking "done" — the same rule the rest of the product follows. The
+		 * order is the order it costs you: a traveller cannot reply to a quotation
+		 * without contact details, so that is first.
+		 */
+		profileTodo: [
+			{
+				id: 'contact',
+				label: 'Add a public email or phone',
+				why: 'Travellers reply to these to accept a quotation.',
+				done: Boolean(publicProfile?.publicEmail?.trim() || publicProfile?.publicPhone?.trim())
+			},
+			{
+				id: 'logo',
+				label: 'Add your logo',
+				why: 'It appears on your quotations and your Journeys listing.',
+				done: Boolean(tenant.logoUrl)
+			},
+			{
+				id: 'country',
+				label: 'Set your country',
+				why: 'Used for your listing and your paperwork.',
+				done: Boolean(tenant.country)
+			}
+		],
 		settings: {
 			capabilities: normalizeWorkspace((tenant.settings as Record<string, unknown>)?.capabilities),
 			paymentMethods: paymentMethods(tenant.settings as Record<string, unknown>),

@@ -2,6 +2,7 @@
 	import { WORKSPACE_OPTIONS } from '$lib/workspace';
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$lib/forms';
+	import { page } from '$app/state';
 	let { data, form } = $props();
 	let showMethodForm = $state(false);
 	let methodKind = $state<'MOBILE' | 'BANK' | 'ONLINE'>('MOBILE');
@@ -15,6 +16,12 @@
 	 * a section carry an attention dot — missing public contact costs the operator
 	 * replies to their own quotations, and that is worth seeing before you open it.
 	 */
+	// ?welcome=1 arrives once, straight after the signup wizard. It only changes
+	// the wording — what the card lists is read from records either way.
+	const justSignedUp = $derived(page.url.searchParams.get('welcome') === '1');
+	const todo = $derived(data.profileTodo.filter((t) => !t.done));
+	const done = $derived(data.profileTodo.length - todo.length);
+
 	let tab = $state('business');
 	const tabs = $derived([
 		// Business Details carries the public profile too: both answer "who is this
@@ -51,6 +58,54 @@
 			How your business appears, how customers pay you, and who can get in.
 		</p>
 	</div>
+
+	<!--
+		Shown until the records say otherwise, and loudest right after signup.
+
+		It pulses rather than blinks: blinking content fails WCAG 2.2.2 and is
+		genuinely hard to read past, and this card is asking somebody to read it.
+		prefers-reduced-motion turns the animation off entirely and leaves the ring,
+		which is what carries the meaning anyway.
+	-->
+	{#if todo.length}
+		<section class="attention rounded-panel border border-brand-300 bg-brand-50/60 p-4 sm:p-5">
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<h2 class="text-[15.5px] font-bold tracking-[-0.01em] text-slate-900">
+						{justSignedUp ? 'Welcome — one more step' : 'Finish your business details'}
+					</h2>
+					<p class="mt-1 max-w-2xl text-[13.5px] leading-6 text-slate-600">
+						{justSignedUp
+							? 'Your workspace is ready. Fill these in now and your quotations and listing work properly from the first enquiry.'
+							: 'These are still missing, and each one costs you something later.'}
+					</p>
+				</div>
+				<span class="rounded-full bg-white px-2.5 py-1 text-[12px] font-semibold text-brand-700 ring-1 ring-brand-200">
+					{done} of {data.profileTodo.length} done
+				</span>
+			</div>
+
+			<ul class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+				{#each data.profileTodo as item (item.id)}
+					<li class="flex gap-2.5 rounded-panel bg-white/70 px-3 py-2.5 ring-1 {item.done ? 'ring-slate-200' : 'ring-brand-200'}">
+						{#if item.done}
+							<svg class="mt-0.5 size-4 shrink-0 text-success" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7" /></svg>
+						{:else}
+							<span class="mt-1 size-3.5 shrink-0 rounded-full border-2 border-brand-300"></span>
+						{/if}
+						<div class="min-w-0">
+							<p class="text-[13.5px] font-semibold {item.done ? 'text-slate-400 line-through' : 'text-slate-800'}">{item.label}</p>
+							{#if !item.done}<p class="mt-0.5 text-[12.5px] leading-5 text-slate-500">{item.why}</p>{/if}
+						</div>
+					</li>
+				{/each}
+			</ul>
+
+			<a href="/app/settings/profile" class="mt-4 inline-flex min-h-11 items-center justify-center rounded-lg bg-brand-600 px-4 text-[13.5px] font-semibold text-white transition hover:bg-brand-700">
+				Finish my business details
+			</a>
+		</section>
+	{/if}
 
 	<!-- Scrolls rather than wraps on a phone, so the strip stays one line. -->
 	<div class="-mx-1 overflow-x-auto px-1">
@@ -315,3 +370,22 @@
 	</section>
 	{/if}
 </div>
+
+<style>
+	/*
+	 * A slow pulse on the ring, not a blink on the content.
+	 *
+	 * Blinking text fails WCAG 2.2.2 and makes the thing you are asking somebody
+	 * to read harder to read. Three seconds is slow enough to notice and ignore.
+	 */
+	.attention {
+		animation: attention 3s ease-in-out infinite;
+	}
+	@keyframes attention {
+		0%, 100% { box-shadow: 0 0 0 0 rgba(180, 83, 42, 0); }
+		50% { box-shadow: 0 0 0 5px rgba(180, 83, 42, 0.12); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.attention { animation: none; }
+	}
+</style>

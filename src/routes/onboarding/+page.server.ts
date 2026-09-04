@@ -213,6 +213,15 @@ export const actions: Actions = {
 			return fail(400, { ...values, message: appError.message });
 		}
 
-		redirect(303, '/app?welcome=1');
+		/*
+		 * Straight to Business Details, not the dashboard.
+		 *
+		 * The wizard collects only enough to create the workspace. The rest — public
+		 * email and phone above all — is what a traveller needs in order to answer a
+		 * quotation, and an operator who skips it does not find out until a customer
+		 * cannot reply. Landing here with the prompt open costs a new operator one
+		 * screen and saves that.
+		 */
+		redirect(303, '/app/settings?welcome=1');
 	}
 };
