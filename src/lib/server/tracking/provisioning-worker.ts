@@ -308,6 +308,47 @@ async function detectFirstFixes(): Promise<number> {
  */
 async function bindEnrollment(id: string, at: Date, lat: number, lng: number): Promise<boolean> {
 	return txDb().transaction(async (tx) => {
+		/*
+		 * The outgoing tracker is closed BEFORE the incoming one is activated.
+		 *
+		 * te_one_active_key permits a single ACTIVE row per vehicle and Postgres
+		 * checks it per statement, not at commit. Activating first and closing
+		 * second therefore cannot commit during a replacement: the statement is
+		 * rejected, the pass retries, and the new phone stays on PROVISIONED
+		 * forever while the old one keeps reporting. That is a live-lock, not a
+		 * transient error, so it never resolves on its own.
+		 *
+		 * Ordering it this way keeps the promise that matters. We only reach this
+		 * function because the new phone has ALREADY reported a fix, so the old
+		 * tracker is retired at the moment its replacement is proven — not when
+		 * the operator asked for one. And it is all one transaction: if the
+		 * activation below fails, the close is rolled back with it.
+		 */
+		const [candidate] = await tx
+			.select({ vehicleId: schema.trackerEnrollments.vehicleId })
+			.from(schema.trackerEnrollments)
+			.where(and(eq(schema.trackerEnrollments.id, id), eq(schema.trackerEnrollments.status, 'PROVISIONED')))
+			.for('update')
+			.limit(1);
+		if (!candidate) return false;
+
+		await tx
+			.update(schema.trackerEnrollments)
+			.set({
+				status: 'CLOSED',
+				closedReason: 'REPLACED',
+				closedAt: new Date(),
+				// Delete the old device. Disabling does not revoke it.
+				providerDeleteAfter: new Date()
+			})
+			.where(
+				and(
+					eq(schema.trackerEnrollments.vehicleId, candidate.vehicleId),
+					eq(schema.trackerEnrollments.status, 'ACTIVE'),
+					sql`id <> ${id}`
+				)
+			);
+
 		const [bound] = await tx
 			.update(schema.trackerEnrollments)
 			.set({
@@ -321,23 +362,6 @@ async function bindEnrollment(id: string, at: Date, lat: number, lng: number): P
 			.where(and(eq(schema.trackerEnrollments.id, id), eq(schema.trackerEnrollments.status, 'PROVISIONED')))
 			.returning();
 		if (!bound) return false;
-
-		await tx
-			.update(schema.trackerEnrollments)
-			.set({
-				status: 'CLOSED',
-				closedReason: 'REPLACED',
-				closedAt: new Date(),
-				// Delete the old device. Disabling does not revoke it.
-				providerDeleteAfter: new Date()
-			})
-			.where(
-				and(
-					eq(schema.trackerEnrollments.vehicleId, bound.vehicleId),
-					eq(schema.trackerEnrollments.status, 'ACTIVE'),
-					sql`id <> ${bound.id}`
-				)
-			);
 
 		await tx
 			.update(schema.vehicles)
