@@ -1237,6 +1237,8 @@ export const vehicles = pgTable(
 		 */
 		trackerDeviceRef: text('tracker_device_ref'),
 		trackerLinkedAt: timestamp('tracker_linked_at', { withTimezone: true }),
+		/** The ledger row that authorises this mapping. The ledger is the authority. */
+		trackerEnrollmentId: uuid('tracker_enrollment_id'),
 
 		/*
 		 * The newest fix, cached as ONE row — not a time series.
@@ -1939,6 +1941,74 @@ export const trackingAccounts = pgTable(
 );
 
 export type TrackingAccount = typeof trackingAccounts.$inferSelect;
+
+/**
+ * Who owns a tracker, and the proof.
+ *
+ * Ownership used to flow the wrong way — the tracker existed first and a tenant
+ * claimed it by naming it, so knowledge equalled control. Here Connect mints the
+ * reference for a named vehicle of a named tenant BEFORE the provider is
+ * touched, and the first fix proves LIVENESS rather than ownership.
+ *
+ * A minted reference is used once and burned. A retired phone flushing its
+ * offline buffer into a different vehicle's track is the failure that rule
+ * prevents, and 200 bytes per retirement is the whole cost.
+ */
+export const trackerEnrollments = pgTable(
+	'tracker_enrollments',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		// RESTRICT on both parents: a cascade would release the forever-lock on a
+		// reference whose physical device may still be reporting.
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'restrict' }),
+		vehicleId: uuid('vehicle_id')
+			.notNull()
+			.references(() => vehicles.id, { onDelete: 'restrict' }),
+		provider: text('provider').notNull().default('TRACCAR'),
+		/** Credential material. Never rendered after the setup screen. */
+		deviceRef: text('device_ref').notNull(),
+		/** MINTED | ADMIN_ASSERTED | LEGACY */
+		identifierSource: text('identifier_source').notNull(),
+		/** PHONE | HARDWARE */
+		kind: text('kind').notNull(),
+		profile: text('profile').notNull().default('SAFARI'),
+		/** What the operator calls it — "Juma's phone". The reference is not shown. */
+		label: text('label'),
+		/** PENDING | ACTIVE | CLOSED | RELEASED */
+		status: text('status').notNull(),
+		closedReason: text('closed_reason'),
+		trust: text('trust').notNull().default('VERIFIED'),
+		providerDeviceId: integer('provider_device_id'),
+		providerDeleteAfter: timestamp('provider_delete_after', { withTimezone: true }),
+		hardwareSimMsisdn: text('hardware_sim_msisdn'),
+		createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+		createdAt: createdAt(),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		boundAt: timestamp('bound_at', { withTimezone: true }),
+		confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+		closedAt: timestamp('closed_at', { withTimezone: true }),
+		supersededById: uuid('superseded_by_id'),
+		firstFixAt: timestamp('first_fix_at', { withTimezone: true }),
+		firstFixLat: numeric('first_fix_lat', { precision: 9, scale: 6 }),
+		firstFixLng: numeric('first_fix_lng', { precision: 9, scale: 6 }),
+		pollAttempts: integer('poll_attempts').notNull().default(0),
+		lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
+		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`)
+	},
+	(t) => [
+		uniqueIndex('te_ref_forever_key').on(t.provider, t.deviceRef).where(sql`status <> 'RELEASED'`),
+		uniqueIndex('te_one_pending_key').on(t.vehicleId).where(sql`status = 'PENDING'`),
+		uniqueIndex('te_one_active_key').on(t.vehicleId).where(sql`status = 'ACTIVE'`),
+		index('te_pending_idx').on(t.status, t.expiresAt).where(sql`status = 'PENDING'`),
+		index('te_tenant_idx').on(t.tenantId, t.createdAt),
+		index('te_gc_idx').on(t.providerDeleteAfter).where(sql`provider_delete_after IS NOT NULL`)
+	]
+);
+
+export type TrackerEnrollment = typeof trackerEnrollments.$inferSelect;
+
 
 export type Vehicle = typeof vehicles.$inferSelect;
 export type TripItem = typeof tripItems.$inferSelect;

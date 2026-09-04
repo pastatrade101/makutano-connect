@@ -183,7 +183,7 @@
 						{#if data.canWrite}
 							<div class="ml-auto flex gap-3">
 								<button type="button" class="text-xs font-medium text-brand-600 hover:underline" onclick={() => { configuring = configuring === v.id ? null : v.id; editing = null; }}>
-									{v.tracked ? 'Tracking' : 'No tracker'}
+									{v.tracked ? 'Tracking' : 'Set up tracking'}
 								</button>
 								<button type="button" class="text-xs text-slate-500 hover:underline" onclick={() => { editing = editing === v.id ? null : v.id; configuring = null; }}>Edit</button>
 							</div>
@@ -204,24 +204,15 @@
 						<div class="mt-3 rounded-panel bg-slate-50 p-3">
 							{#if v.tracked}
 								<p class="text-xs text-slate-600">This vehicle has a tracker fitted and reporting to Makutano.</p>
-								<form method="POST" action="?/tracker" use:enhance={() => async ({ update }) => { await update(); configuring = null; }} class="mt-2">
-									<input type="hidden" name="id" value={v.id} />
-									<button class="btn-secondary">Stop tracking this vehicle</button>
-								</form>
-								<p class="mt-1.5 text-[11.5px] text-slate-400">
-									The vehicle stays; only its live location stops.
-								</p>
 							{:else}
 								<p class="text-xs text-slate-600">No tracker on this vehicle yet.</p>
 								<p class="mt-1.5 text-[11.5px] text-slate-400">
-									{#if data.trackingEnabled}
-										Setting one up arrives in the next release — you will be able to
-										use a driver's phone without any GPS hardware.
-									{:else}
-										Tracking is not switched on for this workspace yet.
-									{/if}
+									A driver's phone is enough — no GPS hardware needed.
 								</p>
 							{/if}
+							<a href="/app/vehicles/{v.id}/tracking" class="btn-secondary mt-2 inline-block">
+								{v.tracked ? 'Manage tracking' : 'Set up tracking'}
+							</a>
 						</div>
 					{/if}
 
