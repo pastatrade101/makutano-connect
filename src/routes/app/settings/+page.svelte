@@ -13,9 +13,29 @@
 
 <FormToast {form} successTitle="Settings saved" />
 
-<div class="mx-auto w-full max-w-5xl space-y-3">
-	<h1 class="text-base font-semibold text-slate-900">Settings</h1>
+<!--
+	Two columns, not one stack.
 
+	`max-w-5xl` never applied here — this page sits in a flex-column <main>, where
+	a max-width on a stretched child does nothing — so the old width was accidental
+	rather than chosen, and everything queued up in a single narrow run: the things
+	you edit, the things you only read, and the things you click through to, all
+	weighted the same.
+
+	Left is what you fill in. Right is what you check. On a laptop it collapses back
+	to one column in that same order, so the first thing on a phone is still the
+	business form.
+-->
+<div class="w-full space-y-4">
+	<div>
+		<h1 class="text-lg font-semibold tracking-[-0.01em] text-slate-900">Settings</h1>
+		<p class="mt-0.5 text-[13px] text-slate-500">
+			How your business appears, how customers pay you, and who can get in.
+		</p>
+	</div>
+
+	<div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+		<div class="space-y-4">
 
 	<form method="POST" action="?/save" use:enhance class="card">
 		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Business</header>
@@ -74,13 +94,26 @@
 					{/each}
 				</select>
 			</div>
+			<!-- Reference prefixes are a different kind of decision from language and
+			     currency: they change what your paperwork is called. Grouped so they
+			     stop reading as one more regional dropdown. -->
+			<div class="mt-1 border-t border-slate-100 pt-3 sm:col-span-2">
+				<h3 class="text-xs font-semibold text-slate-700">Reference numbers</h3>
+				<p class="mt-0.5 text-[12.5px] text-slate-400">
+					The letters in front of every booking and quotation number you issue.
+				</p>
+			</div>
 			<div>
 				<label class="label" for="bookingReferencePrefix">Booking reference prefix</label>
 				<input id="bookingReferencePrefix" name="bookingReferencePrefix" value={data.settings.bookingReferencePrefix} class="input" disabled={!canWrite} />
 				<p class="mt-1 text-[12.5px] text-slate-400">New references only, e.g. {data.settings.bookingReferencePrefix}-BK-2026-00001</p>
 			</div>
-			<div><label class="label" for="quotationPrefix">Quotation prefix</label><input id="quotationPrefix" name="quotationPrefix" value={data.settings.quotationPrefix} class="input" disabled={!canWrite} /></div>
 			<div>
+				<label class="label" for="quotationPrefix">Quotation prefix</label>
+				<input id="quotationPrefix" name="quotationPrefix" value={data.settings.quotationPrefix} class="input" disabled={!canWrite} />
+				<p class="mt-1 text-[12.5px] text-slate-400">e.g. {data.settings.quotationPrefix}-QT-2026-00001</p>
+			</div>
+			<div class="sm:col-span-2">
 				<label class="label" for="capabilities">How do you use Connect?</label>
 				<select id="capabilities" name="capabilities" class="input" disabled={!canWrite}>
 					{#each WORKSPACE_OPTIONS as opt (opt.value)}
@@ -168,6 +201,10 @@
 			</ul>
 		{/if}
 	</section>
+		</div>
+
+		<!-- Right column: the things you look at rather than fill in. -->
+		<div class="space-y-4">
 
 	<!--
 		Public profile has its own card because it was previously reachable only
@@ -227,4 +264,6 @@
 			{data.members.length} member{data.members.length === 1 ? '' : 's'} — invite staff, set roles and control exactly what each person can see and do.
 		</p>
 	</section>
+		</div>
+	</div>
 </div>
