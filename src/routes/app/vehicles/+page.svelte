@@ -153,7 +153,14 @@
 							<dt class="text-[11px] uppercase tracking-wide text-slate-400">Tracking device</dt>
 							<dd class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
 								{#if v.tracked}
-									<span class="font-mono text-slate-700">{v.trackerDeviceRef}</span>
+									<!-- Deliberately NOT the tracker's identifier. That string is
+									     credential material: it needs no Connect session to use, and
+									     anyone holding it could configure a phone to post positions
+									     as this vehicle. It used to be rendered here to every
+									     VIEWER. What an operator needs to know is that a tracker is
+									     fitted and whether it is reporting — both of which are here
+									     without naming it. -->
+									<span class="text-slate-600">Tracker fitted</span>
 									{#if v.latitude != null && v.longitude != null}
 										<!-- Coordinates are the one detail that proves the tracker is
 										     really reporting, rather than merely mapped. -->
@@ -176,7 +183,7 @@
 						{#if data.canWrite}
 							<div class="ml-auto flex gap-3">
 								<button type="button" class="text-xs font-medium text-brand-600 hover:underline" onclick={() => { configuring = configuring === v.id ? null : v.id; editing = null; }}>
-									{v.tracked ? 'Tracking' : 'Add tracker'}
+									{v.tracked ? 'Tracking' : 'No tracker'}
 								</button>
 								<button type="button" class="text-xs text-slate-500 hover:underline" onclick={() => { editing = editing === v.id ? null : v.id; configuring = null; }}>Edit</button>
 							</div>
@@ -184,20 +191,38 @@
 					</div>
 
 					{#if configuring === v.id}
-						<form method="POST" action="?/tracker" use:enhance={() => async ({ update }) => { await update(); configuring = null; }} class="mt-3 rounded-panel bg-slate-50 p-3">
-							<input type="hidden" name="id" value={v.id} />
-							<label class="label" for="deviceRef-{v.id}">Tracking device ID</label>
-							<div class="flex flex-wrap gap-2">
-								<input id="deviceRef-{v.id}" name="deviceRef" value={v.trackerDeviceRef ?? ''} placeholder="The identifier from your GPS device" class="input flex-1" />
-								<button class="btn-secondary">Save</button>
-							</div>
-							<!-- Vendor-neutral on purpose: the operator maps an identifier, and which
-							     tracking platform is behind it is not their problem. -->
-							<p class="mt-1.5 text-[11.5px] text-slate-400">
-								Leave empty to remove tracking. Each device can belong to only one vehicle.
-								{#if !data.trackingEnabled}Tracking is not switched on for this workspace yet.{/if}
-							</p>
-						</form>
+						<!--
+							Typing an identifier here used to be how a vehicle got a tracker, and
+							it was the weakest thing in the feature: the only check was that no
+							other vehicle already held that string, so knowing an identifier was
+							the same as owning the tracker. Setting up a tracker now happens
+							through an enrollment Connect starts and an identity Connect mints.
+
+							Removing one stays, because an operator must always be able to stop
+							tracking a vehicle, and doing so hands nobody a secret.
+						-->
+						<div class="mt-3 rounded-panel bg-slate-50 p-3">
+							{#if v.tracked}
+								<p class="text-xs text-slate-600">This vehicle has a tracker fitted and reporting to Makutano.</p>
+								<form method="POST" action="?/tracker" use:enhance={() => async ({ update }) => { await update(); configuring = null; }} class="mt-2">
+									<input type="hidden" name="id" value={v.id} />
+									<button class="btn-secondary">Stop tracking this vehicle</button>
+								</form>
+								<p class="mt-1.5 text-[11.5px] text-slate-400">
+									The vehicle stays; only its live location stops.
+								</p>
+							{:else}
+								<p class="text-xs text-slate-600">No tracker on this vehicle yet.</p>
+								<p class="mt-1.5 text-[11.5px] text-slate-400">
+									{#if data.trackingEnabled}
+										Setting one up arrives in the next release — you will be able to
+										use a driver's phone without any GPS hardware.
+									{:else}
+										Tracking is not switched on for this workspace yet.
+									{/if}
+								</p>
+							{/if}
+						</div>
 					{/if}
 
 					{#if editing === v.id}

@@ -20,17 +20,32 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { db, schema } from '$lib/server/db';
 import { TraccarProvider } from './traccar';
+import { providerBaseUrl, tenantCredentials } from './credentials';
 import type { TrackingHistory, TrackingProvider, TrackingSnapshot } from './types';
 
 export * from './types';
 
-const providers: Record<string, TrackingProvider> = {
-	TRACCAR: new TraccarProvider()
-};
+/** Provider names this build knows how to speak to. */
+const KNOWN_PROVIDERS = ['TRACCAR'] as const;
 
-/** The provider a vehicle is mapped to, or none. */
-const providerFor = (name: string | null | undefined): TrackingProvider | null =>
-	name ? (providers[name] ?? null) : null;
+/**
+ * The provider a vehicle is mapped to, SPEAKING AS THE TENANT THAT OWNS IT.
+ *
+ * There is no process-wide provider instance any more, and that is the whole
+ * security change: an instance cannot exist without a tenant's own credential,
+ * so there is no object lying around that can see the entire platform. A tenant
+ * with no provider identity yet gets null — which is NOT_CONFIGURED, never an
+ * outage.
+ */
+async function providerFor(
+	tenantId: string,
+	name: string | null | undefined
+): Promise<TrackingProvider | null> {
+	if (!name || !KNOWN_PROVIDERS.includes(name as (typeof KNOWN_PROVIDERS)[number])) return null;
+	const credentials = await tenantCredentials(tenantId);
+	if (!credentials) return null;
+	return new TraccarProvider(credentials);
+}
 
 /** A vehicle, looked up under the tenant that claims it. */
 async function ownedVehicle(tenantId: string, vehicleId: string) {
@@ -74,7 +89,7 @@ const notConfigured: TrackingSnapshot = { state: 'NOT_CONFIGURED', position: nul
 export async function vehicleSnapshot(tenantId: string, vehicleId: string): Promise<TrackingSnapshot> {
 	const vehicle = await ownedVehicle(tenantId, vehicleId);
 	if (!vehicle?.trackerDeviceRef) return notConfigured;
-	const provider = providerFor(vehicle.trackerProvider);
+	const provider = await providerFor(tenantId, vehicle.trackerProvider);
 	if (!provider || !provider.isConfigured()) return notConfigured;
 	return provider.snapshot(vehicle.trackerDeviceRef);
 }
@@ -95,7 +110,7 @@ export async function fleetSnapshot(tenantId: string): Promise<Map<string, Track
 	if (!rows.length) return byVehicle;
 
 	// A row naming a provider this build does not have is not an outage either.
-	const known = new Set(Object.keys(providers));
+	const known = new Set<string>(KNOWN_PROVIDERS);
 	for (const r of rows) {
 		if (!known.has(r.provider ?? '')) byVehicle.set(r.id, { state: 'NOT_CONFIGURED', position: null });
 	}
@@ -111,10 +126,22 @@ export async function fleetSnapshot(tenantId: string): Promise<Map<string, Track
 	 * temporarily unavailable" on every vehicle, which sends somebody looking for
 	 * an outage that does not exist.
 	 */
-	for (const [name, provider] of Object.entries(providers)) {
+	for (const name of KNOWN_PROVIDERS) {
 		const mine = rows.filter((r) => r.provider === name && r.ref);
 		if (!mine.length) continue;
-		if (!provider.isConfigured()) {
+		/*
+		 * Resolved as THIS TENANT, which is what makes the two parameterless calls
+		 * inside snapshotAll safe.
+		 *
+		 * They ask the provider for "every device you can see". Under the old
+		 * shared administrator that was every device on the platform, and only
+		 * Connect's own filtering kept one tenant out of another's positions.
+		 * Under a tenant's read-only identity the provider itself answers with
+		 * that tenant's devices and nothing else, so the fleet list keeps its
+		 * one-request cost and isolation stops depending on us remembering.
+		 */
+		const provider = await providerFor(tenantId, name);
+		if (!provider || !provider.isConfigured()) {
 			for (const r of mine) byVehicle.set(r.id, { state: 'NOT_CONFIGURED', position: null });
 			continue;
 		}
@@ -154,10 +181,17 @@ export async function tripHistory(
 	if (!trip?.vehicleId) return empty;
 	const vehicle = await ownedVehicle(tenantId, trip.vehicleId);
 	if (!vehicle?.trackerDeviceRef) return empty;
-	const provider = providerFor(vehicle.trackerProvider);
+	const provider = await providerFor(tenantId, vehicle.trackerProvider);
 	if (!provider) return empty;
 	return provider.history(vehicle.trackerDeviceRef, from, to);
 }
 
 /** Whether tracking is worth offering at all on this deployment. */
-export const trackingEnabled = (): boolean => Object.values(providers).some((p) => p.isConfigured());
+/**
+ * Whether tracking exists on this deployment at all.
+ *
+ * Deliberately NOT "whether this tenant can track": that question needs a
+ * tenant, and answering it here would have made a tenant without an identity
+ * look like a broken deployment.
+ */
+export const trackingEnabled = (): boolean => Boolean(providerBaseUrl());

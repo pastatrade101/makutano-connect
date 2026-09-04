@@ -7,7 +7,7 @@ import { fail } from '@sveltejs/kit';
 import { requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { toAppError } from '$lib/server/errors';
-import { createVehicle, listVehicles, setVehicleTracker, updateVehicle } from '$lib/server/vehicles';
+import { clearVehicleTracker, createVehicle, listVehicles, updateVehicle } from '$lib/server/vehicles';
 import { fleetSnapshot, TRACKING_LABEL, trackingEnabled, type TrackingState } from '$lib/server/tracking';
 import { db, schema } from '$lib/server/db';
 import { and, inArray } from 'drizzle-orm';
@@ -83,8 +83,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 				type: v.type,
 				seats: v.seats,
 				isActive: v.isActive,
+				// A BOOLEAN, never the reference. The reference is credential material:
+				// anyone holding it can configure a phone to post positions as this
+				// vehicle, it needs no Connect session to use, and it used to be sent
+				// to every VIEWER and baked into the SSR payload, where it survives
+				// screenshots, screen shares and offboarding.
 				tracked: Boolean(v.trackerDeviceRef),
-				trackerDeviceRef: v.trackerDeviceRef,
 				trackingState: state,
 				trackingLabel: TRACKING_LABEL[state],
 				lastFixAt: snap?.position?.recordedAt ?? v.lastFixAt,
@@ -145,7 +149,8 @@ export const actions: Actions = {
 		const tenant = requireTenantPermission(locals, 'vehicles:read');
 		const d = await request.formData();
 		try {
-			await setVehicleTracker(tenant.id, str(d, 'id'), { deviceRef: str(d, 'deviceRef') || null });
+			// Only ever CLEARS. No route accepts a tracker reference from a caller.
+			await clearVehicleTracker(tenant.id, str(d, 'id'));
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });

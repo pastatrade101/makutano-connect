@@ -14,7 +14,7 @@
  * tests drive a mocked fetch. Treat first contact with a real server as the
  * remaining validation step.
  */
-import { env } from '$lib/server/env';
+import type { TraccarCredentials } from './credentials';
 import { log } from '$lib/server/logger';
 import {
 	stateForAge,
@@ -60,10 +60,12 @@ const MAX_POSITIONS = 2_000;
  * are stripped from the reason before it is written anywhere, rather than trusted
  * not to appear. Cheap, and the alternative is a token in a log file forever.
  */
-function safeReason(err: unknown): string {
+function safeReason(err: unknown, credentials?: TraccarCredentials): string {
 	let reason = err instanceof Error ? err.message : String(err);
-	const e = env();
-	for (const secret of [e.TRACCAR_TOKEN, e.TRACCAR_PASSWORD, e.TRACCAR_USERNAME]) {
+	// The secrets to strip now travel with the CALLER, not with the process:
+	// each tenant speaks as itself, so redacting a single ambient credential
+	// would have left every per-tenant password free to reach a log.
+	for (const secret of [credentials?.password, credentials?.username]) {
 		if (secret && secret.length > 3) reason = reason.split(secret).join('[redacted]');
 	}
 	return reason.slice(0, 200);
@@ -96,20 +98,34 @@ function toPosition(raw: TraccarPosition): TrackingPosition | null {
 }
 
 export class TraccarProvider implements TrackingProvider {
+	/*
+	 * The identity this instance speaks as. REQUIRED, and deliberately not
+	 * defaulted to an environment credential.
+	 *
+	 * This class used to read the shared administrator out of the environment on
+	 * every call, which meant the provider's own permission system was inert:
+	 * every query ran as the platform. Now an instance cannot exist without
+	 * someone having decided, explicitly, whose eyes it sees through — and for a
+	 * request handler that is always the authenticated tenant's read-only
+	 * identity.
+	 */
+	constructor(private readonly credentials: TraccarCredentials) {}
+
 	readonly name = 'TRACCAR';
 
 	private get base(): string {
-		return (env().TRACCAR_BASE_URL || '').replace(/\/+$/, '');
+		return (this.credentials.baseUrl || '').replace(/\/+$/, '');
 	}
 
 	isConfigured(): boolean {
-		return Boolean(this.base && (env().TRACCAR_TOKEN || (env().TRACCAR_USERNAME && env().TRACCAR_PASSWORD)));
+		return Boolean(this.base && this.credentials.username && this.credentials.password);
 	}
 
 	/** Basic or bearer, whichever the deployment configured. Never logged. */
 	private authHeader(): string {
-		if (env().TRACCAR_TOKEN) return `Bearer ${env().TRACCAR_TOKEN}`;
-		const pair = `${env().TRACCAR_USERNAME}:${env().TRACCAR_PASSWORD}`;
+		// Basic only. A bearer would need an expiry/renewal ladder to buy nothing
+		// here, and the provider's PBKDF2 costs about a millisecond per request.
+		const pair = `${this.credentials.username}:${this.credentials.password}`;
 		return `Basic ${Buffer.from(pair, 'utf8').toString('base64')}`;
 	}
 
@@ -186,7 +202,7 @@ export class TraccarProvider implements TrackingProvider {
 			const state = position ? stateForAge(position.recordedAt) : providerOnline === false ? 'OFFLINE' : 'OFFLINE';
 			return { state, position, providerOnline };
 		} catch (err) {
-			log.warn('tracking_snapshot_failed', { provider: this.name, reason: safeReason(err) });
+			log.warn('tracking_snapshot_failed', { provider: this.name, reason: safeReason(err, this.credentials) });
 			// A real request that really failed — the one case UNAVAILABLE describes.
 			return { state: 'UNAVAILABLE', position: null, message: 'Tracking is temporarily unavailable.' };
 		}
@@ -231,7 +247,7 @@ export class TraccarProvider implements TrackingProvider {
 			}
 			return out;
 		} catch (err) {
-			log.warn('tracking_snapshot_all_failed', { provider: this.name, reason: safeReason(err) });
+			log.warn('tracking_snapshot_all_failed', { provider: this.name, reason: safeReason(err, this.credentials) });
 			// One failed call must not make the whole fleet look offline — say
 			// unavailable, which is the truth, and let the page render.
 			for (const ref of deviceRefs) out.set(ref, { state: 'UNAVAILABLE', position: null });
@@ -266,7 +282,7 @@ export class TraccarProvider implements TrackingProvider {
 				truncated: positions.length > MAX_POSITIONS
 			};
 		} catch (err) {
-			log.warn('tracking_history_failed', { provider: this.name, reason: safeReason(err) });
+			log.warn('tracking_history_failed', { provider: this.name, reason: safeReason(err, this.credentials) });
 			return { positions: [], from, to, truncated: false };
 		}
 	}

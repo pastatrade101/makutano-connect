@@ -118,6 +118,17 @@ const schema = z.object({
 	 */
 	ORIGIN_SHARED_SECRET: z.string().default(''),
 	TRACCAR_BASE_URL: z.string().default(''),
+	/*
+	 * The PROVISIONING identity — a platform administrator on the tracking
+	 * provider, able to create users and devices.
+	 *
+	 * Runtime reads must NEVER use this. Each tenant has its own read-only
+	 * identity in `tracking_accounts`; this one exists to create those, and to
+	 * create devices during enrollment. Named ADMIN so that nobody reading a .env
+	 * mistakes it for the credential a request handler should reach for.
+	 */
+	TRACCAR_ADMIN_USERNAME: z.string().default(''),
+	TRACCAR_ADMIN_PASSWORD: z.string().default(''),
 	TRACCAR_TOKEN: z.string().default(''),
 	TRACCAR_USERNAME: z.string().default(''),
 	TRACCAR_PASSWORD: z.string().default(''),

@@ -22,12 +22,7 @@ export type VehicleInput = {
 	notes?: string | null;
 };
 
-export type TrackerInput = {
-	/** Provider key, e.g. TRACCAR. Null clears the mapping. */
-	provider?: string | null;
-	/** The provider's device identifier. Null clears the mapping. */
-	deviceRef?: string | null;
-};
+
 
 /**
  * The one line a trip stores as its snapshot.
@@ -127,50 +122,44 @@ export async function updateVehicle(
 /**
  * Map a tracker to a vehicle, or clear it.
  *
- * The device reference is globally unique across the marketplace, and that is
- * enforced here with a readable error as well as by the unique index. On a
- * shared tracking server the reference is what says whose position stream this
- * is: without global uniqueness one tenant could map another's device and
- * quietly receive its positions. The database is the guarantee; this check
- * exists so the operator is told why rather than seeing a constraint name.
+ * Stop tracking a vehicle.
+ *
+ * There is deliberately no counterpart here that STARTS tracking from a caller-
+ * supplied reference. That was the claim-by-guessing weakness: the only check
+ * was that no other Connect row already held the string, so knowing a tracker's
+ * identifier was indistinguishable from owning it. Ownership is established
+ * where Connect mints the identity for a named vehicle of a named tenant.
+ *
+ * The globally unique index on (tracker_provider, tracker_device_ref) stays as
+ * defence in depth. It is no longer the authority on who owns a tracker.
  */
-export async function setVehicleTracker(
-	tenantId: string,
-	id: string,
-	input: TrackerInput
-): Promise<schema.Vehicle> {
+export async function clearVehicleTracker(tenantId: string, id: string): Promise<schema.Vehicle> {
 	await assertAllowed(tenantId);
 	await getVehicle(tenantId, id);
 
-	const deviceRef = input.deviceRef?.trim() || null;
-	const provider = deviceRef ? (input.provider?.trim() || 'TRACCAR') : null;
-
-	if (deviceRef) {
-		const [clash] = await db()
-			.select({ id: schema.vehicles.id })
-			.from(schema.vehicles)
-			.where(
-				and(
-					eq(schema.vehicles.trackerDeviceRef, deviceRef),
-					eq(schema.vehicles.trackerProvider, provider as string),
-					ne(schema.vehicles.id, id)
-				)
-			)
-			.limit(1);
-		// Deliberately does not say WHICH vehicle or whose: that a device is taken is
-		// all a different tenant may learn.
-		if (clash) throw new AppError('VALIDATION_ERROR', 'That tracking device is already mapped to another vehicle.');
-	}
-
+	/*
+	 * This function can now only ever CLEAR a mapping.
+	 *
+	 * Setting one by typing a reference was the claim-by-guessing weakness: the
+	 * only check was that no other Connect row already held the string, so
+	 * knowing a tracker's identifier was the same thing as owning it. Ownership
+	 * is now decided when Connect MINTS an identity for a specific vehicle of a
+	 * specific tenant, which is enrollment's job, not this one.
+	 *
+	 * Clearing stays here and stays reachable: an operator must always be able to
+	 * stop tracking a vehicle, and doing so supplies no secret to anybody.
+	 */
 	const [row] = await db()
 		.update(schema.vehicles)
 		.set({
-			trackerProvider: provider,
-			trackerDeviceRef: deviceRef,
-			trackerLinkedAt: deviceRef ? new Date() : null,
-			// Clearing the mapping clears the cached fix too — a position from a
-			// tracker this vehicle no longer carries is worse than none.
-			...(deviceRef ? {} : { lastFixAt: null, lastFixLat: null, lastFixLng: null }),
+			trackerProvider: null,
+			trackerDeviceRef: null,
+			trackerLinkedAt: null,
+			// A position from a tracker this vehicle no longer carries is worse than
+			// no position at all.
+			lastFixAt: null,
+			lastFixLat: null,
+			lastFixLng: null,
 			updatedAt: new Date()
 		})
 		.where(and(eq(schema.vehicles.id, id), eq(schema.vehicles.tenantId, tenantId)))

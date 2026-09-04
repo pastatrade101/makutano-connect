@@ -106,14 +106,22 @@ afterEach(() => {
 
 // env() caches the parsed environment on first read, so a test that changes a
 // variable has to hand the module registry back before importing the adapter.
+/**
+ * A provider speaking as ONE tenant.
+ *
+ * The identity is now a constructor argument rather than ambient environment,
+ * which is the security change these tests exist alongside: there is no way to
+ * construct a provider that sees the whole platform by accident.
+ */
 async function traccar(vars: Record<string, string> = {}) {
 	vi.resetModules();
 	vi.stubEnv('TRACCAR_BASE_URL', vars.TRACCAR_BASE_URL ?? 'https://gps.example.invalid');
-	vi.stubEnv('TRACCAR_TOKEN', vars.TRACCAR_TOKEN ?? 'test-token');
-	vi.stubEnv('TRACCAR_USERNAME', vars.TRACCAR_USERNAME ?? '');
-	vi.stubEnv('TRACCAR_PASSWORD', vars.TRACCAR_PASSWORD ?? '');
 	const { TraccarProvider } = await import('../src/lib/server/tracking/traccar');
-	return new TraccarProvider();
+	return new TraccarProvider({
+		baseUrl: vars.TRACCAR_BASE_URL ?? 'https://gps.example.invalid',
+		username: vars.TRACCAR_USERNAME ?? 'tenant-a@tracking.invalid',
+		password: vars.TRACCAR_PASSWORD ?? 'tenant-a-password'
+	});
 }
 
 /**
@@ -192,7 +200,7 @@ describe('the Traccar adapter normalises rather than leaks', () => {
 		// Found by probing, not by design: the operator-facing message was already
 		// clean, but the logged reason echoed whatever the error said — and an error
 		// from a request carrying an Authorization header can quote it back.
-		const provider = await traccar({ TRACCAR_TOKEN: 'super-secret-token-value' });
+		const provider = await traccar({ TRACCAR_PASSWORD: 'super-secret-token-value' });
 		const logged: string[] = [];
 		const spy = vi.spyOn(console, 'warn').mockImplementation((...a) => logged.push(a.join(' ')));
 		globalThis.fetch = vi.fn(async () => {

@@ -344,6 +344,13 @@
       "when": 1788140070003,
       "tag": "0048_vehicles",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1788140070004,
+      "tag": "0049_tracking_accounts",
+      "breakpoints": true
     }
   ]
 }

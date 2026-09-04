@@ -1894,6 +1894,52 @@ export type BookingRequest = typeof bookingRequests.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type Trip = typeof trips.$inferSelect;
 export type Crew = typeof crew.$inferSelect;
+/**
+ * A tenant's own identity on the tracking provider.
+ *
+ * Connect used to hold ONE administrator credential for the whole platform, so
+ * the provider's permission system was doing nothing and isolation existed only
+ * because Connect remembered to filter its own results. Each tenant now has a
+ * read-only provider identity scoped to its own devices, which makes a
+ * cross-tenant position unreachable AT THE PROVIDER rather than merely
+ * unrendered here.
+ *
+ * The password uses the same AES-256-GCM envelope as WhatsApp tokens, so this
+ * codebase has one encryption story rather than two.
+ */
+export const trackingAccounts = pgTable(
+	'tracking_accounts',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		// RESTRICT: deleting a tenant that still owns a provider identity would
+		// strand a user and its devices with nothing in Connect naming them.
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'restrict' }),
+		provider: text('provider').notNull().default('TRACCAR'),
+		/** Non-routable by RFC 2606 — this address must never receive mail. */
+		providerLogin: text('provider_login').notNull(),
+		providerUserId: integer('provider_user_id'),
+		/** v<keyVersion>.<iv>.<tag>.<ciphertext>, never logged, never rendered. */
+		encryptedPassword: text('encrypted_password').notNull(),
+		keyVersion: integer('key_version').notNull().default(1),
+		/** Proven read-only and correctly scoped. Null = provisioned, not proven. */
+		verifiedAt: timestamp('verified_at', { withTimezone: true }),
+		disabledAt: timestamp('disabled_at', { withTimezone: true }),
+		lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('tracking_accounts_tenant_provider_key').on(t.tenantId, t.provider),
+		uniqueIndex('tracking_accounts_provider_user_key')
+			.on(t.provider, t.providerUserId)
+			.where(sql`provider_user_id IS NOT NULL`)
+	]
+);
+
+export type TrackingAccount = typeof trackingAccounts.$inferSelect;
+
 export type Vehicle = typeof vehicles.$inferSelect;
 export type TripItem = typeof tripItems.$inferSelect;
 export type Quotation = typeof quotations.$inferSelect;
