@@ -16,9 +16,9 @@
  * written by an authenticated operator against a vehicle they own.
  */
 import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
-import { db, schema } from '$lib/server/db';
+import { db, schema, txDb } from '$lib/server/db';
 import { log } from '$lib/server/logger';
-import { adminCredentials } from './credentials';
+import { adminCredentials, tenantCredentials } from './credentials';
 import { ensureTenantAccount, findDeviceByRef, linkDeviceToTenant, unlinkDeviceFromTenant, deleteProviderDevice } from './traccar-admin';
 
 /** How long a claim is honoured before another run may take the row. */
@@ -225,8 +225,141 @@ async function cleanupProvider(): Promise<number> {
 	return due.length;
 }
 
+
+/**
+ * Has the phone reported yet?
+ *
+ * Runs here, not in the web process, and deliberately uses the TENANT'S
+ * READ-ONLY identity rather than the privileged one this worker also holds. The
+ * worker having a privileged credential is not a reason to read positions with
+ * it: the tenant identity is scoped by the provider to that tenant's own
+ * devices, so even a bug in this function cannot reach another tenant's data.
+ *
+ * The device is derived from the ledger row — never from a caller, never by
+ * name, never by an unscoped listing.
+ */
+async function detectFirstFixes(): Promise<number> {
+	const rows = await db()
+		.select()
+		.from(schema.trackerEnrollments)
+		.where(and(eq(schema.trackerEnrollments.status, 'PROVISIONED'), sql`expires_at > now()`, isNotNull(schema.trackerEnrollments.providerDeviceId)))
+		.limit(50);
+
+	let activated = 0;
+	for (const row of rows) {
+		try {
+			const creds = await tenantCredentials(row.tenantId);
+			// No identity yet is not a failure: the enrollment simply waits.
+			if (!creds) continue;
+
+			const res = await fetch(`${creds.baseUrl}/api/positions?deviceId=${row.providerDeviceId}`, {
+				headers: {
+					Authorization: `Basic ${Buffer.from(`${creds.username}:${creds.password}`).toString('base64')}`,
+					Accept: 'application/json'
+				},
+				signal: AbortSignal.timeout(6000)
+			});
+			await db()
+				.update(schema.trackerEnrollments)
+				.set({ pollAttempts: sql`poll_attempts + 1`, lastPolledAt: new Date() })
+				.where(eq(schema.trackerEnrollments.id, row.id));
+			// A provider that will not answer leaves the row PROVISIONED and
+			// retryable. An enrollment must never fail because a GPS server did.
+			if (!res.ok) continue;
+
+			const positions = (await res.json()) as {
+				latitude?: number;
+				longitude?: number;
+				fixTime?: string;
+				deviceId?: number;
+			}[];
+			const fix = positions.find(
+				(p) =>
+					// Belt and braces: even a provider that ignored our deviceId filter
+					// cannot activate this enrollment with another device's position.
+					p.deviceId === row.providerDeviceId &&
+					Number.isFinite(p.latitude) &&
+					Number.isFinite(p.longitude) &&
+					!(p.latitude === 0 && p.longitude === 0)
+			);
+			if (!fix) continue;
+
+			if (await bindEnrollment(row.id, new Date(fix.fixTime ?? Date.now()), fix.latitude as number, fix.longitude as number)) {
+				activated++;
+			}
+		} catch (err) {
+			log.warn('tracker_first_fix_check_failed', { enrollmentId: row.id, reason: String(err).slice(0, 120) });
+		}
+	}
+	return activated;
+}
+
+/**
+ * Bind the enrollment and point the vehicle at it.
+ *
+ * One transaction, and the UPDATE is conditional on the row still being
+ * PROVISIONED — so two workers checking the same enrollment produce exactly one
+ * transition, and the loser simply sees zero rows.
+ *
+ * Replacement lives here too: the outgoing tracker stays ACTIVE right up to this
+ * moment and is closed in the SAME transaction that activates its replacement,
+ * so a vehicle is never briefly untracked. The outgoing device is then handed to
+ * cleanup for deletion — the only thing that actually stops it reporting.
+ */
+async function bindEnrollment(id: string, at: Date, lat: number, lng: number): Promise<boolean> {
+	return txDb().transaction(async (tx) => {
+		const [bound] = await tx
+			.update(schema.trackerEnrollments)
+			.set({
+				status: 'ACTIVE',
+				boundAt: new Date(),
+				confirmedAt: new Date(),
+				firstFixAt: at,
+				firstFixLat: String(lat),
+				firstFixLng: String(lng)
+			})
+			.where(and(eq(schema.trackerEnrollments.id, id), eq(schema.trackerEnrollments.status, 'PROVISIONED')))
+			.returning();
+		if (!bound) return false;
+
+		await tx
+			.update(schema.trackerEnrollments)
+			.set({
+				status: 'CLOSED',
+				closedReason: 'REPLACED',
+				closedAt: new Date(),
+				// Delete the old device. Disabling does not revoke it.
+				providerDeleteAfter: new Date()
+			})
+			.where(
+				and(
+					eq(schema.trackerEnrollments.vehicleId, bound.vehicleId),
+					eq(schema.trackerEnrollments.status, 'ACTIVE'),
+					sql`id <> ${bound.id}`
+				)
+			);
+
+		await tx
+			.update(schema.vehicles)
+			.set({
+				trackerProvider: bound.provider,
+				trackerDeviceRef: bound.deviceRef,
+				trackerEnrollmentId: bound.id,
+				trackerLinkedAt: new Date(),
+				updatedAt: new Date()
+			})
+			.where(eq(schema.vehicles.id, bound.vehicleId));
+		return true;
+	});
+}
+
 /** One pass. Safe to run concurrently with another pass, and safe to interrupt. */
-export async function runProvisioningPass(): Promise<{ provisioned: number; expired: number; cleaned: number }> {
+export async function runProvisioningPass(): Promise<{
+	provisioned: number;
+	activated: number;
+	expired: number;
+	cleaned: number;
+}> {
 	if (!adminCredentials()) {
 		// Refusing loudly beats provisioning nothing quietly for a week.
 		throw new Error('The provisioning worker requires TRACCAR_ADMIN_USERNAME and TRACCAR_ADMIN_PASSWORD.');
@@ -242,7 +375,8 @@ export async function runProvisioningPass(): Promise<{ provisioned: number; expi
 			await recordFailure(row, err);
 		}
 	}
+	const activated = await detectFirstFixes();
 	const expired = await sweepExpired();
 	const cleaned = await cleanupProvider();
-	return { provisioned, expired, cleaned };
+	return { provisioned, activated, expired, cleaned };
 }

@@ -17,6 +17,7 @@ process.env.JOB_WORKER = 'off';
 const read = (p: string) => readFileSync(p, 'utf8');
 const MIGRATION = read('drizzle/0050_tracker_enrollments.sql');
 const SERVICE = read('src/lib/server/tracking/enrollment.ts');
+const WORKER = read('src/lib/server/tracking/provisioning-worker.ts');
 
 describe('the minted reference is credential material', () => {
 	it('has at least 75 bits of entropy over a 32-symbol alphabet', async () => {
@@ -85,7 +86,8 @@ describe('the lifecycle cannot be raced or replayed', () => {
 		// A double-bind returns zero rows rather than creating a second binding.
 		// PROVISIONED, not PENDING: a row whose device does not exist yet cannot
 		// have produced a fix, so it must not be bindable.
-		expect(SERVICE).toMatch(/eq\(schema\.trackerEnrollments\.status, 'PROVISIONED'\)\)\)\s*\.returning\(\)/);
+		// In the WORKER now: the web process no longer detects or binds anything.
+		expect(WORKER).toMatch(/eq\(schema\.trackerEnrollments\.status, 'PROVISIONED'\)\)\)\s*\.returning\(\)/);
 	});
 
 	it('one setup in flight and one active per vehicle, enforced by the database', () => {
@@ -123,9 +125,13 @@ describe('the lifecycle cannot be raced or replayed', () => {
 	});
 
 	it('replacing keeps the old tracker live until the new one binds', () => {
-		const bindAt = SERVICE.indexOf('async function bindEnrollment');
-		const replacedAt = SERVICE.indexOf("closedReason: 'REPLACED'");
-		expect(replacedAt).toBeGreaterThan(bindAt);
+		// Both moved to the WORKER: the web process neither detects a first fix nor
+		// binds an enrollment. The old tracker is closed inside the same
+		// transaction that activates its replacement, so nothing goes dark.
+		const bindAt = WORKER.indexOf('async function bindEnrollment');
+		expect(bindAt).toBeGreaterThan(-1);
+		expect(WORKER.indexOf("closedReason: 'REPLACED'")).toBeGreaterThan(bindAt);
+		expect(SERVICE).not.toContain('bindEnrollment');
 	});
 });
 

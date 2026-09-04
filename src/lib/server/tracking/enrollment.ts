@@ -17,7 +17,7 @@ import { AppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
 import { enforce } from '$lib/server/rate-limit';
 import { mintDeviceRef } from './identifier';
-import { providerBaseUrl, tenantCredentials } from './credentials';
+import { providerBaseUrl } from './credentials';
 
 /** How long a setup code lives. Sized by the honest path, not by optimism. */
 export const PHONE_EXPIRY_MS = 30 * 60 * 1000;
@@ -185,109 +185,46 @@ export async function startEnrollment(input: {
 }
 
 /**
- * Has the phone reported yet?
+ * The enrollment state, answered from the LEDGER ALONE.
  *
- * Polled while the setup screen is open. Binding is a single conditional UPDATE,
- * so a replay — two polls racing, or the same fix seen twice — changes exactly
- * one row and creates exactly one binding.
+ * No provider call happens here, and that is the point: answering "has the phone
+ * reported yet?" used to mean the web process reaching out to the tracking
+ * provider on a three-second timer. Detection now belongs to the worker, which
+ * writes the answer into the row; this reads it.
+ *
+ * So a provider outage cannot make the setup screen hang, and the request-serving
+ * process needs no provider credential of any kind to render enrollment status.
  */
-export async function checkForFirstFix(
+export async function enrollmentStatus(
 	tenantId: string,
-	enrollmentId: string
-): Promise<{ status: string; firstFixAt: Date | null }> {
-	const [row] = await db()
-		.select()
-		.from(schema.trackerEnrollments)
-		.where(and(eq(schema.trackerEnrollments.id, enrollmentId), eq(schema.trackerEnrollments.tenantId, tenantId)))
-		.limit(1);
-	if (!row) throw new AppError('NOT_FOUND', 'That setup could not be found.');
-	if (row.status === 'ACTIVE') return { status: 'ACTIVE', firstFixAt: row.firstFixAt };
-	if (!isLive(row)) return { status: 'EXPIRED', firstFixAt: null };
-	// Still waiting on the worker. Nothing to poll for yet.
-	if (row.status !== 'PROVISIONED') return { status: 'PREPARING', firstFixAt: null };
-
-	const creds = await tenantCredentials(tenantId);
-	if (!creds || !row.providerDeviceId) return { status: 'WAITING', firstFixAt: null };
-
-	await db()
-		.update(schema.trackerEnrollments)
-		.set({ pollAttempts: sql`poll_attempts + 1`, lastPolledAt: new Date() })
-		.where(eq(schema.trackerEnrollments.id, row.id));
-
-	// Asked as the TENANT, scoped by device id. Never unscoped, never by name.
-	const res = await fetch(`${creds.baseUrl}/api/positions?deviceId=${row.providerDeviceId}`, {
-		headers: {
-			Authorization: `Basic ${Buffer.from(`${creds.username}:${creds.password}`).toString('base64')}`,
-			Accept: 'application/json'
-		}
-	}).catch(() => null);
-	if (!res?.ok) return { status: 'WAITING', firstFixAt: null };
-
-	const positions = (await res.json()) as { latitude?: number; longitude?: number; fixTime?: string; deviceId?: number }[];
-	const fix = positions.find(
-		(p) =>
-			p.deviceId === row.providerDeviceId &&
-			Number.isFinite(p.latitude) &&
-			Number.isFinite(p.longitude) &&
-			!(p.latitude === 0 && p.longitude === 0)
-	);
-	if (!fix) return { status: 'WAITING', firstFixAt: null };
-
-	const at = new Date(fix.fixTime ?? Date.now());
-	const bound = await bindEnrollment(row.id, at, fix.latitude as number, fix.longitude as number);
-	return { status: bound ? 'ACTIVE' : 'WAITING', firstFixAt: bound ? at : null };
-}
-
-/**
- * Bind the enrollment and point the vehicle at it.
- *
- * One transaction, and the UPDATE is conditional on the row still being PENDING
- * — so a double-bind returns zero rows rather than creating a second binding.
- */
-async function bindEnrollment(id: string, at: Date, lat: number, lng: number): Promise<boolean> {
-	return txDb().transaction(async (tx) => {
-		const [bound] = await tx
-			.update(schema.trackerEnrollments)
-			.set({
-				status: 'ACTIVE',
-				boundAt: new Date(),
-				firstFixAt: at,
-				firstFixLat: String(lat),
-				firstFixLng: String(lng)
-			})
-			.where(and(eq(schema.trackerEnrollments.id, id), eq(schema.trackerEnrollments.status, 'PROVISIONED')))
-			.returning();
-		if (!bound) return false;
-
-		// Replacing: the outgoing tracker keeps working until this moment, then
-		// closes in the same transaction. Nothing goes dark.
-		await tx
-			.update(schema.trackerEnrollments)
-			.set({ status: 'CLOSED', closedReason: 'REPLACED', closedAt: new Date(), providerDeleteAfter: new Date() })
-			.where(
-				and(
-					eq(schema.trackerEnrollments.vehicleId, bound.vehicleId),
-					eq(schema.trackerEnrollments.status, 'ACTIVE'),
-					sql`id <> ${bound.id}`
-				)
-			);
-
-		await tx
-			.update(schema.vehicles)
-			.set({
-				trackerProvider: bound.provider,
-				trackerDeviceRef: bound.deviceRef,
-				trackerEnrollmentId: bound.id,
-				trackerLinkedAt: new Date(),
-				updatedAt: new Date()
-			})
-			.where(eq(schema.vehicles.id, bound.vehicleId));
-		return true;
-	});
+	vehicleId: string
+): Promise<{ status: string; firstFixAt: Date | null; expiresAt: Date | null; lastError: string | null }> {
+	const { active, pending, expired } = await enrollmentFor(tenantId, vehicleId);
+	if (active) return { status: 'ACTIVE', firstFixAt: active.firstFixAt, expiresAt: null, lastError: null };
+	if (expired) return { status: 'EXPIRED', firstFixAt: null, expiresAt: expired.expiresAt, lastError: null };
+	if (!pending) return { status: 'NONE', firstFixAt: null, expiresAt: null, lastError: null };
+	return {
+		// PENDING means the worker has not provisioned yet; PROVISIONED means the
+		// code is live and we are waiting on the driver. The screen says different
+		// things for each, so the distinction survives all the way to the operator.
+		status: pending.status === 'PROVISIONED' ? 'WAITING' : pending.status === 'FAILED' ? 'FAILED' : 'PREPARING',
+		firstFixAt: null,
+		expiresAt: pending.expiresAt,
+		lastError: null
+	};
 }
 
 /** Give up on a setup. The reference is burned, not returned to a pool. */
 export async function cancelEnrollment(tenantId: string, enrollmentId: string): Promise<void> {
+	/*
+	 * providerDeleteAfter is set unconditionally, and the worker skips rows with
+	 * no device id — so a PENDING enrollment that never got a device closes with
+	 * nothing to delete, and a PROVISIONED one has its device DELETED.
+	 *
+	 * Deleted, not disabled: a disabled device keeps accepting and storing
+	 * positions, proven against 6.15.3, so disabling a cancelled tracker would
+	 * leave a live credential behind.
+	 */
 	await db()
 		.update(schema.trackerEnrollments)
 		.set({ status: 'CLOSED', closedReason: 'CANCELLED', closedAt: new Date(), providerDeleteAfter: new Date() })
@@ -329,6 +266,9 @@ export async function removeTracking(tenantId: string, vehicleId: string): Promi
 	await txDb().transaction(async (tx) => {
 		await tx
 			.update(schema.trackerEnrollments)
+			// providerDeleteAfter is the worker's instruction to DELETE the device.
+			// Disabling would not revoke it — proven against 6.15.3, a disabled
+			// device keeps accepting and storing positions.
 			.set({ status: 'CLOSED', closedReason: 'REMOVED', closedAt: new Date(), providerDeleteAfter: new Date() })
 			.where(
 				and(

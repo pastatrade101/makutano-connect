@@ -47,6 +47,8 @@
 			if (!res.ok) return;
 			const body = await res.json();
 			waiting = body.data?.status ?? null;
+			// PREPARING -> WAITING means the worker finished provisioning, so the
+			// page needs to reload to pick up the code it can now show.
 			if (body.data?.status === 'ACTIVE' || (data.preparing && body.data?.status !== 'PREPARING')) {
 				clearInterval(poll);
 				await invalidateAll();

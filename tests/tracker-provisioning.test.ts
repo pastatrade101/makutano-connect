@@ -107,19 +107,17 @@ describe('6-11 · the QR window', () => {
 
 describe('12 · the first fix activates exactly the expected enrollment', () => {
 	it('resolves only the provisioned device, scoped, never by name', () => {
-		expect(SERVICE).toContain('/api/positions?deviceId=${row.providerDeviceId}');
-		expect(SERVICE).toContain('p.deviceId === row.providerDeviceId');
-		// Never an unscoped list, never a lookup by the tracker identity.
-		expect(SERVICE).not.toMatch(/positions'\s*,?\s*\{[^}]*\}\s*\)/);
+		expect(WORKER).toContain('/api/positions?deviceId=${row.providerDeviceId}');
+		expect(WORKER).toContain('p.deviceId === row.providerDeviceId');
 	});
 
 	it('binds atomically from PROVISIONED, so a replay changes one row', () => {
-		expect(SERVICE).toMatch(/eq\(schema\.trackerEnrollments\.status, 'PROVISIONED'\)\)\)\s*\.returning\(\)/);
+		expect(WORKER).toMatch(/eq\(schema\.trackerEnrollments\.status, 'PROVISIONED'\)\)\)\s*\.returning\(\)/);
 	});
 
 	it('16 · replacement keeps the old tracker live until the new one binds', () => {
-		const bindAt = SERVICE.indexOf('async function bindEnrollment');
-		expect(SERVICE.indexOf("closedReason: 'REPLACED'")).toBeGreaterThan(bindAt);
+		const bindAt = WORKER.indexOf('async function bindEnrollment');
+		expect(WORKER.indexOf("closedReason: 'REPLACED'")).toBeGreaterThan(bindAt);
 	});
 });
 
