@@ -145,7 +145,18 @@ export const handle: Handle = async ({ event, resolve }) => {
 function withSecurityHeaders(response: Response, url: URL): Response {
 	response.headers.set('x-content-type-options', 'nosniff');
 	response.headers.set('x-frame-options', 'DENY');
-	response.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
+	/*
+	 * A DEFAULT, not an override.
+	 *
+	 * set() clobbered whatever the route had chosen, so a route asking for the
+	 * stricter `no-referrer` — the tracker setup QR does exactly that, because
+	 * its URL is credential-adjacent — silently had its protection downgraded to
+	 * the site-wide value. A blanket security header that weakens a deliberate
+	 * one is worse than no blanket header.
+	 */
+	if (!response.headers.has('referrer-policy')) {
+		response.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
+	}
 	response.headers.set('permissions-policy', 'geolocation=(), microphone=(), camera=()');
 	if (isProduction() && url.protocol === 'https:') {
 		response.headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains');
