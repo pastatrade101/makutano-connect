@@ -165,6 +165,28 @@ export async function tripSnapshot(tenantId: string, tripId: string): Promise<Tr
 	return vehicleSnapshot(tenantId, trip.vehicleId);
 }
 
+/**
+ * A vehicle's track over a window, resolved under the tenant that owns it.
+ *
+ * Same shape as tripHistory and the same security walk — tenant, then owned
+ * vehicle, then the tenant's own provider identity. A vehicle id from a caller
+ * that this tenant does not own resolves to an empty track, never to somebody
+ * else's route.
+ */
+export async function vehicleHistory(
+	tenantId: string,
+	vehicleId: string,
+	from: Date,
+	to: Date
+): Promise<TrackingHistory> {
+	const empty: TrackingHistory = { positions: [], from, to, truncated: false };
+	const vehicle = await ownedVehicle(tenantId, vehicleId);
+	if (!vehicle?.trackerDeviceRef) return empty;
+	const provider = await providerFor(tenantId, vehicle.trackerProvider);
+	if (!provider) return empty;
+	return provider.history(vehicle.trackerDeviceRef, from, to);
+}
+
 /** A trip's track over a window. Empty rather than an error when unavailable. */
 export async function tripHistory(
 	tenantId: string,
