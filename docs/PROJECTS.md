@@ -234,6 +234,17 @@ violated the index — the transaction aborted and the worker retried forever wh
 the operator saw the new phone stuck on "waiting". Order the close first. There
 is no deferred-constraint escape hatch here; the index is not `DEFERRABLE`.
 
+**17. An iOS device install fails on a framework Flutter never signs.**
+Flutter's native-assets pipeline emits `objective_c.framework` **ad-hoc**
+signed (`Signature=adhoc`, no team identifier) and Xcode's embed step does not
+re-sign it. Ad-hoc is accepted on the simulator and rejected on a handset, so
+`flutter install` dies with `0xe8008014 (The executable contains an invalid
+signature.)` — which reads like a provisioning or team-id fault and is not one.
+The team is fine; one nested bundle is not. Clearing `build/` **and**
+`build/native_assets/` does not help; it comes out ad-hoc every time. Use
+`tool/ios-device-install.sh` in the mobile repo, which re-signs anything still
+ad-hoc with the identity Xcode already chose and re-seals the app bundle.
+
 **16. In Traccar, `disabled` is NOT revocation.** A disabled device keeps
 accepting and storing positions — proven against 6.15.3. The only revocation is
 **deleting** the device. Equally: `/api/positions` silently **ignores**
