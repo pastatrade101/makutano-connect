@@ -43,12 +43,18 @@
 	 */
 	let tourSlug = $state('');
 	let offer = $state('');
+
+	/*
+	 * Built by hand rather than with URLSearchParams, for one reason: it encodes a
+	 * space as "+". That is correct and decodes fine, but the link is going into a
+	 * WhatsApp message where a human reads it, and "15%25+off+October" looks
+	 * broken. %20 survives the same trip looking like a link.
+	 */
 	const shareUrl = $derived.by(() => {
-		const params = new URLSearchParams();
-		if (tourSlug) params.set('tour', tourSlug);
-		if (offer.trim()) params.set('offer', offer.trim());
-		const qs = params.toString();
-		return qs ? `${baseUrl}/f/${publicId}?${qs}` : `${baseUrl}/f/${publicId}`;
+		const parts: string[] = [];
+		if (tourSlug) parts.push(`tour=${encodeURIComponent(tourSlug)}`);
+		if (offer.trim()) parts.push(`offer=${encodeURIComponent(offer.trim())}`);
+		return parts.length ? `${baseUrl}/f/${publicId}?${parts.join('&')}` : `${baseUrl}/f/${publicId}`;
 	});
 
 	const hostedUrl = $derived(`${baseUrl}/f/${publicId}`);
@@ -139,7 +145,7 @@
 				<div>
 					<label class="label" for="share-tour-{publicId}">Tour</label>
 					<select id="share-tour-{publicId}" bind:value={tourSlug} class="input">
-						<option value="">No particular tour</option>
+						<option value="" disabled>Choose a tour…</option>
 						{#each tours as t (t.slug)}<option value={t.slug}>{t.title}</option>{/each}
 					</select>
 				</div>
@@ -159,7 +165,13 @@
 
 			<div class="mt-2 flex flex-wrap items-center gap-2">
 				<code class="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12.5px] text-slate-600">{shareUrl}</code>
-				<button type="button" class="btn-primary !py-1.5 text-xs" onclick={() => copy(shareUrl, 'share')}>
+				<button
+					type="button"
+					class="btn-primary !py-1.5 text-xs"
+					disabled={!tourSlug}
+					title={tourSlug ? undefined : 'Choose a tour first'}
+					onclick={() => copy(shareUrl, 'share')}
+				>
 					{copied === 'share' ? 'Copied' : 'Copy link'}
 				</button>
 				<a href={shareUrl} target="_blank" rel="noopener" class="btn-secondary !py-1.5 text-xs">Open</a>
