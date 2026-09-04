@@ -101,12 +101,18 @@
 				</h2>
 				<p class="mt-4 text-[15.5px] leading-7 text-slate-600">
 					Build the quotation from the enquiry, so the customer, the tour and the dates are already
-					there. Send it, and the traveller opens it on their own link.
+					there. Send it, and the traveller opens it on their own link — your company name and logo
+					at the top, the price broken down the way you built it.
+				</p>
+				<p class="mt-3 max-w-2xl text-[14px] leading-7 text-slate-600">
+					They reply to you to accept it or ask for a change, and you confirm it in Connect. A
+					quotation link can be forwarded to anyone, so nothing on that page can create a booking on
+					its own — the person who owes the money is confirmed by you, not by whoever opened the link.
 				</p>
 			</div>
 
 			<ol class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-				{#each [{ t: 'Prepare', d: 'Priced from the enquiry.' }, { t: 'Send', d: 'By email and WhatsApp.' }, { t: 'They review', d: 'On their own link.' }, { t: 'Want changes?', d: 'Send a new quotation from the same enquiry.' }, { t: 'They accept', d: 'It becomes a booking.' }] as s, i (s.t)}
+				{#each [{ t: 'Prepare', d: 'Priced from the enquiry.' }, { t: 'Send', d: 'By email and WhatsApp.' }, { t: 'They review', d: 'On their own link, with your name on it.' }, { t: 'They reply to you', d: 'To accept, or to ask for a change.' }, { t: 'You confirm it', d: 'Mark it accepted and it becomes a booking.' }] as s, i (s.t)}
 					<li class="rounded-panel border border-slate-200 bg-canvas p-4">
 						<p class="text-[11px] font-bold tracking-[0.14em] text-slate-400 uppercase">Step {i + 1}</p>
 						<p class="mt-1.5 text-[15px] font-semibold text-slate-900">{s.t}</p>
