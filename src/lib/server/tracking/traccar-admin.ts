@@ -145,11 +145,25 @@ export async function linkDeviceToTenant(providerUserId: number, deviceId: numbe
 	await adminRequest('/permissions', { method: 'POST', body: { userId: providerUserId, deviceId } });
 }
 
-/** Look a device up by its reference, as the administrator. Provisioning only. */
+/**
+ * Look a device up by its reference, as the administrator. Provisioning only.
+ *
+ * `?all=true` and filter here, NOT `?uniqueId=`. Verified against the deployed
+ * 6.15.3: for any user — administrator included — `uniqueId` filters within the
+ * devices that user is LINKED to, and it does not combine with `all`:
+ *
+ *   /devices?uniqueId=X            -> []   (provisioning admin, not linked)
+ *   /devices?all=true&uniqueId=X   -> []   (the two do not compose)
+ *   /devices?all=true              -> the device
+ *
+ * A provisioning identity is deliberately linked to nothing, so the obvious
+ * lookup silently returns nothing and the caller concludes the device does not
+ * exist. The runtime path is unaffected: a tenant IS linked to its own devices,
+ * which is exactly why `?uniqueId=` is the right call there and the wrong one
+ * here.
+ */
 export async function findDeviceByRef(deviceRef: string): Promise<{ id?: number; uniqueId?: string } | null> {
-	const devices = await adminRequest<{ id?: number; uniqueId?: string }[]>(
-		`/devices?uniqueId=${encodeURIComponent(deviceRef)}`
-	);
+	const devices = await adminRequest<{ id?: number; uniqueId?: string }[]>('/devices?all=true');
 	return devices.find((d) => d.uniqueId === deviceRef) ?? null;
 }
 
