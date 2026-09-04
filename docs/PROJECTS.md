@@ -1,4 +1,4 @@
-# The three projects: what they are, and what will bite you
+# The four projects: what they are, and what will bite you
 
 **Read this before touching anything.** It exists because none of it is
 derivable from the code. A repository does not say which container serves it, a
@@ -6,8 +6,9 @@ container does not say which branch is deployed, and nothing at all says that
 the marketplace repo is called `makutano-journey` while its directory is
 `makutano-marketplace`.
 
-Everything below was verified against the live host, the three repos and the
-SvelteKit runtime on **2 September 2026**. Claims that can go stale are marked
+Everything below was verified against the live host, the four repos and the
+SvelteKit runtime on **2 September 2026**, and re-verified during the Phase 2
+tracking rollout on **4 September 2026**. Claims that can go stale are marked
 _(dated)_. **Check before relying on them.**
 
 ---
@@ -51,24 +52,33 @@ money** (`src/lib/server/ai/assist.ts:1`); depth before breadth.
 
 ---
 
-## 2. The three
+## 2. The four
 
-|                          | Makutano Connect                                | Makutano Journeys                                          | Connect Mobile                                 |
-| ------------------------ | ----------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
-| What it is               | Operator portal + platform admin + every API    | Public marketplace                                         | Operator's phone app                           |
-| Directory                | `~/Desktop/pastatrade/makutano-connect`         | `~/Desktop/pastatrade/makutano-marketplace`                | `~/Desktop/pastatrade/makutano-connect-mobile` |
-| GitHub                   | `pastatrade101/makutano-connect`                | `pastatrade101/makutano-journey`                           | `pastatrade101/connect-mobile`                 |
-| Visibility               | private                                         | private (paid theme)                                       | **public**                                     |
-| Working branch _(dated)_ | `marketplace-ux-and-enquiry-routing`            | `tour-and-operator-page-redesign`                          | `main`                                         |
-| Domain                   | connect.makutano.co.tz                          | journeys.makutano.co.tz                                    | —                                              |
-| Container                | `makutano-connect`                              | `makutano-journeys`                                        | —                                              |
-| Compose dir              | `/home/makutano/app/services/connect`           | `/home/makutano/app/services/journeys`                     | —                                              |
-| Stack                    | SvelteKit 2 + Svelte 5 runes, Drizzle, Postgres | SvelteKit 2 + Svelte 5, **no Tailwind**, zero runtime deps | Flutter                                        |
+Three applications and the tracking platform they depend on. The fourth is
+infrastructure, not a product — but it holds credentials, stores position
+history, and nothing about it is derivable from the other three repos.
+
+|                          | Makutano Connect                                | Makutano Journeys                                          | Connect Mobile                                 | Makutano Traccar                        |
+| ------------------------ | ----------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------- | --------------------------------------- |
+| What it is               | Operator portal + platform admin + every API    | Public marketplace                                         | Operator's phone app                           | Vehicle tracking platform (self-hosted) |
+| Directory                | `~/Desktop/pastatrade/makutano-connect`         | `~/Desktop/pastatrade/makutano-marketplace`                | `~/Desktop/pastatrade/makutano-connect-mobile` | `~/Desktop/pastatrade/makutano-traccar` |
+| GitHub                   | `pastatrade101/makutano-connect`                | `pastatrade101/makutano-journey`                           | `pastatrade101/connect-mobile`                 | local only _(no remote)_                |
+| Visibility               | private                                         | private (paid theme)                                       | **public**                                     | local                                   |
+| Working branch _(dated)_ | `marketplace-ux-and-enquiry-routing`            | `tour-and-operator-page-redesign`                          | `main`                                         | `master`                                |
+| Domain                   | connect.makutano.co.tz                          | journeys.makutano.co.tz                                    | —                                              | tracking.makutano.co.tz                 |
+| Containers               | `makutano-connect`, `makutano-tracking-worker`  | `makutano-journeys`                                        | —                                              | `traccar`, `traccar-db`                 |
+| Compose dir              | `/home/makutano/app/services/connect`           | `/home/makutano/app/services/journeys`                     | —                                              | `/home/makutano/app/services/traccar`   |
+| Stack                    | SvelteKit 2 + Svelte 5 runes, Drizzle, Postgres | SvelteKit 2 + Svelte 5, **no Tailwind**, zero runtime deps | Flutter                                        | `traccar/traccar:6.15.3` + Postgres 16  |
 
 Both web repos are **checked out on a feature branch**, and `main` was fast-
 forwarded to match on 2 Sep 2026 — so `main` currently _is_ production. The next
 commit on a feature branch re-opens that gap. Run `git rev-parse --abbrev-ref
 HEAD`; never assume.
+
+**The Traccar repo holds only compose + docs.** The container image is upstream
+and pinned. `docs/HARDENING-V2.md` is the audit of the deployed instance and
+`docs/HARDENING-V2-PROPOSAL.md` the 20-part plan it produced; Phases 1 and 2 of
+that plan are implemented in **Connect**, not here.
 
 **Three names are traps.** The marketplace repo is `makutano-journey`
 (singular) in a directory called `makutano-marketplace` serving a site called
@@ -94,9 +104,21 @@ structural rather than aspirational.
    │                    Makutano Connect                      │
    │   portal /app · admin /admin · webhooks/meta/whatsapp    │
    └──────────────────────────────────────────────────────────┘
-                              │
-                        one Supabase Postgres
+          │                                        │
+   one Supabase Postgres          makutano-tracking-worker (same image,
+                                  different entrypoint, ONLY holder of the
+                                  Traccar provisioning credential)
+                                                   │
+                                          ┌────────────────┐
+                driver's phone ──────────▶│ Traccar 6.15.3 │
+                (Traccar Client, OsmAnd)  │  + its own PG  │
+                                          └────────────────┘
 ```
+
+**Traccar is never reached by a browser.** No iframe, no proxied UI, no
+credentials in the client. Connect's web process reads positions with a
+**per-tenant read-only** Traccar user; the worker alone holds the privileged one.
+A driver's phone talks to Traccar directly over `/osmand` and to nothing else.
 
 Four authenticated surfaces, not one. The marketplace must **never** use a
 relative `/api` path — one `BASE` from `PUBLIC_CONNECT_API`
@@ -180,6 +202,45 @@ is `600`; an rsync without that exclusion overwrites production secrets.
 **11. Caddy is shared.** `config/Caddyfile` serves a dozen sites. `caddy reload`,
 never restart, or every site on the box goes down together.
 
+**12. `--exclude .env` is not enough — the DESTINATION is also load-bearing.**
+`/home/makutano/connect/` exists, contains a full stale copy of this repo, and
+**nothing runs from it**. Production is `/home/makutano/app/services/connect/`.
+An rsync to the wrong one reports success, the build succeeds, and the change
+simply never appears — which reads as "the fix did not work" and sends you back
+into code that was already correct. Confirm with the container itself, never with
+the directory name:
+`docker inspect makutano-connect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'`.
+Cost on 4 Sep 2026: two deploys that did nothing, plus overwriting the stale
+directory's `.env` while believing it was production's.
+
+**13. The server's `docker-compose.yml` is AHEAD of the repo's.** Production
+defines both `connect` and `tracking-worker`; the repo's file defines only
+`connect`. Rsyncing it deletes the worker service. **Exclude
+`docker-compose.yml`** until the repo catches up.
+
+**14. A tab open across a deploy looks like a broken button.** Every build
+renames the hashed client chunks and deletes the old ones, so a page loaded
+before a deploy asks for filenames that are gone. The dynamic import 404s
+_after_ `use:enhance` has called `preventDefault`, so the visible symptom is a
+button that does nothing at all — no error, no navigation. Reported twice as "the
+button does not submit" before the console showed the 404s. Mitigated by
+`version.pollInterval` + `vite:preloadError` handling in the root layout; if you
+see a dead button, hard-refresh before debugging the form.
+
+**15. A partial unique index is checked per STATEMENT, not at commit.**
+`te_one_active_key` allows one ACTIVE enrollment per vehicle. Replacing a tracker
+activated the new row before closing the old one, so the first statement always
+violated the index — the transaction aborted and the worker retried forever while
+the operator saw the new phone stuck on "waiting". Order the close first. There
+is no deferred-constraint escape hatch here; the index is not `DEFERRABLE`.
+
+**16. In Traccar, `disabled` is NOT revocation.** A disabled device keeps
+accepting and storing positions — proven against 6.15.3. The only revocation is
+**deleting** the device. Equally: `/api/positions` silently **ignores**
+`uniqueId`, so a query that looks scoped returns everything the caller can see.
+Always resolve `uniqueId → numeric deviceId` through `/devices` first and scope
+by `deviceId`. Both of these have already caused a cross-tenant leak once.
+
 ---
 
 ## 5. Deploying
@@ -197,6 +258,15 @@ rsync -rz --checksum --delete \
 ```
 
 then on the server, in that directory: `docker compose up -d --build`.
+
+The destination is `/home/makutano/app/services/<connect|journeys|traccar>/`.
+Read trap 12 before typing a path — a sibling `/home/makutano/connect/` exists
+and is a decoy. For Connect, also `--exclude docker-compose.yml` (trap 13). The
+tracking worker is a separate service in the same project and the same image:
+after changing anything under `src/lib/server/tracking/` or `scripts/`, rebuild
+it too — `docker compose up -d --build tracking-worker`. Rebuilding `connect`
+alone leaves the worker on the old code, and the worker is the half that talks to
+Traccar.
 
 Note what that list does **not** carry: `drizzle/`, `scripts/`, `tests/`. Schema
 changes never ship by deploying. Host, port, user and key are in the team's
@@ -228,6 +298,43 @@ is its test file, and `tour_impressions` is written by nothing. Anyone told to
 built and live for existing tenants, but signup now accepts only
 `TRAVEL_TOURISM`. Half the portal's routes are legacy-by-policy.
 
+### Vehicle tracking _(4 Sep 2026)_
+
+**Phase 1 — security prerequisites: live.** Two Traccar identities, split by
+job. Provisioning belongs to `tracking-worker@tracking.invalid` (NOT an
+administrator: `deviceLimit -1`, `userLimit -1`), held **only** by the
+`makutano-tracking-worker` container. Runtime reads use a **per-tenant,
+read-only** Traccar user whose password is sealed with AES-256-GCM in
+`tracking_accounts`. The web container holds **zero** privileged Traccar
+credentials — verify with
+`docker inspect makutano-connect ... | grep -c TRACCAR_ADMIN` and expect `0`.
+Migrations `0049` and `0050` are applied.
+
+**Phase 2 — phone enrollment: live, verified in production 4 Sep 2026.** An
+operator creates a setup code, the driver scans it with Traccar Client, and the
+worker binds the vehicle on the phone's first real fix. The full lifecycle was
+exercised end to end against production: provision, activate, worker restart
+mid-flight, cancel, expire, replace, and revoke. The web process makes **no**
+provider call during enrollment — `status` reads the ledger alone.
+
+Facts that are easy to get wrong:
+
+- The enrollment ledger is the source of truth. `PENDING → PROVISIONED → ACTIVE`,
+  closing to `CLOSED` with a reason (`CANCELLED`, `EXPIRED`, `REPLACED`,
+  `REMOVED`). Rows are **never deleted** — the history is the audit trail.
+- `cancel` acts on `PENDING`/`PROVISIONED` only; `remove` is the revocation path
+  for an `ACTIVE` tracker. They are different actions on purpose.
+- Revocation **deletes** the Traccar device. Disabling does not revoke (trap 16).
+- Replacement keeps the old tracker reporting until the new phone's first fix,
+  then switches in one transaction. Nothing goes dark.
+- The QR is bearer-like configuration material. It is served `no-store`,
+  `no-referrer`, only while `PROVISIONED` and unexpired, and the raw identifier
+  is never rendered in the page. Anyone who photographs it can configure another
+  phone — accepted for V1, and the reason the page says so in plain words.
+
+**Phase 3 — position retention: not started.** `tc_positions` grows unbounded.
+This is the next piece of work, and it is deliberately not begun.
+
 ---
 
 ## 7. Known open issues
@@ -255,6 +362,20 @@ Not yet fixed. Each was verified against code.
 - **`npm run lint` is broken repo-wide** — `prettier-plugin-svelte` is not
   installed and `.prettierrc` has `plugins: []`, so prettier cannot parse any
   `.svelte` file.
+- **Traccar user 4, `provisioning@tracking.invalid`, is still an
+  administrator** (`administrator = t`). It is the superseded Phase 1
+  provisioning identity, owns no devices and is used by nothing — but it is a
+  live full-admin account on the tracking platform. It should be deleted.
+- **`cancelEnrollment` on an ACTIVE row is a silent no-op that reports
+  success.** The action always returns `{cancelled: true}` regardless of whether
+  a row matched. Unreachable from the UI (an ACTIVE tracker renders `remove`,
+  not `cancel`), so it is an honesty gap rather than a live bug.
+- **The `cancel` and `remove` actions have no try/catch**, unlike `start` and
+  `extend`. A malformed `enrollmentId` produces a raw 500 instead of a clean
+  `fail()`. The database message stays server-side.
+- **The tracking worker service exists only on the server** — the repo's
+  `docker-compose.yml` does not define it (trap 13). Until that is reconciled,
+  every Connect deploy must exclude the compose file.
 - **The public mobile repo carries the production SSH host** in
   `docs/PUSH-SETUP.md` (host, port `2807`, username), plus eight tracked
   `.idea/*` files and a `flutter_01.log` crash dump that `.gitignore` claims to
@@ -273,3 +394,5 @@ checked against the code every time, which costs more than having no document.
 
 Everything marked _(dated)_ is a snapshot. Verify counts, branches and bucket
 contents rather than quoting them.
+
+Last full pass: **4 September 2026**, during Phase 2 tracking verification.
