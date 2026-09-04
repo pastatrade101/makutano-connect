@@ -5,8 +5,12 @@
  * environment: this is the only place the privileged tracking credential is
  * ever set. The web container cannot create a device even if asked to.
  *
- *   docker compose run --rm -e TRACCAR_ADMIN_USERNAME=... -e TRACCAR_ADMIN_PASSWORD=... \
- *     connect node --experimental-strip-types scripts/tracking-worker.ts
+ *   node --experimental-strip-types --import ./scripts/register-loader.mjs \
+ *     scripts/tracking-worker.ts --loop
+ *
+ * The loader is what lets plain Node run modules written for Vite: they import
+ * $lib/* and $env/*, and they omit file extensions. Forking them into a Node
+ * dialect would mean the worker and the web app stopped sharing code.
  *
  * Runs one pass and exits by default, so a cron entry or a compose service with
  * a restart policy is the whole scheduler. `--loop` keeps it resident for local
