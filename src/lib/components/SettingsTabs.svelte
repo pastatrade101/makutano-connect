@@ -19,7 +19,9 @@
 		{ id: 'payments', label: 'Payments', href: '/app/settings?tab=payments' },
 		{ id: 'whatsapp', label: 'WhatsApp', href: '/app/settings/whatsapp' },
 		{ id: 'plan', label: 'Plan & usage', href: '/app/settings?tab=plan' },
-		{ id: 'team', label: 'Team', href: '/app/settings?tab=team' }
+		// Straight to the people page, not a summary that only links to it. Team
+		// left the sidebar, so this is now the way in.
+		{ id: 'team', label: 'Team', href: '/app/crew' }
 	];
 </script>
 

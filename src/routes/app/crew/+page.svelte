@@ -2,6 +2,7 @@
 	import { enhance } from '$lib/forms';
 	import WorkspaceNotice from '$components/WorkspaceNotice.svelte';
 	import PeopleAccess from '$components/PeopleAccess.svelte';
+	import SettingsTabs from '$components/SettingsTabs.svelte';
 	let { data, form } = $props();
 	let inviting = $state<string | null>(null);
 	let copied = $state(false);
@@ -82,6 +83,21 @@
 	Settings where it was always reachable. Hiding the whole page for a tenant that
 	does not run departures would take user management away with it.
 -->
+<!--
+	Reached as the Team tab in Settings now that People has left the sidebar.
+	The strip goes above the page's own hero so the way back is obvious; nothing
+	below it changed.
+-->
+<div class="w-full max-w-none space-y-4">
+	<div>
+		<h1 class="text-lg font-semibold tracking-[-0.01em] text-slate-900">Settings</h1>
+		<p class="mt-0.5 text-[13px] text-slate-500">
+			How your business appears, how customers pay you, and who can get in.
+		</p>
+	</div>
+	<SettingsTabs active="team" />
+</div>
+
 <div class="w-full max-w-none space-y-7 pb-8">
 	<section class="relative isolate overflow-hidden rounded-2xl bg-[#302820] px-5 py-6 text-white shadow-sm sm:px-7 sm:py-8">
 		<div class="pointer-events-none absolute -top-24 -right-16 -z-10 size-72 rounded-full bg-brand-500/25 blur-3xl"></div>
@@ -94,7 +110,8 @@
 					</svg>
 				</div>
 				<p class="text-xs font-semibold tracking-[0.16em] text-brand-200 uppercase">People workspace</p>
-				<h1 class="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">The people who move your business</h1>
+				<!-- h2: the page h1 is now "Settings" above the tab strip. -->
+				<h2 class="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">The people who move your business</h2>
 				<p class="mt-2 max-w-xl text-sm leading-6 text-white/65">
 					Keep your field crew ready for every departure and control who can sign in to Makutano Connect.
 				</p>

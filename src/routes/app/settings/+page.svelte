@@ -26,7 +26,7 @@
 	// From the URL, so a tab can be linked to and survives a reload. Anything
 	// unrecognised falls back to Business Details rather than showing nothing.
 	const tab = $derived(
-		['payments', 'plan', 'team'].includes(page.url.searchParams.get('tab') ?? '')
+		['payments', 'plan'].includes(page.url.searchParams.get('tab') ?? '')
 			? (page.url.searchParams.get('tab') as string)
 			: 'business'
 	);
@@ -341,17 +341,6 @@
 	</section>
 	{/if}
 
-	{#if tab === 'team'}
-	<section class="card">
-		<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-			<h2 class="text-sm font-semibold text-slate-800">Team</h2>
-			<a href="/app/crew" class="btn-primary !py-1.5 text-xs">Manage people</a>
-		</header>
-		<p class="px-3 py-3 text-xs text-slate-500">
-			{data.members.length} member{data.members.length === 1 ? '' : 's'} — invite staff, set roles and control exactly what each person can see and do.
-		</p>
-	</section>
-	{/if}
 </div>
 
 <style>
