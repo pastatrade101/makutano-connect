@@ -23,6 +23,18 @@ const schema = z.object({
 	 * the trip, are built against the marketplace instead.
 	 */
 	MARKETPLACE_URL: z.string().url().default('https://journeys.makutano.co.tz'),
+
+	/*
+	 * Mobile store listings. Empty until the apps are actually released.
+	 *
+	 * The landing page renders store badges ONLY when these are set, and says
+	 * nothing about store availability when they are not. That is deliberate: on
+	 * 4 Sep 2026 the iOS build was in TestFlight and Android had not been
+	 * submitted, so a badge would have been a dead link and a false claim. Fill
+	 * these in on release day and the page corrects itself with no code change.
+	 */
+	APP_STORE_URL: z.string().default(''),
+	PLAY_STORE_URL: z.string().default(''),
 	AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
 	CREDENTIALS_ENCRYPTION_KEY: z.string().min(16, 'CREDENTIALS_ENCRYPTION_KEY must be at least 16 characters'),
 

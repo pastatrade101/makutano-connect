@@ -195,7 +195,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
+	/**
+	 * Dismissing is permanent and tenant-wide: it writes
+	 * settings.onboardingDismissed and there is no way back from the UI. It had no
+	 * permission check at all, so any member — a driver who only sees their own
+	 * trips — could hide the owner's setup guidance for the whole workspace. Same
+	 * bar as systemSourceInternal below, for the same reason: it edits a tenant
+	 * setting on everyone's behalf.
+	 */
 	dismissOnboarding: async ({ locals }) => {
+		requirePermission(locals.permissions, 'tenant:write');
 		await dismissOnboarding(requireTenant(locals).id);
 		return { dismissed: true };
 	},
