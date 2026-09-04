@@ -189,4 +189,53 @@ export async function disableTenantAccount(tenantId: string): Promise<void> {
 		.where(eq(schema.trackingAccounts.id, row.id));
 }
 
+
+/**
+ * The privileges this identity actually needs — deliberately NOT administrator.
+ *
+ * Verified against the deployed 6.15.3 source:
+ *   - PermissionsService.checkEdit denies a non-admin creating a Device only on
+ *     readonly, deviceReadonly, or deviceLimit == 0.
+ *   - BaseObjectResource.add auto-links the CREATOR to the device it creates,
+ *     which satisfies the device half of a permission grant.
+ *   - UserResource.add auto-links a MANAGER (userLimit != 0) to every user it
+ *     creates, which satisfies the user half.
+ *   - PermissionsResource checks both halves through checkPermission.
+ *
+ * So a manager with device rights can create devices, create tenant users, and
+ * grant device-to-user — every operation this worker performs — without
+ * administrator. Reports are off because provisioning never reads history.
+ */
+export const PROVISIONING_USER_FLAGS = {
+	administrator: false,
+	readonly: false,
+	deviceReadonly: false,
+	deviceLimit: -1,
+	userLimit: -1,
+	limitCommands: true,
+	disableReports: true,
+	disabled: false
+} as const;
+
+/** Take a device away from a tenant's identity. Provisioning only. */
+export async function unlinkDeviceFromTenant(providerUserId: number, deviceId: number): Promise<void> {
+	await adminRequest('/permissions', { method: 'DELETE', body: { userId: providerUserId, deviceId } });
+}
+
+/**
+ * Retire a provisioned device.
+ *
+ * Disabled rather than deleted once it has ever reported: its positions are
+ * somebody's trip history, and deleting the device would make that playback show
+ * a journey that never happened.
+ */
+export async function deleteProviderDevice(deviceId: number, opts: { disableOnly: boolean }): Promise<void> {
+	if (opts.disableOnly) {
+		const device = await adminRequest<Record<string, unknown>>(`/devices/${deviceId}`);
+		await adminRequest(`/devices/${deviceId}`, { method: 'PUT', body: { ...device, disabled: true } });
+		return;
+	}
+	await adminRequest(`/devices/${deviceId}`, { method: 'DELETE' });
+}
+
 export type { TraccarCredentials };

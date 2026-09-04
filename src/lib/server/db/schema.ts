@@ -1982,6 +1982,15 @@ export const trackerEnrollments = pgTable(
 		trust: text('trust').notNull().default('VERIFIED'),
 		providerDeviceId: integer('provider_device_id'),
 		providerDeleteAfter: timestamp('provider_delete_after', { withTimezone: true }),
+		cleanupState: text('cleanup_state'),
+		cleanupAt: timestamp('cleanup_at', { withTimezone: true }),
+		/* A LEASE, not a lock: a worker that dies mid-claim must not wedge the row. */
+		claimedAt: timestamp('claimed_at', { withTimezone: true }),
+		claimedBy: text('claimed_by'),
+		attempts: integer('attempts').notNull().default(0),
+		nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+		lastError: text('last_error'),
+		provisionedAt: timestamp('provisioned_at', { withTimezone: true }),
 		hardwareSimMsisdn: text('hardware_sim_msisdn'),
 		createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 		createdAt: createdAt(),
@@ -1999,9 +2008,10 @@ export const trackerEnrollments = pgTable(
 	},
 	(t) => [
 		uniqueIndex('te_ref_forever_key').on(t.provider, t.deviceRef).where(sql`status <> 'RELEASED'`),
-		uniqueIndex('te_one_pending_key').on(t.vehicleId).where(sql`status = 'PENDING'`),
+		uniqueIndex('te_one_inflight_key').on(t.vehicleId).where(sql`status IN ('PENDING','PROVISIONED')`),
 		uniqueIndex('te_one_active_key').on(t.vehicleId).where(sql`status = 'ACTIVE'`),
-		index('te_pending_idx').on(t.status, t.expiresAt).where(sql`status = 'PENDING'`),
+		index('te_queue_idx').on(t.status, t.nextAttemptAt).where(sql`status = 'PENDING'`),
+		index('te_expiry_idx').on(t.expiresAt).where(sql`status IN ('PENDING','PROVISIONED')`),
 		index('te_tenant_idx').on(t.tenantId, t.createdAt),
 		index('te_gc_idx').on(t.providerDeleteAfter).where(sql`provider_delete_after IS NOT NULL`)
 	]

@@ -66,12 +66,13 @@ describe('ownership is decided at mint, never by knowing a reference', () => {
 		}
 	});
 
-	it('mints before the provider is told anything', () => {
-		const insertAt = SERVICE.indexOf('.insert(schema.trackerEnrollments)');
-		const providerAt = SERVICE.indexOf('createProviderDevice(');
-		// A provider device Connect cannot name is the thing this ordering prevents.
-		expect(insertAt).toBeGreaterThan(-1);
-		expect(insertAt).toBeLessThan(providerAt);
+	it('mints the ledger row, and the web process tells the provider nothing at all', () => {
+		// Stronger than the ordering this used to assert: the request-serving
+		// process now has no privileged credential and no path to the provider, so
+		// a device Connect cannot name is unreachable rather than merely unlikely.
+		expect(SERVICE).toContain('.insert(schema.trackerEnrollments)');
+		expect(SERVICE).not.toContain('adminCredentials');
+		expect(SERVICE).not.toContain('/api/devices');
 	});
 
 	it('the database refuses an active tracker that never proved liveness', () => {
@@ -80,13 +81,17 @@ describe('ownership is decided at mint, never by knowing a reference', () => {
 });
 
 describe('the lifecycle cannot be raced or replayed', () => {
-	it('binding is conditional on the row still being pending', () => {
+	it('binding is conditional on the row still being provisioned', () => {
 		// A double-bind returns zero rows rather than creating a second binding.
-		expect(SERVICE).toMatch(/eq\(schema\.trackerEnrollments\.status, 'PENDING'\)\)\)\s*\.returning\(\)/);
+		// PROVISIONED, not PENDING: a row whose device does not exist yet cannot
+		// have produced a fix, so it must not be bindable.
+		expect(SERVICE).toMatch(/eq\(schema\.trackerEnrollments\.status, 'PROVISIONED'\)\)\)\s*\.returning\(\)/);
 	});
 
-	it('one pending and one active per vehicle, enforced by the database', () => {
-		expect(MIGRATION).toContain("te_one_pending_key ON tracker_enrollments (vehicle_id) WHERE status = 'PENDING'");
+	it('one setup in flight and one active per vehicle, enforced by the database', () => {
+		// In flight covers BOTH stages now, so a second click while the worker is
+		// still provisioning cannot create a parallel setup.
+		expect(MIGRATION).toContain("te_one_inflight_key ON tracker_enrollments (vehicle_id) WHERE status IN ('PENDING','PROVISIONED')");
 		expect(MIGRATION).toContain("te_one_active_key ON tracker_enrollments (vehicle_id) WHERE status = 'ACTIVE'");
 	});
 
@@ -114,6 +119,7 @@ describe('the lifecycle cannot be raced or replayed', () => {
 		// common action in the flow; it must never wait on a sweeper.
 		expect(SERVICE).toContain("closedReason: 'EXPIRED'");
 		expect(SERVICE).toMatch(/lt\(schema\.trackerEnrollments\.expiresAt, new Date\(\)\)/);
+		expect(SERVICE).toContain("row.expiresAt.getTime() > Date.now()");
 	});
 
 	it('replacing keeps the old tracker live until the new one binds', () => {

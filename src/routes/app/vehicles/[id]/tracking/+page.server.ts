@@ -9,6 +9,7 @@ import { requirePermission } from '$lib/server/auth/permissions';
 import { toAppError } from '$lib/server/errors';
 import { getVehicle } from '$lib/server/vehicles';
 import {
+	canShowCode,
 	cancelEnrollment,
 	configurationUri,
 	enrollmentFor,
@@ -49,11 +50,23 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		 * status only — re-serving the credential every three seconds would be six
 		 * hundred redistributions of it per enrollment.
 		 */
-		pending: pending
+		/*
+		 * The setup code leaves the server ONLY when the device really exists and
+		 * the window is open. While the worker is still provisioning, the page
+		 * says so and shows nothing — a code for a device the provider has never
+		 * heard of cannot work, and the operator would be debugging a phone that
+		 * was configured perfectly.
+		 *
+		 * Note what is NOT here: `deviceRef`. The raw identifier is credential
+		 * material and is never rendered beside the QR; the QR image is the one
+		 * intentional delivery of it, to the phone.
+		 */
+		preparing: Boolean(pending && pending.status === 'PENDING'),
+		failed: Boolean(pending && pending.status === 'FAILED'),
+		pending: canShowCode(pending)
 			? {
 					id: pending.id,
-					deviceRef: pending.deviceRef,
-					configurationUri: configurationUri(pending.deviceRef, pending.profile as ProfileKey),
+					serverUrl: configurationUri(pending.deviceRef, pending.profile as ProfileKey).split('?')[0],
 					expiresAt: pending.expiresAt,
 					profile: pending.profile
 				}

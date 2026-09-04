@@ -17,8 +17,7 @@ import { AppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
 import { enforce } from '$lib/server/rate-limit';
 import { mintDeviceRef } from './identifier';
-import { adminCredentials, providerBaseUrl, tenantCredentials } from './credentials';
-import { ensureTenantAccount, findDeviceByRef, linkDeviceToTenant } from './traccar-admin';
+import { providerBaseUrl, tenantCredentials } from './credentials';
 
 /** How long a setup code lives. Sized by the honest path, not by optimism. */
 export const PHONE_EXPIRY_MS = 30 * 60 * 1000;
@@ -38,9 +37,23 @@ export const PROFILES = {
 } as const;
 export type ProfileKey = keyof typeof PROFILES;
 
-/** A PENDING row past its expiry is expired, whatever the column still says. */
+/** In flight and not yet expired, whatever the column still says. */
+const IN_FLIGHT = ['PENDING', 'PROVISIONED'];
 const isLive = (row: schema.TrackerEnrollment): boolean =>
-	row.status === 'PENDING' && row.expiresAt.getTime() > Date.now();
+	IN_FLIGHT.includes(row.status) && row.expiresAt.getTime() > Date.now();
+
+/**
+ * A setup code may be shown only once the device really exists.
+ *
+ * Showing it while still PENDING would hand a driver a code that cannot work
+ * yet — the provider rejects an unknown identifier outright — and the operator
+ * would be debugging a phone that was configured correctly.
+ */
+export function canShowCode(
+	row: schema.TrackerEnrollment | null
+): row is schema.TrackerEnrollment {
+	return Boolean(row && row.status === 'PROVISIONED' && isLive(row));
+}
 
 /**
  * The configuration the driver's phone scans.
@@ -77,7 +90,7 @@ export async function enrollmentFor(tenantId: string, vehicleId: string) {
 			)
 		);
 	const active = rows.find((r) => r.status === 'ACTIVE') ?? null;
-	const pendingRow = rows.find((r) => r.status === 'PENDING') ?? null;
+	const pendingRow = rows.find((r) => IN_FLIGHT.includes(r.status)) ?? null;
 	return { active, pending: pendingRow && isLive(pendingRow) ? pendingRow : null, expired: pendingRow && !isLive(pendingRow) ? pendingRow : null };
 }
 
@@ -124,7 +137,7 @@ export async function startEnrollment(input: {
 			.where(
 				and(
 					eq(schema.trackerEnrollments.vehicleId, vehicleId),
-					eq(schema.trackerEnrollments.status, 'PENDING'),
+					sql`status IN ('PENDING','PROVISIONED')`,
 					lt(schema.trackerEnrollments.expiresAt, new Date())
 				)
 			);
@@ -135,7 +148,7 @@ export async function startEnrollment(input: {
 			.update(schema.trackerEnrollments)
 			.set({ status: 'CLOSED', closedReason: 'SUPERSEDED', closedAt: new Date(), providerDeleteAfter: new Date() })
 			.where(
-				and(eq(schema.trackerEnrollments.vehicleId, vehicleId), eq(schema.trackerEnrollments.status, 'PENDING'))
+				and(eq(schema.trackerEnrollments.vehicleId, vehicleId), sql`status IN ('PENDING','PROVISIONED')`)
 			);
 
 		const [created] = await tx
@@ -157,44 +170,18 @@ export async function startEnrollment(input: {
 		return created;
 	});
 
-	// Only now does the provider learn anything. A failure here leaves a PENDING
-	// row with no device, which reads as "waiting" and expires harmlessly.
-	try {
-		const account = await ensureTenantAccount(tenantId);
-		const device = await createProviderDevice(deviceRef, vehicle[0].registration || vehicle[0].name);
-		if (device?.id && account.providerUserId) {
-			await linkDeviceToTenant(account.providerUserId, device.id);
-			await db()
-				.update(schema.trackerEnrollments)
-				.set({ providerDeviceId: device.id })
-				.where(eq(schema.trackerEnrollments.id, row.id));
-		}
-	} catch (err) {
-		log.error('tracker_enrollment_provider_failed', { vehicleId, reason: String(err).slice(0, 140) });
-		throw new AppError('NOT_CONFIGURED', 'Tracking setup could not start just now. Please try again in a moment.');
-	}
-
+	/*
+	 * The web process stops here, and that is the architectural point.
+	 *
+	 * It holds no privileged provider credential — it cannot create a device even
+	 * if this code asked it to. The row it just wrote IS the request: a worker
+	 * with the privileged credential claims it, creates the device, grants it to
+	 * the tenant's read-only identity, and moves the row to PROVISIONED. Only
+	 * then is a setup code shown.
+	 *
+	 * A provider outage therefore cannot fail an operator's click. The row waits.
+	 */
 	return row;
-}
-
-/** Create the device on the provider. Provisioning credential, never runtime. */
-async function createProviderDevice(deviceRef: string, name: string): Promise<{ id?: number } | null> {
-	const creds = adminCredentials();
-	if (!creds) throw new Error('provisioning_not_configured');
-	const res = await fetch(`${creds.baseUrl}/api/devices`, {
-		method: 'POST',
-		headers: {
-			Authorization: `Basic ${Buffer.from(`${creds.username}:${creds.password}`).toString('base64')}`,
-			'Content-Type': 'application/json',
-			Accept: 'application/json'
-		},
-		body: JSON.stringify({ name: `${name} tracker`, uniqueId: deviceRef })
-	});
-	if (res.ok) return (await res.json()) as { id?: number };
-	// A create that may have succeeded server-side before timing out: adopt our
-	// own half-finished write rather than minting again. The reference is 75-bit
-	// and ours by ledger, so a match cannot be somebody else's device.
-	return findDeviceByRef(deviceRef);
 }
 
 /**
@@ -216,9 +203,11 @@ export async function checkForFirstFix(
 	if (!row) throw new AppError('NOT_FOUND', 'That setup could not be found.');
 	if (row.status === 'ACTIVE') return { status: 'ACTIVE', firstFixAt: row.firstFixAt };
 	if (!isLive(row)) return { status: 'EXPIRED', firstFixAt: null };
+	// Still waiting on the worker. Nothing to poll for yet.
+	if (row.status !== 'PROVISIONED') return { status: 'PREPARING', firstFixAt: null };
 
 	const creds = await tenantCredentials(tenantId);
-	if (!creds || !row.providerDeviceId) return { status: 'PENDING', firstFixAt: null };
+	if (!creds || !row.providerDeviceId) return { status: 'WAITING', firstFixAt: null };
 
 	await db()
 		.update(schema.trackerEnrollments)
@@ -232,7 +221,7 @@ export async function checkForFirstFix(
 			Accept: 'application/json'
 		}
 	}).catch(() => null);
-	if (!res?.ok) return { status: 'PENDING', firstFixAt: null };
+	if (!res?.ok) return { status: 'WAITING', firstFixAt: null };
 
 	const positions = (await res.json()) as { latitude?: number; longitude?: number; fixTime?: string; deviceId?: number }[];
 	const fix = positions.find(
@@ -242,11 +231,11 @@ export async function checkForFirstFix(
 			Number.isFinite(p.longitude) &&
 			!(p.latitude === 0 && p.longitude === 0)
 	);
-	if (!fix) return { status: 'PENDING', firstFixAt: null };
+	if (!fix) return { status: 'WAITING', firstFixAt: null };
 
 	const at = new Date(fix.fixTime ?? Date.now());
 	const bound = await bindEnrollment(row.id, at, fix.latitude as number, fix.longitude as number);
-	return { status: bound ? 'ACTIVE' : 'PENDING', firstFixAt: bound ? at : null };
+	return { status: bound ? 'ACTIVE' : 'WAITING', firstFixAt: bound ? at : null };
 }
 
 /**
@@ -266,7 +255,7 @@ async function bindEnrollment(id: string, at: Date, lat: number, lng: number): P
 				firstFixLat: String(lat),
 				firstFixLng: String(lng)
 			})
-			.where(and(eq(schema.trackerEnrollments.id, id), eq(schema.trackerEnrollments.status, 'PENDING')))
+			.where(and(eq(schema.trackerEnrollments.id, id), eq(schema.trackerEnrollments.status, 'PROVISIONED')))
 			.returning();
 		if (!bound) return false;
 
@@ -306,7 +295,7 @@ export async function cancelEnrollment(tenantId: string, enrollmentId: string): 
 			and(
 				eq(schema.trackerEnrollments.id, enrollmentId),
 				eq(schema.trackerEnrollments.tenantId, tenantId),
-				eq(schema.trackerEnrollments.status, 'PENDING')
+				sql`status IN ('PENDING','PROVISIONED')`
 			)
 		);
 }
@@ -318,7 +307,7 @@ export async function extendEnrollment(tenantId: string, enrollmentId: string): 
 		.from(schema.trackerEnrollments)
 		.where(and(eq(schema.trackerEnrollments.id, enrollmentId), eq(schema.trackerEnrollments.tenantId, tenantId)))
 		.limit(1);
-	if (!row || row.status !== 'PENDING') throw new AppError('CONFLICT', 'That setup can no longer be extended.');
+	if (!row || !IN_FLIGHT.includes(row.status)) throw new AppError('CONFLICT', 'That setup can no longer be extended.');
 	const extensions = Number((row.metadata as Record<string, unknown>)?.extensions ?? 0);
 	if (extensions >= 1) throw new AppError('CONFLICT', 'This code has already been extended once. Start again for a new one.');
 	await db()
@@ -345,7 +334,7 @@ export async function removeTracking(tenantId: string, vehicleId: string): Promi
 				and(
 					eq(schema.trackerEnrollments.tenantId, tenantId),
 					eq(schema.trackerEnrollments.vehicleId, vehicleId),
-					sql`status IN ('ACTIVE','PENDING')`
+					sql`status IN ('ACTIVE','PENDING','PROVISIONED')`
 				)
 			);
 		await tx

@@ -41,13 +41,13 @@
 	// Polling asks only whether the phone has reported. It never re-fetches the
 	// code — the code was rendered once, to this operator.
 	$effect(() => {
-		if (!data.pending) return;
+		if (!data.pending && !data.preparing) return;
 		const poll = setInterval(async () => {
 			const res = await fetch(`/app/vehicles/${data.vehicle.id}/tracking/status`);
 			if (!res.ok) return;
 			const body = await res.json();
 			waiting = body.data?.status ?? null;
-			if (body.data?.status === 'ACTIVE') {
+			if (body.data?.status === 'ACTIVE' || (data.preparing && body.data?.status !== 'PREPARING')) {
 				clearInterval(poll);
 				await invalidateAll();
 			}
@@ -95,6 +95,22 @@
 				Replacing keeps the current device working until the new one connects — nothing goes dark.
 			</p>
 		</div>
+	{:else if data.preparing}
+		<div class="card space-y-2 p-4">
+			<p class="text-sm font-semibold text-slate-900">Getting the setup code ready…</p>
+			<p class="text-xs text-slate-500">
+				This usually takes a few seconds. The page will update on its own.
+			</p>
+		</div>
+	{:else if data.failed}
+		<div class="card space-y-3 p-4">
+			<p class="text-sm font-semibold text-slate-900">That setup could not be prepared</p>
+			<p class="text-xs text-slate-500">Nothing was lost. Try again, and if it keeps happening tell us.</p>
+			<form method="POST" action="?/start" use:enhance>
+				<input type="hidden" name="profile" value={profile} />
+				<button class="btn-primary">Try again</button>
+			</form>
+		</div>
 	{:else if data.pending}
 		<div class="card space-y-4 p-4">
 			<div class="flex flex-wrap items-baseline justify-between gap-2">
@@ -119,7 +135,9 @@
 			<p class="rounded-panel bg-warning/5 px-3 py-2 text-[11.5px] text-warning">{ANDROID}<br />{IPHONE}</p>
 
 			<div class="rounded-panel bg-slate-50 px-3 py-2.5">
-				{#if waiting === 'PENDING' || waiting === null}
+				{#if waiting === 'PREPARING'}
+					<p class="text-sm text-slate-600">Getting the code ready…</p>
+				{:else if waiting === 'WAITING' || waiting === null}
 					<p class="text-sm text-slate-600">Waiting for the first location…</p>
 					<p class="mt-1 text-[11.5px] text-slate-400">
 						Nothing yet? Check continuous tracking is on, location is set to allow all the time, and the phone
@@ -149,15 +167,21 @@
 				Can’t scan? Type it instead
 			</button>
 			{#if showTyped}
-				<!-- The one place the reference is shown, to the one operator who
-				     asked for it, on the screen that minted it. -->
+				<!--
+					The raw identifier is deliberately NOT here.
+					It is credential material, and the QR is the one intentional
+					delivery of it — to the phone, not to a screen that can be
+					photographed, shared or shoulder-read. What a driver may need by
+					hand is the address, which is public.
+				-->
 				<div class="rounded-panel bg-slate-50 p-3 text-xs text-slate-600">
-					<p>In the app: <strong>Settings › Device identifier</strong> — type this exactly.</p>
-					<p class="my-2 select-all font-mono text-base tracking-widest text-slate-900">{data.pending.deviceRef}</p>
-					<p>Letters and numbers only — no spaces or dashes.</p>
-					<p class="mt-2"><strong>Server URL</strong></p>
-					<p class="select-all font-mono text-slate-900">{data.pending.configurationUri.split('?')[0]}</p>
-					<p class="mt-1 text-slate-400">Type nothing after /osmand.</p>
+					<p><strong>Server URL</strong> — in the app: Settings › Server URL</p>
+					<p class="my-2 select-all font-mono text-slate-900">{data.pending.serverUrl}</p>
+					<p class="text-slate-400">Type nothing after /osmand.</p>
+					<p class="mt-2">
+						The device identifier is filled in by scanning the code above. If the camera
+						will not scan, start again and try in better light.
+					</p>
 				</div>
 			{/if}
 		</div>
