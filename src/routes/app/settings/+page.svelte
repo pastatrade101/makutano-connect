@@ -7,6 +7,24 @@
 	let methodKind = $state<'MOBILE' | 'BANK' | 'ONLINE'>('MOBILE');
 	const canWrite = $derived(data.permissions?.includes('tenant:write'));
 
+	/*
+	 * One section at a time.
+	 *
+	 * Everything used to stand open in a single column, so finding the one thing
+	 * you came to change meant reading past everything you did not. Tabs also let
+	 * a section carry an attention dot — missing public contact costs the operator
+	 * replies to their own quotations, and that is worth seeing before you open it.
+	 */
+	let tab = $state('business');
+	const tabs = $derived([
+		// Business Details carries the public profile too: both answer "who is this
+		// company and how is it reached?", and splitting them meant the contact
+		// details a traveller replies to sat one tab away from the business name.
+		{ id: 'business', label: 'Business Details', note: data.publicContactMissing },
+		{ id: 'payments', label: 'Payments', note: data.settings.paymentMethods.length === 0 },
+		{ id: 'plan', label: 'Plan & usage' },
+		{ id: 'team', label: 'Team' }
+	]);
 </script>
 
 <svelte:head><title>Settings · {data.tenant.name}</title></svelte:head>
@@ -34,11 +52,31 @@
 		</p>
 	</div>
 
-	<div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-		<div class="space-y-4">
+	<!-- Scrolls rather than wraps on a phone, so the strip stays one line. -->
+	<div class="-mx-1 overflow-x-auto px-1">
+		<div role="tablist" class="flex w-max min-w-full gap-1 border-b border-slate-200">
+			{#each tabs as t (t.id)}
+				<button
+					role="tab"
+					aria-selected={tab === t.id}
+					onclick={() => (tab = t.id)}
+					class="relative -mb-px min-h-11 shrink-0 border-b-2 px-3.5 text-[13.5px] font-medium transition {tab === t.id
+						? 'border-brand-600 text-brand-700'
+						: 'border-transparent text-slate-500 hover:text-slate-800'}"
+				>
+					{t.label}
+					{#if t.note}
+						<span class="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle" title="Needs attention"></span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+	</div>
 
-	<form method="POST" action="?/save" use:enhance class="card">
-		<header class="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">Business</header>
+	{#if tab === 'business'}
+	<div class="space-y-4">
+	<section class="card">
+		<form method="POST" action="?/save" use:enhance>
 		<div class="grid gap-3 p-3 sm:grid-cols-2">
 			<div><label class="label" for="name">Business name</label><input id="name" name="name" value={data.settings.name} class="input" disabled={!canWrite} /></div>
 
@@ -126,12 +164,48 @@
 			</div>
 		</div>
 		{#if canWrite}<div class="border-t border-slate-200 p-3"><button class="btn-primary">Save settings</button></div>{/if}
-	</form>
+		</form>
+	</section>
 
+	<!--
+		The public half of the same question, in the same tab.
+		Split across two tabs, the contact details a traveller replies to sat one
+		click away from the business name they belong to — and the warning about
+		having none was somewhere the operator had no reason to look.
+	-->
+	<section class="card">
+		<header class="card-header">
+			<h2 class="card-title">Public profile</h2>
+			<a href="/app/settings/profile" class="btn-secondary !py-1.5 text-xs">Edit public profile</a>
+		</header>
+		<div class="p-3">
+			<p class="text-xs text-slate-500">
+				Your logo, banner, description and the contact details shown to travellers on Makutano
+				Journeys — public email, public phone and website.
+			</p>
+			{#if data.publicContactMissing}
+				<p class="mt-3 rounded-panel border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs leading-6 text-warning">
+					<strong class="font-semibold">No public contact yet.</strong>
+					A traveller who opens a quotation you sent has no way to reply to you from it. Add a public
+					email or phone so they can accept it or ask for a change.
+				</p>
+			{:else}
+				<dl class="mt-3 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
+					<div class="flex gap-2"><dt class="text-slate-400">Public email</dt><dd class="truncate font-medium text-slate-700">{data.publicContact.email ?? '—'}</dd></div>
+					<div class="flex gap-2"><dt class="text-slate-400">Public phone</dt><dd class="truncate font-medium text-slate-700">{data.publicContact.phone ?? '—'}</dd></div>
+				</dl>
+			{/if}
+		</div>
+	</section>
+	</div>
+	{/if}
+
+	{#if tab === 'payments'}
 		<!-- How customers can pay — shown in payment request messages -->
-	<section class="card p-4">
+	<section class="card">
+		<div class="p-4">
 		<div class="mb-2 flex items-center justify-between">
-			<h2 class="card-title">Payment methods</h2>
+			<h2 class="text-sm font-semibold text-slate-800">Payment methods</h2>
 			{#if canWrite}<button class="btn-secondary !py-1.5 text-xs" onclick={() => (showMethodForm = !showMethodForm)}>Add method</button>{/if}
 		</div>
 		<p class="mb-3 text-[12.5px] text-slate-400">
@@ -200,38 +274,11 @@
 				{/each}
 			</ul>
 		{/if}
-	</section>
-		</div>
-
-		<!-- Right column: the things you look at rather than fill in. -->
-		<div class="space-y-4">
-
-	<!--
-		Public profile has its own card because it was previously reachable only
-		through a link labelled "Change logo and banner", which gives no hint that
-		the contact details travellers use to answer a quotation live behind it.
-		The owner of a live workspace looked for them here and did not find them.
-	-->
-	<section class="card">
-		<header class="card-header">
-			<h2 class="card-title">Public profile</h2>
-			<a href="/app/settings/profile" class="btn-secondary !py-1.5 text-xs">Edit public profile</a>
-		</header>
-		<div class="p-3">
-			<p class="text-xs text-slate-500">
-				Your logo, banner, description and the contact details shown to travellers on Makutano
-				Journeys — public email, public phone and website.
-			</p>
-			{#if data.publicContactMissing}
-				<p class="mt-3 rounded-panel border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs leading-6 text-warning">
-					<strong class="font-semibold">No public contact yet.</strong>
-					A traveller who opens a quotation you sent has no way to reply to you from it. Add a public
-					email or phone so they can accept it or ask for a change.
-				</p>
-			{/if}
 		</div>
 	</section>
+	{/if}
 
+	{#if tab === 'plan'}
 <section class="card">
 		<header class="card-header">
 			<h2 class="card-title">Plan &amp; usage</h2>
@@ -254,7 +301,9 @@
 			<p class="text-[12.5px] text-slate-400">Billing period {data.period} · times shown in {data.settings.timezone}</p>
 		</div>
 	</section>
+	{/if}
 
+	{#if tab === 'team'}
 	<section class="card">
 		<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
 			<h2 class="text-sm font-semibold text-slate-800">Team</h2>
@@ -264,6 +313,5 @@
 			{data.members.length} member{data.members.length === 1 ? '' : 's'} — invite staff, set roles and control exactly what each person can see and do.
 		</p>
 	</section>
-		</div>
-	</div>
+	{/if}
 </div>

@@ -85,6 +85,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// no way to notice: the public page looks fine to them. So the settings page
 		// says it, rather than leaving it to be discovered by a lost customer.
 		publicContactMissing: !(publicProfile?.publicEmail?.trim() || publicProfile?.publicPhone?.trim()),
+		// Shown back on the card, so it answers "what do travellers actually see?"
+		// without a trip to the profile editor to find out.
+		publicContact: {
+			email: publicProfile?.publicEmail?.trim() || null,
+			phone: publicProfile?.publicPhone?.trim() || null
+		},
 		settings: {
 			capabilities: normalizeWorkspace((tenant.settings as Record<string, unknown>)?.capabilities),
 			paymentMethods: paymentMethods(tenant.settings as Record<string, unknown>),
