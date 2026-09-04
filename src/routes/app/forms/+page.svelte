@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FormEmbedGuide from '$components/FormEmbedGuide.svelte';
 	import { moduleRelevant } from '$lib/workspace';
 	// Forms & Widgets — the no-code intake manager. Compact by design: list on top,
 	// one expandable editor per form. Copy the hosted URL or the one-line embed.
@@ -11,6 +12,9 @@
 
 	let showCreate = $state(false);
 	let editing = $state<string | null>(null);
+	// Separate from `editing`: telling somebody how to install it is not the same
+	// job as changing what it asks, and most visits here are the former.
+	let sharing = $state<string | null>(null);
 
 	$effect(() => {
 		if (form && 'editId' in form && form.editId) editing = form.editId as string;
@@ -65,11 +69,18 @@
 					<a href={hostedUrl(f.publicId)} target="_blank" rel="noopener" class="btn-secondary !py-1 text-xs">Preview</a>
 					<button class="btn-secondary !py-1 text-xs" onclick={() => copy(hostedUrl(f.publicId), 'Hosted URL copied')}>Copy URL</button>
 					<button class="btn-secondary !py-1 text-xs" onclick={() => copy(embedCode(f.publicId), 'Embed code copied')}>Copy embed</button>
+					<button class="btn-primary !py-1 text-xs" onclick={() => (sharing = sharing === f.id ? null : f.id)}>
+						{sharing === f.id ? 'Close' : 'Use this form'}
+					</button>
 					{#if canWrite}
 						<button class="btn-secondary !py-1 text-xs" onclick={() => (editing = editing === f.id ? null : f.id)}>{editing === f.id ? 'Close' : 'Configure'}</button>
 					{/if}
 				</div>
 			</header>
+
+			{#if sharing === f.id}
+				<FormEmbedGuide publicId={f.publicId} baseUrl={data.baseUrl} allowedOrigins={f.allowedOrigins ?? []} />
+			{/if}
 
 			{#if editing === f.id && canWrite}
 				<form method="POST" action="?/save" use:enhance class="space-y-3 border-t border-slate-100 bg-slate-50/60 p-4">
