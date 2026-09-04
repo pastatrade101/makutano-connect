@@ -29,11 +29,15 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/scripts ./scripts
-COPY --from=build /app/src/lib/server/db/schema.ts ./src/lib/server/db/schema.ts
-# The shared vocabularies (meals, comfort levels, lodge types). Scripts import
-# them rather than restating them: a copy of a closed list in an import script is
-# how the list quietly stops being closed.
-COPY --from=build /app/src/lib/tour-options.ts ./src/lib/tour-options.ts
+# The whole of src/lib, not a hand-picked file list.
+#
+# The tracking worker is a long-running process that imports the SAME server
+# modules the web app does — the tracking service, the database layer, encryption,
+# the environment. Naming them individually here was already fragile for the
+# scripts, and it broke outright when the worker arrived: the image had no
+# src/lib/server/tracking at all, so the container restart-looped on a module it
+# could not find. This is source text and costs almost nothing in the image.
+COPY --from=build /app/src/lib ./src/lib
 
 # Run unprivileged.
 USER node
