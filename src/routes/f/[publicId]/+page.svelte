@@ -8,7 +8,17 @@
 	const c = $derived(data.config);
 	const accent = $derived(String((c.branding as Record<string, unknown>)?.accentColor ?? '#b4532a'));
 
-	let values = $state<Record<string, string>>({});
+	/*
+	 * A tour-specific link answers "what do you need quoted?" before the visitor
+	 * arrives, so the form must not ask again.
+	 *
+	 * It was not merely redundant: the field is usually REQUIRED, so a link that
+	 * already named the trip refused the submission until the visitor retyped it.
+	 * The value is still sent — the operator's notes read the same either way —
+	 * it just is not asked for.
+	 */
+	let values = $state<Record<string, string>>(data.tour ? { service: data.tour.title } : {});
+	const answeredByLink = (key: string) => Boolean(data.tour) && key === 'service';
 	let submitting = $state(false);
 	let done = $state<string | null>(null);
 	let errorMessage = $state<string | null>(null);
@@ -105,7 +115,7 @@
 					<input type="text" name="hp_company" bind:value={hp} tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -left-[9999px] h-0 w-0 opacity-0" />
 
 					{#each c.fields as field (field.key)}
-						<div>
+						<div class={answeredByLink(field.key) ? 'hidden' : ''}>
 							<label class="label" for="pf-{field.key}">{field.label}{#if field.required}<span class="text-danger"> *</span>{/if}</label>
 							{#if isTextarea(field.key)}
 								<textarea id="pf-{field.key}" rows="3" bind:value={values[field.key]} required={field.required} class="input"></textarea>
