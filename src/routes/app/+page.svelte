@@ -333,7 +333,7 @@
 	{#if !data.whatsapp || data.whatsapp.status !== 'CONNECTED'}
 		<div class="flex flex-wrap items-center justify-between gap-2 rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">
 			<span>WhatsApp is not connected — traveller acknowledgements and replies are paused.</span>
-			<a href="/app/whatsapp" class="font-semibold underline">Connect WhatsApp</a>
+			<a href="/app/settings/whatsapp" class="font-semibold underline">Connect WhatsApp</a>
 		</div>
 	{/if}
 

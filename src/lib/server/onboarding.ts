@@ -121,7 +121,7 @@ export async function onboardingState(
 			key: 'whatsapp',
 			label: 'Connect your WhatsApp number',
 			description: 'Reply to customers from the number they already know.',
-			href: '/app/whatsapp',
+			href: '/app/settings/whatsapp',
 			done: connections.length > 0
 		});
 	}

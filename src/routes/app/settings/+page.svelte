@@ -3,6 +3,7 @@
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$lib/forms';
 	import { page } from '$app/state';
+	import SettingsTabs from '$components/SettingsTabs.svelte';
 	let { data, form } = $props();
 	let showMethodForm = $state(false);
 	let methodKind = $state<'MOBILE' | 'BANK' | 'ONLINE'>('MOBILE');
@@ -22,16 +23,17 @@
 	const todo = $derived(data.profileTodo.filter((t) => !t.done));
 	const done = $derived(data.profileTodo.length - todo.length);
 
-	let tab = $state('business');
-	const tabs = $derived([
-		// Business Details carries the public profile too: both answer "who is this
-		// company and how is it reached?", and splitting them meant the contact
-		// details a traveller replies to sat one tab away from the business name.
-		{ id: 'business', label: 'Business Details', note: data.publicContactMissing },
-		{ id: 'payments', label: 'Payments', note: data.settings.paymentMethods.length === 0 },
-		{ id: 'plan', label: 'Plan & usage' },
-		{ id: 'team', label: 'Team' }
-	]);
+	// From the URL, so a tab can be linked to and survives a reload. Anything
+	// unrecognised falls back to Business Details rather than showing nothing.
+	const tab = $derived(
+		['payments', 'plan', 'team'].includes(page.url.searchParams.get('tab') ?? '')
+			? (page.url.searchParams.get('tab') as string)
+			: 'business'
+	);
+	const notes = $derived({
+		business: data.publicContactMissing,
+		payments: data.settings.paymentMethods.length === 0
+	});
 </script>
 
 <svelte:head><title>Settings · {data.tenant.name}</title></svelte:head>
@@ -107,26 +109,7 @@
 		</section>
 	{/if}
 
-	<!-- Scrolls rather than wraps on a phone, so the strip stays one line. -->
-	<div class="-mx-1 overflow-x-auto px-1">
-		<div role="tablist" class="flex w-max min-w-full gap-1 border-b border-slate-200">
-			{#each tabs as t (t.id)}
-				<button
-					role="tab"
-					aria-selected={tab === t.id}
-					onclick={() => (tab = t.id)}
-					class="relative -mb-px min-h-11 shrink-0 border-b-2 px-3.5 text-[13.5px] font-medium transition {tab === t.id
-						? 'border-brand-600 text-brand-700'
-						: 'border-transparent text-slate-500 hover:text-slate-800'}"
-				>
-					{t.label}
-					{#if t.note}
-						<span class="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle" title="Needs attention"></span>
-					{/if}
-				</button>
-			{/each}
-		</div>
-	</div>
+	<SettingsTabs active={tab} {notes} />
 
 	{#if tab === 'business'}
 	<div class="space-y-4">

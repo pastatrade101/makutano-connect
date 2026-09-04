@@ -58,7 +58,10 @@
 			// Setup and less-than-daily tools. Configuration lives here, not up top.
 			label: 'More',
 			items: [
-				{ href: '/app/whatsapp', label: 'WhatsApp', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.enabled' },
+				// Connecting the number is set-up-once work and now lives in Settings.
+				// Templates stay in the nav: message wording is edited again and again,
+				// which is recurring work, not setup.
+				{ href: '/app/whatsapp/templates', label: 'Templates', icon: 'M10 2a8 8 0 0 0-6.9 12L2 18l4.1-1.1A8 8 0 1 0 10 2Z', permission: 'whatsapp:read', entitlement: 'whatsapp.enabled' },
 				{ href: '/app/forms', label: 'Forms & widgets', icon: 'M4 4h12v3H4V4Zm0 5h12v3H4V9Zm0 5h7v3H4v-3Z', permission: 'forms:read', entitlement: 'forms.hostedEnabled' },
 				{ href: '/app/tours', label: 'Tours', icon: 'M10 2.5a4.5 4.5 0 0 0-4.5 4.5c0 3.4 4.5 10 4.5 10s4.5-6.6 4.5-10A4.5 4.5 0 0 0 10 2.5Zm0 6.2a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4Z', permission: 'tours:read', module: 'bookings' },
 				{ href: '/app/leads', label: 'Leads', icon: 'M3 16 8 9l3 3 6-8', permission: 'leads:read', module: 'leads' },

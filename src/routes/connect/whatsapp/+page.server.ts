@@ -44,7 +44,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		meta: publicSignupConfig(),
 		mode: 'portal' as const,
 		tenantName: locals.tenant.name,
-		redirectUrl: '/app/whatsapp'
+		redirectUrl: '/app/settings/whatsapp'
 	};
 };
 

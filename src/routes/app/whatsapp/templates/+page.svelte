@@ -28,10 +28,13 @@
 
 <FormToast {form} successTitle="Done" />
 
-<div class="space-y-3">
+<!-- w-full: this page sits in a flex-column <main>, where a stretched child needs
+     it said explicitly or the content shrinks to fit instead of filling the
+     column. Template bodies are long and were being read in a narrow gutter. -->
+<div class="w-full space-y-3">
 	<div class="flex items-start justify-between gap-3">
 		<div>
-			<a href="/app/whatsapp" class="text-xs text-slate-500 hover:underline">← WhatsApp</a>
+			<a href="/app/settings/whatsapp" class="text-xs text-slate-500 hover:underline">← WhatsApp settings</a>
 			<h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">Template Center</h1>
 			<p class="text-xs text-slate-400">Design once with named variables · Meta approves · events send automatically.</p>
 		</div>

@@ -3,6 +3,7 @@
 	import { enhance } from '$lib/forms';
 	import StatusBadge from '$components/StatusBadge.svelte';
 	import TimeAgo from '$components/TimeAgo.svelte';
+	import SettingsTabs from '$components/SettingsTabs.svelte';
 	let { data, form } = $props();
 	const canConnect = $derived(data.permissions?.includes('whatsapp:connect'));
 	const c = $derived(data.connection);
@@ -16,8 +17,23 @@
 
 <FormToast {form} successTitle="Done" />
 
-<div class="mx-auto w-full max-w-5xl space-y-3">
-	<div><h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-base sm:font-semibold">WhatsApp</h1><p class="mt-0.5 text-xs text-slate-400 sm:hidden">Connection and notifications</p></div>
+<!--
+	Same page as before, now reached as a Settings tab. Everything below this
+	header is untouched: the load, the four form actions and every control kept
+	their shape, because the point was to move where it lives, not to rewrite
+	something that works.
+-->
+<div class="w-full space-y-4">
+	<div>
+		<h1 class="text-lg font-semibold tracking-[-0.01em] text-slate-900">Settings</h1>
+		<p class="mt-0.5 text-[13px] text-slate-500">
+			How your business appears, how customers pay you, and who can get in.
+		</p>
+	</div>
+
+	<SettingsTabs active="whatsapp" />
+
+	<div><h2 class="text-base font-semibold text-slate-900">WhatsApp</h2><p class="mt-0.5 text-xs text-slate-400">Connection and notifications</p></div>
 
 	{#if !data.featureEnabled}
 		<p class="rounded-panel bg-warning/10 px-3 py-2 text-xs text-[#b58514]">WhatsApp is not included in your current plan.</p>
