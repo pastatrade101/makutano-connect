@@ -707,9 +707,21 @@ function describeState(record: OpenRecord, nextKey: string | null): string {
 
 /** The one fact that makes the row useful: money owed, size of party, or a reference. */
 function describeDetail(record: OpenRecord): string | null {
-	const outstanding = Math.max(0, Number(record.total) - Number(record.amount_paid));
+	// Rounded to the cent BEFORE it is formatted. Subtracting two numerics lands a
+	// hair off often enough to matter (9028 - 2708.40 = 6319.599999999999), and it
+	// is that remainder, not the money, that decides whether cents are shown.
+	const outstanding = Math.round(Math.max(0, Number(record.total) - Number(record.amount_paid)) * 100) / 100;
 	if (outstanding > 0 && record.kind !== 'enquiry') {
-		return `${record.currency} ${outstanding.toLocaleString('en-US', { minimumFractionDigits: 0 })} outstanding`;
+		// Whole or to the cent, never in between. minimumFractionDigits on its own
+		// leaves maximumFractionDigits at 3, so a balance of 6319.60 printed as
+		// "6,319.6" and 1234.567 as "1,234.567" — ragged money in the one place an
+		// operator is being told what they are owed.
+		const cents = !Number.isInteger(outstanding);
+		const amount = outstanding.toLocaleString('en-US', {
+			minimumFractionDigits: cents ? 2 : 0,
+			maximumFractionDigits: cents ? 2 : 0
+		});
+		return `${record.currency} ${amount} outstanding`;
 	}
 	if (record.kind === 'enquiry') {
 		const bits: string[] = [];
