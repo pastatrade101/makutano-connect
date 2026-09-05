@@ -8,18 +8,7 @@ import { requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { toAppError } from '$lib/server/errors';
 import { getVehicle } from '$lib/server/vehicles';
-import {
-	canShowCode,
-	cancelEnrollment,
-	configurationUri,
-	enrollmentFor,
-	extendEnrollment,
-	PHONE_EXPIRY_MS,
-	PROFILES,
-	removeTracking,
-	startEnrollment,
-	type ProfileKey
-} from '$lib/server/tracking/enrollment';
+import { PHONE_EXPIRY_MS, PROFILES, canShowCode, cancelEnrollment, configurationUri, enrollmentFor, extendEnrollment, ingestConfigured, removeTracking, startEnrollment, type ProfileKey } from '$lib/server/tracking/enrollment';
 import { trackingEnabled } from '$lib/server/tracking';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -73,7 +62,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		 * the reason stays in the worker's logs where it names the provider.
 		 */
 		failed: Boolean(failed),
-		pending: canShowCode(pending)
+		/*
+		 * The setup screen is not the place to learn the ingest address is missing:
+		 * without this, a configured-but-wrong deployment threw and the operator got
+		 * a 500 where the QR should be. Say what is wrong, to the one person who can
+		 * fix it.
+		 */
+		ingestMisconfigured: Boolean(canShowCode(pending) && !ingestConfigured()),
+		pending: canShowCode(pending) && ingestConfigured()
 			? {
 					id: pending.id,
 					serverUrl: configurationUri(pending.deviceRef, pending.profile as ProfileKey).split('?')[0],

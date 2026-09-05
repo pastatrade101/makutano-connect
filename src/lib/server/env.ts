@@ -131,6 +131,15 @@ const schema = z.object({
 	ORIGIN_SHARED_SECRET: z.string().default(''),
 	TRACCAR_BASE_URL: z.string().default(''),
 	/*
+	 * Where a PHONE posts positions — the public origin Caddy serves, e.g.
+	 * https://tracking.makutano.co.tz. Deliberately separate from
+	 * TRACCAR_BASE_URL, which is the docker-internal REST address Connect itself
+	 * uses (http://traccar:8082). The QR used to be built from the latter, so
+	 * every setup code told the driver's phone to post to a hostname that exists
+	 * only inside one docker network. Found on the first real scan, 5 Sep 2026.
+	 */
+	TRACKING_INGEST_URL: z.string().default(''),
+	/*
 	 * The PROVISIONING identity — a platform administrator on the tracking
 	 * provider, able to create users and devices.
 	 *

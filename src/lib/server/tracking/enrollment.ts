@@ -12,6 +12,7 @@
  * the row it binds to already names somebody else's vehicle.
  */
 import { and, eq, lt, sql } from 'drizzle-orm';
+import { env } from '$lib/server/env';
 import { db, schema, txDb } from '$lib/server/db';
 import { AppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
@@ -64,9 +65,31 @@ export function canShowCode(
  * URI parameters instead of the POST body and reject every report with a 400,
  * silently, forever.
  */
+/**
+ * The public address a phone posts to. Empty when unconfigured — callers must
+ * check ingestConfigured() and say so, rather than render a code that cannot work.
+ */
+export function ingestBaseUrl(): string {
+	return (env().TRACKING_INGEST_URL || '').replace(/\/+$/, '');
+}
+
+export function ingestConfigured(): boolean {
+	const base = ingestBaseUrl();
+	// A private hostname or plain http is not "configured", it is the old bug
+	// with a new variable name: a phone on the road can reach neither.
+	return /^https:\/\/[^/]+$/.test(base) && !/^https:\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base) && !/^https:\/\/[^./]+$/.test(base);
+}
+
 export function configurationUri(deviceRef: string, profile: ProfileKey): string {
 	const p = PROFILES[profile] ?? PROFILES.SAFARI;
-	const base = providerBaseUrl();
+	/*
+	 * NOT providerBaseUrl(). That is the docker-internal REST address
+	 * (http://traccar:8082) and it was what every setup code carried until the
+	 * first real phone scanned one and posted into a void. The phone needs the
+	 * public origin Caddy serves; the two are different by design.
+	 */
+	if (!ingestConfigured()) throw new Error('TRACKING_INGEST_URL is not a public https origin; setup codes cannot be issued');
+	const base = ingestBaseUrl();
 	const params = new URLSearchParams({
 		id: deviceRef,
 		accuracy: p.accuracy,

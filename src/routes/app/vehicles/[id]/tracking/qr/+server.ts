@@ -6,7 +6,7 @@
 import { requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { errorResponse, toAppError } from '$lib/server/errors';
-import { canShowCode, configurationUri, enrollmentFor } from '$lib/server/tracking/enrollment';
+import { canShowCode, configurationUri, enrollmentFor, ingestConfigured } from '$lib/server/tracking/enrollment';
 import type { ProfileKey } from '$lib/server/tracking/enrollment';
 import type { RequestHandler } from './$types';
 
@@ -31,6 +31,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 		if (!canShowCode(pending)) return new Response('No setup in progress.', { status: 404 });
 
 		const { toString } = await import('qrcode');
+		if (!ingestConfigured()) return new Response('Tracking ingest address is not configured', { status: 409 });
 		const svg = await toString(configurationUri(pending.deviceRef, pending.profile as ProfileKey), {
 			type: 'svg',
 			// The driver is photographing a screen, often outdoors. Q tolerates a

@@ -5,7 +5,7 @@
 // Knowing a reference WAS owning it. Here Connect mints the reference for a
 // named vehicle of a named tenant before the provider is touched, so the first
 // fix proves LIVENESS and ownership was never in question.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
@@ -195,8 +195,14 @@ describe('the setup code is treated as a secret', () => {
 
 describe('the phone is configured correctly or not at all', () => {
 	it('the server URL the app stores carries no query string', async () => {
+		// This used to set TRACCAR_BASE_URL to a public-looking value, which made
+		// the test pass while hiding the bug: production's TRACCAR_BASE_URL is the
+		// internal http://traccar:8082, and the code came from that. The phone's
+		// address is its own setting now.
+		vi.resetModules();
+		vi.stubEnv('TRACCAR_BASE_URL', 'http://traccar:8082');
+		vi.stubEnv('TRACKING_INGEST_URL', 'https://tracking.example.invalid');
 		const { configurationUri } = await import('../src/lib/server/tracking/enrollment');
-		process.env.TRACCAR_BASE_URL = 'https://tracking.example.invalid';
 		const uri = configurationUri('ABCDEFGHJKMNPQR2', 'SAFARI');
 		const [base, query] = uri.split('?');
 		// The app stores origin+path and applies the query as settings. A query
@@ -213,5 +219,46 @@ describe('the phone is configured correctly or not at all', () => {
 		// any distance zeroes interval. Exposing them singly offers combinations
 		// that silently rewrite each other.
 		for (const p of Object.values(PROFILES)) expect(p.accuracy).not.toBe('highest');
+	});
+});
+
+describe('the setup code sends the phone somewhere it can reach', () => {
+	/*
+	 * The QR was built from TRACCAR_BASE_URL — Connect's docker-internal address
+	 * for the REST API, http://traccar:8082. Every setup code therefore told the
+	 * driver's phone to post to a hostname that exists inside one docker network.
+	 * Server-side tests posted fixes directly, so nothing noticed until the first
+	 * real phone scanned one, on 5 Sep 2026, and posted into a void.
+	 */
+	async function enrollment(vars: Record<string, string>) {
+		vi.resetModules();
+		vi.stubEnv('TRACCAR_BASE_URL', 'http://traccar:8082');
+		for (const [k, v] of Object.entries(vars)) vi.stubEnv(k, v);
+		return import('../src/lib/server/tracking/enrollment');
+	}
+
+	it('encodes the public ingest origin, never the internal REST address', async () => {
+		const { configurationUri } = await enrollment({ TRACKING_INGEST_URL: 'https://tracking.example.test' });
+		const uri = configurationUri('0123456789ABCDEFG', 'SAFARI');
+		expect(uri.startsWith('https://tracking.example.test/osmand?')).toBe(true);
+		expect(uri).not.toContain('traccar:8082');
+		expect(uri).not.toContain('http://');
+	});
+
+	it('refuses to issue a code when the ingest address is missing or private', async () => {
+		for (const bad of ['', 'http://traccar:8082', 'https://traccar', 'https://192.168.1.5', 'https://localhost']) {
+			const { configurationUri, ingestConfigured } = await enrollment({ TRACKING_INGEST_URL: bad });
+			expect(ingestConfigured(), `should reject ${JSON.stringify(bad)}`).toBe(false);
+			expect(() => configurationUri('0123456789ABCDEFG', 'SAFARI')).toThrow();
+		}
+	});
+
+	it('the page never falls through to the internal address', () => {
+		const SERVICE_NOW = readFileSync('src/lib/server/tracking/enrollment.ts', 'utf8');
+		const body = SERVICE_NOW.slice(SERVICE_NOW.indexOf('export function configurationUri'));
+		const fn = body.slice(0, body.indexOf('\n}') + 2);
+		// Match the code, not the comment that explains why the code changed.
+		expect(fn).toContain('const base = ingestBaseUrl();');
+		expect(fn).not.toMatch(/=\s*providerBaseUrl\(\)/);
 	});
 });

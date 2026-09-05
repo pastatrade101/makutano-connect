@@ -103,6 +103,13 @@
 				</form>
 			</div>
 		</div>
+	{:else if data.ingestMisconfigured}
+		<div class="card space-y-2 p-4">
+			<p class="text-sm font-semibold text-slate-900">Setup codes are not available yet</p>
+			<p class="text-xs text-slate-500">
+				This workspace's tracking address has not been configured, so a code would send the phone to the wrong place. Contact support — nothing is lost and the current tracker keeps working.
+			</p>
+		</div>
 	{:else if data.preparing}
 		{#if data.active}
 			<p class="rounded-panel bg-slate-50 px-3 py-2 text-xs text-slate-500">Replacing the current tracker. It keeps working until the new device connects.</p>
