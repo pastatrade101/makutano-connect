@@ -9,6 +9,7 @@
 // Either way the OAuth code is exchanged on the server. The Meta app secret and the
 // resulting access token never touch the browser.
 import { fail, type Actions } from '@sveltejs/kit';
+import { AppError } from '$lib/server/errors';
 import { audit } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { publicSignupConfig } from '$lib/server/whatsapp/config';
@@ -22,7 +23,34 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const token = url.searchParams.get('session');
 	if (token) {
-		const session = await resolveConnectSession(token);
+		let session;
+		try {
+			session = await resolveConnectSession(token);
+		} catch (error) {
+			/*
+			 * A spent link is NORMAL, not exceptional.
+			 *
+			 * These sessions are single-use with an expiry, so a client who refreshes
+			 * the page, opens the link twice, or comes back to it tomorrow arrives here
+			 * on the ordinary path. resolveConnectSession throws for that, and an
+			 * uncaught throw in load() is a 500 — so the person we least want to
+			 * confuse, someone else's customer following a link they were sent, got a
+			 * server error page.
+			 *
+			 * The page already says the right thing in its `unauthenticated` branch:
+			 * "This connection link is invalid or has expired. Ask your provider for a
+			 * new one." Fall through to that.
+			 *
+			 * UNAUTHORIZED only. A database outage must still be a 500: telling someone
+			 * their link expired when the truth is that our server is down sends them
+			 * to chase a replacement that will fail in exactly the same way.
+			 */
+			if (error instanceof AppError && error.code === 'UNAUTHORIZED') {
+				log.info('whatsapp_connect_link_rejected', { reason: 'expired_or_used' });
+				return { ready: false, meta: publicSignupConfig(), mode: 'unauthenticated' as const, tenantName: '' };
+			}
+			throw error;
+		}
 		const tenant = await getTenantById(session.tenantId);
 		return {
 			ready: embeddedSignupReady(),
