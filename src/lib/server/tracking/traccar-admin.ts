@@ -162,6 +162,24 @@ export async function linkDeviceToTenant(providerUserId: number, deviceId: numbe
  * which is exactly why `?uniqueId=` is the right call there and the wrong one
  * here.
  */
+/**
+ * The same lookup through the TENANT's eyes — for a device the worker never
+ * created and so is not linked to.
+ *
+ * A manager may list a managed user's devices (`?userId=`), which is how a
+ * LEGACY device becomes findable at all. It does not make it deletable: acting
+ * on an unlinked device is "Device access denied" (6.15.3, PermissionsService
+ * :224), so a hit here can still end in a refusal — which is the correct,
+ * visible outcome, not a reason to report success.
+ */
+export async function findDeviceByRefForTenant(
+	deviceRef: string,
+	providerUserId: number
+): Promise<{ id?: number; uniqueId?: string } | null> {
+	const devices = await adminRequest<{ id?: number; uniqueId?: string }[]>(`/devices?userId=${providerUserId}`);
+	return devices.find((d) => d.uniqueId === deviceRef) ?? null;
+}
+
 export async function findDeviceByRef(deviceRef: string): Promise<{ id?: number; uniqueId?: string } | null> {
 	const devices = await adminRequest<{ id?: number; uniqueId?: string }[]>('/devices?all=true');
 	return devices.find((d) => d.uniqueId === deviceRef) ?? null;

@@ -19,7 +19,7 @@ import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
 import { db, schema, txDb } from '$lib/server/db';
 import { log } from '$lib/server/logger';
 import { adminCredentials, tenantCredentials } from './credentials';
-import { ensureTenantAccount, findDeviceByRef, linkDeviceToTenant, unlinkDeviceFromTenant, deleteProviderDevice } from './traccar-admin';
+import { ensureTenantAccount, findDeviceByRef, findDeviceByRefForTenant, linkDeviceToTenant, unlinkDeviceFromTenant, deleteProviderDevice } from './traccar-admin';
 
 /** How long a claim is honoured before another run may take the row. */
 const LEASE_MS = 2 * 60 * 1000;
@@ -218,15 +218,27 @@ async function cleanupProvider(): Promise<number> {
 	for (const row of due) {
 		let state = 'DONE';
 		try {
-			// Resolve by reference when the row never learned the id. Named by a
-			// row WE wrote, so this still cannot reach another tenant's device.
-			const deviceId = row.providerDeviceId ?? (await findDeviceByRef(row.deviceRef))?.id ?? null;
+			const account = await ensureTenantAccount(row.tenantId);
+			/*
+			 * Resolve by reference when the row never learned the id — first among
+			 * the devices this identity created, then among the TENANT's, which is
+			 * where a LEGACY device lives. Both are named by a row we wrote, so
+			 * neither can reach another tenant's device.
+			 *
+			 * A miss in the first list alone proves nothing: a non-admin's
+			 * `?all=true` is "mine", and the first version of this concluded
+			 * "already gone" from exactly that partial view, marked the row DONE, and
+			 * left the retired tracker reporting. Absence is only absence once the
+			 * tenant's own list has been checked too.
+			 */
+			const deviceId =
+				row.providerDeviceId ??
+				(await findDeviceByRef(row.deviceRef))?.id ??
+				(account.providerUserId ? (await findDeviceByRefForTenant(row.deviceRef, account.providerUserId))?.id : undefined) ??
+				null;
 			if (deviceId === null) {
-				// Nothing at the provider under that reference: already gone. Done,
-				// and say so — silence here is how a retired tracker keeps reporting.
 				log.info('tracker_cleanup_nothing_to_delete', { enrollmentId: row.id, source: row.identifierSource });
 			} else {
-				const account = await ensureTenantAccount(row.tenantId);
 				if (account.providerUserId) await unlinkDeviceFromTenant(account.providerUserId, deviceId);
 			/*
 			 * DELETE, always. Never "disable".

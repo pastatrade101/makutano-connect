@@ -238,7 +238,11 @@ describe('a retired legacy tracker is actually deleted', () => {
 		const query = fn.slice(0, fn.indexOf('.limit(50)'));
 		expect(query).not.toContain('isNotNull(schema.trackerEnrollments.providerDeviceId)');
 		// ...and the loop resolves the id by reference when the row has none.
-		expect(fn).toContain('row.providerDeviceId ?? (await findDeviceByRef(row.deviceRef))?.id');
+		expect(fn).toContain('(await findDeviceByRef(row.deviceRef))?.id');
+		// ...through the tenant's view too, because a non-admin's `?all=true` is
+		// only "mine" and a LEGACY device was never the worker's.
+		expect(fn).toContain('findDeviceByRefForTenant(row.deviceRef, account.providerUserId)');
+		expect(fn.indexOf('ensureTenantAccount(row.tenantId)')).toBeLessThan(fn.indexOf('findDeviceByRefForTenant'));
 		// Deletion, never disabling — proven against 6.15.3, disabled keeps ingesting.
 		expect(fn).toContain('deleteProviderDevice(deviceId, { disableOnly: false })');
 	});
