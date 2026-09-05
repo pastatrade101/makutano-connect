@@ -73,11 +73,44 @@
 
 		<div class="card p-5" style="--accent: {accent}">
 			{#if done}
-				<div class="py-6 text-center">
-					<div class="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-success/15 text-success">
-						<svg class="size-6" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5 8 14l8-8" /></svg>
+				<!--
+					The last thing the visitor sees, so it answers the three questions they
+					actually have: did it send, what did I send, and what happens now.
+
+					It used to be a green disc and one borrowed sentence, centred in white
+					space — which reads as a system message rather than as a reply from the
+					business they just wrote to.
+				-->
+				<div class="py-2">
+					<div class="flex items-start gap-3">
+						<div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-success/12 text-success">
+							<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 8 14l8-8" /></svg>
+						</div>
+						<div class="min-w-0 pt-0.5">
+							<p class="text-[15px] font-semibold text-slate-900">Enquiry sent</p>
+							<p class="mt-1 text-[13.5px] leading-relaxed text-slate-600">{done}</p>
+						</div>
 					</div>
-					<p class="text-sm text-slate-700">{done}</p>
+
+					{#if data.tour}
+						<!-- What they enquired about, so the confirmation is about their trip
+						     and not about a form. -->
+						<div class="mt-4 flex items-center gap-3 rounded-panel border border-slate-200 bg-slate-50/70 p-3">
+							{#if data.tour.heroUrl}
+								<img src={data.tour.heroUrl} alt="" class="size-11 shrink-0 rounded-lg object-cover" />
+							{/if}
+							<div class="min-w-0">
+								<p class="truncate text-[13.5px] font-semibold text-slate-800">{data.tour.title}</p>
+								{#if data.tour.durationDays}
+									<p class="text-[12px] text-slate-500">{data.tour.durationDays} days</p>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
+					<p class="mt-4 border-t border-slate-100 pt-3 text-[12.5px] leading-relaxed text-slate-500">
+						{c.businessName} will reply to the contact details you gave. You can close this page.
+					</p>
 				</div>
 			{:else}
 				<!--
