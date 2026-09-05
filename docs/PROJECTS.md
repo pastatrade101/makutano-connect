@@ -473,6 +473,60 @@ is its test file, and `tour_impressions` is written by nothing. Anyone told to
 built and live for existing tenants, but signup now accepts only
 `TRAVEL_TOURISM`. Half the portal's routes are legacy-by-policy.
 
+### Two different things are both called "Phase 2"
+
+Neither document is wrong; they number different axes, and nobody renumbered
+either because both are the historical record of a decision.
+
+- **This document** numbers the OPERATIONAL capability a tenant gets.
+- **`makutano-traccar/docs/HARDENING-V2-PROPOSAL.md`** numbers the IMPLEMENTATION
+  steps that shipped it, ordered so production is never broken between them.
+
+| Capability (here) | Implementation steps (proposal) |
+| --- | --- |
+| Phase 1 — credential isolation | Phase 0 (probe), 1 (schema), 2 (admin path, dark), 3 (one tenant), 5 (remove the shared credential) |
+| Phase 2 — phone enrollment | Phase 4 (enrollment UI + read-path hardening) |
+| Phase 3 — position retention | Phase 7 (retention, dry-run first) |
+| — | Phase 6 (image pins) — infrastructure, no capability |
+
+So "Phase 2 is done" means **phone enrollment** in this document and **the dark
+admin path** in the proposal. When either is quoted without its source, say which.
+
+### Reserved columns that are deliberately not written
+
+Found during the 5 Sep audit. None of these is a bug to fix by starting to write
+them — a column filled in without a decision about who owns it becomes a second
+source of truth that disagrees with the first.
+
+| Column | State | What it would need |
+| --- | --- | --- |
+| `vehicles.last_fix_at` | **Reserved, never written.** Every write sets null; the one read is a fallback that therefore never fires | A decision on who writes it, what invalidates it, and what it should mean during a provider outage — a remembered "last seen" shown during an outage is a lie |
+| `tracker_enrollments.first_fix_at` | **In use.** Written on activation and enforced by `te_evid_chk` | Nothing — the audit's grouping of this with the unused columns was wrong |
+
+### Tracking revocation has no trigger _(5 Sep 2026)_
+
+`disableTenantAccount()` in `traccar-admin.ts` has **zero callers**. The effect
+side is already wired — `credentials.ts` treats a disabled identity as no
+identity — so what is missing is only the event that should invoke it, and
+wiring it somewhere plausible is worse than leaving it visible.
+
+The events that should plausibly revoke, in order of how clearly they qualify:
+
+1. **Tenant status → SUSPENDED or CANCELLED** (`/admin/tenants`). Enforcement
+   today is request-time only (`entitlements.ts`, `api-keys.ts`), which covers
+   access *through Connect* and says nothing about the provider identity itself.
+2. **Offboarding / tenant deletion**, where the Traccar user should not outlive
+   the account.
+3. **Losing the tracking entitlement** on a plan change.
+4. **Suspected compromise** of the sealed credential — an operations action, and
+   the case the function's own comment was written for.
+
+**Answer this before wiring it: what re-enables?** Nothing currently clears
+`disabled_at` or re-enables the Traccar user, so a reinstated tenant would stay
+dark with no signal, and the person reinstating them has no reason to suspect a
+tracking-specific step exists. Revocation without a matching restore path turns a
+reversible suspension into an irreversible one by accident.
+
 ### Vehicle tracking _(4 Sep 2026)_
 
 | | |

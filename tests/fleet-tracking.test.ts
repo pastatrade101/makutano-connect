@@ -439,3 +439,121 @@ describe('a tracker question names ONE device, and Traccar is not trusted to fil
 		expect(urls.some((u) => u.includes('/positions'))).toBe(false);
 	});
 });
+
+/* ------------------------------------------------- the fleet-wide read ----- */
+
+/*
+ * snapshotAll is the one call the fleet list makes, so its failure modes are the
+ * whole page's failure modes. It had no direct coverage: the audit found the
+ * fleet list resting on a function nothing exercised with more than one vehicle.
+ *
+ * Its two parameterless requests — /devices and /positions — are safe ONLY
+ * because the provider speaks as one tenant's read-only identity. These tests
+ * therefore also pin the filtering that must hold if that ever slips: a device
+ * the caller did not ask about must never appear in the answer.
+ */
+describe('snapshotAll answers for a whole fleet without leaking one', () => {
+	const now = () => new Date().toISOString();
+
+	it('maps several vehicles in one pass', async () => {
+		const provider = await traccar();
+		mockByPath({
+			devices: [
+				{ id: 1, uniqueId: 'ref-a', status: 'online' },
+				{ id: 2, uniqueId: 'ref-b', status: 'offline' },
+				{ id: 3, uniqueId: 'ref-c', status: 'online' }
+			],
+			positions: [
+				{ deviceId: 1, latitude: -2.1, longitude: 34.1, fixTime: now() },
+				{ deviceId: 2, latitude: -2.2, longitude: 34.2, fixTime: now() },
+				{ deviceId: 3, latitude: -2.3, longitude: 34.3, fixTime: now() }
+			]
+		});
+		const out = await provider.snapshotAll(['ref-a', 'ref-b', 'ref-c']);
+		expect(out.size).toBe(3);
+		expect(out.get('ref-a')?.position?.latitude).toBeCloseTo(-2.1, 4);
+		expect(out.get('ref-c')?.position?.longitude).toBeCloseTo(34.3, 4);
+		// Whatever the provider says about liveness travels with the answer.
+		expect(out.get('ref-b')?.providerOnline).toBe(false);
+	});
+
+	it('answers for a tracked vehicle the provider has no position for', async () => {
+		const provider = await traccar();
+		mockByPath({
+			devices: [
+				{ id: 1, uniqueId: 'ref-a', status: 'online' },
+				{ id: 2, uniqueId: 'ref-quiet', status: 'offline' }
+			],
+			positions: [{ deviceId: 1, latitude: -2.1, longitude: 34.1, fixTime: now() }]
+		});
+		const out = await provider.snapshotAll(['ref-a', 'ref-quiet']);
+		// Absent would make the caller invent a default, and the default it invents
+		// is always worse than the truth.
+		expect(out.get('ref-quiet')).toEqual({ state: 'OFFLINE', position: null, providerOnline: false });
+	});
+
+	it('answers for a reference the provider does not know at all', async () => {
+		const provider = await traccar();
+		mockByPath({ devices: [{ id: 1, uniqueId: 'ref-a', status: 'online' }], positions: [] });
+		const out = await provider.snapshotAll(['ref-a', 'ref-never-provisioned']);
+		expect(out.get('ref-never-provisioned')).toEqual({
+			state: 'OFFLINE',
+			position: null,
+			providerOnline: null
+		});
+	});
+
+	it('never returns a device that was not asked about', async () => {
+		const provider = await traccar();
+		mockByPath({
+			devices: [
+				{ id: 1, uniqueId: 'ref-mine', status: 'online' },
+				{ id: 9, uniqueId: 'ref-someone-else', status: 'online' }
+			],
+			positions: [
+				{ deviceId: 1, latitude: -2.1, longitude: 34.1, fixTime: now() },
+				{ deviceId: 9, latitude: -9.9, longitude: 39.9, fixTime: now() }
+			]
+		});
+		const out = await provider.snapshotAll(['ref-mine']);
+		expect([...out.keys()]).toEqual(['ref-mine']);
+		expect(JSON.stringify([...out.values()])).not.toContain('-9.9');
+	});
+
+	it('ignores a position whose device is not in the device list', async () => {
+		// The tenant identity cannot see that device, so the position is
+		// unattributable. Guessing would attach another vehicle's location.
+		const provider = await traccar();
+		mockByPath({
+			devices: [{ id: 1, uniqueId: 'ref-a', status: 'online' }],
+			positions: [
+				{ deviceId: 1, latitude: -2.1, longitude: 34.1, fixTime: now() },
+				{ deviceId: 77, latitude: -7.7, longitude: 37.7, fixTime: now() }
+			]
+		});
+		const out = await provider.snapshotAll(['ref-a']);
+		expect(out.size).toBe(1);
+		expect(out.get('ref-a')?.position?.latitude).toBeCloseTo(-2.1, 4);
+	});
+
+	it('says UNAVAILABLE for every vehicle when the provider is down, and shows no position', async () => {
+		const provider = await traccar();
+		globalThis.fetch = vi.fn(async () => {
+			throw new Error('ECONNREFUSED gps.example.invalid');
+		}) as unknown as typeof fetch;
+		const out = await provider.snapshotAll(['ref-a', 'ref-b']);
+		expect([...out.values()].every((s) => s.state === 'UNAVAILABLE')).toBe(true);
+		expect([...out.values()].every((s) => s.position === null)).toBe(true);
+		// An outage must not read as "this vehicle is parked".
+		expect([...out.values()].some((s) => s.state === 'OFFLINE')).toBe(false);
+		expect(JSON.stringify([...out.values()])).not.toContain('example.invalid');
+	});
+
+	it('returns nothing at all when asked about nothing', async () => {
+		const provider = await traccar();
+		const calls = mockByPath({ devices: [], positions: [] });
+		expect((await provider.snapshotAll([])).size).toBe(0);
+		// And costs the provider no request: an empty fleet must not poll.
+		expect(calls).toHaveLength(0);
+	});
+});

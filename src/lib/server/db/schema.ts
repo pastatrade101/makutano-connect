@@ -1247,6 +1247,21 @@ export const vehicles = pgTable(
 		 * position table). This exists so a trip list can say "last seen 2h ago"
 		 * without calling out to the provider once per row.
 		 */
+		/*
+		 * RESERVED, NOT WRITTEN — deliberately, and not an oversight to "fix".
+		 *
+		 * Every write sets it to null (vehicles.ts, enrollment.ts); the only read is
+		 * a fallback in the vehicles list, `snap?.position?.recordedAt ?? v.lastFixAt`,
+		 * which therefore never fires. Populating it would create a second source of
+		 * truth for "when did this vehicle last report", competing with the provider
+		 * that actually knows — and the two would disagree the moment a write was
+		 * missed, with no way to tell which was stale.
+		 *
+		 * Writing it needs a design decision first, not a backfill: who writes it
+		 * (the worker on first fix? a poller?), what invalidates it, and what the
+		 * fallback should mean when the provider is unavailable — because showing a
+		 * remembered timestamp during an outage is how "last seen" turns into a lie.
+		 */
 		lastFixAt: timestamp('last_fix_at', { withTimezone: true }),
 		lastFixLat: numeric('last_fix_lat', { precision: 9, scale: 6 }),
 		lastFixLng: numeric('last_fix_lng', { precision: 9, scale: 6 }),

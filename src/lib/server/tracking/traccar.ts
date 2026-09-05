@@ -9,10 +9,26 @@
  * Everything returned is normalised into $lib/server/tracking/types. No Traccar
  * shape escapes this module — that is the point of the module.
  *
- * NOT VERIFIED AGAINST A LIVE SERVER. There was no Traccar instance available
- * when this was written, so the request shapes follow the published API and the
- * tests drive a mocked fetch. Treat first contact with a real server as the
- * remaining validation step.
+ * VERIFICATION BOUNDARY, as of 5 September 2026.
+ *
+ * The header used to say "not verified against a live server", which stopped
+ * being true on 4 September and is worth stating precisely rather than vaguely.
+ *
+ * Verified: this module's request shapes run against a live Traccar **6.15.3** in
+ * production, as a per-tenant read-only identity — one such identity has existed
+ * since 4 Sep (`tracking_accounts`, Traccar user 5) with one vehicle ACTIVE, and
+ * the operator's tracking pages read through this file. `snapshotAll` is covered
+ * by tests for a whole fleet, mixtures of tracked and silent vehicles, provider
+ * outage, unknown references and unattributable positions.
+ *
+ * NOT verified: (1) the bearer-token authentication path — production uses HTTP
+ * Basic, so the token branch has never run against a real server; (2) any Traccar
+ * version other than 6.15.3, which is why the image is pinned; (3) any live
+ * automated test — every test in this repository drives a mocked fetch, so a
+ * change in Traccar's response shape would pass CI and fail in production. The
+ * signal for that is `tracking_snapshot_failed` / `tracking_snapshot_all_failed`
+ * in the logs; this module logs ONLY on failure, and has been silent since the
+ * identity was created.
  */
 import type { TraccarCredentials } from './credentials';
 import { log } from '$lib/server/logger';
