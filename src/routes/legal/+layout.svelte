@@ -12,6 +12,7 @@
 			<nav class="flex gap-4 text-xs text-slate-500">
 				<a href="/legal/terms" class="hover:text-brand-600">Terms</a>
 				<a href="/legal/privacy" class="hover:text-brand-600">Privacy</a>
+				<a href="/legal/data-deletion" class="hover:text-brand-600">Delete data</a>
 				<a href="/documentation" class="hover:text-brand-600">Documentation</a>
 			</nav>
 		</div>
