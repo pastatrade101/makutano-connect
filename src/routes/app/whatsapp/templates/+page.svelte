@@ -7,8 +7,9 @@
 	import StatusBadge from '$components/StatusBadge.svelte';
 	let { data, form } = $props();
 	const canWrite = $derived(data.permissions?.includes('whatsapp:connect'));
-	/** Never set up, or set up against an older pack than the one shipping now. */
-	const behindPack = $derived(!data.templatePack.version || data.templatePack.version < data.packVersion);
+	/** Never set up, set up against an older pack — or set up on a WABA this tenant
+	 *  no longer sends from, which looks identical from here and sends nothing. */
+	const behindPack = $derived(data.packNeedsSetup);
 	let showCreate = $state(false);
 	let bodyDraft = $state('Hello {{customer.first_name}}, your order {{order.number}} has been confirmed. Total: {{order.total}}.');
 	let bodyEl: HTMLTextAreaElement | undefined = $state();

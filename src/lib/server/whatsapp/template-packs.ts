@@ -223,11 +223,39 @@ export function packForWorkspace(workspace: Workspace): PackTemplate[] {
 export type PackState = {
 	version: number | null;
 	appliedAt: string | null;
+	/** The WABA the pack was submitted to. Null for packs applied before this was recorded. */
+	wabaId: string | null;
 };
 
 export function packState(settings: Record<string, unknown> | null | undefined): PackState {
-	const raw = (settings?.templatePack ?? null) as { version?: number; appliedAt?: string } | null;
-	return { version: raw?.version ?? null, appliedAt: raw?.appliedAt ?? null };
+	const raw = (settings?.templatePack ?? null) as {
+		version?: number;
+		appliedAt?: string;
+		wabaId?: string;
+	} | null;
+	return { version: raw?.version ?? null, appliedAt: raw?.appliedAt ?? null, wabaId: raw?.wabaId ?? null };
+}
+
+/**
+ * Does this tenant still need the pack submitting?
+ *
+ * The version alone was the whole test, and it stranded the first tenant that
+ * moved WABA: templates live on a WABA, so reconnecting to a new one left them
+ * marked "version 8 applied" with ZERO templates on the number they now send
+ * from — and because the page reads that mark, it offered no button at all. An
+ * empty Template Center, a "Sync from Meta" that correctly returns nothing, and
+ * no way forward.
+ */
+export function packNeedsSetup(input: {
+	pack: PackState;
+	templateCount: number;
+	liveWabaId: string | null;
+}): boolean {
+	if (!input.pack.version || input.pack.version < PACK_VERSION) return true;
+	if (input.pack.wabaId && input.liveWabaId && input.pack.wabaId !== input.liveWabaId) return true;
+	// Packs applied before wabaId was recorded have no WABA to compare, so fall
+	// back to the plainest fact available: nothing to send with means not set up.
+	return input.templateCount === 0;
 }
 
 export type ApplyResult = {
@@ -300,7 +328,14 @@ export async function applyTemplatePack(
 			// ${...}::jsonb parameter double-encodes (see the workspace incident).
 			settings: {
 				...((tenant.settings as Record<string, unknown>) ?? {}),
-				templatePack: { version: PACK_VERSION, appliedAt: new Date().toISOString(), workspace }
+				templatePack: {
+					version: PACK_VERSION,
+					appliedAt: new Date().toISOString(),
+					workspace,
+					// Which WABA these were submitted to — the difference between "set up"
+					// and "set up somewhere this tenant no longer sends from".
+					wabaId: credentials?.wabaId ?? null
+				}
 			},
 			updatedAt: new Date()
 		})

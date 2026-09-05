@@ -6,6 +6,7 @@ import { db, schema } from '$lib/server/db';
 import { toAppError } from '$lib/server/errors';
 import { enqueue } from '$lib/server/jobs/queue';
 import { listTemplates } from '$lib/server/whatsapp/templates';
+import { getConnectionForTenant } from '$lib/server/whatsapp/connections';
 import {
 	createTemplateDraft,
 	eventsForWorkspace,
@@ -13,16 +14,22 @@ import {
 	TEMPLATE_VARIABLES
 } from '$lib/server/whatsapp/template-engine';
 import { normalizeWorkspace } from '$lib/workspace';
-import { applyTemplatePack, packState, PACK_VERSION } from '$lib/server/whatsapp/template-packs';
+import { applyTemplatePack, packNeedsSetup, packState, PACK_VERSION } from '$lib/server/whatsapp/template-packs';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	requireTenantPermission(locals, 'whatsapp:read');
 	const templates = await listTemplates(requireTenant(locals).id);
+	const connection = await getConnectionForTenant(requireTenant(locals).id);
 	const pack = packState(requireTenant(locals).settings as Record<string, unknown>);
 	const workspace = normalizeWorkspace((locals.tenant?.settings as Record<string, unknown>)?.capabilities);
 	return {
 		templatePack: pack,
+		packNeedsSetup: packNeedsSetup({
+			pack,
+			templateCount: templates.length,
+			liveWabaId: connection?.wabaId ?? null
+		}),
 		packVersion: PACK_VERSION,
 		templates,
 		// Only the moments this kind of business actually reaches — a shop is never

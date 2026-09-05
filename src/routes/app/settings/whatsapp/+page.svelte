@@ -46,7 +46,7 @@
 		</header>
 
 		{#if c && c.status === 'CONNECTED'}
-			{#if (!data.templatePack.version || data.templatePack.version < data.packVersion) && canConnect}
+			{#if data.packNeedsSetup && canConnect}
 				<!-- Set up, or catch up.
 				     This used to be gated on `!version`, so it vanished the moment a
 				     tenant applied a pack once and never came back — leaving no way
