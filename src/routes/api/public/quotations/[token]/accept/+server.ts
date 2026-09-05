@@ -61,6 +61,7 @@ export const POST: RequestHandler = async (event) =>
 				total: schema.quotations.total,
 				metadata: schema.quotations.metadata,
 				convertedBookingId: schema.quotations.convertedBookingId,
+				conversationId: schema.quotations.conversationId,
 				customerFirstName: schema.customers.firstName,
 				customerLastName: schema.customers.lastName
 			})
@@ -118,7 +119,7 @@ export const POST: RequestHandler = async (event) =>
 		try {
 			const who = `${row.customerFirstName ?? ''} ${row.customerLastName ?? ''}`.trim() || 'The traveller';
 			const owners = await db()
-				.select({ email: schema.users.email })
+				.select({ id: schema.users.id, email: schema.users.email })
 				.from(schema.tenantMemberships)
 				.innerJoin(schema.users, eq(schema.users.id, schema.tenantMemberships.userId))
 				.where(
@@ -163,6 +164,34 @@ export const POST: RequestHandler = async (event) =>
 					entityId: row.id
 				});
 			}
+
+			/*
+			 * And to their phone. An acceptance is the moment the operator most wants
+			 * to know about — it is money — and it reached the inbox and the email
+			 * while the app stayed silent, the same gap a new enquiry had until
+			 * earlier tonight.
+			 *
+			 * Not awaited: FCM must never hold up the traveller's acceptance, which
+			 * has already created a confirmed booking. `conversationId` is included
+			 * when the quotation has one because it is the key the app routes on;
+			 * without it the notification still shows, and tapping it opens the app.
+			 */
+			void (async () => {
+				const { pushToUsers } = await import('$lib/server/push');
+				await pushToUsers(
+					row.tenantId,
+					owners.map((owner) => owner.id),
+					{
+						title: `Quote accepted — ${row.reference}`,
+						body: `${who} · ${row.currency} ${row.total} · booking ${booking.bookingReference}`,
+						data: {
+							type: 'quotation',
+							quotationId: row.id,
+							...(row.conversationId ? { conversationId: row.conversationId } : {})
+						}
+					}
+				);
+			})().catch(() => undefined);
 		} catch (err) {
 			log.warn('quotation_accept_notify_failed', {
 				quotationId: row.id,
