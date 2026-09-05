@@ -217,3 +217,15 @@ describe('retry accounting means what the constant says', () => {
 		for (let n = 1; n < 6; n += 1) expect(retryPlan(n).delayMs!).toBeLessThanOrEqual(180_000);
 	});
 });
+
+describe('a replacement in progress shows its code', () => {
+	it('does not let the tracker being replaced hide the new QR', () => {
+		// The ACTIVE card came first unconditionally, so "Replace tracking device"
+		// created and provisioned an enrollment whose QR the operator never saw.
+		// Found on the first real replacement, 5 Sep 2026, after several clicks
+		// and a rate limit.
+		const PAGE_UI = readFileSync('src/routes/app/vehicles/[id]/tracking/+page.svelte', 'utf8');
+		expect(PAGE_UI).toContain('{#if data.active && !data.preparing && !data.pending}');
+		expect(PAGE_UI.indexOf('{#if data.active && !data.preparing')).toBeLessThan(PAGE_UI.indexOf('{:else if data.pending}'));
+	});
+});

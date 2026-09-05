@@ -71,7 +71,15 @@
 		<p class="rounded-panel border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger">{form.message}</p>
 	{/if}
 
-	{#if data.active}
+	<!--
+		A replacement in progress outranks the tracker it is replacing. This block
+		used to come first unconditionally, so pressing "Replace tracking device"
+		created the new enrollment, the worker provisioned it, the QR existed — and
+		the page kept showing "Tracking is set up". The operator, seeing nothing
+		change, pressed again until the rate limiter stopped them. Found on the
+		first real replacement, 5 Sep 2026.
+	-->
+	{#if data.active && !data.preparing && !data.pending}
 		<!-- Tracked. The reference is never shown here; the tracker is identified
 		     by the name the operator gave it. -->
 		<div class="card flex flex-wrap items-start justify-between gap-4 p-4">
@@ -96,6 +104,9 @@
 			</div>
 		</div>
 	{:else if data.preparing}
+		{#if data.active}
+			<p class="rounded-panel bg-slate-50 px-3 py-2 text-xs text-slate-500">Replacing the current tracker. It keeps working until the new device connects.</p>
+		{/if}
 		<div class="card space-y-2 p-4">
 			<p class="text-sm font-semibold text-slate-900">Getting the setup code ready…</p>
 			<p class="text-xs text-slate-500">
@@ -112,6 +123,9 @@
 			</form>
 		</div>
 	{:else if data.pending}
+		{#if data.active}
+			<p class="rounded-panel bg-slate-50 px-3 py-2 text-xs text-slate-500">Replacing the current tracker. It keeps working until the new device connects — scan this code with the new phone.</p>
+		{/if}
 		<!-- The code and the instructions sit side by side, so the operator can
 		     read the steps aloud to the driver without scrolling past the code. -->
 		<div class="grid items-start gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
