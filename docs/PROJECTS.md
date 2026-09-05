@@ -388,18 +388,39 @@ on our own business portfolio. External businesses cannot connect: Meta answers
 the login dialog with "Feature Unavailable ... we are updating additional details
 for this app".
 
-That is NOT a code fault and no code change reaches it. Verified 5 Sep 2026 on
-the Meta dashboard: permissions have Advanced Access, the app is Published, the
-Data Use Checkup is complete, Required actions are clear, and business
-verification is done. The one unticked item is **Become Tech Provider**, under
-Use cases → Connect on WhatsApp → Become a Partner. Embedded Signup is a Partner
-capability; the app is otherwise on the "Integrate with API" track, which covers
-one business messaging its own customers from its own number — which is exactly
-the case that works.
+That is NOT a code fault and no code change reaches it. Everything Meta gates on
+is green, checked on the dashboard 5 Sep 2026 rather than assumed:
 
-Before changing anything in `src/lib/server/whatsapp/`, check that step. The
-symptom "works for us, fails for clients" is what this gate looks like from the
-inside, and it will survive any amount of rewriting.
+| Gate | State |
+| --- | --- |
+| Permissions | Advanced Access approved |
+| App mode | Published |
+| Data Use Checkup | Complete |
+| Required actions | Clear |
+| Business verification | **Approved** |
+| App Review documentation | **Approved** |
+| **Tech Provider** | **Granted** — "2 of 2 steps complete" |
+
+Note the trap: the *Overview* checklist still shows "Become Tech Provider"
+unticked while the Become Tech Provider page itself says the status is granted.
+The Overview tick is stale. Do not diagnose from it.
+
+So the remaining difference is HOW Embedded Signup is invoked. Meta issued a
+**Meta-hosted** Embedded Signup landing page for this app —
+`business.facebook.com/messaging/whatsapp/onboard/?app_id=…&config_id=…` — while
+Connect calls the **JS SDK** flow (`FB.login` with the same `config_id`) from our
+own domain. The config id matches in both (`2051446678830297`). The open question
+is whether this config is provisioned for the hosted flow only, or whether
+`connect.makutano.co.tz` is missing from Facebook Login's JS SDK allowed domains.
+
+The cheap experiment that separates them: send the Meta-hosted link to an external
+business. If that works and ours does not, the app is fine and the fault is in how
+we invoke it — check Facebook Login for Business → Settings (JS SDK allowed
+domains, valid OAuth redirect URIs) and → Configurations. If the hosted link also
+fails, it is app-level and nothing in `src/lib/server/whatsapp/` will help.
+
+Either way, check that before changing signup code. "Works for us, fails for
+clients" survives any amount of rewriting.
 
 **Built, deployed, zero rows:** Trips. Reviews (the public write path, admin
 moderation and the marketplace rating filter all exist and wait for the first
