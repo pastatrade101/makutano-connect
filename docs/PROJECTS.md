@@ -381,6 +381,26 @@ stays, search, compare); public enquiry → Connect booking request; WhatsApp
 Cloud API with per-tenant tokens; quotations; the operator portal; platform
 admin; operator verification queue (`/admin/marketplace/operators`).
 
+**Built, deployed, blocked on Meta:** multi-tenant WhatsApp onboarding. The
+Embedded Signup code is correct and complete — the SDK bootstrap, `config_id`,
+token exchange and per-tenant sealing all work, and they work today for a number
+on our own business portfolio. External businesses cannot connect: Meta answers
+the login dialog with "Feature Unavailable ... we are updating additional details
+for this app".
+
+That is NOT a code fault and no code change reaches it. Verified 5 Sep 2026 on
+the Meta dashboard: permissions have Advanced Access, the app is Published, the
+Data Use Checkup is complete, Required actions are clear, and business
+verification is done. The one unticked item is **Become Tech Provider**, under
+Use cases → Connect on WhatsApp → Become a Partner. Embedded Signup is a Partner
+capability; the app is otherwise on the "Integrate with API" track, which covers
+one business messaging its own customers from its own number — which is exactly
+the case that works.
+
+Before changing anything in `src/lib/server/whatsapp/`, check that step. The
+symptom "works for us, fails for clients" is what this gate looks like from the
+inside, and it will survive any amount of rewriting.
+
 **Built, deployed, zero rows:** Trips. Reviews (the public write path, admin
 moderation and the marketplace rating filter all exist and wait for the first
 review).
