@@ -323,6 +323,36 @@ accepting and storing positions — proven against 6.15.3. The only revocation i
 Always resolve `uniqueId → numeric deviceId` through `/devices` first and scope
 by `deviceId`. Both of these have already caused a cross-tenant leak once.
 
+**18. A WhatsApp template can be APPROVED and still send nothing — three ways.**
+All three are silent: no error surfaces, the Template Center looks healthy, and
+the only visible symptom is a traveller who is never acknowledged. Found on
+5 Sep 2026 from one enquiry, and each layer hid the next.
+
+- **No event mapping.** Meta returns what a template _says_, never what it is
+  _for_, so `syncTemplates` stored `event_key` NULL and `variables` `[]`.
+  `templateForEvent` found nothing, callers fell back to free text, and Meta
+  refuses free text outside the 24-hour window. **44 templates** across
+  production were in this state — Makutano Digital 11/11, Pastatrade 18/18,
+  Goldfinch 15/21. Only tenants provisioned through the pack were sound, which
+  is the tell: the pack sets the mapping at draft time, a plain sync never did.
+- **Templates belong to a WABA.** Reconnecting a tenant to a different WABA left
+  the previous one's rows in place and every send returned
+  `(#132001) Template name does not exist in the translation`.
+- **The setup button hid itself.** Whether to offer the pack was decided by a
+  version number stored on the TENANT, so a tenant marked "version 8 applied"
+  with zero templates on its new WABA was offered nothing at all: an empty
+  table, a Sync from Meta that correctly returns nothing, and no way forward.
+
+Now: the sync maps by pack name and prunes what Meta no longer lists;
+`templateForEvent` heals a missing mapping on first use (`template_mapping_healed`);
+`upsertConnection` enqueues a sync, which nothing did before; and
+`packNeedsSetup()` also asks whether the pack's WABA is the live one, treating an
+empty Template Center as needing setup whatever the version says.
+
+_Read the log before the code._ `template_send_skipped` = variables unresolved.
+`132001` = wrong WABA. `booking_request_ack_failed` with the 24-hour text = no
+template was found at all.
+
 ---
 
 ## 5. Deploying
@@ -380,6 +410,14 @@ returns 404 — that difference is how you prove a new page actually shipped.
 stays, search, compare); public enquiry → Connect booking request; WhatsApp
 Cloud API with per-tenant tokens; quotations; the operator portal; platform
 admin; operator verification queue (`/admin/marketplace/operators`).
+
+**Enquiry notifications _(5 Sep 2026)_.** A new booking request notified IN_APP
+and by email and stopped there — push existed but was wired only to WhatsApp
+inbound, conversation assignment and contact events, so the one notification
+that costs real money to miss never buzzed. It now pushes to the same
+OWNER/ADMIN recipients as the email, carrying `conversationId` because that is
+the only key the mobile app routes on. Verified twice in production
+(`push_sent sent: 2`). The WhatsApp acknowledgement to the traveller is trap 18.
 
 **Built, deployed, blocked on Meta:** multi-tenant WhatsApp onboarding. The
 Embedded Signup code is correct and complete — the SDK bootstrap, `config_id`,
@@ -533,11 +571,15 @@ Not yet fixed. Each was verified against code.
 - **`npm run lint` is broken repo-wide** — `prettier-plugin-svelte` is not
   installed and `.prettierrc` has `plugins: []`, so prettier cannot parse any
   `.svelte` file.
-- **No Apple Distribution certificate exists for team `25X3LP3BZ6`** on the
-  build machine, and there is no App Store Connect API key. The only
-  distribution identity present belongs to a different organisation
-  (`J595B2ADAV`). A Release Archive validates, but an App Store / TestFlight
-  export has not been proven end to end.
+- **`xcodebuild` cannot authenticate to team `25X3LP3BZ6`**, though Xcode's UI
+  can. The CLI reads `Xcode-Token` keychain items which vanished on 5 Sep 2026;
+  signing in through Settings → Accounts restored the UI session but not those,
+  so `-exportArchive` still fails `No Account for Team`. **Uploading works
+  through Window → Organizer → Distribute App** — builds 8 and 9 went that way.
+  A distribution certificate now exists (created 5 Sep 2026; the previous one's
+  private key was lost, and a certificate cannot be re-downloaded without it).
+  The durable fix, not yet done, is an App Store Connect API key passed as
+  `-authenticationKeyPath`, which has no session to expire.
 - **`cancelEnrollment` on an ACTIVE row is a silent no-op that reports
   success.** The action always returns `{cancelled: true}` regardless of whether
   a row matched. Unreachable from the UI (an ACTIVE tracker renders `remove`,
