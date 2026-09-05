@@ -203,7 +203,13 @@ async function cleanupProvider(): Promise<number> {
 			and(
 				isNotNull(schema.trackerEnrollments.providerDeleteAfter),
 				lt(schema.trackerEnrollments.providerDeleteAfter, new Date()),
-				isNotNull(schema.trackerEnrollments.providerDeviceId),
+				/*
+				 * NOT filtered on providerDeviceId. A LEGACY row — the tracker that
+				 * existed before this worker did — has no provider device id, only its
+				 * reference. Requiring the id here meant the one device this rotation
+				 * exists to retire could never be deleted, so its identifier stayed
+				 * accepted forever. Found on the first real replacement, 5 Sep 2026.
+				 */
 				or(sql`cleanup_state IS NULL`, eq(schema.trackerEnrollments.cleanupState, 'RETRY'))
 			)
 		)
@@ -212,8 +218,16 @@ async function cleanupProvider(): Promise<number> {
 	for (const row of due) {
 		let state = 'DONE';
 		try {
-			const account = await ensureTenantAccount(row.tenantId);
-			if (account.providerUserId) await unlinkDeviceFromTenant(account.providerUserId, row.providerDeviceId as number);
+			// Resolve by reference when the row never learned the id. Named by a
+			// row WE wrote, so this still cannot reach another tenant's device.
+			const deviceId = row.providerDeviceId ?? (await findDeviceByRef(row.deviceRef))?.id ?? null;
+			if (deviceId === null) {
+				// Nothing at the provider under that reference: already gone. Done,
+				// and say so — silence here is how a retired tracker keeps reporting.
+				log.info('tracker_cleanup_nothing_to_delete', { enrollmentId: row.id, source: row.identifierSource });
+			} else {
+				const account = await ensureTenantAccount(row.tenantId);
+				if (account.providerUserId) await unlinkDeviceFromTenant(account.providerUserId, deviceId);
 			/*
 			 * DELETE, always. Never "disable".
 			 *
@@ -230,7 +244,9 @@ async function cleanupProvider(): Promise<number> {
 			 * has already been read stays readable, and retention has to find those
 			 * rows by scanning positions rather than by walking devices.
 			 */
-			await deleteProviderDevice(row.providerDeviceId as number, { disableOnly: false });
+				await deleteProviderDevice(deviceId, { disableOnly: false });
+				log.info('tracker_device_deleted', { enrollmentId: row.id, source: row.identifierSource });
+			}
 		} catch (err) {
 			state = 'RETRY';
 			log.warn('tracker_cleanup_failed', { enrollmentId: row.id, reason: String(err).slice(0, 120) });

@@ -229,3 +229,17 @@ describe('a replacement in progress shows its code', () => {
 		expect(PAGE_UI.indexOf('{#if data.active && !data.preparing')).toBeLessThan(PAGE_UI.indexOf('{:else if data.pending}'));
 	});
 });
+
+describe('a retired legacy tracker is actually deleted', () => {
+	it('cleanup does not require a provider device id the legacy row never had', () => {
+		const W = readFileSync('src/lib/server/tracking/provisioning-worker.ts', 'utf8');
+		const fn = W.slice(W.indexOf('async function cleanupProvider'), W.indexOf('return due.length;'));
+		// The due-query must not filter on providerDeviceId...
+		const query = fn.slice(0, fn.indexOf('.limit(50)'));
+		expect(query).not.toContain('isNotNull(schema.trackerEnrollments.providerDeviceId)');
+		// ...and the loop resolves the id by reference when the row has none.
+		expect(fn).toContain('row.providerDeviceId ?? (await findDeviceByRef(row.deviceRef))?.id');
+		// Deletion, never disabling — proven against 6.15.3, disabled keeps ingesting.
+		expect(fn).toContain('deleteProviderDevice(deviceId, { disableOnly: false })');
+	});
+});
