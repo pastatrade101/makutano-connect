@@ -52,6 +52,25 @@ for s in "${SERVICES[@]}"; do
   grep -qx "$s" <<< "$REMOTE_SERVICES" || die "'$s' is not a service in $CANONICAL/docker-compose.yml."
 done
 
+# docker-compose.yml is deliberately NOT shipped (see the excludes below): a deploy
+# must never quietly restructure the services it is deploying into. But the repo
+# still has to DESCRIBE production, or a fresh host cannot rebuild it from git —
+# and for a long time it did not: the tracking worker existed only on the server.
+#
+# So the file is compared instead of copied. Drift stops the deploy, which is the
+# only moment anyone would notice it.
+if ! $SSH "cat $CANONICAL/docker-compose.yml" | diff -q - docker-compose.yml >/dev/null 2>&1; then
+  if [ -n "${ALLOW_COMPOSE_DRIFT:-}" ]; then
+    echo "  WARNING: compose drift, continuing because ALLOW_COMPOSE_DRIFT is set"
+  else
+    echo
+    $SSH "cat $CANONICAL/docker-compose.yml" | diff - docker-compose.yml | head -40
+    die "docker-compose.yml differs from production ('<' is the server, '>' is this repo).\nReconcile it, or set ALLOW_COMPOSE_DRIFT=1 if you are deliberately about to change production by hand."
+  fi
+else
+  echo "  repo docker-compose.yml matches production byte for byte"
+fi
+
 # ---------------------------------------------------------------- guard 3/5
 # A dry run is the proof. If .env, .env.*, or docker-compose.yml appear in the
 # transfer list, the excludes are wrong and we stop before touching anything.

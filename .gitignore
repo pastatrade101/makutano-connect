@@ -5,6 +5,9 @@ node_modules
 .env
 .env.*
 !.env.example
+# The worker's credential file is ignored by the line above; its EXAMPLE is not
+# a secret and has to survive, or a fresh host has no way to know what to fill in.
+!.env.tracking-worker.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .DS_Store

@@ -48,6 +48,64 @@ services:
         max-size: "10m"
         max-file: "3"
 
+
+  # ---------------------------------------------------------------------------
+  # Tracking worker — the ONLY process holding a privileged Traccar credential.
+  #
+  # Same image as the web service, deliberately: one repository, one build, no
+  # second deployment story. What differs is the ENVIRONMENT. The web container
+  # above has no provisioning credential and cannot create a device even if its
+  # code asked to; this one can, and serves no HTTP at all.
+  #
+  # No ports, no Caddy route, not on any public network path. It reads the
+  # ledger, provisions devices, grants them to tenants' read-only identities,
+  # detects first fixes as the TENANT, and deletes retired devices.
+  #
+  # restart: unless-stopped covers process failure, container restart and VPS
+  # reboot — which is the whole scheduler. The claim is a lease, so a restart
+  # mid-provision resumes safely rather than duplicating anything.
+  # ---------------------------------------------------------------------------
+  tracking-worker:
+    image: makutano-connect
+    container_name: makutano-tracking-worker
+    depends_on:
+      - connect
+    restart: unless-stopped
+
+    env_file:
+      - .env
+      # Provisioning credential lives ONLY here. Deliberately a separate file so
+      # it cannot be picked up by the web service's env_file.
+      - .env.tracking-worker
+
+    environment:
+      NODE_ENV: production
+      # No HTTP server in this process.
+      JOB_WORKER: "off"
+      TRACKING_WORKER_INTERVAL_MS: "10000"
+
+    command: ["node", "--experimental-strip-types", "--import", "./scripts/register-loader.mjs", "scripts/tracking-worker.ts", "--loop"]
+
+    # The image healthcheck probes HTTP on :3000. This process serves no HTTP and
+    # never will, so it would sit permanently unhealthy while working perfectly —
+    # which is worse than no signal, because it trains people to ignore the field.
+    # Check the thing that actually matters: the process is alive.
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f tracking-worker.ts > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+    networks:
+      - makutano-net
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   makutano-net:
     external: true
