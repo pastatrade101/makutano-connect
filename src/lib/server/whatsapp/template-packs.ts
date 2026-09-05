@@ -197,6 +197,24 @@ const PACK: PackTemplate[] = [
 	}
 ];
 
+/**
+ * The pack entry we ship under a given Meta template name, if any.
+ *
+ * Meta has no idea what our domain events are, so a template that arrives through
+ * a plain sync carries no event mapping. A tenant whose templates were created
+ * outside the pack therefore ends up with a screen full of APPROVED templates and
+ * nothing wired to any of them — every event falls back to free text, which Meta
+ * refuses outside the 24-hour window. Matching on the name we submitted in the
+ * first place is what reconnects them.
+ */
+export function packEntryByEvent(event: NotifyEvent): PackTemplate | null {
+	return PACK.find((t) => t.eventKey === event) ?? null;
+}
+
+export function packEntryByName(name: string): PackTemplate | null {
+	return PACK.find((t) => t.name === name) ?? null;
+}
+
 /** The subset of the pack a given workspace should submit — deduped by definition. */
 export function packForWorkspace(workspace: Workspace): PackTemplate[] {
 	return PACK.filter((t) => t.module === 'always' || moduleRelevant(workspace, t.module));

@@ -1,20 +1,38 @@
 // WhatsApp message templates (§18). Templates live in Meta; this table mirrors them per
 // tenant and maps our domain events onto approved template names.
-import { and, eq, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { log } from '../logger';
 import { graphRequest } from './client';
 import { resolveCredentials } from './connections';
+import { packEntryByName, packEntryByEvent } from './template-packs';
+import { toPositional } from './template-engine';
 
 /** Event → template mapping keys — one vocabulary shared with the Template Center. */
 export { NOTIFY_EVENTS as TEMPLATE_EVENTS } from './template-engine';
 export type { NotifyEvent as TemplateEvent } from './template-engine';
 import type { NotifyEvent as TemplateEventT } from './template-engine';
 
+/**
+ * The approved template to use for an event — repairing the mapping if it is missing.
+ *
+ * Templates that arrive from a Meta sync carry no event mapping, because Meta has
+ * no idea what our events are. Every tenant whose WhatsApp was connected before the
+ * pack existed therefore had a screenful of APPROVED templates and NOTHING wired to
+ * any of them: 44 of them across production when this was written. The symptom is
+ * not an error — every notification quietly degrades to free text, which Meta then
+ * refuses outside the 24-hour window, so the traveller simply never hears back.
+ *
+ * So a miss falls back to the name we submitted for that event, and writes the
+ * mapping back. It heals on first use, once, without a migration or a Meta round
+ * trip, and the Template Center then shows the mapping the operator expects.
+ */
 export async function templateForEvent(
 	tenantId: string,
-	event: TemplateEventT
+	event: TemplateEventT,
+	options: { enabledOnly?: boolean } = {}
 ): Promise<schema.WhatsappTemplate | null> {
+	const enabled = options.enabledOnly ? [eq(schema.whatsappTemplates.enabled, true)] : [];
 	const rows = await db()
 		.select()
 		.from(schema.whatsappTemplates)
@@ -22,11 +40,41 @@ export async function templateForEvent(
 			and(
 				eq(schema.whatsappTemplates.tenantId, tenantId),
 				eq(schema.whatsappTemplates.eventKey, event),
-				eq(schema.whatsappTemplates.status, 'APPROVED')
+				eq(schema.whatsappTemplates.status, 'APPROVED'),
+				...enabled
 			)
 		)
 		.limit(1);
-	return rows[0] ?? null;
+	if (rows[0]) return rows[0];
+
+	const pack = packEntryByEvent(event);
+	if (!pack) return null;
+	const unmapped = await db()
+		.select()
+		.from(schema.whatsappTemplates)
+		.where(
+			and(
+				eq(schema.whatsappTemplates.tenantId, tenantId),
+				eq(schema.whatsappTemplates.name, pack.name),
+				eq(schema.whatsappTemplates.status, 'APPROVED'),
+				isNull(schema.whatsappTemplates.eventKey),
+				...enabled
+			)
+		)
+		.limit(1);
+	const found = unmapped[0];
+	if (!found) return null;
+
+	const variables = ((found.variables ?? []) as string[]).length
+		? ((found.variables ?? []) as string[])
+		: toPositional(pack.bodyText).variables;
+	const [healed] = await db()
+		.update(schema.whatsappTemplates)
+		.set({ eventKey: event, variables, updatedAt: new Date() })
+		.where(eq(schema.whatsappTemplates.id, found.id))
+		.returning();
+	log.info('template_mapping_healed', { tenantId, event, template: pack.name });
+	return healed ?? { ...found, eventKey: event, variables };
 }
 
 export async function listTemplates(tenantId: string) {
@@ -136,6 +184,15 @@ export async function syncTemplates(tenantId: string): Promise<number> {
 	const now = new Date();
 	for (const t of templates) {
 		const status = mapStatus(t.status);
+		/*
+		 * Meta returns the body but not what it is FOR. Without this the sync stores a
+		 * perfectly good APPROVED template with event_key NULL and variables [], so
+		 * templateForEvent finds nothing and every notification silently degrades to
+		 * free text — which Meta then refuses outside the 24-hour window. The pack
+		 * knows both, keyed by the name we submitted.
+		 */
+		const mapped = packEntryByName(t.name);
+		const mappedVariables = mapped ? toPositional(mapped.bodyText).variables : [];
 		await db()
 			.insert(schema.whatsappTemplates)
 			.values({
@@ -146,6 +203,8 @@ export async function syncTemplates(tenantId: string): Promise<number> {
 				category: t.category ?? null,
 				status,
 				components: t.components ?? [],
+				eventKey: mapped?.eventKey ?? null,
+				variables: mappedVariables,
 				rejectedReason: rejectionOf(t.rejected_reason, status),
 				lastSyncedAt: now
 			})
@@ -156,6 +215,16 @@ export async function syncTemplates(tenantId: string): Promise<number> {
 					category: t.category ?? null,
 					status,
 					components: t.components ?? [],
+					// Fill the gaps, never overwrite: a mapping somebody chose by hand in
+					// the Template Center outranks the pack's default for that name.
+					...(mapped
+						? {
+								eventKey: sql`coalesce(${schema.whatsappTemplates.eventKey}, ${mapped.eventKey}::text)`,
+								variables: sql`case when coalesce(jsonb_array_length(${schema.whatsappTemplates.variables}), 0) = 0
+									then ${JSON.stringify(mappedVariables)}::jsonb
+									else ${schema.whatsappTemplates.variables} end`
+							}
+						: {}),
 					rejectedReason: rejectionOf(t.rejected_reason, status),
 					lastSyncedAt: now,
 					updatedAt: now

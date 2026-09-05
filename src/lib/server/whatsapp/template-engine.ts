@@ -357,19 +357,11 @@ export async function sendEventTemplate(
 ): Promise<schema.Message | null> {
 	try {
 		if (!to) return null;
-		const rows = await db()
-			.select()
-			.from(schema.whatsappTemplates)
-			.where(
-				and(
-					eq(schema.whatsappTemplates.tenantId, tenantId),
-					eq(schema.whatsappTemplates.eventKey, event),
-					eq(schema.whatsappTemplates.status, 'APPROVED'),
-					eq(schema.whatsappTemplates.enabled, true)
-				)
-			)
-			.limit(1);
-		const template = rows[0];
+		// One lookup for every caller, so a template synced before the event mapping
+		// existed heals here too rather than silently sending nothing. Imported late:
+		// templates.ts imports this module for toPositional.
+		const { templateForEvent } = await import('./templates');
+		const template = await templateForEvent(tenantId, event, { enabledOnly: true });
 		if (!template) return null;
 
 		const names = (template.variables ?? []) as string[];
