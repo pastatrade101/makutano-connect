@@ -98,9 +98,19 @@ describe('6-11 · the QR window', () => {
 		expect(QR).not.toContain('mintDeviceRef');
 	});
 
-	it('provisioning failure shows no code', () => {
-		expect(PAGE).toContain("failed: Boolean(pending && pending.status === 'FAILED')");
-		// FAILED is not in IN_FLIGHT, so canShowCode rejects it.
+	it('provisioning failure shows no code, and no longer hides itself', () => {
+		// This test used to assert `failed: Boolean(pending && pending.status ===
+		// 'FAILED')` — the exact expression that could never be true, because
+		// `pending` only ever holds PENDING or PROVISIONED. It pinned the bug in
+		// place: a vehicle whose provisioning had given up rendered as "no tracking
+		// configured". The flag now comes from the ledger view instead.
+		expect(PAGE).toContain('failed: Boolean(failed)');
+		// Match the expression, not the prose: the comment above it quotes the old
+		// form deliberately, and an assertion that cannot tell those apart fails on
+		// its own explanation.
+		expect(PAGE).not.toMatch(/failed:\s*Boolean\(pending/);
+		// Still true, and the reason no code leaks in the failed state: FAILED is
+		// not in IN_FLIGHT, so canShowCode rejects it.
 		expect(SERVICE).not.toMatch(/IN_FLIGHT[^\n]*FAILED/);
 	});
 });
@@ -171,5 +181,39 @@ describe('the provisioning identity is least-privilege', () => {
 		expect(PROVISIONING_USER_FLAGS.deviceLimit).not.toBe(0);
 		expect(PROVISIONING_USER_FLAGS.readonly).toBe(false);
 		expect(PROVISIONING_USER_FLAGS.disableReports).toBe(true);
+	});
+});
+
+describe('retry accounting means what the constant says', () => {
+	/*
+	 * claimOne increments `attempts` in the same UPDATE that takes the row, so the
+	 * count already includes the attempt that is about to run. recordFailure used
+	 * to add one on top, which cost two things silently: MAX_ATTEMPTS = 6 gave up
+	 * after five attempts, and the first backoff was 20s — the documented 5s step
+	 * never happened.
+	 */
+	it('claimOne is the only place attempts is incremented', () => {
+		const increments = WORKER.match(/attempts:\s*sql`attempts \+ 1`/g) ?? [];
+		expect(increments).toHaveLength(1);
+		expect(WORKER).not.toMatch(/const attempts = row\.attempts \+ 1/);
+	});
+
+	it('waits 5s, 20s, 45s, 80s then 125s, and gives up on the sixth', async () => {
+		const { retryPlan, MAX_ATTEMPTS } = await import('$lib/server/tracking/provisioning-worker');
+		expect(MAX_ATTEMPTS).toBe(6);
+
+		const sequence = [1, 2, 3, 4, 5].map((n) => retryPlan(n));
+		expect(sequence.map((p) => p.delayMs)).toEqual([5_000, 20_000, 45_000, 80_000, 125_000]);
+		expect(sequence.every((p) => !p.terminal)).toBe(true);
+
+		// The sixth failure is the one a human is meant to see.
+		expect(retryPlan(6)).toEqual({ terminal: true, delayMs: null });
+		// And anything beyond stays terminal rather than wrapping into a new wait.
+		expect(retryPlan(7).terminal).toBe(true);
+	});
+
+	it('never schedules an unbounded wait', async () => {
+		const { retryPlan } = await import('$lib/server/tracking/provisioning-worker');
+		for (let n = 1; n < 6; n += 1) expect(retryPlan(n).delayMs!).toBeLessThanOrEqual(180_000);
 	});
 });

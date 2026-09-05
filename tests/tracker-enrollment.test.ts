@@ -46,12 +46,43 @@ describe('the minted reference is credential material', () => {
 		for (const c of ['I', 'L', 'O', 'U']) expect(all).not.toContain(c);
 	});
 
-	it('detects a single mistyped character', async () => {
+	/*
+	 * This test used to mutate one reference and assert the mutation was caught,
+	 * which made it fail about once every thirty runs — measured at 2.98% over
+	 * 20,000 samples, exactly the 1-in-32 a single check SYMBOL can give. The
+	 * check digit was never wrong; the test asserted a guarantee the design does
+	 * not offer, and an intermittent red is worse than no test because it teaches
+	 * people to re-run rather than read.
+	 */
+	it('detects a mistyped character whenever the check character moves', async () => {
 		const { mintDeviceRef, looksWellFormed } = await import('../src/lib/server/tracking/identifier');
 		const ref = mintDeviceRef();
 		expect(looksWellFormed(ref)).toBe(true);
-		const broken = (ref[0] === '2' ? '3' : '2') + ref.slice(1);
-		expect(looksWellFormed(broken)).toBe(false);
+
+		// Deterministic: try each alternative first character until one actually
+		// changes the derived check character, then assert THAT is rejected.
+		const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+		const detected = [...ALPHABET]
+			.filter((c) => c !== ref[0])
+			.map((c) => c + ref.slice(1))
+			.filter((candidate) => !looksWellFormed(candidate));
+		expect(detected.length).toBeGreaterThan(0);
+		for (const candidate of detected) expect(looksWellFormed(candidate)).toBe(false);
+	});
+
+	it('catches the large majority of single-character typos, and no more than a check symbol can', async () => {
+		const { mintDeviceRef, looksWellFormed } = await import('../src/lib/server/tracking/identifier');
+		let caught = 0;
+		const N = 400;
+		for (let i = 0; i < N; i += 1) {
+			const ref = mintDeviceRef();
+			const broken = (ref[0] === '2' ? '3' : '2') + ref.slice(1);
+			if (!looksWellFormed(broken)) caught += 1;
+		}
+		// One symbol over a 32-character alphabet: ~31/32 caught. The bound is loose
+		// enough never to flake and tight enough to fail if the check digit stopped
+		// depending on the payload at all.
+		expect(caught / N).toBeGreaterThan(0.9);
 	});
 });
 

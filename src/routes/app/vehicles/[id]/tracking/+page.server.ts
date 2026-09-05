@@ -33,7 +33,7 @@ function guard(locals: App.Locals) {
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const tenant = guard(locals);
 	const vehicle = await getVehicle(tenant.id, params.id);
-	const { active, pending, expired } = await enrollmentFor(tenant.id, params.id);
+	const { active, pending, expired, failed } = await enrollmentFor(tenant.id, params.id);
 
 	return {
 		trackingEnabled: trackingEnabled(),
@@ -62,7 +62,17 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		 * intentional delivery of it, to the phone.
 		 */
 		preparing: Boolean(pending && pending.status === 'PENDING'),
-		failed: Boolean(pending && pending.status === 'FAILED'),
+		/*
+		 * A setup that gave up, shown as itself. This used to read
+		 * `pending.status === 'FAILED'`, which could never be true — `pending` only
+		 * ever holds PENDING or PROVISIONED — so a vehicle whose provisioning had
+		 * exhausted its attempts rendered as "no tracking configured", and the
+		 * operator's only clue was that nothing ever happened.
+		 *
+		 * No provider detail crosses this line: the flag says a setup failed, and
+		 * the reason stays in the worker's logs where it names the provider.
+		 */
+		failed: Boolean(failed),
 		pending: canShowCode(pending)
 			? {
 					id: pending.id,

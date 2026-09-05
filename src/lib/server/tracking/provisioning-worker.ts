@@ -24,9 +24,26 @@ import { ensureTenantAccount, findDeviceByRef, linkDeviceToTenant, unlinkDeviceF
 /** How long a claim is honoured before another run may take the row. */
 const LEASE_MS = 2 * 60 * 1000;
 /** Give up after this many attempts and let a human look. */
-const MAX_ATTEMPTS = 6;
-/** Bounded backoff: 5s, 20s, 45s, 80s, 125s, 180s. Never unbounded. */
+export const MAX_ATTEMPTS = 6;
+/** Bounded, never unbounded. Attempt n waits 5s·n²: 5s, 20s, 45s, 80s, 125s. */
 const backoffMs = (attempt: number) => Math.min(180_000, 5_000 * attempt * attempt);
+
+/**
+ * What happens after a failed attempt: wait this long, or stop.
+ *
+ * Pure and exported so the sequence can be ASSERTED rather than described in a
+ * comment. It takes the attempts already RECORDED, because claimOne increments
+ * the column when it takes the row — by the time an attempt fails, the count
+ * includes it.
+ *
+ * Adding one here as well, which is what the code used to do, cost two things
+ * quietly: MAX_ATTEMPTS = 6 gave up after five attempts, and the first wait was
+ * 20s, so the documented 5s step never happened at all.
+ */
+export function retryPlan(attemptsRecorded: number): { terminal: boolean; delayMs: number | null } {
+	const terminal = attemptsRecorded >= MAX_ATTEMPTS;
+	return { terminal, delayMs: terminal ? null : backoffMs(attemptsRecorded) };
+}
 
 /** Identifies this run in the claim, so a stuck lease is traceable to a process. */
 const RUN_ID = `${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
@@ -122,8 +139,9 @@ async function createDevice(deviceRef: string, name: string): Promise<{ id?: num
 
 /** Record a failure without losing the enrollment. The operator can retry. */
 async function recordFailure(row: schema.TrackerEnrollment, err: unknown): Promise<void> {
-	const attempts = row.attempts + 1;
-	const terminal = attempts >= MAX_ATTEMPTS;
+	// claimOne already counted this attempt when it took the row.
+	const attempts = row.attempts;
+	const { terminal, delayMs } = retryPlan(attempts);
 	await db()
 		.update(schema.trackerEnrollments)
 		.set({
@@ -132,7 +150,7 @@ async function recordFailure(row: schema.TrackerEnrollment, err: unknown): Promi
 			status: terminal ? 'FAILED' : 'PENDING',
 			claimedAt: null,
 			claimedBy: null,
-			nextAttemptAt: terminal ? null : new Date(Date.now() + backoffMs(attempts)),
+			nextAttemptAt: delayMs === null ? null : new Date(Date.now() + delayMs),
 			lastError: String(err).slice(0, 200)
 		})
 		.where(eq(schema.trackerEnrollments.id, row.id));

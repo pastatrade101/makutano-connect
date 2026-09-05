@@ -79,19 +79,67 @@ export function configurationUri(deviceRef: string, profile: ProfileKey): string
 }
 
 /** The live enrollment rows for a vehicle, with lazy expiry applied. */
+/**
+ * Which enrollment row the operator is actually looking at.
+ *
+ * Pure, exported and tested: this used to be four lines inside the query, and
+ * one state fell through them. A FAILED row matches neither `active` nor
+ * IN_FLIGHT, so every caller got nulls and the screen said "no tracking
+ * configured" — while two branches downstream tested `pending.status ===
+ * 'FAILED'`, which by construction can never be true. The intent to show the
+ * failure was written; the query silently made it unreachable.
+ *
+ * Precedence is deliberate and is the whole design:
+ *   ACTIVE            — tracking works; nothing else matters
+ *   live PENDING/PROVISIONED — a setup is in progress, including a retry after a
+ *                       failure, so a fresh attempt hides the old failure
+ *   expired in-flight — the code ran out; offer another
+ *   FAILED            — only when nothing above applies
+ *
+ * That ordering is what lets a retry be a NEW row rather than a mutation of the
+ * failed one: the ledger keeps the failure, the operator sees the attempt.
+ */
+export function selectEnrollmentView(
+	rows: schema.TrackerEnrollment[],
+	now: number = Date.now()
+): {
+	active: schema.TrackerEnrollment | null;
+	pending: schema.TrackerEnrollment | null;
+	expired: schema.TrackerEnrollment | null;
+	failed: schema.TrackerEnrollment | null;
+} {
+	const active = rows.find((r) => r.status === 'ACTIVE') ?? null;
+	const inFlight = rows.find((r) => IN_FLIGHT.includes(r.status)) ?? null;
+	const live = inFlight !== null && inFlight.expiresAt.getTime() > now;
+	// Newest first: a vehicle that failed twice should report the second failure.
+	const failed =
+		[...rows]
+			.filter((r) => r.status === 'FAILED')
+			.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
+	return {
+		active,
+		pending: live ? inFlight : null,
+		expired: inFlight && !live ? inFlight : null,
+		// Suppressed by anything more current. A failure the operator has already
+		// responded to is history, not a state.
+		failed: active || inFlight ? null : failed
+	};
+}
+
 export async function enrollmentFor(tenantId: string, vehicleId: string) {
 	const rows = await db()
 		.select()
 		.from(schema.trackerEnrollments)
 		.where(
 			and(
+				// Tenant scoping lives HERE, not in the caller: every read of this
+				// ledger goes through this function, so one filter closes the whole
+				// surface. Never relax it to a vehicle-only lookup.
 				eq(schema.trackerEnrollments.tenantId, tenantId),
 				eq(schema.trackerEnrollments.vehicleId, vehicleId)
 			)
 		);
-	const active = rows.find((r) => r.status === 'ACTIVE') ?? null;
-	const pendingRow = rows.find((r) => IN_FLIGHT.includes(r.status)) ?? null;
-	return { active, pending: pendingRow && isLive(pendingRow) ? pendingRow : null, expired: pendingRow && !isLive(pendingRow) ? pendingRow : null };
+	return selectEnrollmentView(rows);
 }
 
 /**
@@ -199,15 +247,22 @@ export async function enrollmentStatus(
 	tenantId: string,
 	vehicleId: string
 ): Promise<{ status: string; firstFixAt: Date | null; expiresAt: Date | null; lastError: string | null }> {
-	const { active, pending, expired } = await enrollmentFor(tenantId, vehicleId);
+	const { active, pending, expired, failed } = await enrollmentFor(tenantId, vehicleId);
 	if (active) return { status: 'ACTIVE', firstFixAt: active.firstFixAt, expiresAt: null, lastError: null };
 	if (expired) return { status: 'EXPIRED', firstFixAt: null, expiresAt: expired.expiresAt, lastError: null };
-	if (!pending) return { status: 'NONE', firstFixAt: null, expiresAt: null, lastError: null };
+	if (!pending) {
+		// A setup that gave up says so. `lastError` stays null on purpose: the
+		// column holds whatever the provider said, which names the provider, its
+		// endpoint and sometimes the rejected identifier. The operator gets a
+		// state and a way forward; the diagnosis stays in the logs.
+		if (failed) return { status: 'FAILED', firstFixAt: null, expiresAt: null, lastError: null };
+		return { status: 'NONE', firstFixAt: null, expiresAt: null, lastError: null };
+	}
 	return {
 		// PENDING means the worker has not provisioned yet; PROVISIONED means the
 		// code is live and we are waiting on the driver. The screen says different
 		// things for each, so the distinction survives all the way to the operator.
-		status: pending.status === 'PROVISIONED' ? 'WAITING' : pending.status === 'FAILED' ? 'FAILED' : 'PREPARING',
+		status: pending.status === 'PROVISIONED' ? 'WAITING' : 'PREPARING',
 		firstFixAt: null,
 		expiresAt: pending.expiresAt,
 		lastError: null
