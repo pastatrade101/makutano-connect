@@ -252,7 +252,7 @@ export async function createBookingRequest(tenantId: string, input: CreateBookin
 	 */
 	try {
 		const owners = await db()
-			.select({ email: schema.users.email })
+			.select({ id: schema.users.id, email: schema.users.email })
 			.from(schema.tenantMemberships)
 			.innerJoin(schema.users, eq(schema.users.id, schema.tenantMemberships.userId))
 			.where(
@@ -286,6 +286,33 @@ export async function createBookingRequest(tenantId: string, input: CreateBookin
 				entityId: linked.id
 			});
 		}
+
+		/*
+		 * And to their phone, which is where an operator actually is.
+		 *
+		 * Not awaited, on purpose: FCM is a network call to Google and the
+		 * traveller's submission must not wait behind it. The enquiry is saved
+		 * either way.
+		 *
+		 * `conversationId` is in the payload because it is the ONLY key the mobile
+		 * app routes on — a push without it still shows on the lock screen, but
+		 * tapping it drops the operator on whatever screen they left open instead
+		 * of the enquiry they were just told about.
+		 */
+		void (async () => {
+			const { pushToUsers } = await import('./push');
+			await pushToUsers(
+				tenantId,
+				owners.map((owner) => owner.id),
+				{
+					title: `New enquiry — ${who}`,
+					body: [`Reference ${reference}`, customer.email || customer.phone].filter(Boolean).join(' · '),
+					data: conversationId
+						? { type: 'enquiry', conversationId, bookingRequestId: linked.id }
+						: { type: 'enquiry', bookingRequestId: linked.id }
+				}
+			);
+		})().catch(() => undefined);
 	} catch (err) {
 		log.warn('enquiry_email_notify_failed', { tenantId, reference, error: (err as Error)?.message });
 	}
