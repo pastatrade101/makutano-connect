@@ -1,6 +1,6 @@
 // WhatsApp message templates (§18). Templates live in Meta; this table mirrors them per
 // tenant and maps our domain events onto approved template names.
-import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { log } from '../logger';
 import { graphRequest } from './client';
@@ -230,6 +230,38 @@ export async function syncTemplates(tenantId: string): Promise<number> {
 					updatedAt: now
 				}
 			});
+	}
+
+	/*
+	 * Anything Meta no longer lists is gone — deleted there, or belonging to a WABA
+	 * this tenant has since disconnected from. Leaving those rows behind is what
+	 * makes a template list read APPROVED while every send fails 132001.
+	 *
+	 * Only rows that Meta once acknowledged (they carry a meta_template_id) are
+	 * pruned. A local draft that has not been submitted yet has none, and deleting
+	 * it would throw away work the operator can still see on screen.
+	 */
+	const seen = new Set(templates.map((t) => `${t.name}::${t.language ?? 'en'}`));
+	const held = await db()
+		.select({
+			id: schema.whatsappTemplates.id,
+			name: schema.whatsappTemplates.name,
+			language: schema.whatsappTemplates.language,
+			metaTemplateId: schema.whatsappTemplates.metaTemplateId
+		})
+		.from(schema.whatsappTemplates)
+		.where(eq(schema.whatsappTemplates.tenantId, tenantId));
+	const stale = held.filter((r) => r.metaTemplateId && !seen.has(`${r.name}::${r.language}`));
+	if (stale.length) {
+		await db()
+			.delete(schema.whatsappTemplates)
+			.where(
+				inArray(
+					schema.whatsappTemplates.id,
+					stale.map((r) => r.id)
+				)
+			);
+		log.info('templates_pruned', { tenantId, count: stale.length, names: stale.map((r) => r.name) });
 	}
 
 	// payment_reminder_v2 is deliberately submitted while disabled so the current

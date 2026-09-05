@@ -12,6 +12,7 @@ import { assertAllowed, assertWithinCount } from '../entitlements';
 import { AppError } from '../errors';
 import { log } from '../logger';
 import { metaAppConfig, type WhatsAppCredentials } from './config';
+import { enqueue } from '../jobs/queue';
 
 /** The only shape that may cross an API boundary — no token, no key version (§31). */
 export type SafeConnection = {
@@ -151,6 +152,21 @@ export async function upsertConnection(input: UpsertConnectionInput): Promise<sc
 	if (!row.isPrimary) {
 		await db().update(schema.whatsappConnections).set({ isPrimary: true }).where(eq(schema.whatsappConnections.id, row.id));
 	}
+
+	/*
+	 * Templates belong to a WABA, not to us. Reconnecting to a DIFFERENT WABA left
+	 * the previous one's templates in the table, and every send against them came
+	 * back "(#132001) Template name does not exist in the translation" — a tenant
+	 * whose enquiries silently stopped being acknowledged, with an approved-looking
+	 * template list on screen the whole time. A sync was only ever enqueued from a
+	 * settings page, so nobody who did not go looking would ever see it corrected.
+	 *
+	 * Enqueued, not awaited: the connection itself must succeed even if the queue
+	 * or Meta is having a bad day.
+	 */
+	void enqueue('whatsapp.templates.sync', { tenantId: input.tenantId }, { tenantId: input.tenantId }).catch((err) =>
+		log.warn('template_sync_enqueue_failed', { tenantId: input.tenantId, error: (err as Error)?.message })
+	);
 
 	return row;
 }
