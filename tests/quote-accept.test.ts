@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
-describe('an accepted quotation reaches the operator's phone', () => {
+describe("an accepted quotation reaches the operator's phone", () => {
 	it('pushes to the same OWNER/ADMIN recipients as the email, without waiting on FCM', () => {
 		const SRC = readFileSync('src/routes/api/public/quotations/[token]/accept/+server.ts', 'utf8');
 		expect(SRC).toContain("const { pushToUsers } = await import('$lib/server/push')");
