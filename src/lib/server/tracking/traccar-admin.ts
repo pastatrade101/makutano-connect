@@ -71,7 +71,22 @@ async function adminRequest<T>(
 			signal: controller.signal
 		});
 		const text = await res.text();
-		if (!res.ok) throw new Error(`traccar_admin_http_${res.status}`);
+		if (!res.ok) {
+			/*
+			 * Say WHICH call failed.
+			 *
+			 * This threw `traccar_admin_http_400` and nothing else, so a cleanup that
+			 * retried every five minutes for a day named neither the request that
+			 * failed nor the provider's reason — and the same string is produced by
+			 * half a dozen call sites. The method and path are ours, and Traccar's
+			 * body is a short diagnostic, so both are safe to log; the credentials
+			 * live in the header, which is not included.
+			 */
+			const detail = text.trim().replace(/\s+/g, ' ').slice(0, 160);
+			throw new Error(
+				`traccar_admin_http_${res.status} ${init.method ?? 'GET'} ${path}${detail ? ` — ${detail}` : ''}`
+			);
+		}
 		return (text ? JSON.parse(text) : null) as T;
 	} finally {
 		clearTimeout(timer);

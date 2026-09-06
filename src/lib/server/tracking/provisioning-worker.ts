@@ -261,7 +261,12 @@ async function cleanupProvider(): Promise<number> {
 			}
 		} catch (err) {
 			state = 'RETRY';
-			log.warn('tracker_cleanup_failed', { enrollmentId: row.id, reason: String(err).slice(0, 120) });
+			log.warn('tracker_cleanup_failed', {
+				enrollmentId: row.id,
+				source: row.identifierSource,
+				providerDeviceId: row.providerDeviceId,
+				reason: String(err).slice(0, 240)
+			});
 		}
 		await db()
 			.update(schema.trackerEnrollments)
