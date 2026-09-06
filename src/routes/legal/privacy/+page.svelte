@@ -43,14 +43,44 @@
 </ul>
 <p>We share only what each provider needs, and we do not give any of them the right to use your data for their own purposes.</p>
 
-<h2>6. Isolation between customers</h2>
+<h2>6. Facebook Login and WhatsApp</h2>
+<p>
+	We use Facebook Login for one purpose: so that you can connect your own WhatsApp Business account to Makutano
+	Connect. We do not use it to sign you in — your account here has its own email and password — and we never post to
+	Facebook on your behalf.
+</p>
+<ul>
+	<li>
+		<b>public_profile</b> — the baseline permission Meta requires before a Facebook Login dialog can open at all. We
+		do not read or store your name, profile picture, friends or posts.
+	</li>
+	<li><b>whatsapp_business_messaging</b> — to send and receive messages on the number you select.</li>
+	<li>
+		<b>whatsapp_business_management</b> — to register that number, subscribe to its webhooks, and manage its message
+		templates.
+	</li>
+	<li>
+		<b>business_management</b> — called once per connection, to read the name of the business that owns the WhatsApp
+		Business Account you selected, so you can confirm you connected the right one.
+	</li>
+</ul>
+<p>
+	From that connection we store only: an access token for your WhatsApp Business Account, encrypted with AES-256-GCM
+	and never exposed to a browser; the identifiers of your WhatsApp Business Account and phone number; and, where Meta
+	supplies it, the Facebook user ID of the person who authorised the connection — used solely to match Meta's
+	deauthorisation notice to the right account. You can end this at any time in Settings → WhatsApp → Disconnect, or by
+	removing the app in your Facebook settings; both overwrite the stored token immediately. See
+	<a href="/legal/data-deletion" class="text-brand-600 hover:underline">Deleting your data</a>.
+</p>
+
+<h2>7. Isolation between customers</h2>
 <p>
 	Every record in the system carries the account it belongs to, and every query is scoped to the account of the
 	authenticated caller. An API key can only ever read and write its own account's data. This is enforced in the
 	service itself, not by convention.
 </p>
 
-<h2>7. How long we keep it</h2>
+<h2>8. How long we keep it</h2>
 <ul>
 	<li>Business data: for as long as your account is open, and then only as long as the law requires.</li>
 	<li>Sessions: 30 days, or until you sign out.</li>
@@ -58,7 +88,7 @@
 	<li>Audit logs: retained as a security record.</li>
 </ul>
 
-<h2>8. Your rights</h2>
+<h2>9. Your rights</h2>
 <p>
 	You can access, correct, export or delete your account data — email
 	<a href="mailto:support@makutano.co.tz" class="text-brand-600 hover:underline">support@makutano.co.tz</a> and we
@@ -66,11 +96,11 @@
 	the portal or through the API.
 </p>
 
-<h2>9. Your customers' consent</h2>
+<h2>10. Your customers' consent</h2>
 <p>
 	You are responsible for having permission to message the people you contact through the service, and for telling
 	them how you use their data. The service records opt-outs and enforces them on every send.
 </p>
 
-<h2>10. Changes</h2>
+<h2>11. Changes</h2>
 <p>We will notify you by email or in the portal before any material change to this policy takes effect.</p>

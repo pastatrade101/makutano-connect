@@ -53,8 +53,20 @@ export async function processInboundEvent(event: WebhookEvent): Promise<void> {
 	const { tenantId, connection } = routed;
 	await markWebhookSeen(connection.id);
 	if (event.kind === 'template_status') {
+		/*
+		 * The tenant belongs in this key.
+		 *
+		 * Idempotency is enforced by a unique index on (provider, external_id, kind),
+		 * with no tenant column — which is right for a message or a status, because a
+		 * wamid is globally unique. A template event has no such id: it is named by
+		 * template + language + status, and every tenant gets the same 17 names from
+		 * the same pack. So the first tenant to be approved for "payment_reminder / en"
+		 * claimed that row, and every other tenant's approval was counted as a
+		 * duplicate and dropped before applyTemplateStatusUpdate could run. Their
+		 * templates stayed PENDING for ever, with nothing in the logs to say why.
+		 */
 		const fresh = await claimEvent(
-			`template:${event.templateName}:${event.language ?? ''}:${event.status}`,
+			`template:${tenantId}:${event.templateName}:${event.language ?? ''}:${event.status}`,
 			'template_status',
 			tenantId,
 			event as never

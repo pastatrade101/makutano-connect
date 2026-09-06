@@ -126,9 +126,18 @@
 					<a href={data.redirectUrl} class="btn-primary mt-4 w-full">Continue</a>
 				{/if}
 			{:else if data.mode === 'unauthenticated'}
+				<!--
+					A dead end, until now: the page said the link was expired and offered
+					nothing else. The landing page links straight here, and an operator who
+					is simply signed out — or a Meta reviewer opening the URL cold — got a
+					sentence about a link they were never sent, with no way forward.
+				-->
 				<p class="mt-5 rounded-panel bg-slate-100 px-3 py-3 text-xs text-slate-600">
 					This connection link is invalid or has expired. Ask your provider for a new one.
 				</p>
+				<a class="btn-primary mt-4 flex w-full items-center justify-center" href="/login?next=/app/settings/whatsapp">
+					Sign in to connect your own number
+				</a>
 			{:else if !data.ready}
 				<p class="mt-5 rounded-panel bg-warning/10 px-3 py-3 text-xs text-[#b58514]">
 					WhatsApp onboarding is not configured on this deployment yet.
@@ -163,6 +172,14 @@
 					You will be asked to select your WhatsApp Business Account and number. We store the connection securely and never see your Facebook password.
 				</p>
 			{/if}
+
+			<p class="mt-5 text-[11px] text-slate-400">
+				<a class="hover:underline" href="/legal/privacy">Privacy policy</a>
+				·
+				<a class="hover:underline" href="/legal/terms">Terms</a>
+				·
+				<a class="hover:underline" href="/legal/data-deletion">Deleting your data</a>
+			</p>
 
 			<form method="POST" action="?/exchange" bind:this={formEl} class="hidden">
 				<input type="hidden" name="code" value={code} />

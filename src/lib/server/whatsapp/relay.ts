@@ -18,9 +18,20 @@ import { log } from '../logger';
 const TIMEOUT_MS = 10_000;
 
 /**
- * Which legacy endpoints should receive this webhook delivery? Resolves each distinct
- * phone_number_id / waba_id to its owning tenant and collects distinct
- * settings.legacy_webhook_url values. Unroutable identifiers contribute nothing.
+ * Which legacy endpoints should receive this webhook delivery?
+ *
+ * Resolves each distinct phone_number_id / waba_id to its owning tenant and collects
+ * distinct settings.legacy_webhook_url values. Unroutable identifiers contribute
+ * nothing.
+ *
+ * A delivery that spans MORE THAN ONE tenant relays to nobody. What gets forwarded is
+ * the exact bytes Meta sent — that is the whole point, since the legacy consumer
+ * checks the signature over them — and those bytes carry every entry in the batch. So
+ * a mixed batch cannot be forwarded to one tenant's endpoint without handing it the
+ * other tenant's customer phone numbers and message text, and it cannot be trimmed to
+ * one tenant without breaking the signature it is being trusted for. Refusing is the
+ * only correct answer, and it is logged loudly because it should be rare: Meta
+ * normally sends one entry per delivery.
  */
 export async function relayTargetsFor(
 	identifiers: Array<{ phoneNumberId?: string | null; wabaId?: string | null }>
@@ -34,10 +45,16 @@ export async function relayTargetsFor(
 	if (wabaIds.length) conditions.push(inArray(schema.whatsappConnections.wabaId, wabaIds));
 
 	const rows = await db()
-		.selectDistinct({ settings: schema.tenants.settings })
+		.selectDistinct({ tenantId: schema.whatsappConnections.tenantId, settings: schema.tenants.settings })
 		.from(schema.whatsappConnections)
 		.innerJoin(schema.tenants, sql`${schema.tenants.id} = ${schema.whatsappConnections.tenantId}`)
 		.where(conditions.length === 1 ? conditions[0] : sql`${conditions[0]} or ${conditions[1]}`);
+
+	const tenantIds = new Set(rows.map((row) => row.tenantId));
+	if (tenantIds.size > 1) {
+		log.warn('relay_skipped_mixed_tenant_batch', { tenants: tenantIds.size });
+		return [];
+	}
 
 	const urls = new Set<string>();
 	for (const row of rows) {
