@@ -13,6 +13,7 @@
 import { fail } from '@sveltejs/kit';
 import { and, asc, eq } from 'drizzle-orm';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
+import { sanitizeRichText } from '$lib/server/richtext';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { db, schema } from '$lib/server/db';
 import { MAX_BYTES, deleteMedia, mediaEnabled, publicMedia, uploadMedia } from '$lib/server/media';
@@ -23,6 +24,7 @@ import {
 	listActiveCategories,
 	listActiveTravelStyles,
 	listActiveActivities,
+	listTours,
 	setTourActivities,
 	replaceItinerary,
 	setTourCategories,
@@ -45,6 +47,22 @@ const VENDOR_ACTIONS: readonly string[] = ['submit', 'unpublish', 'archive', 're
 const MAX_DAYS = 60;
 /** Enough for a long circuit; past this it is a catalogue, not an itinerary. */
 const MAX_STAYS = 40;
+
+/**
+ * The tours an itinerary day may link to.
+ *
+ * PUBLISHED only, and only this tenant's own: a link is a promise that the page
+ * is there, and pointing at a draft — or at a listing that belongs to another
+ * operator and could be unpublished tomorrow — makes a 404 that the operator
+ * cannot see and did not cause. The tour being edited is excluded because a page
+ * linking to itself is noise to a crawler, not a signal.
+ */
+async function linkTargetsFor(tenantId: string, excludeId: string) {
+	const { items } = await listTours(tenantId, { page: 1, limit: 200, order: 'desc' }, { status: ['PUBLISHED'] });
+	return items
+		.filter((t: schema.Tour) => t.id !== excludeId && Boolean(t.slug))
+		.map((t: schema.Tour) => ({ slug: t.slug, title: t.title }));
+}
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	requireTenantPermission(locals, 'tours:read');
@@ -158,12 +176,24 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		missing,
 		mediaConfigured: mediaEnabled(),
 		maxUploadBytes: MAX_BYTES,
-		canWrite: locals.permissions.includes('tours:write')
+		canWrite: locals.permissions.includes('tours:write'),
+		linkTargets: await linkTargetsFor(tenantId, params.id)
 	};
 };
 
 /** Empty means CLEARED, matching what the service does with an empty patch field. */
 const text = (f: FormData, key: string): string | null => String(f.get(key) ?? '').trim() || null;
+/*
+ * The same, for a field the composer's editor writes as HTML.
+ *
+ * Cleaning here as well as at the serve boundary is not belt-and-braces for its
+ * own sake: it means a payload never becomes a row, so no future reader — an
+ * export, a PDF, an AI prompt, a webhook — can find one and trust it. The serve
+ * boundary stays the load-bearing one, because rows predating this were never
+ * cleaned.
+ */
+const richText = (f: FormData, key: string): string | null =>
+	sanitizeRichText(String(f.get(key) ?? ''));
 
 /**
  * Blank CLEARS the column; anything that is not a number is refused.
@@ -225,7 +255,7 @@ export const actions: Actions = {
 				{
 					title: String(f.get('title') ?? '').trim(),
 					shortDescription: text(f, 'shortDescription'),
-					description: text(f, 'description'),
+					description: richText(f, 'description'),
 					// A blank duration leaves the column alone rather than clearing it — every
 					// listing has one, and the service refuses anything below a single day.
 					durationDays: num(f, 'durationDays', 'Duration in days') ?? undefined,
@@ -241,10 +271,10 @@ export const actions: Actions = {
 					customisable: f.has('customisable'),
 					soloFriendly: f.has('soloFriendly'),
 					startsAnyDay: f.has('startsAnyDay'),
-					accommodationSummary: text(f, 'accommodationSummary'),
-					transportSummary: text(f, 'transportSummary'),
-					mealsSummary: text(f, 'mealsSummary'),
-					bestTimeSummary: text(f, 'bestTimeSummary')
+					accommodationSummary: richText(f, 'accommodationSummary'),
+					transportSummary: richText(f, 'transportSummary'),
+					mealsSummary: richText(f, 'mealsSummary'),
+					bestTimeSummary: richText(f, 'bestTimeSummary')
 				},
 				{ userId: locals.user?.id }
 			);
@@ -314,7 +344,7 @@ export const actions: Actions = {
 			return {
 				dayNumber: index + 1,
 				title: String(d.title ?? '').trim(),
-				description: trimmed(d.description),
+				description: sanitizeRichText(typeof d.description === 'string' ? d.description : null),
 				destinationId: trimmed(d.destinationId),
 				accommodationId: trimmed(d.accommodationId),
 				accommodation: trimmed(d.accommodation),

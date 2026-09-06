@@ -43,6 +43,7 @@ import {
 	type ReviewSummary
 } from './reviews';
 import { db, schema } from './db';
+import { renderRichText, richTextToPlain } from './richtext';
 import type { Pagination } from './http';
 
 /* ------------------------------------------------------------- shapes ---- */
@@ -199,7 +200,10 @@ export type TourDetail = {
 	slug: string;
 	title: string;
 	shortDescription: string | null;
+	/** Sanitised rich text. Safe to render with {@html}; see server/richtext.ts. */
 	description: string | null;
+	/** The same copy as plain text, for JSON-LD and <meta name="description">. */
+	descriptionPlain: string | null;
 	durationDays: number;
 	durationNights: number | null;
 	priceFrom: string | null;
@@ -251,7 +255,10 @@ export type ItineraryDay = {
 	id: string;
 	dayNumber: number;
 	title: string;
+	/** Sanitised rich text. Safe to render with {@html}; see server/richtext.ts. */
 	description: string | null;
+	/** The same copy as plain text, for JSON-LD. */
+	descriptionPlain: string | null;
 	destination: DestinationRef | null;
 	accommodation: string | null;
 	/** Set when the day names a directory property, so a page can link to it. */
@@ -1649,7 +1656,18 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 		id: r.id,
 		dayNumber: r.dayNumber,
 		title: r.title,
-		description: r.description,
+		/*
+		 * Cleaned on the way OUT, not only on the way in.
+		 *
+		 * Rows written before the composer had an editor were never sanitised, and
+		 * the marketplace is a separate application that reads this over HTTP — so
+		 * this is the boundary that actually decides whether a script can reach a
+		 * public page. Plain text passes through untouched, which is what every
+		 * listing published so far contains.
+		 */
+		description: renderRichText(r.description),
+		/** Markup removed, for the day's entry in the page's JSON-LD. */
+		descriptionPlain: richTextToPlain(r.description),
 		destination:
 			r.destination?.id && r.destination.name && r.destination.slug
 				? {
@@ -1714,7 +1732,14 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 			slug: row.tour.slug,
 			title: row.tour.title,
 			shortDescription: row.tour.shortDescription,
-			description: row.tour.description,
+			description: renderRichText(row.tour.description),
+			/*
+			 * The same copy with the markup taken out, for the places markup is a
+			 * bug: JSON-LD and <meta name="description">. Structured data holding
+			 * "<p>Six days in the" is corrupt structured data, and the page that
+			 * writes it should not have to know how to strip tags.
+			 */
+			descriptionPlain: richTextToPlain(row.tour.description),
 			durationDays: row.tour.durationDays,
 			durationNights: row.tour.durationNights,
 			priceFrom: row.tour.priceFrom,
@@ -1728,10 +1753,10 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 			groupSizeMin: row.tour.groupSizeMin,
 			groupSizeMax: row.tour.groupSizeMax,
 			ageRequirement: row.tour.ageRequirement,
-			accommodationSummary: row.tour.accommodationSummary,
-			transportSummary: row.tour.transportSummary,
-			mealsSummary: row.tour.mealsSummary,
-			bestTimeSummary: row.tour.bestTimeSummary,
+			accommodationSummary: renderRichText(row.tour.accommodationSummary),
+			transportSummary: renderRichText(row.tour.transportSummary),
+			mealsSummary: renderRichText(row.tour.mealsSummary),
+			bestTimeSummary: renderRichText(row.tour.bestTimeSummary),
 			availabilityType: row.tour.availabilityType,
 			availableFrom: row.tour.availableFrom,
 			availableTo: row.tour.availableTo,

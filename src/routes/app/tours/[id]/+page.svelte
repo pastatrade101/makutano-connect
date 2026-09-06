@@ -18,6 +18,7 @@
 	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
+	import RichText from '$components/RichText.svelte';
 	import { plural, statusLabel } from '$lib/labels';
 	import { CURRENCIES, GROUP_TYPES, MEALS } from '$lib/tour-options';
 	import RoutePlanner from '$lib/geo/RoutePlanner.svelte';
@@ -1077,7 +1078,9 @@
 						</div>
 						<div class="sm:col-span-2">
 							<label class="label" for="t-desc">Full description</label>
-							<textarea id="t-desc" name="description" bind:value={draft.description} rows="6" class="input"></textarea>
+							<RichText id="t-desc" bind:value={draft.description} rows={6} linkTargets={data.linkTargets} placeholder="What the trip is. Headings, lists and links to your other tours all work here." />
+							<!-- A contenteditable is not a form control; the value rides in a hidden input. -->
+							<input type="hidden" name="description" value={draft.description} />
 						</div>
 						<div>
 							<label class="label" for="t-days">Days</label>
@@ -1228,19 +1231,27 @@
 
 						<div>
 							<label class="label" for="t-acc">Accommodation</label>
-							<textarea id="t-acc" name="accommodationSummary" bind:value={draft.accommodationSummary} rows="3" class="input"></textarea>
+							<RichText id="t-acc" bind:value={draft.accommodationSummary} rows={3} linkTargets={data.linkTargets} />
+							<!-- A contenteditable is not a form control; the value rides in a hidden input. -->
+							<input type="hidden" name="accommodationSummary" value={draft.accommodationSummary} />
 						</div>
 						<div>
 							<label class="label" for="t-trans">Transport</label>
-							<textarea id="t-trans" name="transportSummary" bind:value={draft.transportSummary} rows="3" class="input"></textarea>
+							<RichText id="t-trans" bind:value={draft.transportSummary} rows={3} linkTargets={data.linkTargets} />
+							<!-- A contenteditable is not a form control; the value rides in a hidden input. -->
+							<input type="hidden" name="transportSummary" value={draft.transportSummary} />
 						</div>
 						<div>
 							<label class="label" for="t-meals">Meals</label>
-							<textarea id="t-meals" name="mealsSummary" bind:value={draft.mealsSummary} rows="3" class="input"></textarea>
+							<RichText id="t-meals" bind:value={draft.mealsSummary} rows={3} linkTargets={data.linkTargets} />
+							<!-- A contenteditable is not a form control; the value rides in a hidden input. -->
+							<input type="hidden" name="mealsSummary" value={draft.mealsSummary} />
 						</div>
 						<div>
 							<label class="label" for="t-best">Best time to travel</label>
-							<textarea id="t-best" name="bestTimeSummary" bind:value={draft.bestTimeSummary} rows="3" class="input"></textarea>
+							<RichText id="t-best" bind:value={draft.bestTimeSummary} rows={3} linkTargets={data.linkTargets} />
+							<!-- A contenteditable is not a form control; the value rides in a hidden input. -->
+							<input type="hidden" name="bestTimeSummary" value={draft.bestTimeSummary} />
 						</div>
 					</div>
 					{@render saveBar('basics')}
@@ -1423,7 +1434,7 @@
 									</div>
 									<div class="sm:col-span-2">
 										<label class="label" for="d-desc-{index}">What happens</label>
-										<textarea id="d-desc-{index}" bind:value={day.description} rows="3" class="input"></textarea>
+										<RichText id="d-desc-{index}" bind:value={day.description} rows={3} linkTargets={data.linkTargets} placeholder="What happens on this day. Link another tour here and travellers — and search engines — can follow it." />
 									</div>
 									<div class="sm:col-span-2">
 										<label class="label" for="d-act-{index}">Activities (comma-separated)</label>
