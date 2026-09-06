@@ -524,6 +524,9 @@ export const whatsappConnections = pgTable(
 			.notNull()
 			.references(() => tenants.id, { onDelete: 'cascade' }),
 		metaBusinessId: text('meta_business_id'),
+		// The Facebook user who completed Embedded Signup. Meta's deauthorize callback
+		// names only this id, so without it a revocation cannot be matched to a row.
+		metaUserId: text('meta_user_id'),
 		wabaId: text('waba_id'),
 		// Globally unique: this is how an inbound Meta webhook resolves its owning tenant.
 		phoneNumberId: text('phone_number_id').notNull(),

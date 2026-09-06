@@ -97,6 +97,29 @@ async function exchangeCode(code: string, redirectUri: string | null) {
 	}
 }
 
+/**
+ * Who authorised this connection.
+ *
+ * Meta's deauthorize callback names a Facebook user and nothing else, so unless we
+ * record that id now there is no way to act on a revocation later. Best effort by
+ * design: an Embedded Signup token is business-scoped and debug_token does not
+ * always carry a user_id. A connection worth keeping must not fail because the
+ * bookkeeping did.
+ */
+async function readMetaUserId(accessToken: string): Promise<string | null> {
+	const cfg = metaAppConfig();
+	try {
+		const dbg = await appGraphRequest<{ data?: { user_id?: string } }>({
+			path: 'debug_token',
+			query: { input_token: accessToken, access_token: `${cfg.appId}|${cfg.appSecret}` }
+		});
+		return dbg?.data?.user_id ? String(dbg.data.user_id) : null;
+	} catch (err) {
+		log.warn('meta_user_id_unavailable', { message: (err as Error)?.message });
+		return null;
+	}
+}
+
 export async function connectFromCode(params: {
 	tenantId: string;
 	code: string;
@@ -203,9 +226,11 @@ export async function connectFromCode(params: {
 		}
 
 		// 8. Store the encrypted credential.
+		const metaUserId = await readMetaUserId(accessToken);
 		const connection = await upsertConnection({
 			tenantId: params.tenantId,
 			metaBusinessId,
+			metaUserId,
 			wabaId: wabaId ?? null,
 			phoneNumberId,
 			displayPhoneNumber,

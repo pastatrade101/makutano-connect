@@ -5,7 +5,7 @@
 //      tenant, so it may never be claimed by two tenants.
 //   2. A decrypted token is produced only here, only for the tenant that owns it,
 //      and is never returned to any HTTP response or written to a log (§29).
-import { and, eq, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, lt, ne, sql } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { decrypt, encrypt } from '../encryption';
 import { assertAllowed, assertWithinCount } from '../entitlements';
@@ -78,6 +78,8 @@ export async function getConnectionByPhoneNumberId(phoneNumberId: string): Promi
 export type UpsertConnectionInput = {
 	tenantId: string;
 	metaBusinessId?: string | null;
+	/** The Facebook user who authorised this connection; see revokeByMetaUserId. */
+	metaUserId?: string | null;
 	wabaId?: string | null;
 	phoneNumberId: string;
 	displayPhoneNumber?: string | null;
@@ -105,6 +107,7 @@ export async function upsertConnection(input: UpsertConnectionInput): Promise<sc
 		.values({
 			tenantId: input.tenantId,
 			metaBusinessId: input.metaBusinessId ?? null,
+			metaUserId: input.metaUserId ?? null,
 			wabaId: input.wabaId ?? null,
 			phoneNumberId: input.phoneNumberId,
 			displayPhoneNumber: input.displayPhoneNumber ?? null,
@@ -121,6 +124,7 @@ export async function upsertConnection(input: UpsertConnectionInput): Promise<sc
 			set: {
 				tenantId: input.tenantId,
 				metaBusinessId: input.metaBusinessId ?? null,
+				...(input.metaUserId ? { metaUserId: input.metaUserId } : {}),
 				wabaId: input.wabaId ?? null,
 				displayPhoneNumber: input.displayPhoneNumber ?? null,
 				businessName: input.businessName ?? null,
@@ -301,6 +305,40 @@ export async function disconnect(tenantId: string): Promise<SafeConnection | nul
 		.where(and(eq(schema.whatsappConnections.id, row.id), eq(schema.whatsappConnections.tenantId, tenantId)))
 		.returning();
 	return toSafeConnection(updated);
+}
+
+/**
+ * Meta says a person removed our app; take their numbers out of service.
+ *
+ * The callback names a Facebook user, not a number, so this revokes every
+ * connection that user authorised — which is the correct blast radius: their
+ * token is what those connections were built on, and it is now dead.
+ *
+ * The stored token is overwritten rather than left to rot, exactly as disconnect()
+ * does. Keeping a revoked secret buys nothing and is one more thing to leak.
+ */
+export async function revokeByMetaUserId(metaUserId: string): Promise<schema.WhatsappConnection[]> {
+	if (!metaUserId) return [];
+	const sealed = encrypt('');
+	const now = new Date();
+	return await db()
+		.update(schema.whatsappConnections)
+		.set({
+			status: 'DISCONNECTED',
+			disconnectedAt: now,
+			encryptedAccessToken: sealed.blob,
+			keyVersion: sealed.keyVersion,
+			lastErrorCode: 'meta_deauthorized',
+			lastErrorAt: now,
+			updatedAt: now
+		})
+		.where(
+			and(
+				eq(schema.whatsappConnections.metaUserId, metaUserId),
+				ne(schema.whatsappConnections.status, 'DISCONNECTED')
+			)
+		)
+		.returning();
 }
 
 /** Scheduled job: flag connections whose token is expiring or expired (§32). */

@@ -11,6 +11,7 @@ import { permissionsForRole } from '$lib/server/auth/permissions';
 import { resolveSession, SESSION_COOKIE } from '$lib/server/auth/session';
 import { assertFeature, assertTenantActive, getLimit, isUnlimited } from '$lib/server/entitlements';
 import { sha256 } from '$lib/server/encryption';
+import { isCrossSiteFormPost } from '$lib/server/csrf';
 import { assertEnv, isProduction } from '$lib/server/env';
 import { errorResponse, toAppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
@@ -36,6 +37,27 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.permissions = [];
 	event.locals.apiKey = null;
 	event.locals.ipHash = null;
+
+	// Before anything reads the body: see src/lib/server/csrf.ts for why this is here
+	// and not in svelte.config.js.
+	if (
+		isCrossSiteFormPost({
+			method: event.request.method,
+			pathname: event.url.pathname,
+			contentType: event.request.headers.get('content-type'),
+			origin: event.request.headers.get('origin'),
+			appOrigin: event.url.origin
+		})
+	) {
+		log.warn('csrf_cross_site_form_blocked', {
+			requestId: event.locals.requestId,
+			path: event.url.pathname
+		});
+		return new Response(JSON.stringify({ message: 'Cross-site form submissions are forbidden' }), {
+			status: 403,
+			headers: { 'content-type': 'application/json' }
+		});
+	}
 
 	try {
 		event.locals.ipHash = sha256(event.getClientAddress()).slice(0, 32);

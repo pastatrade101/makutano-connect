@@ -62,6 +62,7 @@ export type AuditAction =
 	| 'api_key.created'
 	| 'api_key.revoked'
 	| 'whatsapp.connected'
+	| 'whatsapp.deauthorized'
 	| 'whatsapp.disconnected'
 	| 'booking_request.created'
 	| 'booking_request.updated'
