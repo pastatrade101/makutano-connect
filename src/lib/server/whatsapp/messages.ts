@@ -17,6 +17,7 @@ import { findOrCreateCustomer } from '../customers';
 import { AppError } from '../errors';
 import { enqueue } from '../jobs/queue';
 import { log } from '../logger';
+import { markMarketplaceEnquiryResponded } from '../marketplace-analytics';
 import { normalizePhone } from '../phone';
 import { graphRequest, WhatsAppApiError } from './client';
 import { assertSendCompliant } from './compliance';
@@ -228,6 +229,37 @@ export async function sendQueuedMessage(messageId: string): Promise<void> {
 			})
 			.where(eq(schema.messages.id, message.id));
 		await markSendSuccess(credentials.connectionId);
+		// Only a message sent by an authenticated staff member is a response. Automated
+		// acknowledgements and integration sends have no sentByUserId and do not start
+		// the clock. Resolve the linked enquiry server-side from the conversation.
+		if (message.sentByUserId) {
+			try {
+				const [conversation] = await db()
+					.select({ bookingRequestId: schema.conversations.bookingRequestId })
+					.from(schema.conversations)
+					.where(
+						and(
+							eq(schema.conversations.id, message.conversationId),
+							eq(schema.conversations.tenantId, message.tenantId)
+						)
+					)
+					.limit(1);
+				if (conversation?.bookingRequestId) {
+					await markMarketplaceEnquiryResponded(
+						message.tenantId,
+						conversation.bookingRequestId,
+						'WHATSAPP',
+						new Date()
+					);
+				}
+			} catch (error) {
+				log.warn('marketplace_response_tracking_failed', {
+					tenantId: message.tenantId,
+					messageId: message.id,
+					error: (error as Error)?.message
+				});
+			}
+		}
 		void recordUsage(message.tenantId, 'whatsapp_outbound');
 		log.info('whatsapp_message_sent', { tenantId: message.tenantId, messageId: message.id, type: message.type });
 	} catch (err) {

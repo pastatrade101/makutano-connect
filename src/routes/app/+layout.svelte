@@ -80,6 +80,7 @@
 			accent: 'bg-info',
 			items: [
 				{ href: '/app/tours', label: 'Tours', icon: 'M10 2.5a4.5 4.5 0 0 0-4.5 4.5c0 3.4 4.5 10 4.5 10s4.5-6.6 4.5-10A4.5 4.5 0 0 0 10 2.5Zm0 6.2a1.7 1.7 0 1 1 0-3.4 1.7 1.7 0 0 1 0 3.4Z', permission: 'tours:read', module: 'bookings' },
+				{ href: '/app/marketplace/performance', label: 'Performance', icon: 'M3 16V9m5 7V5m5 11v-4m4 4V3', permission: 'marketplace_analytics:read', module: 'bookings' },
 				{ href: '/app/reviews', label: 'Reviews', icon: 'm10 2.6 2.3 4.7 5.2.7-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L2.5 8l5.2-.7L10 2.6Z', permission: 'reviews:read', module: 'bookings' }
 			]
 		},

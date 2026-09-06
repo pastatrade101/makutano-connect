@@ -6,7 +6,7 @@
 // role, and a screen that renders a button nobody can press only teaches people that
 // the product is broken.
 import { fail, redirect } from '@sveltejs/kit';
-import { and, count, eq, ilike, isNull, or, type SQL } from 'drizzle-orm';
+import { and, count, eq, ilike, inArray, isNull, or, type SQL } from 'drizzle-orm';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { db, schema } from '$lib/server/db';
@@ -71,6 +71,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		countByStatus(tenantId, pagination.q)
 	]);
 
+	// The listing shelf is visual, but listTours deliberately returns only tour rows
+	// because it also serves the API. Resolve the hero assets for this page in one
+	// tenant-scoped query rather than issuing one query per card.
+	const heroIds = items.map((tour) => tour.heroMediaId).filter((id): id is string => Boolean(id));
+	const heroRows = heroIds.length
+		? await db()
+				.select({ id: schema.media.id, url: schema.media.url, altText: schema.media.altText })
+				.from(schema.media)
+				.where(and(eq(schema.media.tenantId, tenantId), inArray(schema.media.id, heroIds)))
+		: [];
+	const heroes = new Map(heroRows.map((hero) => [hero.id, { url: hero.url, altText: hero.altText }]));
+
 	// A number per chip, so "how much of my work is waiting on the marketplace team"
 	// is answered before anything is clicked. Every status the table can hold belongs
 	// to exactly one filter, so summing the filters is also the count for "All".
@@ -81,7 +93,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	return {
-		items,
+		items: items.map((tour) => ({
+			...tour,
+			hero: tour.heroMediaId ? (heroes.get(tour.heroMediaId) ?? null) : null
+		})),
 		total,
 		pagination,
 		status,

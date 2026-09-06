@@ -46,6 +46,13 @@ function secretMatches(presented: string | null): boolean {
 	return timingSafeEqual(a, b);
 }
 
+/** Require the private first-party marketplace relay, without revealing why it failed. */
+export function requireTrustedOrigin(event: RequestEvent): void {
+	if (!secretMatches(event.request.headers.get(ORIGIN_SECRET_HEADER))) {
+		throw new AppError('NOT_FOUND', 'Not found.');
+	}
+}
+
 /**
  * Who the rate limiter should count this request against.
  *

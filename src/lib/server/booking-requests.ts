@@ -19,6 +19,7 @@ import { emit } from './events';
 import { AppError } from './errors';
 import { createLead } from './leads';
 import { log } from './logger';
+import { markMarketplaceEnquiryResponded } from './marketplace-analytics';
 import { notify } from './notifications';
 import { normalizePhone } from './phone';
 import { getTenantById } from './tenants';
@@ -505,6 +506,16 @@ export async function updateBookingRequest(tenantId: string, id: string, input: 
 		.set(patch)
 		.where(and(eq(schema.bookingRequests.id, id), eq(schema.bookingRequests.tenantId, tenantId)))
 		.returning();
+
+	if (input.status === 'CONTACTED') {
+		await markMarketplaceEnquiryResponded(tenantId, id, 'STATUS', row.updatedAt).catch((error) =>
+			log.warn('marketplace_response_tracking_failed', {
+				tenantId,
+				bookingRequestId: id,
+				error: (error as Error)?.message
+			})
+		);
+	}
 
 	await emit(tenantId, 'booking_request.updated', {
 		id: row.id,

@@ -1,6 +1,6 @@
 <script lang="ts">
-	// The listing shelf. One row per listing, and the status is the first thing on it —
-	// "where is this in the review" is the only question this page exists to answer.
+	// The listing shelf. Photography and the fields an operator scans most often are
+	// arranged into cards so a growing catalogue remains recognisable at a glance.
 	import { page } from '$app/state';
 	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
@@ -25,6 +25,11 @@
 		PUBLISHED: 'bg-success/10 text-success',
 		UNPUBLISHED: 'bg-orange/10 text-orange',
 		ARCHIVED: 'bg-slate-100 text-slate-400'
+	};
+	const PRICE_TYPE: Record<string, string> = {
+		PER_PERSON: 'per person',
+		PER_GROUP: 'per group',
+		FROM: 'starting price'
 	};
 
 	let showNew = $state(false);
@@ -131,78 +136,118 @@
 		</form>
 	</div>
 
-	<div class="card overflow-hidden">
-		<table class="mobile-record-table min-w-full divide-y divide-slate-100">
-			<thead class="bg-slate-50">
-				<tr>
-					<th class="table-head">Listing</th>
-					<th class="table-head">Status</th>
-					<th class="table-head">Duration</th>
-					<th class="table-head">From</th>
-					<th class="table-head">Updated</th>
-				</tr>
-			</thead>
-			<tbody class="divide-y divide-slate-100">
-				{#each data.items as tour (tour.id)}
-					<tr>
-						<td class="table-cell mobile-record-title">
-							<a href="/app/tours/{tour.id}" class="font-medium text-brand-600 hover:underline">{tour.title}</a>
-							{#if tour.shortDescription}
-								<div class="mt-0.5 max-w-[28rem] truncate text-xs text-slate-400">{tour.shortDescription}</div>
-							{/if}
-							<div class="mt-1 sm:hidden">
-								<span class="badge {TONES[tour.status] ?? 'bg-slate-100 text-slate-600'}">{statusLabel(tour.status)}</span>
+	{#if data.items.length}
+		<section aria-label="Tour listings" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+			{#each data.items as tour (tour.id)}
+				<article class="card group flex min-w-0 flex-col overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+					<a href="/app/tours/{tour.id}" class="relative block aspect-[16/9] overflow-hidden bg-slate-100">
+						{#if tour.hero}
+							<img
+								src={tour.hero.url}
+								alt={tour.hero.altText || tour.title}
+								loading="lazy"
+								class="size-full object-cover transition duration-300 group-hover:scale-[1.025]"
+							/>
+						{:else}
+							<span class="flex size-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 to-brand-50 text-slate-400">
+								<svg class="size-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+									<path d="M4 5.5h16v13H4zM8 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm-4 6 4.5-4 3.5 3 2.5-2 5.5 5" />
+								</svg>
+								<span class="text-xs font-medium">Add a main photo</span>
+							</span>
+						{/if}
+						<span class="badge absolute top-3 left-3 shadow-sm ring-1 ring-white/50 {TONES[tour.status] ?? 'bg-slate-100 text-slate-600'}">
+							{statusLabel(tour.status)}
+						</span>
+						{#if tour.featured}
+							<span class="badge absolute top-3 right-3 bg-purple text-white shadow-sm">Featured</span>
+						{/if}
+					</a>
+
+					<div class="flex flex-1 flex-col p-4">
+						<div class="flex items-start gap-3">
+							<div class="min-w-0 flex-1">
+								<a href="/app/tours/{tour.id}" class="block truncate text-base font-semibold text-slate-900 transition hover:text-brand-600">
+									{tour.title}
+								</a>
+								<p class="mt-1 h-10 overflow-hidden text-xs leading-5 {tour.shortDescription ? 'text-slate-500' : 'italic text-slate-400'}">
+									{tour.shortDescription || 'Add a short description to help travellers understand this tour.'}
+								</p>
 							</div>
-							{#if tour.status === 'CHANGES_REQUESTED'}
-								<!-- The one status on this shelf that is the vendor's move. A badge alone
-								     says where the listing is; this says what to do about it. -->
-								<div class="mt-1 text-xs font-medium text-danger">
-									The Makutano team left a note — open it to read what they need.
+							<a href="/app/tours/{tour.id}" aria-label="Open {tour.title}" class="mt-0.5 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-500">
+								<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
+							</a>
+						</div>
+
+						<div class="mt-4 grid grid-cols-2 gap-3 border-y border-slate-100 py-3">
+							<div class="flex min-w-0 items-center gap-2.5">
+								<span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+									<svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6v4l2.5 1.5" /></svg>
+								</span>
+								<div class="min-w-0">
+									<p class="text-[11px] font-medium tracking-wide text-slate-400 uppercase">Duration</p>
+									<p class="truncate text-xs font-semibold text-slate-700">
+										{tour.durationDays} {tour.durationDays === 1 ? 'day' : 'days'}{#if tour.durationNights != null} · {tour.durationNights} nights{/if}
+									</p>
 								</div>
-							{/if}
-						</td>
-						<td class="table-cell mobile-hide" data-label="Status">
-							<span class="badge {TONES[tour.status] ?? 'bg-slate-100 text-slate-600'}">{statusLabel(tour.status)}</span>
-						</td>
-						<td class="table-cell text-xs text-slate-500" data-label="Duration">
-							{tour.durationDays}
-							{tour.durationDays === 1 ? 'day' : 'days'}{#if tour.durationNights != null}, {tour.durationNights} nights{/if}
-						</td>
-						<td class="table-cell font-semibold" data-label="From">
-							{#if tour.priceFrom && tour.currency}
-								<Money amount={tour.priceFrom} currency={tour.currency} />
-							{:else}
-								<span class="text-xs font-normal text-slate-400">Not priced</span>
-							{/if}
-						</td>
-						<td class="table-cell text-xs text-slate-400" data-label="Updated">{fmt(tour.updatedAt)}</td>
-					</tr>
-				{:else}
-					<tr>
-						<td colspan="5" class="px-3 py-10 text-center">
-							{#if search || data.status}
-								<p class="text-sm font-medium text-slate-700">Nothing here matches that.</p>
-								<p class="mx-auto mt-1.5 max-w-md text-xs leading-5 text-slate-500">
-									Try a different word, or <a href={urlFor('')} class="text-brand-600 hover:underline">show every listing</a>.
-								</p>
-							{:else}
-								<!-- The first listing is the hardest one to start, so say how it starts
-								     rather than reporting that the table is empty. -->
-								<p class="text-sm font-medium text-slate-700">No listings yet.</p>
-								<p class="mx-auto mt-1.5 max-w-md text-xs leading-5 text-slate-500">
-									Begin with the tour you sell most. A working title is all it takes — the composer
-									then asks for the itinerary, the price and the photos one step at a time, and
-									nothing reaches a traveller until the Makutano team has approved it.
-								</p>
-								{#if data.canWrite}
-									<button class="btn-primary mt-4" onclick={openNew}>Start your first listing</button>
-								{/if}
-							{/if}
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-		<Pagination total={data.total} pageNumber={data.pagination.page} limit={data.pagination.limit} />
-	</div>
+							</div>
+							<div class="flex min-w-0 items-center gap-2.5">
+								<span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+									<svg class="size-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 5.5h14v9H3zM6 8h.01M14 12h.01M8 10h4" /></svg>
+								</span>
+								<div class="min-w-0">
+									<p class="text-[11px] font-medium tracking-wide text-slate-400 uppercase">Price</p>
+									{#if tour.priceFrom && tour.currency}
+										<p class="truncate text-xs font-semibold text-slate-700"><Money amount={tour.priceFrom} currency={tour.currency} /></p>
+										<p class="truncate text-[11px] text-slate-400">{PRICE_TYPE[tour.pricingType] ?? 'starting price'}</p>
+									{:else}
+										<p class="text-xs font-medium text-slate-400">Not priced</p>
+									{/if}
+								</div>
+							</div>
+						</div>
+
+						{#if tour.status === 'CHANGES_REQUESTED'}
+							<div class="mt-3 flex gap-2 rounded-panel bg-danger/5 px-2.5 py-2 text-xs leading-4 text-danger">
+								<svg class="mt-0.5 size-3.5 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6.5v4M10 13.5h.01" /></svg>
+								<span>The Makutano team left a note. Open the listing to see what needs to change.</span>
+							</div>
+						{/if}
+
+						<div class="mt-auto flex items-center justify-between gap-3 pt-3 text-xs text-slate-400">
+							<span>Updated {fmt(tour.updatedAt)}</span>
+							<a href="/app/tours/{tour.id}" class="shrink-0 font-semibold text-brand-600 hover:underline">Manage tour</a>
+						</div>
+					</div>
+				</article>
+			{/each}
+		</section>
+		<div class="card overflow-hidden">
+			<Pagination total={data.total} pageNumber={data.pagination.page} limit={data.pagination.limit} />
+		</div>
+	{:else}
+		<div class="card px-4 py-12 text-center">
+			{#if search || data.status}
+				<p class="text-sm font-medium text-slate-700">Nothing here matches that.</p>
+				<p class="mx-auto mt-1.5 max-w-md text-xs leading-5 text-slate-500">
+					Try a different word, or <a href={urlFor('')} class="text-brand-600 hover:underline">show every listing</a>.
+				</p>
+			{:else}
+				<!-- The first listing is the hardest one to start, so say how it starts
+				     rather than reporting that an empty card grid has no rows. -->
+				<div class="mx-auto flex size-11 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+					<svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 15 7.5 9l3 4 2.5-3 4 5M3 4h14v12H3z" /></svg>
+				</div>
+				<p class="mt-3 text-sm font-medium text-slate-700">No listings yet.</p>
+				<p class="mx-auto mt-1.5 max-w-md text-xs leading-5 text-slate-500">
+					Begin with the tour you sell most. A working title is all it takes — the composer
+					then asks for the itinerary, the price and the photos one step at a time, and
+					nothing reaches a traveller until the Makutano team has approved it.
+				</p>
+				{#if data.canWrite}
+					<button class="btn-primary mt-4" onclick={openNew}>Start your first listing</button>
+				{/if}
+			{/if}
+		</div>
+	{/if}
 </div>

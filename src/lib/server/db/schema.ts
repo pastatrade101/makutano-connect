@@ -6,6 +6,7 @@ import { relations, sql } from 'drizzle-orm';
 import {
 	type AnyPgColumn,
 	boolean,
+	check,
 	date,
 	index,
 	integer,
@@ -82,6 +83,14 @@ export const sourceEnum = pgEnum('source', [
 	'EMAIL',
 	'MARKETPLACE'
 ]);
+/** The first meaningful human response to a marketplace enquiry. */
+export const marketplaceResponseChannelEnum = pgEnum('marketplace_response_channel', [
+	'WHATSAPP',
+	'QUOTATION',
+	'STATUS'
+]);
+/** Public detail pages we count. Catalogue-card impressions are tracked separately. */
+export const marketplaceViewTypeEnum = pgEnum('marketplace_view_type', ['TOUR', 'PROFILE']);
 export const bookingRequestStatusEnum = pgEnum('booking_request_status', [
 	'NEW',
 	'UNDER_REVIEW',
@@ -790,6 +799,9 @@ export const bookingRequests = pgTable(
 			.notNull()
 			.default(sql`'{}'::jsonb`),
 		convertedBookingId: uuid('converted_booking_id'),
+		/** Set once, on the first sent quote, operator reply, or explicit CONTACTED action. */
+		firstRespondedAt: timestamp('first_responded_at', { withTimezone: true }),
+		firstResponseChannel: marketplaceResponseChannelEnum('first_response_channel'),
 		// Soft delete. A hard delete cascades into the trip and orphans
 		// payments, so a swipe on a phone hides the row and nothing more.
 		deletedAt: timestamp('deleted_at', { withTimezone: true }),
@@ -799,6 +811,9 @@ export const bookingRequests = pgTable(
 	(t) => [
 		uniqueIndex('booking_requests_tenant_reference_key').on(t.tenantId, t.reference),
 		index('booking_requests_tenant_status_idx').on(t.tenantId, t.status, t.createdAt),
+		index('booking_requests_marketplace_analytics_idx')
+			.on(t.tenantId, t.createdAt, t.firstRespondedAt)
+			.where(sql`${t.source} = 'MARKETPLACE' and ${t.deletedAt} is null`),
 		index('booking_requests_customer_idx').on(t.customerId)
 	]
 );
@@ -919,6 +934,9 @@ export const bookings = pgTable(
 	(t) => [
 		uniqueIndex('bookings_tenant_reference_key').on(t.tenantId, t.bookingReference),
 		index('bookings_tenant_status_idx').on(t.tenantId, t.status, t.createdAt),
+		index('bookings_booking_request_idx')
+			.on(t.tenantId, t.bookingRequestId)
+			.where(sql`${t.bookingRequestId} is not null and ${t.deletedAt} is null`),
 		index('bookings_customer_idx').on(t.customerId)
 	]
 );
@@ -1363,7 +1381,10 @@ export const quotations = pgTable(
 	},
 	(t) => [
 		uniqueIndex('quotations_tenant_reference_key').on(t.tenantId, t.reference),
-		index('quotations_tenant_status_idx').on(t.tenantId, t.status, t.createdAt)
+		index('quotations_tenant_status_idx').on(t.tenantId, t.status, t.createdAt),
+		index('quotations_booking_request_sent_idx')
+			.on(t.tenantId, t.bookingRequestId)
+			.where(sql`${t.bookingRequestId} is not null and ${t.sentAt} is not null and ${t.deletedAt} is null`)
 	]
 );
 
@@ -2712,6 +2733,42 @@ export const tours = pgTable(
 		index('tours_primary_category_idx')
 			.on(t.primaryCategoryId)
 			.where(sql`${t.primaryCategoryId} is not null`)
+	]
+);
+
+/**
+ * Privacy-preserving detail-page views from the public marketplace.
+ *
+ * The public site sends an opaque, high-entropy browser session id to a trusted
+ * server-to-server endpoint. Connect stores only its SHA-256 hash. Partial unique
+ * indexes deduplicate refreshes for the same page and visitor in a 30-minute bucket.
+ */
+export const marketplacePageViews = pgTable(
+	'marketplace_page_views',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		type: marketplaceViewTypeEnum('type').notNull(),
+		tourId: uuid('tour_id').references(() => tours.id, { onDelete: 'cascade' }),
+		sessionHash: text('session_hash').notNull(),
+		bucketStart: timestamp('bucket_start', { withTimezone: true }).notNull(),
+		createdAt: createdAt()
+	},
+	(t) => [
+		check(
+			'marketplace_page_views_shape_check',
+			sql`(${t.type} = 'TOUR' and ${t.tourId} is not null) or (${t.type} = 'PROFILE' and ${t.tourId} is null)`
+		),
+		index('marketplace_page_views_tenant_type_idx').on(t.tenantId, t.type, t.createdAt),
+		index('marketplace_page_views_tour_idx').on(t.tourId, t.createdAt),
+		uniqueIndex('marketplace_page_views_tour_dedupe_idx')
+			.on(t.tourId, t.sessionHash, t.bucketStart)
+			.where(sql`${t.type} = 'TOUR' and ${t.tourId} is not null`),
+		uniqueIndex('marketplace_page_views_profile_dedupe_idx')
+			.on(t.tenantId, t.sessionHash, t.bucketStart)
+			.where(sql`${t.type} = 'PROFILE'`)
 	]
 );
 

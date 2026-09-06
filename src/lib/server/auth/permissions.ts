@@ -77,6 +77,8 @@ export const PERMISSIONS = [
 	'tours:read',
 	'tours:write',
 	'tours:publish',
+	// Tenant-scoped marketplace traffic and conversion reporting.
+	'marketplace_analytics:read',
 	// Traveller reviews. An operator may READ their reviews and answer them; they
 	// may never publish, hide, reject or alter one. Moderation carries the
 	// platform's name and belongs to the platform — same reasoning as
@@ -146,6 +148,7 @@ const SALES: Permission[] = [
 // Presented in the UI as "Manager": runs the office day-to-day.
 const BOOKING_AGENT: Permission[] = [
 	...SALES,
+	'marketplace_analytics:read',
 	// Publishing a public order entry point stays a Manager+ decision (§28).
 	'order_links:write',
 	'bookings:write',

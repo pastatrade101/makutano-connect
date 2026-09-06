@@ -162,6 +162,9 @@
 					</p>
 				</div>
 				<div class="ml-auto flex flex-wrap gap-1.5">
+					{#if can('marketplace_analytics:read')}
+						<a href="/app/marketplace/performance" class="btn-secondary !py-1.5 text-xs">View performance</a>
+					{/if}
 					{#if operator}
 						<a href={operator.publicUrl} target="_blank" rel="noopener" class="btn-secondary !py-1.5 text-xs">
 							View storefront ↗

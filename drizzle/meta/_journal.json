@@ -358,6 +358,13 @@
       "when": 1788140070005,
       "tag": "0050_tracker_enrollments",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1788140070006,
+      "tag": "0051_marketplace_analytics",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,7 @@ import { quotationEmail, sendEmail } from './email';
 import { env } from './env';
 import { AppError } from './errors';
 import { log } from './logger';
+import { markMarketplaceEnquiryResponded } from './marketplace-analytics';
 import { getTenantById } from './tenants';
 import type { Pagination } from './http';
 import type { BookingRequestItemInput } from './booking-requests';
@@ -348,19 +349,28 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 		})
 		.onConflictDoNothing();
 
+	const sentAt = new Date();
 	const [updated] = await db()
 		.update(schema.quotations)
-		.set({ status: 'SENT', sentAt: new Date(), updatedAt: new Date() })
+		.set({ status: 'SENT', sentAt, updatedAt: sentAt })
 		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
 		.returning();
 
 	if (quotation.bookingRequestId) {
 		await db()
 			.update(schema.bookingRequests)
-			.set({ status: 'QUOTED', updatedAt: new Date() })
+			.set({ status: 'QUOTED', updatedAt: sentAt })
 			.where(
 				and(eq(schema.bookingRequests.id, quotation.bookingRequestId), eq(schema.bookingRequests.tenantId, tenantId))
 			);
+		await markMarketplaceEnquiryResponded(tenantId, quotation.bookingRequestId, 'QUOTATION', sentAt).catch((error) =>
+			log.warn('marketplace_response_tracking_failed', {
+				tenantId,
+				bookingRequestId: quotation.bookingRequestId,
+				quotationId: id,
+				error: (error as Error)?.message
+			})
+		);
 	}
 
 	await emit(tenantId, 'quotation.sent', {
