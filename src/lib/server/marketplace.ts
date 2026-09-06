@@ -128,6 +128,10 @@ export type TaxonomyCard = {
 	shortDescription: string | null;
 	hero: MediaRef | null;
 	tourCount: number;
+	/** Present on travel-style cards: real places reached by tours carrying that style. */
+	destinations?: Array<{ name: string; slug: string; matchingTours: number }>;
+	/** A real published tour to use as the style's visual and direct next step. */
+	previewTour?: { title: string; slug: string; hero: MediaRef | null } | null;
 };
 
 export type OperatorCard = {
@@ -675,13 +679,65 @@ export async function listTravelStyles(featuredOnly = false): Promise<TaxonomyCa
 				join tours t on t.id = l.tour_id
 				where l.travel_style_id = ${schema.travelStyles.id}
 				  and t.status = 'PUBLISHED' and t.deleted_at is null
+			)`,
+			destinations: sql<Array<{ name: string; slug: string; matchingTours: number }>>`coalesce((
+				select jsonb_agg(
+					jsonb_build_object(
+						'name', ranked.name,
+						'slug', ranked.slug,
+						'matchingTours', ranked.matching_tours
+					)
+					order by ranked.matching_tours desc, ranked.name
+				)
+				from (
+					select d.name, d.slug, count(distinct t.id)::int as matching_tours
+					from tour_travel_styles l
+					join tours t on t.id = l.tour_id
+					join tour_destinations td on td.tour_id = t.id
+					join destinations d on d.id = td.destination_id
+					where l.travel_style_id = ${schema.travelStyles.id}
+					  and t.status = 'PUBLISHED' and t.deleted_at is null
+					  and d.status = 'PUBLISHED'
+					group by d.id, d.name, d.slug
+					order by matching_tours desc, d.name
+					limit 3
+				) ranked
+			), '[]'::jsonb)`,
+			previewTour: sql<{ title: string; slug: string; hero: MediaRef | null } | null>`(
+				select jsonb_build_object(
+					'title', t.title,
+					'slug', t.slug,
+					'hero', case when m.url is null then null else jsonb_build_object(
+						'url', m.url,
+						'altText', m.alt_text,
+						'width', m.width,
+						'height', m.height,
+						'bytes', m.size,
+						'attribution', m.attribution,
+						'license', m.license,
+						'sourceUrl', m.source_url
+					) end
+				)
+				from tour_travel_styles l
+				join tours t on t.id = l.tour_id
+				left join media m on m.id = t.hero_media_id
+				where l.travel_style_id = ${schema.travelStyles.id}
+				  and t.status = 'PUBLISHED' and t.deleted_at is null
+				order by t.featured desc, (m.url is not null) desc, t.created_at desc
+				limit 1
 			)`
 		})
 		.from(schema.travelStyles)
 		.leftJoin(styleHero, eq(styleHero.id, schema.travelStyles.heroMediaId))
 		.where(and(...conditions))
 		.orderBy(asc(schema.travelStyles.sortOrder), asc(schema.travelStyles.name));
-	return rows.map((r) => ({ ...r, hero: mediaOf(r.hero), tourCount: Number(r.tourCount ?? 0) }));
+	return rows.map((r) => ({
+		...r,
+		hero: mediaOf(r.hero) ?? r.previewTour?.hero ?? null,
+		tourCount: Number(r.tourCount ?? 0),
+		destinations: r.destinations ?? [],
+		previewTour: r.previewTour ?? null
+	}));
 }
 
 const tourCardQuery = () =>
