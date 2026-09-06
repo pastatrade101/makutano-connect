@@ -9,6 +9,7 @@ import { db, schema } from '../db';
 import { randomToken, sha256 } from '../encryption';
 import { AppError } from '../errors';
 import { env } from '../env';
+import { hostedSignupUrl } from './config';
 
 const SESSION_TTL_MS = 1000 * 60 * 15; // 15 minutes
 
@@ -17,7 +18,10 @@ export type ConnectSession = {
 	token: string;
 	nonce: string;
 	expiresAt: string;
+	/** Our launcher page — runs Meta's popup from our own domain. */
 	launchUrl: string;
+	/** Meta's hosted page — no SDK, no popup. Send the customer straight here. */
+	hostedLaunchUrl: string | null;
 };
 
 export async function createConnectSession(params: {
@@ -47,7 +51,8 @@ export async function createConnectSession(params: {
 		token,
 		nonce,
 		expiresAt: expiresAt.toISOString(),
-		launchUrl: `${base}/connect/whatsapp?session=${encodeURIComponent(token)}`
+		launchUrl: `${base}/connect/whatsapp?session=${encodeURIComponent(token)}`,
+		hostedLaunchUrl: hostedSignupUrl({ state: token })
 	};
 }
 

@@ -65,11 +65,45 @@ async function discoverWabaAndPhone(accessToken: string) {
 	return null;
 }
 
+/**
+ * Exchange the authorization code for a business-scoped token.
+ *
+ * The two doors disagree about redirect_uri. A code from FB.login carries none, and
+ * sending one makes Meta reject the exchange outright — hence the bare call first,
+ * which is exactly what the SDK path has always done. A code from the hosted page was
+ * issued against a redirect_uri, and OAuth binds it there, so that path retries with
+ * it. The retry only ever runs when a caller supplied one, so the SDK flow is
+ * byte-for-byte unchanged.
+ */
+async function exchangeCode(code: string, redirectUri: string | null) {
+	const cfg = metaAppConfig();
+	const query: Record<string, string> = {
+		client_id: cfg.appId,
+		client_secret: cfg.appSecret,
+		code
+	};
+	try {
+		return await appGraphRequest<{ access_token?: string; expires_in?: number }>({
+			path: 'oauth/access_token',
+			query
+		});
+	} catch (err) {
+		if (!redirectUri) throw err;
+		log.info('oauth_exchange_retry_with_redirect_uri', { message: (err as Error)?.message });
+		return await appGraphRequest<{ access_token?: string; expires_in?: number }>({
+			path: 'oauth/access_token',
+			query: { ...query, redirect_uri: redirectUri }
+		});
+	}
+}
+
 export async function connectFromCode(params: {
 	tenantId: string;
 	code: string;
 	wabaId?: string | null;
 	phoneNumberId?: string | null;
+	/** Set only by the hosted redirect flow; see exchangeCode above. */
+	redirectUri?: string | null;
 }): Promise<ConnectResult> {
 	const cfg = metaAppConfig();
 	if (!cfg.appId || !cfg.appSecret || !cfg.configId)
@@ -81,13 +115,8 @@ export async function connectFromCode(params: {
 	let businessName: string | null = null;
 
 	try {
-		// 1. Exchange the code for a business-scoped token. Embedded Signup codes from
-		//    FB.login (config_id + response_type:code) are exchanged WITHOUT a
-		//    redirect_uri — sending one makes Meta reject the exchange outright.
-		const tok = await appGraphRequest<{ access_token?: string; expires_in?: number }>({
-			path: 'oauth/access_token',
-			query: { client_id: cfg.appId, client_secret: cfg.appSecret, code: params.code }
-		});
+		// 1. Exchange the code for a business-scoped token.
+		const tok = await exchangeCode(params.code, params.redirectUri ?? null);
 		const accessToken = tok.access_token;
 		if (!accessToken) return { ok: false, error: 'no_access_token_returned', status: 502 };
 		const tokenExpiresAt = tok.expires_in ? new Date(Date.now() + Number(tok.expires_in) * 1000) : null;

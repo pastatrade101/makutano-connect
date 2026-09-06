@@ -13,15 +13,34 @@
 	let phoneNumberId = $state('');
 	let formEl: HTMLFormElement;
 
-	const sessionToken = $derived(page.url.searchParams.get('session') ?? '');
+	// A link we sent carries ?session=. Meta's hosted page returns the same token as
+	// ?state=. Either is the tenant binding the server exchanges against.
+	const sessionToken = $derived(
+		page.url.searchParams.get('session') ?? page.url.searchParams.get('state') ?? ''
+	);
+	const hostedReturn = $derived(Boolean(page.url.searchParams.get('state')));
 
 	onMount(() => {
 		if (!data.ready || !data.meta.appId) return;
 
-		// Mobile browsers sometimes run Meta's dialog as a full-page redirect instead of
-		// a popup; the code then comes back in the URL rather than the FB.login callback.
+		/*
+		 * The return leg: Meta's hosted page (and a mobile browser that runs the popup
+		 * as a full-page redirect) sends the code back in the URL rather than through
+		 * the FB.login callback.
+		 *
+		 * It is only submitted when a token came back with it. Without that check the
+		 * page would exchange ANY code handed to it in a link — so anyone who got a
+		 * signed-in operator to open /connect/whatsapp?code=<their own code> would have
+		 * had THEIR WhatsApp number bound to that operator's tenant. The token is
+		 * single-use and minted by us, so a code that arrives alone did not start here.
+		 */
 		const urlCode = page.url.searchParams.get('code');
 		if (urlCode && !form?.success) {
+			if (!sessionToken) {
+				localError =
+					'This connection response is missing its security token. Please start again from your connection link.';
+				return;
+			}
 			code = urlCode;
 			busy = true;
 			void tick().then(() => formEl.requestSubmit());
@@ -118,9 +137,28 @@
 				{#if form?.message || localError}
 					<p class="mt-4 rounded-panel bg-danger/10 px-3 py-2 text-xs text-danger">{form?.message ?? localError}</p>
 				{/if}
-				<button class="btn-primary mt-5 w-full" disabled={!sdkReady || busy} onclick={launch}>
-					{busy ? 'Connecting…' : sdkReady ? 'Continue with Facebook' : 'Loading…'}
-				</button>
+				<!--
+					Meta's hosted page leads. It needs no SDK script and no popup, so it is
+					the one path that behaves the same on a phone, behind a popup blocker
+					and on a locked-down browser. The SDK popup stays as the second door
+					for anyone it already works for.
+				-->
+				{#if data.hostedUrl}
+					<a class="btn-primary mt-5 flex w-full items-center justify-center" href={data.hostedUrl}>
+						{busy ? 'Connecting…' : 'Continue with Facebook'}
+					</a>
+					<button
+						class="mt-3 w-full text-[11px] text-slate-400 underline underline-offset-2 disabled:no-underline"
+						disabled={!sdkReady || busy}
+						onclick={launch}
+					>
+						{sdkReady ? 'Or connect in a popup instead' : 'Loading the popup option…'}
+					</button>
+				{:else}
+					<button class="btn-primary mt-5 w-full" disabled={!sdkReady || busy} onclick={launch}>
+						{busy ? 'Connecting…' : sdkReady ? 'Continue with Facebook' : 'Loading…'}
+					</button>
+				{/if}
 				<p class="mt-3 text-[11px] text-slate-400">
 					You will be asked to select your WhatsApp Business Account and number. We store the connection securely and never see your Facebook password.
 				</p>
@@ -131,6 +169,7 @@
 				<input type="hidden" name="wabaId" value={wabaId} />
 				<input type="hidden" name="phoneNumberId" value={phoneNumberId} />
 				<input type="hidden" name="session" value={sessionToken} />
+				<input type="hidden" name="flow" value={hostedReturn ? 'hosted' : 'sdk'} />
 			</form>
 		</div>
 	</div>

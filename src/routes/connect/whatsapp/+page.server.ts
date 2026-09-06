@@ -8,20 +8,28 @@
 //
 // Either way the OAuth code is exchanged on the server. The Meta app secret and the
 // resulting access token never touch the browser.
+//
+// Two doors run that flow: Meta's JS SDK popup from our domain, and Meta's own hosted
+// page. The hosted one returns by redirecting here with ?code=&state=, and `state` is
+// the same single-use onboarding token — so the return leg is the session path above,
+// reached by a different name. A signed-in operator gets a token minted for them so
+// the hosted door binds to a tenant exactly like a customer link does.
 import { fail, type Actions } from '@sveltejs/kit';
 import { AppError } from '$lib/server/errors';
 import { audit } from '$lib/server/audit';
 import { requirePermission } from '$lib/server/auth/permissions';
-import { publicSignupConfig } from '$lib/server/whatsapp/config';
+import { hostedSignupUrl, publicSignupConfig, signupRedirectUri } from '$lib/server/whatsapp/config';
 import { connectFromCode } from '$lib/server/whatsapp/embedded-signup';
-import { consumeConnectSession, resolveConnectSession } from '$lib/server/whatsapp/onboarding';
+import { createConnectSession, consumeConnectSession, resolveConnectSession } from '$lib/server/whatsapp/onboarding';
 import { embeddedSignupReady } from '$lib/server/env';
 import { getTenantById } from '$lib/server/tenants';
 import { log } from '$lib/server/logger';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-	const token = url.searchParams.get('session');
+	// A link we sent carries ?session=. Meta round-trips the same token as ?state=.
+	const token = url.searchParams.get('session') ?? url.searchParams.get('state');
+	const returning = Boolean(url.searchParams.get('code'));
 	if (token) {
 		let session;
 		try {
@@ -47,7 +55,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			 */
 			if (error instanceof AppError && error.code === 'UNAUTHORIZED') {
 				log.info('whatsapp_connect_link_rejected', { reason: 'expired_or_used' });
-				return { ready: false, meta: publicSignupConfig(), mode: 'unauthenticated' as const, tenantName: '' };
+				return { ready: false, meta: publicSignupConfig(), mode: 'unauthenticated' as const, tenantName: '', hostedUrl: null };
 			}
 			throw error;
 		}
@@ -59,20 +67,39 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			nonce: session.nonce,
 			sessionId: session.id,
 			tenantName: tenant?.name ?? 'your business',
-			redirectUrl: session.redirectUrl
+			redirectUrl: session.redirectUrl,
+			hostedUrl: hostedSignupUrl({ state: token })
 		};
 	}
 
 	if (!locals.user || !locals.tenant) {
-		return { ready: false, meta: publicSignupConfig(), mode: 'unauthenticated' as const, tenantName: '' };
+		return { ready: false, meta: publicSignupConfig(), mode: 'unauthenticated' as const, tenantName: '', hostedUrl: null };
 	}
 	requirePermission(locals.permissions, 'whatsapp:connect');
+
+	/*
+	 * The hosted door leaves our domain entirely, so the operator's cookie cannot be
+	 * what identifies them on the way back — Meta returns to a bare URL. Mint the same
+	 * single-use token a customer link uses and carry it in `state`. Not minted on the
+	 * return leg: that request already carries the token it needs, and a fresh row per
+	 * page view would be litter.
+	 */
+	let hostedUrl: string | null = null;
+	if (embeddedSignupReady() && !returning) {
+		const launch = await createConnectSession({
+			tenantId: locals.tenant.id,
+			redirectUrl: '/app/settings/whatsapp'
+		});
+		hostedUrl = launch.hostedLaunchUrl;
+	}
+
 	return {
 		ready: embeddedSignupReady(),
 		meta: publicSignupConfig(),
 		mode: 'portal' as const,
 		tenantName: locals.tenant.name,
-		redirectUrl: '/app/settings/whatsapp'
+		redirectUrl: '/app/settings/whatsapp',
+		hostedUrl
 	};
 };
 
@@ -83,6 +110,8 @@ export const actions: Actions = {
 		const wabaId = String(data.get('wabaId') ?? '') || null;
 		const phoneNumberId = String(data.get('phoneNumberId') ?? '') || null;
 		const sessionToken = String(data.get('session') ?? '');
+		// Only the hosted flow obtained its code against a redirect_uri; see exchangeCode.
+		const hosted = String(data.get('flow') ?? '') === 'hosted';
 
 		// Resolve the tenant from the credential we were given — never from a form field.
 		let tenantId: string;
@@ -96,7 +125,13 @@ export const actions: Actions = {
 			tenantId = locals.tenant.id;
 		}
 
-		const result = await connectFromCode({ tenantId, code, wabaId, phoneNumberId });
+		const result = await connectFromCode({
+			tenantId,
+			code,
+			wabaId,
+			phoneNumberId,
+			redirectUri: hosted ? signupRedirectUri() : null
+		});
 		if (!result.ok) {
 			log.warn('connect_whatsapp_failed', { tenantId, error: result.error, code: result.code });
 			return fail(result.status ?? 400, { message: friendlyError(result.code ?? result.error) });
