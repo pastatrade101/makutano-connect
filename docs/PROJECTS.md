@@ -527,6 +527,29 @@ dark with no signal, and the person reinstating them has no reason to suspect a
 tracking-specific step exists. Revocation without a matching restore path turns a
 reversible suspension into an irreversible one by accident.
 
+### Tracking UX _(6 Sep 2026, not yet deployed)_
+
+The Live Map is a two-mode workspace: **Live** draws every vehicle the tenant
+owns from the one fleet poll (`/app/tracking/positions`, 25 s, paused while the
+tab is hidden, refreshed at once on return); **Route history** fetches one
+bounded range once (`hours` 1–24 — the backend has no `from`/`to`, so "Custom"
+is a bounded hour count, not a date range) and replays it entirely in the
+browser: prev/play/next, a scrubber, 0.5–4×, start/end/selected markers,
+cumulative distance along the recorded fixes. No smoothing, no snapping, no
+invented points. Pure helpers in `src/lib/tracking/{replay,presentation}.ts`.
+
+Two contract refinements, both additive: a truncated history now keeps the
+**most recent** `MAX_POSITIONS` (2,000) points instead of the earliest, and
+sends `limit` so clients say the real number; the mobile tracking endpoints
+accept the same bounded `hours`. Every client now shows `truncated` — the flag
+had been computed and sent since day one and read by nothing.
+
+Mobile: the sheet leads with a tappable vehicle row (icon, name, plate, state),
+polling pauses when the app is backgrounded, presets Today / 6 h / 24 h.
+
+Still true: no Vehicle Details screen exists in the app, and no per-vehicle
+page on the web beyond tracker setup — the header row leads to what exists.
+
 ### Vehicle tracking _(4 Sep 2026)_
 
 | | |

@@ -14,12 +14,18 @@
 // browser page gets that from its own load; this route has to do it itself.
 import type { RequestHandler } from './$types';
 import { getTripDetail, scopeFor } from '$lib/server/trips';
-import { tripHistory, tripSnapshot, TRACKING_LABEL } from '$lib/server/tracking';
+import { tripHistory, tripSnapshot, TRACKING_LABEL, HISTORY_POINT_LIMIT } from '$lib/server/tracking';
 import { parseUuid } from '$lib/server/http';
 import { ok, problem, requirePermissionOrThrow, requireViewer } from '$lib/server/mobile';
 
 /** A day is enough to draw today's drive without asking for a year of fixes. */
-const MAX_HISTORY_MS = 24 * 60 * 60 * 1000;
+const MAX_HOURS = 24;
+
+/** The window the app asked for, clamped to what the provider keeps. */
+function hoursFrom(url: URL): number {
+	const requested = Number(url.searchParams.get('hours') ?? MAX_HOURS);
+	return Math.min(MAX_HOURS, Math.max(1, Number.isFinite(requested) ? requested : MAX_HOURS));
+}
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -39,13 +45,16 @@ export const GET: RequestHandler = async (event) => {
 		let history = null;
 		if (event.url.searchParams.get('history') === '1') {
 			const to = new Date();
-			const from = new Date(to.getTime() - MAX_HISTORY_MS);
+			const hours = hoursFrom(event.url);
+			const from = new Date(to.getTime() - hours * 3600_000);
 			const h = await tripHistory(viewer.tenantId, tripId, from, to);
 			history = {
 				// Triples, not objects: a 2000-point track is a quarter of the bytes,
 				// and this is a phone on someone else's data bundle.
 				points: h.positions.map((p) => [p.latitude, p.longitude, p.recordedAt.getTime()]),
-				truncated: h.truncated
+				truncated: h.truncated,
+				hours,
+				limit: HISTORY_POINT_LIMIT
 			};
 		}
 

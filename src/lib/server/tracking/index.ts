@@ -24,6 +24,7 @@ import { providerBaseUrl, tenantCredentials } from './credentials';
 import type { TrackingHistory, TrackingProvider, TrackingSnapshot } from './types';
 
 export * from './types';
+export { MAX_POSITIONS as HISTORY_POINT_LIMIT } from './traccar';
 
 /** Provider names this build knows how to speak to. */
 const KNOWN_PROVIDERS = ['TRACCAR'] as const;

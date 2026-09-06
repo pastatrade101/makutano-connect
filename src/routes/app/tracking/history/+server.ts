@@ -7,7 +7,7 @@ import { json } from '@sveltejs/kit';
 import { requireTenantPermission } from '$lib/server/guards';
 import { errorResponse, toAppError } from '$lib/server/errors';
 import { parseUuid } from '$lib/server/http';
-import { vehicleHistory } from '$lib/server/tracking';
+import { vehicleHistory, HISTORY_POINT_LIMIT } from '$lib/server/tracking';
 import type { RequestHandler } from './$types';
 
 /** The provider keeps a day. Anything longer belongs to retention, not here. */
@@ -33,6 +33,8 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 				data: {
 					hours,
 					truncated: history.truncated,
+					// The cap, so the page can say the real number rather than guess one.
+					limit: HISTORY_POINT_LIMIT,
 					// Triples, not objects: a 2000-point track is a quarter of the bytes.
 					points: history.positions.map((p) => [p.latitude, p.longitude, p.recordedAt.getTime()])
 				}

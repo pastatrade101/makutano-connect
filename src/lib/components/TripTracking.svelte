@@ -27,6 +27,12 @@
 	let message = $state<string | null>(null);
 	let track = $state<{ latitude: number; longitude: number }[]>([]);
 	/*
+	 * The backend caps a day's route and says so with `truncated`. This card used
+	 * to read the points and ignore the flag, drawing a cut-off route as if it
+	 * were the whole day — the one omission the audit named. Now it is shown.
+	 */
+	let trackTruncated = $state(false);
+	/*
 	 * The preview shows as soon as there is a position.
 	 *
 	 * It used to hide behind a "View live map" button, so the default state of
@@ -71,7 +77,10 @@
 			trackState = body.data.state;
 			position = body.data.position;
 			message = body.data.message;
-			if (body.data.history) track = body.data.history.positions;
+			if (body.data.history) {
+				track = body.data.history.positions;
+				trackTruncated = Boolean(body.data.history.truncated);
+			}
 		} catch {
 			// A failed poll says nothing about the vehicle, only about the request.
 			trackState = 'UNAVAILABLE';
@@ -156,6 +165,11 @@
 					<span class="pointer-events-none absolute inset-0 z-[600] bg-slate-900/0 transition group-hover:bg-slate-900/5"></span>
 					<span class="pointer-events-none absolute right-2 top-2 z-[600] rounded-md border border-slate-200 bg-white/95 px-1.5 py-1 text-[11px] text-slate-600 shadow-sm">⛶</span>
 				</a>
+				{#if trackTruncated}
+					<p class="mt-1.5 rounded-md bg-warning/10 px-2.5 py-1.5 text-[11.5px] text-warning">
+						Showing the most recent {track.length.toLocaleString('en-US')} recorded points — earlier points today were cut off. Open the live map for the full range controls.
+					</p>
+				{/if}
 				<div class="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11.5px]">
 					<span class="text-slate-400">
 						Last GPS update <TimeAgo value={position.recordedAt} />

@@ -65,7 +65,11 @@ const KNOTS_TO_KPH = 1.852;
 /** A page render must never wait longer than this on a third party. */
 const TIMEOUT_MS = 6_000;
 /** Enough of a track to draw a day; beyond this the response is capped and said so. */
-const MAX_POSITIONS = 2_000;
+/**
+ * The most a history call returns. Exported so an endpoint can tell the client
+ * the number instead of the client guessing it.
+ */
+export const MAX_POSITIONS = 2_000;
 
 /**
  * What is safe to write into a log line.
@@ -291,8 +295,15 @@ export class TraccarProvider implements TrackingProvider {
 				.map(toPosition)
 				.filter((p): p is TrackingPosition => p !== null)
 				.sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
+			/*
+			 * Keep the MOST RECENT points, not the earliest. The question an operator
+			 * asks of a long day is "where has it been lately", and the old
+			 * slice(0, n) answered "where did it start" — a cut-off route that looked
+			 * complete and ended hours ago. `truncated` was already sent; no client
+			 * read it, which is being fixed alongside this.
+			 */
 			return {
-				positions: positions.slice(0, MAX_POSITIONS),
+				positions: positions.length > MAX_POSITIONS ? positions.slice(-MAX_POSITIONS) : positions,
 				from,
 				to,
 				truncated: positions.length > MAX_POSITIONS
