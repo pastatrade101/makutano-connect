@@ -36,12 +36,7 @@ import {
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
 import { mealsLabel, normaliseMeals } from '../tour-options';
 import { accommodationsForTours, imagesForAccommodations, type TourStay } from './accommodations';
-import {
-	getOperatorReviewSummary,
-	getTourReviewSummary,
-	tourReviewSummaries,
-	type ReviewSummary
-} from './reviews';
+import { getOperatorReviewSummary, getTourReviewSummary, tourReviewSummaries, type ReviewSummary } from './reviews';
 import { db, schema } from './db';
 import { renderRichText, richTextToPlain } from './richtext';
 import type { Pagination } from './http';
@@ -217,10 +212,26 @@ export type TourDetail = {
 	customisable: boolean;
 	soloFriendly: boolean;
 	startsAnyDay: boolean;
+	/*
+	 * The four practical summaries, in BOTH shapes.
+	 *
+	 * The operator writes these in the same editor as the description, links and
+	 * all, so the rendered form has to be available. But every slot that displays
+	 * them on the public page today is an inline or compact one — a definition
+	 * list, a feature chip, a sentence inside another sentence, a comparison table
+	 * cell — and a slot like that can only take a string. Serving the rendered
+	 * form alone is what put a literal "<p>All meals on safari.</p>" on a live
+	 * tour page: markup handed to a text slot is shown, not applied.
+	 */
 	accommodationSummary: string | null;
 	transportSummary: string | null;
 	mealsSummary: string | null;
 	bestTimeSummary: string | null;
+	/** The same four with the markup taken out, for slots that can only hold text. */
+	accommodationSummaryPlain: string | null;
+	transportSummaryPlain: string | null;
+	mealsSummaryPlain: string | null;
+	bestTimeSummaryPlain: string | null;
 	availabilityType: string;
 	availableFrom: string | null;
 	availableTo: string | null;
@@ -1674,9 +1685,9 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 	}));
 
 	// One query for every day's stay photographs, rather than one per day.
-	const dayStayImages = await imagesForAccommodations(
-		[...new Set(itineraryRows.map((r) => r.accommodationId).filter((id): id is string => Boolean(id)))]
-	);
+	const dayStayImages = await imagesForAccommodations([
+		...new Set(itineraryRows.map((r) => r.accommodationId).filter((id): id is string => Boolean(id)))
+	]);
 
 	const itinerary: ItineraryDay[] = itineraryRows.map((r) => ({
 		id: r.id,
@@ -1829,6 +1840,10 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 			transportSummary: renderRichText(row.tour.transportSummary),
 			mealsSummary: renderRichText(row.tour.mealsSummary),
 			bestTimeSummary: renderRichText(row.tour.bestTimeSummary),
+			accommodationSummaryPlain: richTextToPlain(row.tour.accommodationSummary),
+			transportSummaryPlain: richTextToPlain(row.tour.transportSummary),
+			mealsSummaryPlain: richTextToPlain(row.tour.mealsSummary),
+			bestTimeSummaryPlain: richTextToPlain(row.tour.bestTimeSummary),
 			availabilityType: row.tour.availabilityType,
 			availableFrom: row.tour.availableFrom,
 			availableTo: row.tour.availableTo,
@@ -2060,18 +2075,9 @@ export async function marketplaceScale(): Promise<MarketplaceScale | null> {
 	try {
 		const [journeys, destinations, stays, styles] = await Promise.all([
 			db().select({ value: count() }).from(schema.tours).where(publishedTour()),
-			db()
-				.select({ value: count() })
-				.from(schema.destinations)
-				.where(eq(schema.destinations.status, 'PUBLISHED')),
-			db()
-				.select({ value: count() })
-				.from(schema.accommodations)
-				.where(eq(schema.accommodations.isActive, true)),
-			db()
-				.select({ value: count() })
-				.from(schema.travelStyles)
-				.where(eq(schema.travelStyles.isActive, true))
+			db().select({ value: count() }).from(schema.destinations).where(eq(schema.destinations.status, 'PUBLISHED')),
+			db().select({ value: count() }).from(schema.accommodations).where(eq(schema.accommodations.isActive, true)),
+			db().select({ value: count() }).from(schema.travelStyles).where(eq(schema.travelStyles.isActive, true))
 		]);
 
 		const value: MarketplaceScale = {

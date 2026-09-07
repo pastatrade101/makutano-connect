@@ -7,6 +7,7 @@
 // own import. Once operators can type into these fields, every tenant is one
 // <script> away from a public page, so this file is the thing that must not
 // regress.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { renderRichText, richTextLength, richTextToPlain, sanitizeRichText } from '../src/lib/server/richtext';
 
@@ -75,9 +76,7 @@ describe('what an operator may legitimately write survives', () => {
 	});
 
 	it('leaves plain text — what all 39 live listings hold today — untouched', () => {
-		expect(sanitizeRichText('Six days across the northern circuit.')).toBe(
-			'Six days across the northern circuit.'
-		);
+		expect(sanitizeRichText('Six days across the northern circuit.')).toBe('Six days across the northern circuit.');
 	});
 
 	it('treats null, undefined and whitespace-only as nothing', () => {
@@ -90,9 +89,7 @@ describe('what an operator may legitimately write survives', () => {
 
 describe('structured data never receives markup', () => {
 	it('strips tags for JSON-LD and meta description', () => {
-		expect(richTextToPlain('<h3>Day 1</h3><p>Serengeti <strong>plains</strong></p>')).toBe(
-			'Day 1 Serengeti plains'
-		);
+		expect(richTextToPlain('<h3>Day 1</h3><p>Serengeti <strong>plains</strong></p>')).toBe('Day 1 Serengeti plains');
 	});
 
 	it('does not fuse two blocks into one word', () => {
@@ -145,5 +142,57 @@ describe('the 39 listings already published keep rendering', () => {
 	it('is nothing for nothing', () => {
 		expect(renderRichText(null)).toBeNull();
 		expect(renderRichText('   ')).toBeNull();
+	});
+});
+
+/*
+ * Two faults this file exists to keep out, both found on a live page.
+ *
+ * The first was visible: the four practical summaries were rendered to HTML at
+ * the serve boundary while every slot that displays them takes a plain string,
+ * so journeys.makutano.co.tz printed a literal "<p>All meals on safari.</p>"
+ * under the Meals heading. Sanitising a field is only half the contract — the
+ * other half is that its consumers are told which shape they are getting.
+ *
+ * The second was not visible, which is worse: the accommodation directory served
+ * `description` and `whyWeRecommend` straight out of the table, and the stays
+ * page renders both with {@html}.
+ */
+describe('the rendered/plain contract at the serve boundary', () => {
+	const MARKETPLACE = readFileSync('src/lib/server/marketplace.ts', 'utf8');
+	const ACCOMMODATIONS = readFileSync('src/lib/server/accommodations.ts', 'utf8');
+	const SUMMARIES = ['accommodationSummary', 'transportSummary', 'mealsSummary', 'bestTimeSummary'];
+
+	it('every rendered summary ships a plain twin beside it', () => {
+		for (const field of SUMMARIES) {
+			expect(MARKETPLACE).toContain(`${field}: renderRichText(row.tour.${field})`);
+			expect(MARKETPLACE).toContain(`${field}Plain: richTextToPlain(row.tour.${field})`);
+		}
+	});
+
+	it('the description keeps the same pairing it always had', () => {
+		expect(MARKETPLACE).toContain('description: renderRichText(row.tour.description)');
+		expect(MARKETPLACE).toContain('descriptionPlain: richTextToPlain(row.tour.description)');
+	});
+
+	it('nothing the stays page renders as HTML leaves the directory uncleaned', () => {
+		expect(ACCOMMODATIONS).toContain('description: renderRichText(row.description)');
+		expect(ACCOMMODATIONS).toContain('whyWeRecommend: renderRichText(row.whyWeRecommend)');
+		expect(ACCOMMODATIONS).not.toMatch(/\bdescription: row\.description\b/);
+		expect(ACCOMMODATIONS).not.toMatch(/\bwhyWeRecommend: row\.whyWeRecommend\b/);
+	});
+
+	it('a plain twin is a string a text slot can hold, not markup', () => {
+		// The property the consumers rely on: whatever the operator wrote, the
+		// plain form carries no angle bracket for a text slot to print.
+		const authored = '<h3>When to come</h3><p>June to <strong>October</strong>.</p><ul><li>Dry</li></ul>';
+		const plain = richTextToPlain(authored) ?? '';
+		expect(plain).not.toMatch(/[<>]/);
+		expect(plain).toBe('When to come June to October. Dry');
+	});
+
+	it('a summary that is only an empty paragraph is nothing in both shapes', () => {
+		expect(renderRichText('<p></p>')).toBeNull();
+		expect(richTextToPlain('<p></p>')).toBeNull();
 	});
 });

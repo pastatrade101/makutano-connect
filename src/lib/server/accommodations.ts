@@ -10,6 +10,7 @@ import { db, schema, txDb } from './db';
 import { accommodationLevelLabel, lodgeTypeLabel, normaliseBestFor } from '../tour-options';
 import { AppError } from './errors';
 import type { Pagination } from './http';
+import { renderRichText } from './richtext';
 
 /** What a card needs: the name, and one picture. */
 export type AccommodationCard = {
@@ -31,13 +32,27 @@ export type AccommodationCard = {
 };
 
 export type AccommodationDetail = AccommodationCard & {
-	/** Rich text (HTML) from the source system. */
+	/**
+	 * Rich text, SANITISED — safe to render with {@html}; see server/richtext.ts.
+	 *
+	 * The stays page renders both of these with {@html}, so this boundary is the
+	 * only thing between an accommodation row and a script tag on a public page.
+	 * The directory is platform-owned but its rows came from an import and are
+	 * editable, and "it came from our own export" stops being a safety argument
+	 * the first time anything else can write here.
+	 */
 	description: string | null;
 	whyWeRecommend: string | null;
 	websiteUrl: string | null;
 	flyInAvailable: boolean;
 	transferAvailable: boolean;
-	images: { url: string; role: string | null; altText: string | null; caption: string | null; category: string | null }[];
+	images: {
+		url: string;
+		role: string | null;
+		altText: string | null;
+		caption: string | null;
+		category: string | null;
+	}[];
 };
 
 /**
@@ -219,8 +234,8 @@ export async function getAccommodationBySlug(slug: string): Promise<Accommodatio
 	const lead = new Map(images.length ? [[row.id, { url: images[0].url, altText: images[0].altText }]] : []);
 	return {
 		...toCard(row, lead, new Map([[row.id, images.length]])),
-		description: row.description,
-		whyWeRecommend: row.whyWeRecommend,
+		description: renderRichText(row.description),
+		whyWeRecommend: renderRichText(row.whyWeRecommend),
 		websiteUrl: row.websiteUrl,
 		flyInAvailable: row.flyInAvailable,
 		transferAvailable: row.transferAvailable,
@@ -313,18 +328,12 @@ export async function accommodationsForTours(tourIds: string[]): Promise<Map<str
 		.orderBy(asc(schema.tourAccommodations.sortOrder));
 
 	const ids = rows.map((r) => r.id).filter((id): id is string => Boolean(id));
-	const [lead, counts, strips] = await Promise.all([
-		leadImages(ids),
-		imageCounts(ids),
-		imagesForAccommodations(ids)
-	]);
+	const [lead, counts, strips] = await Promise.all([leadImages(ids), imageCounts(ids), imagesForAccommodations(ids)]);
 
 	const byTour = new Map<string, TourStay[]>();
 	for (const row of rows) {
 		const custom = !row.id;
-		const images = custom
-			? (row.customImages ?? []).slice(0, 4)
-			: (strips.get(row.id!) ?? []).map((i) => i.url);
+		const images = custom ? (row.customImages ?? []).slice(0, 4) : (strips.get(row.id!) ?? []).map((i) => i.url);
 		const card = row.id ? toCard(row as Row, lead, counts) : null;
 		const list = byTour.get(row.tourId) ?? [];
 		list.push({
@@ -383,7 +392,8 @@ export async function setTourAccommodations(tourId: string, entries: TourStayInp
 		const name = entry.customName?.trim() || null;
 		// A row must be one kind or the other; the column CHECK says so too, but
 		// failing here names the problem instead of surfacing a constraint.
-		if (id && name) throw new AppError('VALIDATION_ERROR', 'A stay is either a listed place or one you typed, not both.');
+		if (id && name)
+			throw new AppError('VALIDATION_ERROR', 'A stay is either a listed place or one you typed, not both.');
 		if (!id && !name) continue;
 		// The same lodge twice is a mistake, not a two-night stay — that is what
 		// `nights` is for. One-off entries are not deduplicated: two different

@@ -152,13 +152,19 @@ describe('8-9: children and the public contract', () => {
 		expect(mobile).toMatch(/party\.children === 0 \|\| Boolean\(party\.childPrice\)/);
 	});
 
-	it('9: the public payload keeps exactly the three fields it always had', () => {
+	it('9: the public payload still carries the three fields it always had', () => {
 		const marketplace = readFileSync('src/lib/server/marketplace.ts', 'utf8');
 		expect(marketplace).toMatch(/priceFrom: row\.tour\.priceFrom/);
 		expect(marketplace).toMatch(/currency: row\.tour\.currency/);
-		// Structured pricing stays internal to Connect in this phase.
-		expect(marketplace).not.toMatch(/adultPrice: row\.tour\.adultPrice/);
-		expect(marketplace).not.toMatch(/tourPriceTiers|tourPriceSeasons/);
+		/*
+		 * This used to also assert that the tier and season tables were NEVER read
+		 * here — correct while structured pricing was internal to Connect, and
+		 * wrong the moment the published rate card shipped, which is a table of
+		 * exactly those rows on exactly this page. The assertion worth keeping is
+		 * the one the phase was protecting: the rate card is EXTRA, and priceFrom
+		 * remains what the ten older public surfaces read.
+		 */
+		expect(marketplace).toMatch(/rateCard/);
 	});
 
 	it('tiered per-person pricing is still PER_PERSON, never PER_GROUP', () => {
