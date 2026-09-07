@@ -28,7 +28,7 @@ export type AccommodationCard = {
 	featured: boolean;
 	destination: { id: string; name: string; slug: string } | null;
 	country: { id: string; name: string; slug: string } | null;
-	image: { url: string; altText: string | null } | null;
+	image: LeadImage | null;
 	imageCount: number;
 };
 
@@ -74,20 +74,27 @@ const ROLE_RANK = sql`case ${schema.accommodationImages.role}
 const live = () => and(eq(schema.accommodations.isActive, true), isNull(schema.accommodations.deletedAt));
 
 /** One query for the lead image of many properties, rather than one per card. */
-async function leadImages(ids: string[]): Promise<Map<string, { url: string; altText: string | null }>> {
+/** A card's picture, with the widths a card can choose between. */
+export type LeadImage = { url: string; altText: string | null; srcset: string | null };
+
+async function leadImages(ids: string[]): Promise<Map<string, LeadImage>> {
 	if (!ids.length) return new Map();
 	const rows = await db()
 		.select({
 			accommodationId: schema.accommodationImages.accommodationId,
 			url: schema.accommodationImages.url,
-			altText: schema.accommodationImages.altText
+			altText: schema.accommodationImages.altText,
+			width: schema.accommodationImages.width,
+			variants: schema.accommodationImages.variants
 		})
 		.from(schema.accommodationImages)
 		.where(inArray(schema.accommodationImages.accommodationId, ids))
 		.orderBy(ROLE_RANK, asc(schema.accommodationImages.sortOrder));
-	const lead = new Map<string, { url: string; altText: string | null }>();
+	const lead = new Map<string, LeadImage>();
 	for (const row of rows) {
-		if (!lead.has(row.accommodationId)) lead.set(row.accommodationId, { url: row.url, altText: row.altText });
+		if (!lead.has(row.accommodationId)) {
+			lead.set(row.accommodationId, { url: row.url, altText: row.altText, srcset: srcsetFor(row) });
+		}
 	}
 	return lead;
 }
@@ -146,11 +153,7 @@ const selectRow = {
 	countrySlug: schema.countries.slug
 };
 
-const toCard = (
-	row: Row,
-	lead: Map<string, { url: string; altText: string | null }>,
-	counts: Map<string, number>
-): AccommodationCard => ({
+const toCard = (row: Row, lead: Map<string, LeadImage>, counts: Map<string, number>): AccommodationCard => ({
 	id: row.id,
 	name: row.name,
 	slug: row.slug,
@@ -234,7 +237,9 @@ export async function getAccommodationBySlug(slug: string): Promise<Accommodatio
 		.where(eq(schema.accommodationImages.accommodationId, row.id))
 		.orderBy(ROLE_RANK, asc(schema.accommodationImages.sortOrder));
 
-	const lead = new Map(images.length ? [[row.id, { url: images[0].url, altText: images[0].altText }]] : []);
+	const lead = new Map<string, LeadImage>(
+		images.length ? [[row.id, { url: images[0].url, altText: images[0].altText, srcset: srcsetFor(images[0]) }]] : []
+	);
 	// The stays page renders these full width, so they get a real srcset and let
 	// the browser choose — unlike the strips, which have one fixed size.
 	const gallery = images.map((i) => ({
@@ -384,7 +389,7 @@ export async function accommodationsForTours(tourIds: string[]): Promise<Map<str
 			lodgeTypeLabel: card?.lodgeTypeLabel ?? null,
 			destination: card?.destination ?? null,
 			country: card?.country ?? null,
-			image: card?.image ?? (images[0] ? { url: images[0], altText: null } : null),
+			image: card?.image ?? (images[0] ? { url: images[0], altText: null, srcset: null } : null),
 			images,
 			imageCount: card?.imageCount ?? images.length,
 			nights: row.nights,
