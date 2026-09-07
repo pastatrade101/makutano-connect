@@ -379,6 +379,13 @@
       "when": 1788140070008,
       "tag": "0053_tour_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788140070009,
+      "tag": "0054_media_variants",
+      "breakpoints": true
     }
   ]
 }

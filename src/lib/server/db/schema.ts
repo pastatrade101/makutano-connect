@@ -36,7 +36,16 @@ export const provisioningSourceEnum = pgEnum('provisioning_source', ['ADMIN', 'S
 // Order matters: it must match the order the labels were added in the database,
 // because ALTER TYPE ... ADD VALUE appends. OPERATIONS came last (0016), so it
 // goes last here — a divergence would make any generated diff wrong.
-export const roleEnum = pgEnum('role', ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'SALES', 'BOOKING_AGENT', 'VIEWER', 'OPERATIONS', 'CREW']);
+export const roleEnum = pgEnum('role', [
+	'SUPER_ADMIN',
+	'OWNER',
+	'ADMIN',
+	'SALES',
+	'BOOKING_AGENT',
+	'VIEWER',
+	'OPERATIONS',
+	'CREW'
+]);
 export const apiKeyEnvEnum = pgEnum('api_key_environment', ['live', 'test']);
 export const verificationPurposeEnum = pgEnum('verification_purpose', [
 	'EMAIL_VERIFICATION',
@@ -74,15 +83,7 @@ export const leadStageEnum = pgEnum('lead_stage', [
 // MARKETPLACE is set by the marketplace enquiry route, never by an API caller —
 // the /api/v1 zod schemas deliberately still omit it, so an integration key
 // cannot forge an enquiry that looks like it came from the public marketplace.
-export const sourceEnum = pgEnum('source', [
-	'WEBSITE',
-	'WHATSAPP',
-	'ADMIN',
-	'API',
-	'PHONE',
-	'EMAIL',
-	'MARKETPLACE'
-]);
+export const sourceEnum = pgEnum('source', ['WEBSITE', 'WHATSAPP', 'ADMIN', 'API', 'PHONE', 'EMAIL', 'MARKETPLACE']);
 /** The first meaningful human response to a marketplace enquiry. */
 export const marketplaceResponseChannelEnum = pgEnum('marketplace_response_channel', [
 	'WHATSAPP',
@@ -180,13 +181,7 @@ export type TravelMode = (typeof TRAVEL_MODES)[number];
 
 export const contentStatusEnum = pgEnum('content_status', ['DRAFT', 'PUBLISHED', 'ARCHIVED']);
 
-export const tripStatusEnum = pgEnum('trip_status', [
-	'PREPARING',
-	'READY',
-	'IN_PROGRESS',
-	'COMPLETED',
-	'CANCELLED'
-]);
+export const tripStatusEnum = pgEnum('trip_status', ['PREPARING', 'READY', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']);
 
 export const bookingItemTypeEnum = pgEnum('booking_item_type', [
 	'TOUR',
@@ -1134,9 +1129,15 @@ export const trips = pgTable(
 		// One per link column: the crew scope ORs across all three, and Postgres
 		// cannot serve an OR from a single composite index. Partial, because most
 		// trips leave these null and indexing nulls buys nothing (see 0020).
-		index('trips_driver_crew_idx').on(t.driverCrewId).where(sql`${t.driverCrewId} is not null`),
-		index('trips_guide_crew_idx').on(t.guideCrewId).where(sql`${t.guideCrewId} is not null`),
-		index('trips_specialist_crew_idx').on(t.specialistCrewId).where(sql`${t.specialistCrewId} is not null`)
+		index('trips_driver_crew_idx')
+			.on(t.driverCrewId)
+			.where(sql`${t.driverCrewId} is not null`),
+		index('trips_guide_crew_idx')
+			.on(t.guideCrewId)
+			.where(sql`${t.guideCrewId} is not null`),
+		index('trips_specialist_crew_idx')
+			.on(t.specialistCrewId)
+			.where(sql`${t.specialistCrewId} is not null`)
 	]
 );
 
@@ -2043,21 +2044,35 @@ export const trackerEnrollments = pgTable(
 		firstFixLng: numeric('first_fix_lng', { precision: 9, scale: 6 }),
 		pollAttempts: integer('poll_attempts').notNull().default(0),
 		lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
-		metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`)
+		metadata: jsonb('metadata')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`)
 	},
 	(t) => [
-		uniqueIndex('te_ref_forever_key').on(t.provider, t.deviceRef).where(sql`status <> 'RELEASED'`),
-		uniqueIndex('te_one_inflight_key').on(t.vehicleId).where(sql`status IN ('PENDING','PROVISIONED')`),
-		uniqueIndex('te_one_active_key').on(t.vehicleId).where(sql`status = 'ACTIVE'`),
-		index('te_queue_idx').on(t.status, t.nextAttemptAt).where(sql`status = 'PENDING'`),
-		index('te_expiry_idx').on(t.expiresAt).where(sql`status IN ('PENDING','PROVISIONED')`),
+		uniqueIndex('te_ref_forever_key')
+			.on(t.provider, t.deviceRef)
+			.where(sql`status <> 'RELEASED'`),
+		uniqueIndex('te_one_inflight_key')
+			.on(t.vehicleId)
+			.where(sql`status IN ('PENDING','PROVISIONED')`),
+		uniqueIndex('te_one_active_key')
+			.on(t.vehicleId)
+			.where(sql`status = 'ACTIVE'`),
+		index('te_queue_idx')
+			.on(t.status, t.nextAttemptAt)
+			.where(sql`status = 'PENDING'`),
+		index('te_expiry_idx')
+			.on(t.expiresAt)
+			.where(sql`status IN ('PENDING','PROVISIONED')`),
 		index('te_tenant_idx').on(t.tenantId, t.createdAt),
-		index('te_gc_idx').on(t.providerDeleteAfter).where(sql`provider_delete_after IS NOT NULL`)
+		index('te_gc_idx')
+			.on(t.providerDeleteAfter)
+			.where(sql`provider_delete_after IS NOT NULL`)
 	]
 );
 
 export type TrackerEnrollment = typeof trackerEnrollments.$inferSelect;
-
 
 export type Vehicle = typeof vehicles.$inferSelect;
 export type TripItem = typeof tripItems.$inferSelect;
@@ -2118,11 +2133,9 @@ export const orderSourceEnum = pgEnum('order_source', [
 
 export const orderBatchStatusEnum = pgEnum('order_batch_status', ['OPEN', 'CLOSED']);
 
-
 export const deliveryMethodEnum = pgEnum('delivery_method', ['DELIVERY', 'PICKUP']);
 
 export const formTypeEnum = pgEnum('form_type', ['BOOKING', 'ORDER', 'QUOTE', 'LEAD']);
-
 
 /**
  * Order Batch — one selling round with shared defaults (§fish-seller workflow).
@@ -2410,7 +2423,6 @@ export type OrderLink = typeof orderLinks.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type Form = typeof forms.$inferSelect;
 
-
 /* ------------------------------------------------- §35 marketplace ---- */
 
 /**
@@ -2438,6 +2450,15 @@ export const media = pgTable(
 		size: integer('size'),
 		width: integer('width'),
 		height: integer('height'),
+		/**
+		 * Smaller copies of this image, narrow to wide: [{ w, key, bytes }].
+		 *
+		 * NULL or [] means only the original exists, and every reader must behave
+		 * exactly as it did before this column — the bucket is full of camera
+		 * originals and a page that cannot find a derivative should serve the
+		 * original, not a broken image.
+		 */
+		variants: jsonb('variants').$type<{ w: number; key: string; bytes: number }[]>(),
 		altText: text('alt_text'),
 		/*
 		 * Where this came from and what it obliges us to say.
@@ -2483,7 +2504,9 @@ export const countries = pgTable(
 	},
 	(t) => [
 		uniqueIndex('countries_slug_idx').on(t.slug),
-		uniqueIndex('countries_iso_code_idx').on(t.isoCode).where(sql`${t.isoCode} is not null`)
+		uniqueIndex('countries_iso_code_idx')
+			.on(t.isoCode)
+			.where(sql`${t.isoCode} is not null`)
 	]
 );
 
@@ -2515,8 +2538,14 @@ export const destinations = pgTable(
 		recommendedStayMin: integer('recommended_stay_min'),
 		recommendedStayMax: integer('recommended_stay_max'),
 		bestTimeSummary: text('best_time_summary'),
-		highlights: jsonb('highlights').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-		travelTips: jsonb('travel_tips').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		highlights: jsonb('highlights')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		travelTips: jsonb('travel_tips')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/**
 		 * Where this place IS. Rendered as a pin on the bundled national basemap;
 		 * there is no tile provider and no API key behind these two numbers.
@@ -2553,9 +2582,15 @@ export const destinations = pgTable(
 			.on(t.sortOrder, t.name)
 			.where(sql`${t.isFeatured} and ${t.status} = 'PUBLISHED'`),
 		index('destinations_country_idx').on(t.countryId, t.status),
-		index('destinations_type_idx').on(t.destinationType).where(sql`${t.status} = 'PUBLISHED'`),
-		index('destinations_parent_idx').on(t.parentId).where(sql`${t.parentId} is not null`),
-		index('destinations_map_region_idx').on(t.mapRegion).where(sql`${t.status} = 'PUBLISHED'`)
+		index('destinations_type_idx')
+			.on(t.destinationType)
+			.where(sql`${t.status} = 'PUBLISHED'`),
+		index('destinations_parent_idx')
+			.on(t.parentId)
+			.where(sql`${t.parentId} is not null`),
+		index('destinations_map_region_idx')
+			.on(t.mapRegion)
+			.where(sql`${t.status} = 'PUBLISHED'`)
 	]
 );
 
@@ -2579,8 +2614,14 @@ export const operatorProfiles = pgTable(
 		logoMediaId: uuid('logo_media_id').references(() => media.id, { onDelete: 'set null' }),
 		coverMediaId: uuid('cover_media_id').references(() => media.id, { onDelete: 'set null' }),
 		location: text('location'),
-		specialties: jsonb('specialties').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-		languages: jsonb('languages').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		specialties: jsonb('specialties')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		languages: jsonb('languages')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		yearsInBusiness: integer('years_in_business'),
 		/** A PLATFORM claim about an operator. A vendor cannot mark themselves verified. */
 		isVerified: boolean('is_verified').notNull().default(false),
@@ -2615,7 +2656,9 @@ export const operatorProfiles = pgTable(
 	(t) => [
 		uniqueIndex('operator_profiles_slug_idx').on(t.slug),
 		uniqueIndex('operator_profiles_tenant_idx').on(t.tenantId),
-		index('operator_profiles_verified_idx').on(t.verifiedAt).where(sql`${t.isVerified}`)
+		index('operator_profiles_verified_idx')
+			.on(t.verifiedAt)
+			.where(sql`${t.isVerified}`)
 	]
 );
 
@@ -2711,9 +2754,18 @@ export const tours = pgTable(
 
 		// Editorial lists the tour page renders. Read whole, never queried by
 		// element, so jsonb rather than three more tables.
-		highlights: jsonb('highlights').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-		included: jsonb('included').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-		excluded: jsonb('excluded').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		highlights: jsonb('highlights')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		included: jsonb('included')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		excluded: jsonb('excluded')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 
 		// Moderation trail. A vendor may not approve their own listing, so who
 		// reviewed it is part of the record rather than an afterthought.
@@ -2732,8 +2784,12 @@ export const tours = pgTable(
 		deletedAt: timestamp('deleted_at', { withTimezone: true })
 	},
 	(t) => [
-		uniqueIndex('tours_slug_live_idx').on(t.slug).where(sql`${t.deletedAt} is null`),
-		index('tours_tenant_idx').on(t.tenantId, t.status, t.updatedAt).where(sql`${t.deletedAt} is null`),
+		uniqueIndex('tours_slug_live_idx')
+			.on(t.slug)
+			.where(sql`${t.deletedAt} is null`),
+		index('tours_tenant_idx')
+			.on(t.tenantId, t.status, t.updatedAt)
+			.where(sql`${t.deletedAt} is null`),
 		index('tours_public_idx')
 			.on(t.publishedAt)
 			.where(sql`${t.status} = 'PUBLISHED' and ${t.deletedAt} is null`),
@@ -3026,7 +3082,10 @@ export const accommodations = pgTable(
 		flyInAvailable: boolean('fly_in_available').notNull().default(false),
 		transferAvailable: boolean('transfer_available').notNull().default(false),
 		/** Free-form audience tags from the source; normalised on the way in. */
-		bestFor: jsonb('best_for').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		bestFor: jsonb('best_for')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		isActive: boolean('is_active').notNull().default(true),
 		sortOrder: integer('sort_order').notNull().default(0),
 		/** Provenance, so an import can be traced and re-run without duplicating. */
@@ -3064,6 +3123,16 @@ export const accommodationImages = pgTable(
 		altText: text('alt_text'),
 		caption: text('caption'),
 		category: text('category'),
+		/*
+		 * The same picture, smaller — see media.variants for the reasoning.
+		 *
+		 * These rows carry a URL rather than a media id (the import wrote them
+		 * straight in), so they cannot borrow media's copies and keep their own.
+		 * NULL means only the original exists and the page behaves as it always has.
+		 */
+		width: integer('width'),
+		height: integer('height'),
+		variants: jsonb('variants').$type<{ w: number; key: string; bytes: number }[]>(),
 		sortOrder: integer('sort_order').notNull().default(0),
 		createdAt: createdAt()
 	},
@@ -3099,7 +3168,10 @@ export const tourAccommodations = pgTable(
 		 * rendering is a guess.
 		 */
 		customName: text('custom_name'),
-		customImages: jsonb('custom_images').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		customImages: jsonb('custom_images')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		sortOrder: integer('sort_order').notNull().default(0),
 		nights: integer('nights'),
 		note: text('note')
@@ -3204,7 +3276,10 @@ export const tourItineraryDays = pgTable(
 		 * its own pictures, and a second set on the day would be two answers to
 		 * one question.
 		 */
-		accommodationImages: jsonb('accommodation_images').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		accommodationImages: jsonb('accommodation_images')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/**
 		 * BREAKFAST | LUNCH | DINNER — a closed set, not a sentence.
 		 *
@@ -3212,10 +3287,16 @@ export const tourItineraryDays = pgTable(
 		 * [mealsNote] wherever the backfill could not read it, so a guess made by
 		 * pattern-matching English is checkable rather than destructive.
 		 */
-		meals: jsonb('meals').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		meals: jsonb('meals')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/** What the operator had typed, kept only while it has not been understood. */
 		mealsNote: text('meals_note'),
-		activities: jsonb('activities').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+		activities: jsonb('activities')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		distance: text('distance'),
 		estimatedTravelTime: text('estimated_travel_time'),
 		/**

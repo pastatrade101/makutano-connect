@@ -39,6 +39,7 @@ import { accommodationsForTours, imagesForAccommodations, type TourStay } from '
 import { getOperatorReviewSummary, getTourReviewSummary, tourReviewSummaries, type ReviewSummary } from './reviews';
 import { db, schema } from './db';
 import { renderRichText, richTextToPlain } from './richtext';
+import { srcsetFor } from './media';
 import type { Pagination } from './http';
 
 /* ------------------------------------------------------------- shapes ---- */
@@ -53,6 +54,14 @@ import type { Pagination } from './http';
  */
 export type MediaRef = {
 	url: string;
+	/**
+	 * The same picture at several widths, or null when only the original exists.
+	 *
+	 * `url` remains the src and the fallback: a consumer that ignores this is
+	 * exactly as correct as it was before the field existed, which is what lets
+	 * the bucket be backfilled one row at a time.
+	 */
+	srcset: string | null;
 	altText: string | null;
 	width: number | null;
 	height: number | null;
@@ -390,6 +399,7 @@ type MediaSelection = {
 	width: PgColumn;
 	height: PgColumn;
 	size: PgColumn;
+	variants: PgColumn;
 	attribution: PgColumn;
 	license: PgColumn;
 	sourceUrl: PgColumn;
@@ -400,8 +410,13 @@ type MediaSelection = {
  * that can delete the object behind the URL.
  *
  * media.ts has publicMedia() for the same job, but it projects a whole row that has
- * already been read. Joining only these four columns means the private ones never
+ * already been read. Joining only these columns means the private ones never
  * reach this process at all, which is a weaker thing to get wrong.
+ *
+ * `variants` carries object keys and is the one exception, because srcsetFor has
+ * to turn them into URLs. It is safe for the same reason `url` is: a derivative
+ * key resolves to the same public bucket path the original already publishes,
+ * and the keys are consumed here — the response carries the URLs, never the keys.
  *
  * The return type is spelled out as indexed accesses rather than left to inference:
  * without it TypeScript widens each column to the constraint, and drizzle then types
@@ -415,6 +430,7 @@ const mediaColumns = <T extends MediaSelection>(
 	width: T['width'];
 	height: T['height'];
 	size: T['size'];
+	variants: T['variants'];
 	attribution: T['attribution'];
 	license: T['license'];
 	sourceUrl: T['sourceUrl'];
@@ -424,6 +440,7 @@ const mediaColumns = <T extends MediaSelection>(
 	width: t.width,
 	height: t.height,
 	size: t.size,
+	variants: t.variants,
 	attribution: t.attribution,
 	license: t.license,
 	sourceUrl: t.sourceUrl
@@ -435,6 +452,7 @@ type JoinedMedia = {
 	width: number | null;
 	height: number | null;
 	size?: number | null;
+	variants?: { w: number; key: string; bytes: number }[] | null;
 	attribution?: string | null;
 	license?: string | null;
 	sourceUrl?: string | null;
@@ -452,6 +470,7 @@ const mediaOf = (m: JoinedMedia): MediaRef | null =>
 	m?.url
 		? {
 				url: m.url,
+				srcset: srcsetFor({ url: m.url, width: m.width, variants: m.variants ?? null }),
 				altText: m.altText,
 				width: m.width,
 				height: m.height,
@@ -1723,8 +1742,13 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 		// the directory exists to end.
 		accommodation: r.accommodationName ?? r.accommodation,
 		accommodationSlug: r.accommodationSlug,
+		/*
+		 * The SMALL copy. These render as a 42x30 strip under the day's stay, and
+		 * three full-size originals per day was the heaviest thing on the page for
+		 * the least screen — a 1.4MB file for 1,260 square pixels.
+		 */
 		accommodationImages: r.accommodationId
-			? (dayStayImages.get(r.accommodationId) ?? []).map((i) => i.url)
+			? (dayStayImages.get(r.accommodationId) ?? []).map((i) => i.thumbUrl)
 			: (r.accommodationImages ?? []),
 		// Rendered once, here, so every consumer says it the same way rather than
 		// each reimplementing the join.

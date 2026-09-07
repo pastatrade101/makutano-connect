@@ -11,6 +11,7 @@ import { accommodationLevelLabel, lodgeTypeLabel, normaliseBestFor } from '../to
 import { AppError } from './errors';
 import type { Pagination } from './http';
 import { renderRichText } from './richtext';
+import { srcsetFor, variantUrl } from './media';
 
 /** What a card needs: the name, and one picture. */
 export type AccommodationCard = {
@@ -225,13 +226,25 @@ export async function getAccommodationBySlug(slug: string): Promise<Accommodatio
 			role: schema.accommodationImages.role,
 			altText: schema.accommodationImages.altText,
 			caption: schema.accommodationImages.caption,
-			category: schema.accommodationImages.category
+			category: schema.accommodationImages.category,
+			width: schema.accommodationImages.width,
+			variants: schema.accommodationImages.variants
 		})
 		.from(schema.accommodationImages)
 		.where(eq(schema.accommodationImages.accommodationId, row.id))
 		.orderBy(ROLE_RANK, asc(schema.accommodationImages.sortOrder));
 
 	const lead = new Map(images.length ? [[row.id, { url: images[0].url, altText: images[0].altText }]] : []);
+	// The stays page renders these full width, so they get a real srcset and let
+	// the browser choose — unlike the strips, which have one fixed size.
+	const gallery = images.map((i) => ({
+		url: i.url,
+		role: i.role,
+		altText: i.altText,
+		caption: i.caption,
+		category: i.category,
+		srcset: srcsetFor(i)
+	}));
 	return {
 		...toCard(row, lead, new Map([[row.id, images.length]])),
 		description: renderRichText(row.description),
@@ -239,7 +252,7 @@ export async function getAccommodationBySlug(slug: string): Promise<Accommodatio
 		websiteUrl: row.websiteUrl,
 		flyInAvailable: row.flyInAvailable,
 		transferAvailable: row.transferAvailable,
-		images
+		images: gallery
 	};
 }
 
@@ -250,25 +263,49 @@ export async function getAccommodationBySlug(slug: string): Promise<Accommodatio
  * night is spent wants a strip. Capped per property so a lodge with forty
  * photographs cannot make one page carry forty.
  */
+export type AccommodationImage = {
+	url: string;
+	altText: string | null;
+	/** The same picture at several widths, or null when only the original exists. */
+	srcset: string | null;
+	/**
+	 * One small copy, for the strips that render these at 42x30.
+	 *
+	 * Those slots have no choice to offer a browser — they are a fixed size — so
+	 * they take a URL rather than a srcset, and the URL should not be a 1.4MB
+	 * camera original.
+	 */
+	thumbUrl: string;
+};
+
 export async function imagesForAccommodations(
 	ids: string[],
 	perProperty = 4
-): Promise<Map<string, { url: string; altText: string | null }[]>> {
+): Promise<Map<string, AccommodationImage[]>> {
 	if (!ids.length) return new Map();
 	const rows = await db()
 		.select({
 			accommodationId: schema.accommodationImages.accommodationId,
 			url: schema.accommodationImages.url,
-			altText: schema.accommodationImages.altText
+			altText: schema.accommodationImages.altText,
+			width: schema.accommodationImages.width,
+			variants: schema.accommodationImages.variants
 		})
 		.from(schema.accommodationImages)
 		.where(inArray(schema.accommodationImages.accommodationId, ids))
 		.orderBy(ROLE_RANK, asc(schema.accommodationImages.sortOrder));
 
-	const byId = new Map<string, { url: string; altText: string | null }[]>();
+	const byId = new Map<string, AccommodationImage[]>();
 	for (const row of rows) {
 		const list = byId.get(row.accommodationId) ?? [];
-		if (list.length < perProperty) list.push({ url: row.url, altText: row.altText });
+		if (list.length < perProperty) {
+			list.push({
+				url: row.url,
+				altText: row.altText,
+				srcset: srcsetFor(row),
+				thumbUrl: variantUrl(row, 320)
+			});
+		}
 		byId.set(row.accommodationId, list);
 	}
 	return byId;
@@ -333,7 +370,8 @@ export async function accommodationsForTours(tourIds: string[]): Promise<Map<str
 	const byTour = new Map<string, TourStay[]>();
 	for (const row of rows) {
 		const custom = !row.id;
-		const images = custom ? (row.customImages ?? []).slice(0, 4) : (strips.get(row.id!) ?? []).map((i) => i.url);
+		// Small copies: the tour page renders these four-up as thumbnails.
+		const images = custom ? (row.customImages ?? []).slice(0, 4) : (strips.get(row.id!) ?? []).map((i) => i.thumbUrl);
 		const card = row.id ? toCard(row as Row, lead, counts) : null;
 		const list = byTour.get(row.tourId) ?? [];
 		list.push({

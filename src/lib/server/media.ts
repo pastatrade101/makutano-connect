@@ -17,6 +17,7 @@
 // handle that can DELETE an object, so it never leaves the server — routes
 // project rows through `publicMedia`.
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { deriveImages, derivativeKey } from './media-derivatives';
 import { randomUUID } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db, schema } from './db';
@@ -287,6 +288,26 @@ export async function uploadMedia(
 	const objectKey = buildKey(owner, ext);
 	const url = await putObject(objectKey, bytes, contentType);
 
+	/*
+	 * Smaller copies, beside the original.
+	 *
+	 * The original goes up FIRST and is never conditional on this: a derivative
+	 * that fails to generate or fails to store leaves a row that behaves exactly
+	 * as every row did before the column existed — no srcset, the original
+	 * served. An upload must not fail because a resize did.
+	 */
+	const derived = await deriveImages(bytes, contentType);
+	const variants: { w: number; key: string; bytes: number }[] = [];
+	for (const d of derived.derivatives) {
+		const key = derivativeKey(objectKey, d.w);
+		try {
+			await putObject(key, d.bytes, d.contentType);
+			variants.push({ w: d.w, key, bytes: d.bytes.byteLength });
+		} catch (error) {
+			log.error('media_derivative_put_failed', { key, error: (error as Error)?.message });
+		}
+	}
+
 	const [row] = await db()
 		.insert(schema.media)
 		.values({
@@ -295,8 +316,11 @@ export async function uploadMedia(
 			url,
 			mimeType: contentType,
 			size: bytes.byteLength,
-			width: opts.width ?? null,
-			height: opts.height ?? null,
+			// Measured from the file. The caller's values are kept as a fallback
+			// because this used to be the only source and callers may still pass them.
+			width: derived.width ?? opts.width ?? null,
+			height: derived.height ?? opts.height ?? null,
+			variants: variants.length ? variants : null,
 			altText: opts.altText?.trim() || null,
 			createdBy: opts.createdBy ?? null
 		})
@@ -348,7 +372,57 @@ export type PublicMedia = {
 	altText: string | null;
 	width: number | null;
 	height: number | null;
+	/**
+	 * A ready-made srcset, or null when only the original exists.
+	 *
+	 * Built here rather than in each page because the widths and the key naming
+	 * are this module's business, and because a page that has to assemble one is
+	 * a page that can assemble it wrongly. Null is the whole compatibility story:
+	 * a consumer that finds nothing here uses `url` and behaves as it always has.
+	 */
+	srcset: string | null;
 };
+
+/**
+ * The srcset for a row, including the original at its own width.
+ *
+ * The original is listed last and only when its width is known — a candidate
+ * with no descriptor cannot be compared against the others, and a browser given
+ * an unknown-width candidate may simply take it, which is the 1.4MB file.
+ */
+export function srcsetFor(row: {
+	url: string;
+	width: number | null;
+	variants: { w: number; key: string; bytes: number }[] | null;
+}): string | null {
+	const variants = row.variants ?? [];
+	if (!variants.length) return null;
+	const parts = variants
+		.slice()
+		.sort((a, b) => a.w - b.w)
+		.map((v) => `${publicUrl(v.key)} ${v.w}w`);
+	if (row.width) parts.push(`${row.url} ${row.width}w`);
+	return parts.join(', ');
+}
+
+/**
+ * The smallest copy big enough for a slot, or the original when there is none.
+ *
+ * For a fixed, small rendering — the 42x30 thumbnails in an itinerary's stay
+ * strip — a srcset is the wrong tool: there is no choice for the browser to
+ * make, only a file that should never have been the full one. This picks the
+ * rung and hands over a single URL, so the caller's shape does not change.
+ */
+export function variantUrl(
+	row: { url: string; variants: { w: number; key: string; bytes: number }[] | null },
+	minWidth: number
+): string {
+	const fit = (row.variants ?? [])
+		.slice()
+		.sort((a, b) => a.w - b.w)
+		.find((v) => v.w >= minWidth);
+	return fit ? publicUrl(fit.key) : row.url;
+}
 
 /**
  * Project a row for a response.
@@ -358,5 +432,12 @@ export type PublicMedia = {
  */
 export function publicMedia(row: schema.Media | null | undefined): PublicMedia | null {
 	if (!row) return null;
-	return { id: row.id, url: row.url, altText: row.altText, width: row.width, height: row.height };
+	return {
+		id: row.id,
+		url: row.url,
+		altText: row.altText,
+		width: row.width,
+		height: row.height,
+		srcset: srcsetFor(row)
+	};
 }
