@@ -56,7 +56,14 @@ const bodySchema = z.object({
 			adults: z.coerce.number().int().min(0).max(40),
 			children: z.coerce.number().int().min(0).max(40),
 			adultPrice: z.string().trim().regex(/^\d+(\.\d{1,2})?$/, 'Price must be a number.'),
+			// Optional in the schema, required by the rule below when the party has
+			// children — so the phone gets the same guard as the portal rather than
+			// a second, laxer path to the same silent equality.
 			childPrice: z.string().trim().regex(/^\d+(\.\d{1,2})?$/, 'Price must be a number.').optional()
+		})
+		.refine((party) => !party || party.children === 0 || Boolean(party.childPrice), {
+			message: 'Enter the price per child. If children pay the same as adults, send that amount.',
+			path: ['childPrice']
 		})
 		.optional()
 });

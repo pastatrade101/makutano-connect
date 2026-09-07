@@ -95,8 +95,23 @@ export const actions: Actions = {
 			const adults = count('adults', draft.enquiry.adults);
 			const children = count('children', draft.enquiry.children);
 			const adultPrice = price('adultPrice', published);
-			// No invented child discount: it defaults to the adult rate, and only
-			// the operator moves it.
+			/*
+			 * A child rate must be TYPED, not inherited.
+			 *
+			 * This defaulted to the adult rate, which meant an operator who never
+			 * touched the field quoted a child at an adult price and the total gave
+			 * no sign of it. Charging a child the same as an adult is a legitimate
+			 * choice — plenty of safaris do — but it has to be a choice somebody
+			 * made, not one the form made for them. The recommendation now reports
+			 * childRateMissing and the field is required whenever the party has
+			 * children; an operator who genuinely charges the same simply types it.
+			 */
+			const rawChildPrice = String(data.get('childPrice') ?? '').trim();
+			if (children > 0 && !rawChildPrice) {
+				return fail(422, {
+					message: 'Enter the price per child. If children pay the same as adults, enter that amount.'
+				});
+			}
 			const childPrice = price('childPrice', adultPrice);
 			const included = String(data.get('included') ?? '').trim();
 			const message = String(data.get('message') ?? '').trim();

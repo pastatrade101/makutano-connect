@@ -20,6 +20,7 @@ import { quotationEmail, sendEmail } from './email';
 import { env } from './env';
 import { AppError } from './errors';
 import { recommendPrice } from './tour-pricing';
+import { freezeOffer, frozenOfferFor } from './quotation-snapshot';
 import { multiplyAmount } from '$lib/money';
 import { log } from './logger';
 import { markMarketplaceEnquiryResponded } from './marketplace-analytics';
@@ -394,7 +395,18 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 			tenantId,
 			quotationId: id,
 			version: quotation.version,
-			snapshot: { quotation, items } as unknown as Record<string, unknown>,
+			/*
+			 * Values, not references, and stamped with a format version.
+			 *
+			 * The previous snapshot was the whole live objects, which is still a
+			 * record of values — but nothing read it back, and nothing said what
+			 * shape it was. See quotation-snapshot.ts: money that has been sent is
+			 * read from here and from nowhere else.
+			 */
+			snapshot: freezeOffer(
+				quotation as unknown as Record<string, unknown>,
+				items as unknown as Record<string, unknown>[]
+			) as unknown as Record<string, unknown>,
 			createdByUserId: sentByUserId
 		})
 		.onConflictDoNothing();
@@ -580,7 +592,15 @@ export async function declineQuotation(tenantId: string, id: string, reason?: st
 export async function acceptQuotation(
 	tenantId: string,
 	id: string,
-	actor: { userId?: string | null; apiKeyId?: string | null } = {}
+	actor: { userId?: string | null; apiKeyId?: string | null } = {},
+	/**
+	 * The version the traveller was looking at, when the caller knows it.
+	 *
+	 * Supplied by the public accept route from the link the traveller opened. A
+	 * mismatch is refused rather than resolved: accepting a different offer than
+	 * the one on somebody's screen is the failure this parameter exists to stop.
+	 */
+	expectedVersion?: number | null
 ) {
 	const { quotation, items } = await getQuotationDetail(tenantId, id);
 	if (quotation.status === 'CONVERTED' && quotation.convertedBookingId) {
@@ -598,30 +618,51 @@ export async function acceptQuotation(
 	}
 	if (!quotation.customerId) throw new AppError('VALIDATION_ERROR', 'This quotation has no customer to book for.');
 
+	/*
+	 * THE MONEY COMES FROM THE FROZEN VERSION, not from the live rows.
+	 *
+	 * This function used to copy quotation.currency, .discount, .tax and every
+	 * item's unitPrice straight out of getQuotationDetail — the live tables. That
+	 * made the booking's price a function of what the quotation says TODAY rather
+	 * than of what was offered, so any future edit path would have rewritten
+	 * settled commercial history. The pricing engine is deliberately not
+	 * consulted here either: it answers what we should charge now, which is a
+	 * different question from what we already offered.
+	 *
+	 * Non-monetary facts (who it is for, which enquiry it came from) still come
+	 * from the live row, because those are identity, not price.
+	 */
+	const offer = await frozenOfferFor(tenantId, id, expectedVersion);
+
 	const booking = await createBooking(
 		tenantId,
 		{
 			customerId: quotation.customerId,
 			bookingRequestId: quotation.bookingRequestId,
 			quotationId: quotation.id,
-			currency: quotation.currency,
-			discount: quotation.discount,
-			tax: quotation.tax,
-			startDate: quotation.startDate?.toISOString() ?? null,
-			endDate: quotation.endDate?.toISOString() ?? null,
-			adults: quotation.adults,
-			children: quotation.children,
+			currency: offer.currency,
+			discount: offer.discount,
+			tax: offer.tax,
+			startDate: offer.startDate,
+			endDate: offer.endDate,
+			adults: offer.adults,
+			children: offer.children,
 			source: 'ADMIN',
 			status: 'AWAITING_PAYMENT',
-			items: items.map((i) => ({
-				type: i.type,
+			items: offer.items.map((i) => ({
+				/*
+				 * Coerced, not validated. A snapshot is a historical record and may
+				 * carry an item type that has since been retired from the enum; the
+				 * offer must still be acceptable, because it was already made.
+				 */
+				type: (i.type ?? undefined) as BookingRequestItemInput['type'],
 				title: i.title,
 				description: i.description,
 				quantity: i.quantity,
 				unitPrice: i.unitPrice,
 				total: i.total,
-				startDate: i.startDate?.toISOString() ?? null,
-				endDate: i.endDate?.toISOString() ?? null,
+				startDate: i.startDate,
+				endDate: i.endDate,
 				externalReference: i.externalReference,
 				externalSource: i.externalSource
 			}))

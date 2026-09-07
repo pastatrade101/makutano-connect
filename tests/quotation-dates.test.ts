@@ -38,11 +38,16 @@ describe('travel dates survive enquiry -> quotation -> booking', () => {
 	});
 
 	it('accepting a quotation copies the dates onto the booking', () => {
+		// From the FROZEN offer, not the live quotation. The dates travelled with
+		// the money when acceptance stopped reading live rows — they are part of
+		// what was offered, so they belong to the same historical record. Same
+		// guarantee this test has always asserted, one layer further in.
 		const src = readFileSync(ACCEPT, 'utf8');
 		const call = src.slice(src.indexOf('const booking = await createBooking('));
 		const args = call.slice(0, call.indexOf('items:'));
-		expect(args).toContain('startDate: quotation.startDate');
-		expect(args).toContain('endDate: quotation.endDate');
+		expect(args).toContain('startDate: offer.startDate');
+		expect(args).toContain('endDate: offer.endDate');
+		expect(src).toMatch(/frozenOfferFor\(tenantId, id, expectedVersion\)/);
 	});
 
 	it('the composer offers the fields, so a date change is possible without a dead end', () => {

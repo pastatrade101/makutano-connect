@@ -29,7 +29,17 @@ const bodySchema = z
 		hp_company: z.string().max(200).optional(),
 		// Everything the traveller adds is optional. The point of the form is that
 		// saying yes is one click and the extra detail is genuinely extra.
-		note: z.string().trim().max(2000).optional().nullable()
+		note: z.string().trim().max(2000).optional().nullable(),
+		/*
+		 * The version the traveller was actually looking at.
+		 *
+		 * The quote page sends back what it rendered. If the operator has re-quoted
+		 * since the link was opened, acceptQuotation refuses rather than committing
+		 * the traveller to a price that was never on their screen. Optional, so an
+		 * older client that does not send it still works — it then accepts the
+		 * latest sent version, which is the behaviour there has always been.
+		 */
+		acceptedVersion: z.number().int().positive().optional().nullable()
 	})
 	.strict();
 
@@ -89,7 +99,7 @@ export const POST: RequestHandler = async (event) =>
 			return publicJson({ accepted: true, alreadyAccepted: true, reference: row.reference }, 'no-store');
 		}
 
-		const { booking } = await acceptQuotation(row.tenantId, row.id, {});
+		const { booking } = await acceptQuotation(row.tenantId, row.id, {}, parsed.acceptedVersion ?? null);
 
 		// Kept on the quotation rather than the booking: it is what the traveller said
 		// WHEN ACCEPTING, and it should stay attached to the thing they accepted even
