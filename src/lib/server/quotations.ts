@@ -167,7 +167,9 @@ export async function getQuotation(tenantId: string, id: string): Promise<schema
 	const rows = await db()
 		.select()
 		.from(schema.quotations)
-		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId), isNull(schema.quotations.deletedAt)))
+		.where(
+			and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId), isNull(schema.quotations.deletedAt))
+		)
 		.limit(1);
 	if (!rows[0]) throw new AppError('QUOTATION_NOT_FOUND', 'Quotation could not be found.');
 	return rows[0];
@@ -269,6 +271,15 @@ export type QuotationDraft = {
 	} | null;
 };
 
+/**
+ * A timestamp column as the calendar day it represents.
+ *
+ * Sliced off the ISO form rather than formatted, so the day is the UTC one the
+ * column stores and not whatever day it happens to be on the server.
+ */
+const asDay = (value: Date | string | null | undefined): string | null =>
+	value ? String(value instanceof Date ? value.toISOString() : value).slice(0, 10) : null;
+
 export async function draftQuotationFor(tenantId: string, bookingRequestId: string): Promise<QuotationDraft> {
 	const [row] = await db()
 		.select({
@@ -321,7 +332,19 @@ export async function draftQuotationFor(tenantId: string, bookingRequestId: stri
 	 */
 	const recommended = row.request.tourId
 		? await recommendPrice(tenantId, row.request.tourId, {
-				travelDate: row.request.startDate ? String(row.request.startDate) : null,
+				/*
+				 * A CALENDAR DAY, not an instant.
+				 *
+				 * start_date is a timestamptz, so drizzle hands back a Date and
+				 * String() on it reads "Thu Dec 24 2026 00:00:00 GMT+0300". The
+				 * engine matches a season on YYYY-MM-DD and rejects anything else —
+				 * silently, by treating the request as dateless — so every season an
+				 * operator ever configures would be skipped and the quotation would
+				 * fall through to the group tier with nothing to show it had. There
+				 * are no season rows today, which is the only reason this has cost
+				 * nothing; the first one written would have been ignored.
+				 */
+				travelDate: asDay(row.request.startDate),
 				adults,
 				children
 			})
@@ -347,9 +370,7 @@ export async function draftQuotationFor(tenantId: string, bookingRequestId: stri
 					phone: row.customer.phone ?? row.customer.whatsappPhone
 				}
 			: null,
-		tour: row.tourTitle
-			? { title: row.tourTitle, days: row.tourDays, pricingType: row.tourPricingType }
-			: null,
+		tour: row.tourTitle ? { title: row.tourTitle, days: row.tourDays, pricingType: row.tourPricingType } : null,
 		// The tour's own currency wins over the tenant default: quoting a USD
 		// trip in shillings because that is the account setting is a real way to
 		// send somebody a number that is wrong by a factor of two thousand.
@@ -922,8 +943,6 @@ export async function upsertQuotationMirror(tenantId: string, input: QuotationMi
 
 	return quotation;
 }
-
-
 
 /**
  * Hide a quotation. Never destroy one.
