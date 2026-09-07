@@ -242,6 +242,8 @@ type Facts = {
 	level: 'luxury' | 'midrange' | 'classic' | 'standard';
 	parks: Set<string>;
 	migrationNorth: boolean;
+	/** Which of Tanzania's two circuits this itinerary is actually on. */
+	circuit: 'north' | 'south' | 'both';
 };
 
 const A = (slug: string, label: string) => `<a href="/destinations/${slug}">${label}</a>`;
@@ -286,8 +288,12 @@ function accommodation(f: Facts): string {
 		lines.push(
 			`Well-run lodges and permanent tented camps inside the parks or on their immediate boundary, all en-suite and all with hot water.`
 		);
+		// Karatu and Arusha are northern-circuit towns. Naming them on a Nyerere or
+		// Mikumi listing puts the traveller on the wrong side of the country.
 		lines.push(
-			`Where a night falls outside a park, it is spent in ${A('karatu', 'Karatu')} or ${A('arusha', 'Arusha')} rather than on a long transfer.`
+			f.circuit === 'south'
+				? `Where a night falls outside a park, it is spent close to the gate rather than at the end of a long transfer.`
+				: `Where a night falls outside a park, it is spent in ${A('karatu', 'Karatu')} or ${A('arusha', 'Arusha')} rather than on a long transfer.`
 		);
 	}
 	if (f.beach) {
@@ -377,8 +383,14 @@ function bestTime(f: Facts): string {
 	const lines: string[] = [];
 	const bullets: string[] = [];
 
+	const circuitWords =
+		f.circuit === 'south'
+			? 'the southern parks are worth visiting in all of them'
+			: f.circuit === 'both'
+				? 'the parks on this route are worth visiting in all of them'
+				: 'the northern parks are worth visiting in all of them';
 	lines.push(
-		`Tanzania has two dry seasons and two wet ones, and the northern parks are worth visiting in all of them — but not for the same reasons, and this itinerary has a season that suits it better than the others.`
+		`Tanzania has two dry seasons and two wet ones, and ${circuitWords} — but not for the same reasons, and this itinerary has a season that suits it better than the others.`
 	);
 
 	if (p.has('serengeti')) {
@@ -435,7 +447,9 @@ function bestTime(f: Facts): string {
 	}
 
 	lines.push(
-		`April and May are the long rains. The country is green, the parks are close to empty, and some seasonal camps shut for the period; roads in the western and northern ${A('serengeti-national-park', 'Serengeti')} can be genuinely hard going. November brings a shorter, lighter rain that rarely costs you a game drive.`
+		p.has('serengeti')
+			? `April and May are the long rains. The country is green, the parks are close to empty, and some seasonal camps shut for the period; roads in the western and northern ${A('serengeti-national-park', 'Serengeti')} can be genuinely hard going. November brings a shorter, lighter rain that rarely costs you a game drive.`
+			: `April and May are the long rains. The country is green, the parks are close to empty, and some seasonal camps shut for the period; the black-cotton tracks turn heavy and a few of them close. November brings a shorter, lighter rain that rarely costs you a game drive.`
 	);
 	lines.push(
 		`If your dates are fixed, tell us what they are and we will say plainly what you will and will not see then — we would rather move you to the right park than sell you the wrong month.`
@@ -465,6 +479,12 @@ function factsFor(row: {
 	if (has(/nyerere|selous/i)) parks.add('nyerere');
 	if (has(/mikumi/i)) parks.add('mikumi');
 	if (has(/kilimanjaro/i)) parks.add('kilimanjaro');
+	// Nyerere, Mikumi and Ruaha are the southern circuit; the rest of this
+	// catalogue is northern. Copy written for one is wrong on the other, and
+	// "the northern parks" on a Selous listing is the kind of error a Tanzanian
+	// reader spots in a second.
+	const south = ['nyerere', 'mikumi'].some((k) => parks.has(k));
+	const north = ['serengeti', 'tarangire', 'ngorongoro', 'manyara'].some((k) => parks.has(k));
 	return {
 		title: row.title,
 		duration: row.durationDays,
@@ -501,7 +521,8 @@ function factsFor(row: {
 		// listing says which it is. Only a listing that goes north gets river-
 		// crossing advice; giving it to the others would be selling a month that
 		// itinerary cannot deliver.
-		migrationNorth: has(/northern serengeti|great migration|migration/i)
+		migrationNorth: has(/northern serengeti|great migration|migration/i),
+		circuit: north && south ? 'both' : south ? 'south' : 'north'
 	};
 }
 
@@ -536,7 +557,7 @@ async function main() {
 
 	console.log(`${APPLY ? 'APPLYING to' : 'DRY RUN over'} ${tours.length} published listings\n`);
 
-	const copy: { id: string; patch: Record<string, string | null> }[] = [];
+	const copy: { id: string; patch: Record<string, string | null | undefined> }[] = [];
 	const prices: { id: string; title: string; input: ReturnType<typeof priceBook>; base: number }[] = [];
 
 	for (const t of tours) {
@@ -561,7 +582,16 @@ async function main() {
 		copy.push({
 			id: t.id,
 			patch: {
-				description: sanitizeRichText(toRichText(t.description ?? '', dests)),
+				/*
+				 * Converted ONCE. The converter reads plain text — blank lines are
+				 * paragraph breaks, a bullet starts a list — and handing it the HTML
+				 * it produced last time would escape the whole listing into a single
+				 * paragraph of visible markup. A description that already carries
+				 * block tags has been through here and is left exactly as it is.
+				 */
+				description: /<(p|h3|h4|ul|ol|li|blockquote)\b/i.test(t.description ?? '')
+					? undefined
+					: sanitizeRichText(toRichText(t.description ?? '', dests)),
 				accommodationSummary: sanitizeRichText(accommodation(f)),
 				transportSummary: sanitizeRichText(transport(f)),
 				mealsSummary: sanitizeRichText(meals(f)),
@@ -595,7 +625,7 @@ async function main() {
 		if (process.argv.includes('--audit')) {
 			// One line per listing per field: enough to see at a glance that no tour
 			// is being told about a park it does not visit or a flight it does not take.
-			const first = (html: string | null) =>
+			const first = (html: string | null | undefined) =>
 				String(html ?? '')
 					.replace(/<[^>]+>/g, ' ')
 					.replace(/\s+/g, ' ')
