@@ -668,6 +668,42 @@ export const getOperatorReviewSummary = (tenantId: string) =>
 	summaryWhere(and(published(), eq(schema.reviews.tenantId, tenantId)));
 
 /** Summaries for many tours at once, for a listing page. */
+/**
+ * A rating per operator, in one query rather than one per operator.
+ *
+ * The single-tenant getOperatorReviewSummary is the right shape for a profile
+ * page and the wrong one for a directory: called once per card it is the N+1
+ * that makes an index the slowest page on the site. Grouped by tenant here, so
+ * a page of fifty operators costs one round trip.
+ *
+ * Distribution is left at zeroes deliberately — a card shows an average and a
+ * count, and computing five buckets nobody renders is work for nothing.
+ */
+export async function operatorReviewSummaries(tenantIds: string[]): Promise<Map<string, ReviewSummary>> {
+	if (!tenantIds.length) return new Map();
+	const rows = await db()
+		.select({
+			tenantId: schema.reviews.tenantId,
+			value: sql<number>`count(*)::int`,
+			sum: sql<number>`sum(${schema.reviews.rating})::int`
+		})
+		.from(schema.reviews)
+		.where(and(published(), inArray(schema.reviews.tenantId, tenantIds)))
+		.groupBy(schema.reviews.tenantId);
+
+	const out = new Map<string, ReviewSummary>();
+	for (const row of rows) {
+		if (!row.tenantId) continue;
+		const count = Number(row.value);
+		out.set(row.tenantId, {
+			average: count ? Math.round((Number(row.sum) / count) * 10) / 10 : null,
+			count,
+			distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+		});
+	}
+	return out;
+}
+
 export async function tourReviewSummaries(tourIds: string[]): Promise<Map<string, ReviewSummary>> {
 	if (!tourIds.length) return new Map();
 	const rows = await db()

@@ -36,7 +36,13 @@ import {
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
 import { mealsLabel, normaliseMeals } from '../tour-options';
 import { accommodationsForTours, imagesForAccommodations, type TourStay } from './accommodations';
-import { getOperatorReviewSummary, getTourReviewSummary, tourReviewSummaries, type ReviewSummary } from './reviews';
+import {
+	getOperatorReviewSummary,
+	getTourReviewSummary,
+	operatorReviewSummaries,
+	tourReviewSummaries,
+	type ReviewSummary
+} from './reviews';
 import { db, schema } from './db';
 import { renderRichText, richTextToPlain } from './richtext';
 import { srcsetFor } from './media';
@@ -1923,13 +1929,16 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
  * correlated subquery rather than a join + group by, because the joins for logo
  * and cover would multiply the rows being counted.
  *
- * Reviews are deliberately absent. getOperatorReviewSummary is per tenant, and
- * calling it once per operator is the N+1 that would make this page the slowest
- * on the site for a number the grid does not show.
+ * The rating comes from operatorReviewSummaries — ONE grouped query for the
+ * whole page, not getOperatorReviewSummary once per card, which is the N+1 that
+ * would make an index the slowest page on the site.
  */
-export async function listOperators(): Promise<(OperatorCard & { tourCount: number })[]> {
+export async function listOperators(): Promise<
+	(OperatorCard & { tourCount: number; reviews: ReviewSummary })[]
+> {
 	const rows = await db()
 		.select({
+			tenantId: schema.operatorProfiles.tenantId,
 			slug: schema.operatorProfiles.slug,
 			displayName: schema.operatorProfiles.displayName,
 			location: schema.operatorProfiles.location,
@@ -1969,12 +1978,26 @@ export async function listOperators(): Promise<(OperatorCard & { tourCount: numb
 			asc(schema.operatorProfiles.displayName)
 		);
 
+	// tenantId is read for this join and never returned — the same rule the
+	// profile page follows.
+	const ratings = await operatorReviewSummaries(rows.map((r) => r.tenantId));
+
 	return rows
 		.map((row) => {
 			const card = operatorCardOf(row, row.logo, row.cover);
-			return card ? { ...card, tourCount: Number(row.tourCount) || 0 } : null;
+			return card
+				? {
+						...card,
+						tourCount: Number(row.tourCount) || 0,
+						reviews: ratings.get(row.tenantId) ?? {
+							average: null,
+							count: 0,
+							distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+						}
+					}
+				: null;
 		})
-		.filter((o): o is OperatorCard & { tourCount: number } => o !== null);
+		.filter((o): o is OperatorCard & { tourCount: number; reviews: ReviewSummary } => o !== null);
 }
 
 export async function getOperatorBySlug(
