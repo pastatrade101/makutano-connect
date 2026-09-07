@@ -1910,6 +1910,73 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
  * shape of it: the moment this page starts returning "the card, plus a couple of extra
  * fields", the next caller adds two more.
  */
+/**
+ * Every operator with something to sell.
+ *
+ * The marketplace's promise is "run by the operator who listed it", and until now
+ * that could only be read one storefront at a time — there was a page per
+ * operator and no way to see who they are. This is that index.
+ *
+ * TOUR COUNT IS PART OF THE CARD, not decoration. An operator with no published
+ * trip is a storefront that leads nowhere, and the page needs to be able to keep
+ * those out of the grid without a second round trip per operator. Counted with a
+ * correlated subquery rather than a join + group by, because the joins for logo
+ * and cover would multiply the rows being counted.
+ *
+ * Reviews are deliberately absent. getOperatorReviewSummary is per tenant, and
+ * calling it once per operator is the N+1 that would make this page the slowest
+ * on the site for a number the grid does not show.
+ */
+export async function listOperators(): Promise<(OperatorCard & { tourCount: number })[]> {
+	const rows = await db()
+		.select({
+			slug: schema.operatorProfiles.slug,
+			displayName: schema.operatorProfiles.displayName,
+			location: schema.operatorProfiles.location,
+			about: schema.operatorProfiles.about,
+			specialties: schema.operatorProfiles.specialties,
+			languages: schema.operatorProfiles.languages,
+			yearsInBusiness: schema.operatorProfiles.yearsInBusiness,
+			isVerified: schema.operatorProfiles.isVerified,
+			websiteUrl: schema.operatorProfiles.websiteUrl,
+			publicEmail: schema.operatorProfiles.publicEmail,
+			publicPhone: schema.operatorProfiles.publicPhone,
+			logo: mediaColumns(operatorLogo),
+			cover: mediaColumns(operatorCover),
+			tourCount: sql<number>`(
+				select count(*)::int from ${schema.tours} t
+				 where t.tenant_id = ${schema.operatorProfiles.tenantId}
+				   and t.status = 'PUBLISHED' and t.deleted_at is null
+			)`
+		})
+		.from(schema.operatorProfiles)
+		.leftJoin(operatorLogo, eq(operatorLogo.id, schema.operatorProfiles.logoMediaId))
+		.leftJoin(operatorCover, eq(operatorCover.id, schema.operatorProfiles.coverMediaId))
+		.where(eq(schema.operatorProfiles.isActive, true))
+		/*
+		 * Verified first, then whoever has the most to show, then alphabetically.
+		 * The last key is what stops the order shuffling between requests for the
+		 * many operators who tie on the first two — an index that reorders itself
+		 * on refresh reads as broken.
+		 */
+		.orderBy(
+			desc(schema.operatorProfiles.isVerified),
+			desc(sql`(
+				select count(*)::int from ${schema.tours} t
+				 where t.tenant_id = ${schema.operatorProfiles.tenantId}
+				   and t.status = 'PUBLISHED' and t.deleted_at is null
+			)`),
+			asc(schema.operatorProfiles.displayName)
+		);
+
+	return rows
+		.map((row) => {
+			const card = operatorCardOf(row, row.logo, row.cover);
+			return card ? { ...card, tourCount: Number(row.tourCount) || 0 } : null;
+		})
+		.filter((o): o is OperatorCard & { tourCount: number } => o !== null);
+}
+
 export async function getOperatorBySlug(
 	slug: string
 ): Promise<{ operator: OperatorCard; tours: TourCard[]; reviews: ReviewSummary } | null> {
