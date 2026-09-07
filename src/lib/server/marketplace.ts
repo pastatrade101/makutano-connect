@@ -1430,8 +1430,31 @@ export async function tourCountsForAccommodations(ids: string[]): Promise<Map<st
 	return new Map(rows.map((r) => [r.accommodation_id, Number(r.tours)]));
 }
 
+/**
+ * The rate card a traveller may see on a tour page.
+ *
+ * A DELIBERATE narrowing of what Connect holds. It carries prices and the bands
+ * they apply to, and nothing about how the engine chooses between them — no rule
+ * ids, no precedence, no internal flags. A traveller needs to know what a party
+ * of six pays in July; they do not need our pricing model, and publishing it
+ * would make every future change to that model a public API change.
+ *
+ * Empty for a tour still on simple pricing, so the page can simply not render a
+ * table rather than having to detect the legacy case itself.
+ */
+export type PublicRateCard = {
+	currency: string;
+	adult: string | null;
+	/** Null means the operator has not set one — never "same as an adult". */
+	child: string | null;
+	tiers: { minTravellers: number; maxTravellers: number | null; adult: string; child: string | null }[];
+	seasons: { name: string; startsOn: string; endsOn: string; adult: string; child: string | null }[];
+};
+
 export async function getPublishedTourBySlug(slug: string): Promise<{
 	tour: TourDetail;
+	/** Null while the tour is on simple pricing; see PublicRateCard. */
+	rateCard: PublicRateCard | null;
 	country: CountryRef | null;
 	destinations: DestinationCard[];
 	itinerary: ItineraryDay[];
@@ -1461,6 +1484,9 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 				durationDays: schema.tours.durationDays,
 				durationNights: schema.tours.durationNights,
 				priceFrom: schema.tours.priceFrom,
+				// Structured rates, for the public rate card. Null on a legacy tour.
+				adultPrice: schema.tours.adultPrice,
+				childPrice: schema.tours.childPrice,
 				currency: schema.tours.currency,
 				pricingType: schema.tours.pricingType,
 				travelStyle: schema.tours.travelStyle,
@@ -1726,7 +1752,53 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 		destinationIds: destinations.map((d) => d.id)
 	});
 
+	/*
+	 * The rate card, loaded only when the tour has structured pricing.
+	 *
+	 * adult_price null means the tour still uses a hand-typed price_from, and
+	 * there is nothing to tabulate — the page shows the single "from" figure it
+	 * always has. Two small reads rather than a join: they are per-tour, indexed,
+	 * and keeping them separate leaves the existing detail query untouched.
+	 */
+	const rateCard: PublicRateCard | null = row.tour.adultPrice
+		? await (async () => {
+				const [tiers, seasons] = await Promise.all([
+					db()
+						.select()
+						.from(schema.tourPriceTiers)
+						.where(eq(schema.tourPriceTiers.tourId, row.tour.id))
+						.orderBy(asc(schema.tourPriceTiers.minTravellers)),
+					db()
+						.select()
+						.from(schema.tourPriceSeasons)
+						.where(eq(schema.tourPriceSeasons.tourId, row.tour.id))
+						.orderBy(asc(schema.tourPriceSeasons.startsOn))
+				]);
+				return {
+					currency: row.tour.currency ?? 'USD',
+					adult: row.tour.adultPrice,
+					child: row.tour.childPrice,
+					tiers: tiers.map((t) => ({
+						minTravellers: t.minTravellers,
+						maxTravellers: t.maxTravellers,
+						adult: t.adultPrice,
+						child: t.childPrice
+					})),
+					seasons: seasons.map((sn) => ({
+						name: sn.name,
+						// Dates only: a season boundary is a calendar fact, and an
+						// instant would move it by a day for a reader in another zone.
+						startsOn: String(sn.startsOn).slice(0, 10),
+						endsOn: String(sn.endsOn).slice(0, 10),
+						adult: sn.adultPrice,
+						child: sn.childPrice
+					}))
+				};
+			})()
+		: null;
+
 	return {
+		rateCard,
 		tour: {
 			id: row.tour.id,
 			slug: row.tour.slug,
