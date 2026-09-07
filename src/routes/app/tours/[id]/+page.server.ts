@@ -14,6 +14,7 @@ import { fail } from '@sveltejs/kit';
 import { and, asc, eq } from 'drizzle-orm';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { sanitizeRichText } from '$lib/server/richtext';
+import { saveTourPricing, tourPricingFor } from '$lib/server/tour-pricing';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { db, schema } from '$lib/server/db';
 import { MAX_BYTES, deleteMedia, mediaEnabled, publicMedia, uploadMedia } from '$lib/server/media';
@@ -177,7 +178,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		mediaConfigured: mediaEnabled(),
 		maxUploadBytes: MAX_BYTES,
 		canWrite: locals.permissions.includes('tours:write'),
-		linkTargets: await linkTargetsFor(tenantId, params.id)
+		linkTargets: await linkTargetsFor(tenantId, params.id),
+		// The engine's own view of this tour, so the composer's preview runs the
+		// same configuration the server prices from rather than a copy of it.
+		pricing: await tourPricingFor(tenantId, params.id),
+		/** False while the tour still uses a hand-typed price_from. */
+		pricingIsStructured: t.adultPrice !== null
 	};
 };
 
@@ -421,6 +427,13 @@ export const actions: Actions = {
 		}
 	},
 
+	/**
+	 * Simple pricing, as it has always worked.
+	 *
+	 * Kept for the tours that have not moved to structured pricing. priceFrom is
+	 * still typed HERE and only here — the moment saveStructuredPricing runs, this
+	 * tour stops being one where that is true.
+	 */
 	savePricing: async ({ locals, params, request }) => {
 		requirePermission(locals.permissions, 'tours:write');
 		const tenantId = requireTenant(locals).id;
@@ -439,6 +452,63 @@ export const actions: Actions = {
 			return { success: true, notice: 'Pricing saved' };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
+		}
+	},
+
+	/**
+	 * Structured pricing, and the moment a tour becomes authoritative.
+	 *
+	 * priceFrom is NOT read from this form. The browser sends rates; the server
+	 * derives what the marketplace advertises from the configuration it just
+	 * validated. That is the whole point of the transition — a submitted
+	 * marketplace price is a second authority, and two authorities is how
+	 * "From $1,099" comes to sit above a tour that charges $950.
+	 */
+	saveStructuredPricing: async ({ locals, params, request }) => {
+		requirePermission(locals.permissions, 'tours:write');
+		const tenantId = requireTenant(locals).id;
+		const f = await request.formData();
+
+		const rate = (value: FormDataEntryValue | null): string | null => {
+			const raw = String(value ?? '').replace(/[,\s]/g, '').trim();
+			return raw === '' ? null : raw;
+		};
+		const rows = (key: string): Record<string, string>[] => {
+			try {
+				const parsed = JSON.parse(String(f.get(key) ?? '[]'));
+				return Array.isArray(parsed) ? parsed : [];
+			} catch {
+				return [];
+			}
+		};
+
+		try {
+			const adultPrice = rate(f.get('adultPrice'));
+			if (!adultPrice) return fail(422, { message: 'Enter the adult price.' });
+
+			const { priceFrom } = await saveTourPricing(tenantId, params.id, {
+				currency: String(f.get('currency') ?? '').trim(),
+				adultPrice,
+				// Null, not the adult rate: an absent child price is a fact the
+				// quotation screen has to be told, not one to resolve here.
+				childPrice: rate(f.get('childPrice')),
+				tiers: rows('tiers').map((t) => ({
+					minTravellers: Number(t.minTravellers ?? 0),
+					maxTravellers: t.maxTravellers === '' || t.maxTravellers === null ? null : Number(t.maxTravellers),
+					adult: String(t.adult ?? ''),
+					child: rate(t.child ?? '')
+				})),
+				seasons: rows('seasons').map((s) => ({
+					name: String(s.name ?? ''),
+					startsOn: String(s.startsOn ?? ''),
+					endsOn: String(s.endsOn ?? ''),
+					adult: String(s.adult ?? ''),
+					child: rate(s.child ?? '')
+				}))
+			});
+			return { success: true, notice: `Pricing saved. Travellers browsing see from ${priceFrom}.` };
+		} catch (err) {
+			return fail(422, { message: toAppError(err).message });
 		}
 	},
 

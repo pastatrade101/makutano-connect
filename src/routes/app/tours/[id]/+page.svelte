@@ -19,6 +19,7 @@
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
 	import RichText from '$components/RichText.svelte';
+	import { calculateTourPrice, lowestAdultPrice, type TourPricing } from '$lib/pricing';
 	import { plural, statusLabel } from '$lib/labels';
 	import { CURRENCIES, GROUP_TYPES, MEALS } from '$lib/tour-options';
 	import RoutePlanner from '$lib/geo/RoutePlanner.svelte';
@@ -253,6 +254,77 @@
 
 	// Fetched when the itinerary step is first opened, not on page load: it is
 	// ~115 KB of national geometry and most composer visits never reach this step.
+	/* ------------------------------------------------------------ pricing --- */
+
+	/** Opened by "Set up detailed pricing"; a legacy tour is never migrated by merely being looked at. */
+	let structuredOpen = $state(false);
+	let childOpen = $state(false);
+	let priceAdult = $state(data.pricing?.base?.adult ?? '');
+	let priceChild = $state(data.pricing?.base?.child ?? '');
+	let tiers = $state(
+		(data.pricing?.tiers ?? []).map((t) => ({
+			minTravellers: String(t.minTravellers),
+			maxTravellers: t.maxTravellers === null ? '' : String(t.maxTravellers),
+			adult: t.adult,
+			child: t.child ?? ''
+		}))
+	);
+	let seasons = $state(
+		(data.pricing?.seasons ?? []).map((s) => ({
+			name: s.name,
+			startsOn: s.startsOn,
+			endsOn: s.endsOn,
+			adult: s.adult,
+			child: s.child ?? ''
+		}))
+	);
+
+	let previewDate = $state(new Date().toISOString().slice(0, 10));
+	let previewAdults = $state('2');
+	let previewChildren = $state('2');
+
+	/**
+	 * What the operator has typed, in the shape the engine reads.
+	 *
+	 * Built here so the preview and the derived marketplace price are computed by
+	 * THE REAL pricing function — not a second implementation that agrees with it
+	 * until the day it does not. The server recomputes both on save; this is the
+	 * same code, run early, so the operator can see the consequence of a rate
+	 * before committing to it.
+	 */
+	const draftPricing = $derived<TourPricing>({
+		currency: draft.currency || 'USD',
+		// Structured pricing V1 is per person, including its group-size rates.
+		perGroup: false,
+		base: priceAdult.trim() ? { adult: priceAdult.trim(), child: priceChild.trim() || null } : null,
+		tiers: tiers
+			.filter((t) => String(t.minTravellers).trim() && String(t.adult).trim())
+			.map((t) => ({
+				minTravellers: Number(t.minTravellers),
+				maxTravellers: String(t.maxTravellers).trim() === '' ? null : Number(t.maxTravellers),
+				adult: String(t.adult).trim(),
+				child: String(t.child).trim() || null
+			})),
+		seasons: seasons
+			.filter((s) => s.name.trim() && s.startsOn && s.endsOn && String(s.adult).trim())
+			.map((s) => ({
+				name: s.name.trim(),
+				startsOn: s.startsOn,
+				endsOn: s.endsOn,
+				adult: String(s.adult).trim(),
+				child: String(s.child).trim() || null
+			}))
+	});
+
+	const derivedFrom = $derived(lowestAdultPrice(draftPricing));
+	const preview = $derived(
+		calculateTourPrice(draftPricing, {
+			travelDate: previewDate || null,
+			adults: Number(previewAdults) || 0,
+			children: Number(previewChildren) || 0
+		})
+	);
+
 	let basemap = $state<BasemapDoc | null>(null);
 	let basemapFailed = $state(false);
 	let placingDay = $state<number | null>(null);
@@ -1662,35 +1734,197 @@
 			{/if}
 
 			{#if step === 'pricing'}
-				<form method="POST" action="?/savePricing" use:enhance={track('pricing')} class="card">
-					<div class="card-header"><h2 class="card-title">Pricing</h2></div>
-					<div class="grid gap-3 p-4 sm:grid-cols-3">
-						<div>
-							<label class="label" for="t-price">Price from</label>
-							<input id="t-price" name="priceFrom" bind:value={draft.priceFrom} inputmode="decimal" class="input" placeholder="1850.00" />
+				{#if !data.pricingIsStructured}
+					<!--
+						A legacy tour, and it stays one until the operator decides otherwise.
+						Opening or editing a tour must never migrate its pricing, so this is a
+						statement of what is true plus an invitation — not a form that quietly
+						rewrites the column on save.
+					-->
+					<div class="card">
+						<div class="card-header"><h2 class="card-title">Marketplace price</h2></div>
+						<div class="space-y-3 p-4">
+							<div>
+								<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Current marketplace price</p>
+								<p class="mt-1 text-2xl font-bold text-slate-900">
+									{draft.currency || 'USD'} {draft.priceFrom || '—'}
+									<span class="text-sm font-normal text-slate-500">per person</span>
+								</p>
+								<p class="mt-1 text-xs text-slate-500">This tour is using simple pricing.</p>
+							</div>
+							<button type="button" class="btn-outline" onclick={() => (structuredOpen = true)}>
+								Set up detailed pricing
+							</button>
 						</div>
-						<div>
-							<label class="label" for="t-currency">Currency</label>
-							<select id="t-currency" name="currency" bind:value={draft.currency} class="input">
-								<option value="">Choose one</option>
-								{#each CURRENCIES as c (c.code)}<option value={c.code}>{c.code} · {c.label}</option>{/each}
-							</select>
-						</div>
-						<div>
-							<label class="label" for="t-pricing">What the price means</label>
-							<select id="t-pricing" name="pricingType" bind:value={draft.pricingType} class="input">
-								<option value="PER_PERSON">Per person</option>
-								<option value="PER_GROUP">Per group</option>
-								<option value="FROM">Starting from</option>
-							</select>
-						</div>
-						<p class="text-xs text-slate-400 sm:col-span-3">
-							One starting price is all the marketplace shows. Departure dates, seasonal rates and
-							availability are agreed with the traveller in the enquiry that follows.
-						</p>
 					</div>
-					{@render saveBar('pricing')}
-				</form>
+				{/if}
+
+				{#if data.pricingIsStructured || structuredOpen}
+					<form method="POST" action="?/saveStructuredPricing" use:enhance={track('pricing')} class="card">
+						<div class="card-header"><h2 class="card-title">Pricing</h2></div>
+						<div class="space-y-6 p-4">
+							<!-- BASE. The only part most operators will ever open. -->
+							<div class="space-y-3">
+								<div class="grid gap-3 sm:grid-cols-3">
+									<div>
+										<label class="label" for="p-currency">Currency</label>
+										<select id="p-currency" name="currency" bind:value={draft.currency} class="input">
+											{#each CURRENCIES as c (c.code)}<option value={c.code}>{c.code} · {c.label}</option>{/each}
+										</select>
+									</div>
+									<div>
+										<label class="label" for="p-adult">Adult</label>
+										<div class="flex items-center gap-2">
+											<span class="text-sm text-slate-400">{draft.currency || 'USD'}</span>
+											<input id="p-adult" bind:value={priceAdult} inputmode="decimal" class="input" placeholder="1099.00" />
+										</div>
+										<p class="mt-1 text-xs text-slate-400">per person</p>
+									</div>
+									<div>
+										<label class="label" for="p-child">Child</label>
+										{#if childOpen || priceChild}
+											<div class="flex items-center gap-2">
+												<span class="text-sm text-slate-400">{draft.currency || 'USD'}</span>
+												<input id="p-child" bind:value={priceChild} inputmode="decimal" class="input" placeholder="750.00" />
+											</div>
+											<p class="mt-1 text-xs text-slate-400">per person</p>
+										{:else}
+											<!-- Absent, and explicitly so. A missing child price is never
+											     resolved to the adult one behind the operator's back. -->
+											<button type="button" class="btn-outline w-full" onclick={() => (childOpen = true)}>
+												Add child price
+											</button>
+										{/if}
+									</div>
+								</div>
+							</div>
+
+							<!-- GROUP SIZE. Optional, and collapsed until asked for. -->
+							<details class="rounded-lg border border-slate-200">
+								<summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-700">
+									Price by group size <span class="font-normal text-slate-400">· optional</span>
+								</summary>
+								<div class="space-y-3 border-t border-slate-200 p-3">
+									<p class="text-xs text-slate-500">
+										Charge different per-person prices depending on how many people travel — a vehicle
+										and a guide cost the same whether two people share them or six.
+									</p>
+									{#each tiers as tier, i (i)}
+										<!-- Cards, not a table: a spreadsheet squeezed onto a phone is unreadable. -->
+										<div class="space-y-2 rounded-lg bg-slate-50 p-3">
+											<div class="flex items-center gap-2">
+												<input bind:value={tier.minTravellers} inputmode="numeric" class="input w-16" placeholder="3" aria-label="From travellers" />
+												<span class="text-sm text-slate-400">to</span>
+												<input bind:value={tier.maxTravellers} inputmode="numeric" class="input w-16" placeholder="4" aria-label="To travellers (blank for no limit)" />
+												<span class="text-xs text-slate-400">travellers</span>
+												<button type="button" class="ml-auto text-xs text-danger" onclick={() => tiers.splice(i, 1)}>Remove</button>
+											</div>
+											<div class="grid gap-2 sm:grid-cols-2">
+												<label class="text-xs text-slate-500">Adult
+													<input bind:value={tier.adult} inputmode="decimal" class="input mt-1" placeholder="1099.00" />
+												</label>
+												<label class="text-xs text-slate-500">Child
+													<input bind:value={tier.child} inputmode="decimal" class="input mt-1" placeholder="optional" />
+												</label>
+											</div>
+										</div>
+									{/each}
+									<button type="button" class="btn-outline" onclick={() => tiers.push({ minTravellers: '', maxTravellers: '', adult: '', child: '' })}>
+										+ Add price tier
+									</button>
+								</div>
+							</details>
+
+							<!-- SEASONS. Optional, and collapsed until asked for. -->
+							<details class="rounded-lg border border-slate-200">
+								<summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-700">
+									Seasonal pricing <span class="font-normal text-slate-400">· optional</span>
+								</summary>
+								<div class="space-y-3 border-t border-slate-200 p-3">
+									<p class="text-xs text-slate-500">
+										Charge different prices during certain dates. A season that ends before it starts
+										runs over the new year — 20 December to 5 January is one season.
+									</p>
+									{#each seasons as season, i (i)}
+										<div class="space-y-2 rounded-lg bg-slate-50 p-3">
+											<div class="flex items-center gap-2">
+												<input bind:value={season.name} class="input" placeholder="High season" aria-label="Season name" />
+												<button type="button" class="ml-auto text-xs text-danger" onclick={() => seasons.splice(i, 1)}>Remove</button>
+											</div>
+											<div class="grid gap-2 sm:grid-cols-2">
+												<label class="text-xs text-slate-500">From
+													<input type="date" bind:value={season.startsOn} class="input mt-1" />
+												</label>
+												<label class="text-xs text-slate-500">To
+													<input type="date" bind:value={season.endsOn} class="input mt-1" />
+												</label>
+												<label class="text-xs text-slate-500">Adult
+													<input bind:value={season.adult} inputmode="decimal" class="input mt-1" placeholder="1250.00" />
+												</label>
+												<label class="text-xs text-slate-500">Child
+													<input bind:value={season.child} inputmode="decimal" class="input mt-1" placeholder="optional" />
+												</label>
+											</div>
+										</div>
+									{/each}
+									<button type="button" class="btn-outline" onclick={() => seasons.push({ name: '', startsOn: '', endsOn: '', adult: '', child: '' })}>
+										+ Add season
+									</button>
+								</div>
+							</details>
+
+							<!-- MARKETPLACE PRICE. Shown, never asked for. -->
+							<div class="rounded-lg bg-slate-50 p-3">
+								<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Marketplace price</p>
+								<p class="mt-1 text-xl font-bold text-slate-900">
+									{derivedFrom ? `From ${draft.currency || 'USD'} ${derivedFrom}` : '—'}
+									<span class="text-sm font-normal text-slate-500">per person</span>
+								</p>
+								<p class="mt-1 text-xs text-slate-500">
+									Calculated automatically from your pricing. The server works it out again when you save.
+								</p>
+							</div>
+
+							<!-- PREVIEW, from the real engine. -->
+							<div class="rounded-lg border border-slate-200 p-3">
+								<div class="flex flex-wrap items-end gap-2">
+									<label class="text-xs text-slate-500">Date
+										<input type="date" bind:value={previewDate} class="input mt-1" />
+									</label>
+									<label class="text-xs text-slate-500">Adults
+										<input bind:value={previewAdults} inputmode="numeric" class="input mt-1 w-16" />
+									</label>
+									<label class="text-xs text-slate-500">Children
+										<input bind:value={previewChildren} inputmode="numeric" class="input mt-1 w-16" />
+									</label>
+								</div>
+								{#if preview}
+									<dl class="mt-3 space-y-1 text-sm">
+										<div class="flex justify-between">
+											<dt class="text-slate-500">Adults {previewAdults} × {preview.adultPrice}</dt>
+											<dd class="font-semibold tabular-nums">{draft.currency || 'USD'} {preview.total}</dd>
+										</div>
+										{#if preview.childRateMissing}
+											<p class="text-xs text-warning">
+												Child price required — children would be charged the adult price.
+											</p>
+										{/if}
+										<p class="text-xs text-slate-400">{preview.applied}</p>
+									</dl>
+								{:else}
+									<p class="mt-3 text-xs text-slate-400">Enter an adult price to see a preview.</p>
+								{/if}
+							</div>
+
+							<!-- The browser sends rates. It does not send the marketplace price. -->
+							<input type="hidden" name="adultPrice" value={priceAdult} />
+							<input type="hidden" name="childPrice" value={priceChild} />
+							<input type="hidden" name="tiers" value={JSON.stringify(tiers)} />
+							<input type="hidden" name="seasons" value={JSON.stringify(seasons)} />
+						</div>
+						{@render saveBar('pricing')}
+					</form>
+				{/if}
 			{/if}
 
 			{#if step === 'media'}
