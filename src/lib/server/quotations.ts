@@ -19,6 +19,8 @@ import { sendEventTemplate } from './whatsapp/template-engine';
 import { quotationEmail, sendEmail } from './email';
 import { env } from './env';
 import { AppError } from './errors';
+import { recommendPrice } from './tour-pricing';
+import { multiplyAmount } from '$lib/money';
 import { log } from './logger';
 import { markMarketplaceEnquiryResponded } from './marketplace-analytics';
 import { getTenantById } from './tenants';
@@ -129,7 +131,8 @@ export async function createQuotation(
 				description: item.description ?? null,
 				quantity: item.quantity ?? 1,
 				unitPrice: item.unitPrice ?? '0',
-				total: item.total ?? (Number(item.unitPrice ?? 0) * (item.quantity ?? 1)).toFixed(2),
+				// Exact: Number() * quantity is IEEE-754 in a money path. See lib/money.ts.
+				total: item.total ?? multiplyAmount(String(item.unitPrice ?? '0'), item.quantity ?? 1) ?? '0.00',
 				startDate: toDate(item.startDate),
 				endDate: toDate(item.endDate),
 				externalReference: item.externalReference ?? null,
@@ -246,6 +249,23 @@ export type QuotationDraft = {
 	travellers: number;
 	items: { description: string; quantity: number; unitPrice: string; basis: 'per group' | 'per person' }[];
 	suggestedTotal: string | null;
+	/**
+	 * What the tour's own pricing says this party should pay, and why.
+	 *
+	 * Separate from the items above because the two answer different questions:
+	 * items are the offer being drafted, this is the recommendation it started
+	 * from. An operator overriding a rate for one traveller must not silently
+	 * rewrite the tour.
+	 */
+	recommended: {
+		adultPrice: string;
+		childPrice: string | null;
+		/** True when the party has children and the tour publishes no child rate. */
+		childRateMissing: boolean;
+		total: string;
+		/** "High Season", "3-4 travellers", "Standard pricing". */
+		applied: string;
+	} | null;
 };
 
 export async function draftQuotationFor(tenantId: string, bookingRequestId: string): Promise<QuotationDraft> {
@@ -285,8 +305,27 @@ export async function draftQuotationFor(tenantId: string, bookingRequestId: stri
 	 * price. Anything else is per person.
 	 */
 	const perGroup = row.tourPricingType === 'PER_GROUP';
-	const unitPrice = row.tourPrice ?? null;
 	const quantity = perGroup ? 1 : travellers;
+
+	/*
+	 * Ask the pricing engine, not the column.
+	 *
+	 * This used to read tours.price_from and multiply it by adults + children,
+	 * which charges a child the adult rate — the very thing quotation-lines.ts
+	 * warns about three rules down, undone one layer up. The engine resolves the
+	 * season, the group-size tier and the child rate, and says which applied.
+	 *
+	 * It falls back to price_from for the tours priced before any of this
+	 * existed, so every listing in the catalogue still answers.
+	 */
+	const recommended = row.request.tourId
+		? await recommendPrice(tenantId, row.request.tourId, {
+				travelDate: row.request.startDate ? String(row.request.startDate) : null,
+				adults,
+				children
+			})
+		: null;
+	const unitPrice = recommended?.adultPrice ?? row.tourPrice ?? null;
 
 	return {
 		enquiry: {
@@ -327,8 +366,19 @@ export async function draftQuotationFor(tenantId: string, bookingRequestId: stri
 				]
 			: [],
 		// Null when the tour has no published price, so the operator is asked
-		// rather than presented with a confident zero.
-		suggestedTotal: unitPrice ? (Number(unitPrice) * quantity).toFixed(2) : null
+		// rather than presented with a confident zero. The engine's own total is
+		// used where it has one: it prices children at the child rate, which
+		// multiplying a single unit price by the whole party cannot do.
+		suggestedTotal: recommended?.total ?? (unitPrice ? multiplyAmount(unitPrice, quantity) : null),
+		recommended: recommended
+			? {
+					adultPrice: recommended.adultPrice,
+					childPrice: recommended.childPrice,
+					childRateMissing: recommended.childRateMissing,
+					total: recommended.total,
+					applied: recommended.applied
+				}
+			: null
 	};
 }
 

@@ -372,6 +372,13 @@
       "when": 1788140070007,
       "tag": "0052_meta_deauthorize",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788140070008,
+      "tag": "0053_tour_pricing",
+      "breakpoints": true
     }
   ]
 }

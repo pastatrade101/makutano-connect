@@ -16,6 +16,8 @@
  *  3. The child rate is never invented. No tour in this catalogue publishes
  *     one, so it defaults to the adult rate and only the operator moves it.
  */
+import { sum, times, toAmount, toMinor } from './money';
+
 export type QuotationLineInput = {
 	title: string;
 	/** Shown to the traveller under the first line. */
@@ -76,6 +78,13 @@ export function quotationLines(input: QuotationLineInput): QuotationLine[] {
 	];
 }
 
-/** What those lines add up to, before any discount or tax. */
+/**
+ * What those lines add up to, before any discount or tax.
+ *
+ * Summed in integer minor units. The previous form — Number(unitPrice) *
+ * quantity accumulated with + — is IEEE-754 in a money path: at this
+ * catalogue's sizes a double holds every cent, so nothing had visibly broken,
+ * which is precisely why it needed replacing rather than reporting.
+ */
 export const quotationLinesTotal = (lines: QuotationLine[]): string =>
-	lines.reduce((sum, line) => sum + Number(line.unitPrice) * line.quantity, 0).toFixed(2);
+	toAmount(sum(lines.map((line) => times(toMinor(line.unitPrice) ?? 0, line.quantity))));

@@ -2648,6 +2648,21 @@ export const tours = pgTable(
 		durationDays: integer('duration_days').notNull().default(1),
 		durationNights: integer('duration_nights'),
 		priceFrom: money('price_from'),
+		/*
+		 * The rates a party is actually charged.
+		 *
+		 * price_from above stays what the marketplace reads — ten public surfaces
+		 * and the JSON-LD Offer depend on it — and becomes DERIVED: the lowest
+		 * adult rate a real party could reach. These two are the source.
+		 */
+		adultPrice: money('adult_price'),
+		/**
+		 * NULL is NOT CONFIGURED, which is not the same as "same as an adult".
+		 * quotation-lines.ts defaults a missing child rate to the adult one, so
+		 * without this column a child is charged an adult price unless the
+		 * operator retypes it on every quotation.
+		 */
+		childPrice: money('child_price'),
 		currency: text('currency'),
 		/** PER_PERSON | PER_GROUP | FROM — what priceFrom actually means. */
 		pricingType: text('pricing_type').notNull().default('PER_PERSON'),
@@ -3094,6 +3109,66 @@ export const tourAccommodations = pgTable(
 		uniqueIndex('tour_accommodations_unique_property').on(t.tourId, t.accommodationId)
 	]
 );
+
+/**
+ * Prices that change with party size, because a vehicle and a guide are shared.
+ *
+ * Ranges cannot overlap — the database refuses the pair with an exclusion
+ * constraint, not just the form — because two bands covering the same party give
+ * one traveller two prices and which wins would depend on row order.
+ */
+export const tourPriceTiers = pgTable(
+	'tour_price_tiers',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		tourId: uuid('tour_id')
+			.notNull()
+			.references(() => tours.id, { onDelete: 'cascade' }),
+		minTravellers: integer('min_travellers').notNull(),
+		/** Null is "and above", so 7+ needs no invented ceiling. */
+		maxTravellers: integer('max_travellers'),
+		adultPrice: money('adult_price').notNull(),
+		childPrice: money('child_price'),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [index('tour_price_tiers_tour_idx').on(t.tourId, t.minTravellers)]
+);
+
+/**
+ * Prices that change with the travel date.
+ *
+ * DATE, not timestamp: a season boundary is a calendar fact, and storing an
+ * instant moves the 1st of July by a day for anyone in another time zone. A
+ * season whose end precedes its start wraps the year — 20 Dec to 5 Jan is one
+ * season, which is the festive rate every operator in this catalogue sells.
+ */
+export const tourPriceSeasons = pgTable(
+	'tour_price_seasons',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		tenantId: uuid('tenant_id')
+			.notNull()
+			.references(() => tenants.id, { onDelete: 'cascade' }),
+		tourId: uuid('tour_id')
+			.notNull()
+			.references(() => tours.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		startsOn: date('starts_on').notNull(),
+		endsOn: date('ends_on').notNull(),
+		adultPrice: money('adult_price').notNull(),
+		childPrice: money('child_price'),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [index('tour_price_seasons_tour_idx').on(t.tourId, t.startsOn)]
+);
+
+export type TourPriceTier = typeof tourPriceTiers.$inferSelect;
+export type TourPriceSeason = typeof tourPriceSeasons.$inferSelect;
 
 export const tourItineraryDays = pgTable(
 	'tour_itinerary_days',
