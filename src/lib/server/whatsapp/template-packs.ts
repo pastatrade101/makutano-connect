@@ -36,8 +36,15 @@ type PackTemplate = {
 /**
  * The proven bodies — the same set live on the first production tenant. Named
  * variables only; toPositional() turns them into Meta's {{1}}…{{n}} at submit time.
- * quotation_ready is deliberately link-free in the pack: not every tenant has a
- * public quote page, and a template that always sends beats one that skips.
+ *
+ * quotation_ready USED to be deliberately link-free, on the reasoning that not
+ * every tenant had a public quote page and a template that always sends beats one
+ * that skips (sendEventTemplate drops a message whose variables resolve empty).
+ * That stopped being true: deliverQuotation mints a public token on every send via
+ * ensurePublicToken, and MARKETPLACE_URL has a default, so quotationLink() always
+ * returns a URL now. The link was being passed to WhatsApp and silently discarded
+ * because the approved body had nowhere to put it, while the email carried it —
+ * the same quotation reaching one customer two different ways.
  */
 // crew_invite is deliberately NOT here. Meta rejects it as INCORRECT_CATEGORY:
 // handing somebody app access is not tied to a transaction, so it reads as
@@ -88,7 +95,7 @@ const PACK: PackTemplate[] = [
 		eventKey: 'QUOTATION_READY',
 		module: 'quotations',
 		bodyText:
-			'Hello {{customer.first_name}}, your quotation {{quotation.reference}} is ready — total {{quotation.total}}. Reply here to accept it or ask us anything.'
+			'Hello {{customer.first_name}}, your quotation {{quotation.reference}} is ready — total {{quotation.total}}. View the full quotation here: {{quotation.link}} — or reply to this message and we will help.'
 	},
 	{
 		name: 'order_received',
@@ -246,11 +253,7 @@ export function packState(settings: Record<string, unknown> | null | undefined):
  * empty Template Center, a "Sync from Meta" that correctly returns nothing, and
  * no way forward.
  */
-export function packNeedsSetup(input: {
-	pack: PackState;
-	templateCount: number;
-	liveWabaId: string | null;
-}): boolean {
+export function packNeedsSetup(input: { pack: PackState; templateCount: number; liveWabaId: string | null }): boolean {
 	if (!input.pack.version || input.pack.version < PACK_VERSION) return true;
 	if (input.pack.wabaId && input.liveWabaId && input.pack.wabaId !== input.liveWabaId) return true;
 	// Packs applied before wabaId was recorded have no WABA to compare, so fall

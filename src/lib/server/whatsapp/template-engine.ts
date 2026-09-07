@@ -275,7 +275,14 @@ export async function submitTemplateToMeta(tenantId: string, templateId: string)
 			deliveryLocation: 'City centre'
 		},
 		booking: { reference: 'BK-2026-00001', startDate: '14 Oct 2026', total: '1200.00' },
-		quotation: { reference: 'QT-2026-00001', total: '900.00' },
+		// link included: a body carrying {{quotation.link}} would otherwise be
+		// submitted with the literal word 'example' as its sample, and a sample
+		// that is not a URL is exactly what gets a URL-bearing template rejected.
+		quotation: {
+			reference: 'QT-2026-00001',
+			total: '900.00',
+			link: 'https://journeys.makutano.co.tz/quotes/0123456789abcdef'
+		},
 		payment: {
 			amount: 'USD 100.00',
 			amountDue: 'USD 50.00',
