@@ -20,6 +20,7 @@
 	import Money from '$components/Money.svelte';
 	import RichText from '$components/RichText.svelte';
 	import { calculateTourPrice, lowestAdultPrice, type TourPricing } from '$lib/pricing';
+	import { multiplyAmount } from '$lib/money';
 	import { plural, statusLabel } from '$lib/labels';
 	import { CURRENCIES, GROUP_TYPES, MEALS } from '$lib/tour-options';
 	import RoutePlanner from '$lib/geo/RoutePlanner.svelte';
@@ -1899,14 +1900,37 @@
 									</label>
 								</div>
 								{#if preview}
-									<dl class="mt-3 space-y-1 text-sm">
-										<div class="flex justify-between">
-											<dt class="text-slate-500">Adults {previewAdults} × {preview.adultPrice}</dt>
-											<dd class="font-semibold tabular-nums">{draft.currency || 'USD'} {preview.total}</dd>
+									<!--
+										Each part of the party on its own line with its own subtotal.
+										A single figure is not a preview of a price an operator can check —
+										the whole point is that they can see the child rate applied, and
+										see it separately from the adult one.
+									-->
+									<dl class="mt-3 space-y-1.5 text-sm">
+										{#if Number(previewAdults) > 0}
+											<div class="flex justify-between gap-3">
+												<dt class="text-slate-500">Adults · {previewAdults} × {preview.adultPrice}</dt>
+												<dd class="font-medium tabular-nums">{multiplyAmount(preview.adultPrice, Number(previewAdults))}</dd>
+											</div>
+										{/if}
+										{#if Number(previewChildren) > 0 && preview.childPrice}
+											<div class="flex justify-between gap-3">
+												<dt class="text-slate-500">Children · {previewChildren} × {preview.childPrice}</dt>
+												<dd class="font-medium tabular-nums">{multiplyAmount(preview.childPrice, Number(previewChildren))}</dd>
+											</div>
+										{/if}
+										<div class="flex justify-between gap-3 border-t border-slate-200 pt-1.5">
+											<!-- Labelled, not just footnoted. A bare "Total" beside a warning
+											     still reads as the price; saying what the number assumes makes
+											     it impossible to quote by accident. -->
+											<dt class="font-semibold text-slate-700">
+												{preview.childRateMissing ? 'Total if children pay the adult rate' : 'Total'}
+											</dt>
+											<dd class="font-bold tabular-nums">{draft.currency || 'USD'} {preview.total}</dd>
 										</div>
 										{#if preview.childRateMissing}
-											<p class="text-xs text-warning">
-												Child price required — children would be charged the adult price.
+											<p class="rounded bg-warning/10 px-2 py-1 text-xs font-semibold text-[#b58514]">
+												Child price required — this total charges children the adult rate.
 											</p>
 										{/if}
 										<p class="text-xs text-slate-400">{preview.applied}</p>

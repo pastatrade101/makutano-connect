@@ -112,13 +112,36 @@ suite('relay end-to-end', () => {
 		await db().delete(schema.tenants).where(inArray(schema.tenants.id, [relayTenant.id, plainTenant.id]));
 	});
 
-	it('resolves relay targets only for tenants that configured one', async () => {
+	it('resolves the relay target for a tenant that configured one', async () => {
+		// One tenant's identifiers, plus an identifier nobody owns. Unroutable
+		// identifiers contribute nothing and do not make the batch "mixed".
 		const targets = await ctx.relay.relayTargetsFor([
 			{ phoneNumberId: `pn-relay-${stamp}` },
-			{ phoneNumberId: `pn-plain-${stamp}` },
 			{ phoneNumberId: 'pn-owned-by-nobody' }
 		]);
 		expect(targets).toEqual([`http://127.0.0.1:${sinkPort}/legacy`]);
+	});
+
+	it('relays NOTHING when one delivery spans two tenants', async () => {
+		/*
+		 * This assertion is the reverse of what it used to be, deliberately.
+		 *
+		 * It previously expected the relay tenant's endpoint to be returned for a
+		 * batch containing BOTH tenants' numbers. What actually gets forwarded is
+		 * the exact bytes Meta sent — the legacy consumer verifies the signature
+		 * over them — and those bytes carry every entry in the batch. So the old
+		 * behaviour handed one operator's customer phone numbers and message text
+		 * to another operator's endpoint. It cannot be trimmed to one tenant
+		 * either, because that breaks the signature it is trusted for.
+		 *
+		 * Refusing is the only correct answer. Meta normally sends one entry per
+		 * delivery, so this costs nothing in practice and is logged when it fires.
+		 */
+		const targets = await ctx.relay.relayTargetsFor([
+			{ phoneNumberId: `pn-relay-${stamp}` },
+			{ phoneNumberId: `pn-plain-${stamp}` }
+		]);
+		expect(targets).toEqual([]);
 	});
 
 	it('resolves by waba_id when the event has no phone number', async () => {
