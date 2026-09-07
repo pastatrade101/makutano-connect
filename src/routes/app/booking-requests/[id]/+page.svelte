@@ -53,14 +53,27 @@
 	const perGroup = $derived(draft?.items?.[0]?.basis === 'per group');
 	const publishedPrice = $derived(Number(draft?.items?.[0]?.unitPrice ?? 0) || null);
 	const quoteCurrency = $derived(draft?.currency ?? data.request.currency ?? 'USD');
+	/** What the tour's pricing says for THIS party and date; null when unpriced. */
+	const recommended = $derived(draft?.recommended ?? null);
 
 	function openComposer() {
 		const d = data.quoteDraft;
 		adults = d?.enquiry.adults ?? 1;
 		children = d?.enquiry.children ?? 0;
-		const opening = publishedPrice ? String(publishedPrice) : '';
-		adultPrice = opening;
-		childPrice = opening;
+		/*
+		 * Open at what the tour's own pricing says, not at one published figure.
+		 *
+		 * This used to seed BOTH boxes from price_from, so a child opened at the
+		 * adult rate and stayed there unless the operator noticed. The engine
+		 * resolves the season, the group-size band and the child rate for this
+		 * exact party and date; the operator is still free to override either box,
+		 * and doing so changes this quotation only.
+		 */
+		const rec = d?.recommended ?? null;
+		adultPrice = rec?.adultPrice ?? (publishedPrice ? String(publishedPrice) : '');
+		// Left EMPTY when the tour publishes no child rate, so the operator is
+		// asked rather than handed the adult price to send by accident.
+		childPrice = rec?.childRateMissing ? '' : (rec?.childPrice ?? '');
 		childPriceEdited = false;
 		quoteTitle = d?.tour?.title ?? '';
 		quoteMessage = '';
@@ -220,6 +233,34 @@
 				<p class="mt-2 text-[13px] text-slate-500">
 					Published <span class="ml-1 font-semibold text-slate-800">{publishedPrice ? amount(publishedPrice) : 'Not set'}</span>
 				</p>
+				{#if recommended}
+					<!--
+						What the tour's pricing says, and why. Stated separately from the
+						boxes because the two answer different questions: this is the
+						recommendation, those are the offer being made to this traveller.
+					-->
+					<div class="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-[13px]">
+						<div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+							<span class="text-slate-500">
+								Tour pricing
+								<span class="ml-1 font-semibold text-slate-800">{quoteCurrency} {recommended.adultPrice}</span>
+								<span class="text-slate-400">adult</span>
+							</span>
+							{#if recommended.childPrice && !recommended.childRateMissing}
+								<span class="text-slate-500">
+									<span class="font-semibold text-slate-800">{quoteCurrency} {recommended.childPrice}</span>
+									<span class="text-slate-400">child</span>
+								</span>
+							{/if}
+						</div>
+						<p class="mt-0.5 text-[12px] text-slate-400">{recommended.applied}</p>
+						{#if recommended.childRateMissing}
+							<p class="mt-1 text-[12px] font-semibold text-[#b58514]">
+								Child price required — this tour does not publish one, so enter what children pay.
+							</p>
+						{/if}
+					</div>
+				{/if}
 				<div class="mt-2 grid max-w-md gap-3 sm:grid-cols-2">
 					<label class="block">
 						<span class="text-[12.5px] text-slate-500">{perGroup || children === 0 ? 'Your quote' : 'Adults'}</span>
@@ -229,7 +270,12 @@
 								name="adultPrice"
 								inputmode="decimal"
 								bind:value={adultPrice}
-								oninput={() => { if (!childPriceEdited) childPrice = adultPrice; }}
+								oninput={() => {
+									// Only mirrors while the tour has no child rate of its own —
+									// otherwise typing an adult price would quietly overwrite the
+									// child rate the engine resolved.
+									if (!childPriceEdited && !recommended?.childPrice) childPrice = adultPrice;
+								}}
 								class="input font-semibold"
 								placeholder="0"
 							/>
