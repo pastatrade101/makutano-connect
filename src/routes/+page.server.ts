@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { planHighlights, selectablePlans, signupEnabled, trialDays } from '$lib/server/provisioning';
-import { pathForStage, stageForUser, landingPathFor } from '$lib/server/signup';
+import { landingPathFor } from '$lib/server/signup';
 import { env } from '$lib/server/env';
 import type { PageServerLoad } from './$types';
 

@@ -35,7 +35,6 @@ const need = (name: string): string => {
 	return v;
 };
 
-const PUBLIC_URL = need('R2_PUBLIC_URL').replace(/\/+$/, '');
 const BUCKET = need('R2_BUCKET_NAME');
 const r2 = new S3Client({
 	region: 'auto',

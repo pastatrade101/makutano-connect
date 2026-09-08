@@ -2,7 +2,7 @@
 // funnels through canUseFeature() / checkLimit() / recordUsage() so pricing changes
 // touch one module, not fifty call sites.
 import { sql } from 'drizzle-orm';
-import { db, schema } from './db';
+import { db } from './db';
 import { invalidateEntitlements } from './entitlements';
 import { log } from './logger';
 

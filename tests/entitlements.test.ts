@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 // Entitlements, enforcement and WhatsApp compliance.
 //
 // The property that matters most is the ORDER of the checks:
@@ -303,5 +304,37 @@ describe('entitlement registry', () => {
 		const duplicates = keys.filter((key: string, i: number) => keys.indexOf(key) !== i);
 		expect(duplicates).toEqual([]);
 		expect(new Set(keys).size).toBe(keys.length);
+	});
+});
+
+/**
+ * A metered limit that nothing counts is not a limit.
+ *
+ * `quotations.maxPerMonth` was CHECKED by createQuotation and never incremented:
+ * every metered entitlement had exactly one recordUsage() call site except this
+ * one, which had zero. The allowance could not be reached and the usage summary
+ * reported none used. The unused `recordUsage` import in quotations.ts was the
+ * only trace of the line that should have been there.
+ *
+ * Source-level, deliberately: the fault was a call that did not exist anywhere,
+ * which no amount of exercising createQuotation would reveal.
+ */
+describe('every metered entitlement is actually counted', () => {
+	it('has a recordUsage call site for each metric a limit is measured against', () => {
+		const definitions = fs.readFileSync('src/lib/server/entitlements.ts', 'utf8');
+		const metrics = [...definitions.matchAll(/metric:\s*'([a-z_]+)'/g)].map((m) => m[1]);
+		expect(metrics.length).toBeGreaterThan(3);
+
+		const server = 'src/lib/server';
+		const sources = fs
+			.readdirSync(server, { withFileTypes: true, recursive: true })
+			.filter((e) => e.isFile() && e.name.endsWith('.ts'))
+			.map((e) => fs.readFileSync(`${e.parentPath ?? e.path}/${e.name}`, 'utf8'))
+			.join('\n');
+
+		const uncounted = [...new Set(metrics)].filter(
+			(metric) => !new RegExp(`recordUsage\\([^,]+,\\s*'${metric}'`).test(sources)
+		);
+		expect(uncounted, 'these limits are enforced but never incremented').toEqual([]);
 	});
 });

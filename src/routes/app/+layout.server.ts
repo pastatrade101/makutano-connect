@@ -3,7 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db, schema } from '$lib/server/db';
 import { approachingLimits, effectiveEntitlements } from '$lib/server/entitlements';
 import { membershipsForUser } from '$lib/server/tenants';
-import { pathForStage, stageForUser, landingPathFor } from '$lib/server/signup';
+import { landingPathFor } from '$lib/server/signup';
 import { normalizeWorkspace } from '$lib/workspace';
 import type { LayoutServerLoad } from './$types';
 

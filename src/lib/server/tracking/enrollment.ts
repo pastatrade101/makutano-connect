@@ -15,10 +15,8 @@ import { and, eq, lt, sql } from 'drizzle-orm';
 import { env } from '$lib/server/env';
 import { db, schema, txDb } from '$lib/server/db';
 import { AppError } from '$lib/server/errors';
-import { log } from '$lib/server/logger';
 import { enforce } from '$lib/server/rate-limit';
 import { mintDeviceRef } from './identifier';
-import { providerBaseUrl } from './credentials';
 
 /** How long a setup code lives. Sized by the honest path, not by optimism. */
 export const PHONE_EXPIRY_MS = 30 * 60 * 1000;

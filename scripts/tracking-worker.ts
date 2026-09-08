@@ -37,7 +37,6 @@ async function main() {
 		await once();
 		return;
 	}
-	// eslint-disable-next-line no-constant-condition
 	while (true) {
 		try {
 			await once();

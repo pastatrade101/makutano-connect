@@ -7,7 +7,7 @@
 //
 // Vehicles are DEACTIVATED, never deleted, for the same reason as crew: a trip
 // that ran last year still names the vehicle that ran it.
-import { and, asc, eq, ne, type SQL } from 'drizzle-orm';
+import { and, asc, eq, type SQL } from 'drizzle-orm';
 import { db, schema } from './db';
 import { assertAllowed } from './entitlements';
 import { AppError } from './errors';

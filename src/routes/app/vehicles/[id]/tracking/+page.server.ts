@@ -109,14 +109,14 @@ export const actions: Actions = {
 		}
 	},
 
-	cancel: async ({ locals, params, request }) => {
+	cancel: async ({ locals, request }) => {
 		const tenant = guard(locals);
 		const data = await request.formData();
 		await cancelEnrollment(tenant.id, String(data.get('enrollmentId') ?? ''));
 		return { cancelled: true };
 	},
 
-	extend: async ({ locals, params, request }) => {
+	extend: async ({ locals, request }) => {
 		const tenant = guard(locals);
 		const data = await request.formData();
 		try {

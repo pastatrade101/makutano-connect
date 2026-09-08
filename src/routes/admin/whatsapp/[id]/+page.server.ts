@@ -49,7 +49,7 @@ export const load: PageServerLoad = async ({ params }) => {
 };
 
 export const actions: Actions = {
-	syncTemplates: async ({ locals, params }) => {
+	syncTemplates: async ({ params }) => {
 		const health = await connectionHealth(idOf(params));
 		await enqueue('whatsapp.templates.sync', { tenantId: health.tenant.id }, { tenantId: health.tenant.id });
 		return { success: true };

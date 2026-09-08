@@ -8,7 +8,7 @@ import { toAppError } from '$lib/server/errors';
 import { log } from '$lib/server/logger';
 import { enforce } from '$lib/server/rate-limit';
 import { signupEnabled } from '$lib/server/provisioning';
-import { pathForStage, stageForUser, landingPathFor } from '$lib/server/signup';
+import { landingPathFor } from '$lib/server/signup';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {

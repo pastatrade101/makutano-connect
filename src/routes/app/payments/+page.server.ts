@@ -54,7 +54,7 @@ export const actions: Actions = {
 		let verifiedId = '';
 		try {
 			const requestId = parseUuid(String(data.get('requestId') ?? ''), 'request id');
-			const updated = await verifyPaymentRequest(requireTenant(locals).id, requestId, {
+			await verifyPaymentRequest(requireTenant(locals).id, requestId, {
 				amountReceived: String(data.get('amount') ?? '') || undefined,
 				paymentReference: String(data.get('paymentReference') ?? '') || null,
 				note: String(data.get('note') ?? '') || null,

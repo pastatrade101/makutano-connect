@@ -62,15 +62,6 @@ suite('marketplace taxonomy', () => {
 	let ownStyleId: string;
 	let ownStyleSlug: string;
 
-	const styleBySlug = async (slug: string) => {
-		const [row] = await db().select().from(schema.travelStyles).where(eq(schema.travelStyles.slug, slug)).limit(1);
-		return row;
-	};
-	const categoryBySlug = async (slug: string) => {
-		const [row] = await db().select().from(schema.tourCategories).where(eq(schema.tourCategories.slug, slug)).limit(1);
-		return row;
-	};
-
 	/*
 	 * A per-run token on every title. A tour slug is unique GLOBALLY and
 	 * freeSlug() gives up after 8 candidates, so fixed titles let this suite run

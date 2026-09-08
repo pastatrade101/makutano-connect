@@ -2,8 +2,8 @@ import { fail, type Actions } from '@sveltejs/kit';
 import { listPlans, updatePlan } from '$lib/server/admin/control-plane';
 import { ENTITLEMENTS } from '$lib/server/entitlements';
 import { toAppError } from '$lib/server/errors';
-import { db, schema } from '$lib/server/db';
-import { eq, sql } from 'drizzle-orm';
+import { db } from '$lib/server/db';
+import { sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {

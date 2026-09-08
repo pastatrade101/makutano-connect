@@ -1,4 +1,3 @@
-import { requirePermission } from '$lib/server/auth/permissions';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { listQuotations } from '$lib/server/quotations';
 import { paginationFrom } from '$lib/server/http';

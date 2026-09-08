@@ -7,7 +7,7 @@
 // The route is super-admin guarded in hooks.server.ts (a layout `load` does not protect
 // a form action — SvelteKit runs actions first; see docs/PROJECTS.md).
 import { fail } from '@sveltejs/kit';
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db, schema } from '$lib/server/db';
 import { offsetOf, paginationFrom } from '$lib/server/http';
 import { toAppError } from '$lib/server/errors';

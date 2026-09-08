@@ -28,7 +28,7 @@ describe('a genuine signed_request is accepted', () => {
 	});
 
 	it('reports no user rather than inventing one when the payload omits it', () => {
-		const { user_id, ...withoutUser } = PAYLOAD;
+		const { user_id: _user_id, ...withoutUser } = PAYLOAD;
 		const result = parseSignedRequest(signRequest(withoutUser, SECRET), SECRET);
 		expect(result.ok).toBe(true);
 		if (result.ok) expect(result.userId).toBeNull();

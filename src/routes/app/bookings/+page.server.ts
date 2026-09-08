@@ -1,4 +1,3 @@
-import { requirePermission } from '$lib/server/auth/permissions';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { bookingStats, listBookings } from '$lib/server/bookings';
 import { paginationFrom } from '$lib/server/http';

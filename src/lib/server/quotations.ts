@@ -142,6 +142,21 @@ export async function createQuotation(
 			}))
 		);
 
+	/*
+	 * The counter behind quotations.maxPerMonth.
+	 *
+	 * createQuotation has always CHECKED that limit — assertAllowed above — while
+	 * nothing ever incremented it, so the count sat at zero for every tenant: the
+	 * allowance could not be reached and the usage summary reported none used.
+	 * `recordUsage` was imported here and never called, which is the fossil of the
+	 * missing line; eslint flagged the unused import for years without anyone
+	 * asking what it had been for.
+	 *
+	 * Fire-and-forget, and after the write, exactly as booking-requests and orders
+	 * do it: metering must not fail the thing being metered.
+	 */
+	void recordUsage(tenantId, 'quotations');
+
 	return quotation;
 }
 
@@ -623,7 +638,7 @@ export async function acceptQuotation(
 	 */
 	expectedVersion?: number | null
 ) {
-	const { quotation, items } = await getQuotationDetail(tenantId, id);
+	const { quotation } = await getQuotationDetail(tenantId, id);
 	if (quotation.status === 'CONVERTED' && quotation.convertedBookingId) {
 		const existing = await db()
 			.select()

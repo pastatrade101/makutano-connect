@@ -138,14 +138,6 @@ const mockByPath = (routes: { devices: unknown; positions: unknown }) => {
 	return urls;
 };
 
-const mockJson = (payloads: unknown[]) => {
-	let call = 0;
-	globalThis.fetch = vi.fn(async () => {
-		const body = payloads[Math.min(call++, payloads.length - 1)];
-		return new Response(JSON.stringify(body), { status: 200 });
-	}) as unknown as typeof fetch;
-};
-
 describe('the Traccar adapter normalises rather than leaks', () => {
 	it('converts knots to km/h and picks the fix time', async () => {
 		const provider = await traccar();

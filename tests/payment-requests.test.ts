@@ -209,7 +209,7 @@ suite('payment requests', () => {
 			ctx.pr.verifyPaymentRequest(tenantA.id, request.id, { userId: staffId }),
 			ctx.pr.verifyPaymentRequest(tenantA.id, request.id, { userId: staffId })
 		]);
-		const { db, schema } = ctx.db;
+		const { db } = ctx.db;
 		const rows = (await db().execute<{ count: number }>((await import('drizzle-orm')).sql`
 			select count(*)::int as count from payments
 			where tenant_id = ${tenantA.id}::uuid and metadata->>'paymentRequestId' = ${request.id}

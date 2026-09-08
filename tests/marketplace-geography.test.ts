@@ -18,7 +18,6 @@ process.env.JOB_WORKER = 'off';
 
 suite('marketplace geography integrity', () => {
 	let tenantId: string;
-	let sql: typeof import('postgres') extends never ? never : any;
 	let db: (typeof import('../src/lib/server/db'))['db'];
 	let schema: (typeof import('../src/lib/server/db'))['schema'];
 	let eq: (typeof import('drizzle-orm'))['eq'];

@@ -1,6 +1,6 @@
 // Invitation acceptance (§2): single-use tenant-bound token → membership activated.
 // A brand-new invitee sets their password here; an existing account just signs in.
-import { fail, redirect, type Actions } from '@sveltejs/kit';
+import { fail, type Actions } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { audit } from '$lib/server/audit';
 import { hashPassword } from '$lib/server/auth/password';

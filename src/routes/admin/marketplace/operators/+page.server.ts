@@ -18,7 +18,7 @@
 //
 // The route is super-admin guarded by src/routes/admin/+layout.server.ts.
 import { fail } from '@sveltejs/kit';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { eq, isNull, sql } from 'drizzle-orm';
 import { audit } from '$lib/server/audit';
 import { db, schema } from '$lib/server/db';
 import { toAppError } from '$lib/server/errors';

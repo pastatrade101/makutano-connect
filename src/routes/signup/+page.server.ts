@@ -13,8 +13,6 @@ import {
 	checkPassword,
 	createAccount,
 	limitSignupAttempts,
-	pathForStage,
-	stageForUser,
 	turnstileEnabled,
 	turnstileSiteKey,
 	verifyTurnstile,

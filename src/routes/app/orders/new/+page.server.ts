@@ -1,6 +1,5 @@
 import { error, fail, redirect, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
-import { requirePermission } from '$lib/server/auth/permissions';
 import { COMMON_UNITS, listBatches } from '$lib/server/order-batches';
 import { createCustomer } from '$lib/server/customers';
 import { getConversation } from '$lib/server/conversations';
