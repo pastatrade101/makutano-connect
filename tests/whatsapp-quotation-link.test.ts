@@ -67,3 +67,37 @@ describe('quotation_ready carries the quote link', () => {
 		expect(samples).toMatch(/link:\s*'https:\/\//);
 	});
 });
+
+/*
+ * Which template wins when two are mapped to one event.
+ *
+ * This is not hypothetical: a replacement has to be submitted and approved
+ * before the old one can be retired, so both are mapped for the whole time Meta
+ * spends reviewing. quotation_ready and quotation_ready_v2 sat in exactly that
+ * state on the live tenant.
+ */
+describe('template selection is deterministic', () => {
+	const TEMPLATES = readFileSync('src/lib/server/whatsapp/templates.ts', 'utf8');
+	const selector = TEMPLATES.slice(
+		TEMPLATES.indexOf('export async function templateForEvent'),
+		TEMPLATES.indexOf('export async function listTemplates')
+	);
+
+	it('orders the candidates instead of taking whatever comes back first', () => {
+		// limit(1) with no orderBy is a coin toss the planner is free to re-flip.
+		expect(selector).toMatch(/\.orderBy\([^)]*createdAt[^)]*\)/);
+		expect(selector.indexOf('.orderBy')).toBeLessThan(selector.indexOf('.limit(1)'));
+	});
+
+	it('orders by createdAt, which a sync cannot flatten', () => {
+		// syncTemplates stamps updatedAt on every row it touches, so after a sync
+		// the two rows are identical on that column and it carries no order.
+		expect(selector).toContain('desc(schema.whatsappTemplates.createdAt)');
+		expect(selector).not.toMatch(/orderBy\([^)]*updatedAt/);
+	});
+
+	it('still refuses anything Meta has not approved', () => {
+		// A pending replacement must never be selected — it cannot send.
+		expect(selector).toContain("eq(schema.whatsappTemplates.status, 'APPROVED')");
+	});
+});

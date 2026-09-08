@@ -1,6 +1,6 @@
 // WhatsApp message templates (§18). Templates live in Meta; this table mirrors them per
 // tenant and maps our domain events onto approved template names.
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { db, schema } from '../db';
 import { log } from '../logger';
 import { graphRequest } from './client';
@@ -44,6 +44,25 @@ export async function templateForEvent(
 				...enabled
 			)
 		)
+		/*
+		 * NEWEST FIRST, and this is not cosmetic.
+		 *
+		 * A template body is frozen at approval, so changing the wording means
+		 * submitting a new template and moving the event onto it. For as long as
+		 * both are mapped — which is the whole time Meta spends reviewing, and
+		 * longer if nobody remembers to unmap — `limit 1` with no order made the
+		 * choice whatever Postgres happened to return first. Stable enough to look
+		 * correct in testing and free to change under you afterwards.
+		 *
+		 * createdAt, not updatedAt: syncTemplates stamps updatedAt on every row it
+		 * touches, so after any sync the two are identical and carry no order at
+		 * all. createdAt is the one field that still says which came second.
+		 *
+		 * Newest also matches what an operator means. Nobody submits a replacement
+		 * intending the old wording to keep sending, so the moment Meta approves
+		 * the new one it takes over on its own.
+		 */
+		.orderBy(desc(schema.whatsappTemplates.createdAt))
 		.limit(1);
 	if (rows[0]) return rows[0];
 
@@ -324,7 +343,6 @@ function mapStatus(metaStatus?: string): schema.WhatsappTemplate['status'] {
 			return 'PENDING';
 	}
 }
-
 
 /**
  * Meta's reason, kept only while the template is actually rejected.
