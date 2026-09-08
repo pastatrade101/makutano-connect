@@ -1210,13 +1210,13 @@
 								{#each FEATURES as f (f.key)}
 									<label
 										class="flex cursor-pointer items-start gap-2 rounded-lg border p-3 transition
-											{draft[f.key] ? 'border-emerald-600 bg-emerald-50/60' : 'border-slate-200 hover:border-slate-300'}"
+											{draft[f.key] ? 'border-success bg-success/10' : 'border-slate-200 hover:border-slate-300'}"
 									>
 										<input
 											type="checkbox"
 											name={f.key}
 											bind:checked={draft[f.key]}
-											class="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600"
+											class="mt-0.5 h-4 w-4 rounded border-slate-300 text-success"
 										/>
 										<span class="min-w-0">
 											<span class="block text-sm font-medium text-slate-900">{f.label}</span>
@@ -1236,7 +1236,7 @@
 						<div class="sm:col-span-2">
 							<div class="flex flex-wrap items-baseline justify-between gap-2">
 								<span class="label mb-0">Travel styles</span>
-								<span class="text-xs {styleLimitReached ? 'font-medium text-amber-700' : 'text-slate-500'}">
+								<span class="text-xs {styleLimitReached ? 'font-medium text-warning' : 'text-slate-500'}">
 									{draft.travelStyleIds.length} of {data.maxTravelStyles} chosen
 								</span>
 							</div>
@@ -1250,7 +1250,7 @@
 										type="button"
 										class="rounded-full border px-3 py-1.5 text-sm transition
 											{on
-											? 'border-emerald-600 bg-emerald-600 text-white'
+											? 'border-success bg-success text-white'
 											: styleLimitReached
 												? 'cursor-not-allowed border-slate-200 text-slate-300'
 												: 'border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50'}"
@@ -1287,7 +1287,7 @@
 										type="button"
 										class="rounded-full border px-3 py-1.5 text-sm transition
 											{on
-											? 'border-emerald-600 bg-emerald-600 text-white'
+											? 'border-success bg-success text-white'
 											: 'border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50'}"
 										aria-pressed={on}
 										title={a.shortDescription ?? a.name}
@@ -1570,7 +1570,7 @@
 										     they had written instead of losing it to a migration's
 										     pattern match; choosing anything above clears it on save. -->
 										{#if day.mealsNote && !day.meals.length}
-											<p class="mt-1 text-[11.5px] text-amber-700">
+											<p class="mt-1 text-[11.5px] text-warning">
 												Previously: “{day.mealsNote}” — pick the meals above to replace it.
 											</p>
 										{/if}

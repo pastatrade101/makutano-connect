@@ -395,13 +395,24 @@ suite('multi-tenant engine', () => {
 		const again = await ctx.quotations.acceptQuotation(tenantA.id, quotation.id);
 		expect(again.booking.id).toBe(booking.id);
 
-		// §19: a successful payment updates amount_paid, balance_due and the status.
+		// §19: a successful payment updates amount_paid and balance_due.
 		const payments = await import('../src/lib/server/payments');
 		await payments.createPayment(tenantA.id, { bookingId: booking.id, amount: '1000.00', provider: 'MANUAL' });
 		const partly = await ctx.bookings.getBooking(tenantA.id, booking.id);
 		expect(partly.amountPaid).toBe('1000.00');
 		expect(partly.balanceDue).toBe('1300.00');
-		expect(partly.status).toBe('PARTIALLY_PAID');
+		/*
+		 * CONFIRMED, and it stays CONFIRMED — this used to expect PARTIALLY_PAID.
+		 *
+		 * Accepting a quotation confirms its booking (see
+		 * tests/accepted-quotation-confirms.test.ts), so CONFIRMED no longer implies
+		 * paid. applyBookingPayment only advances OUT of the states where payment is
+		 * what is being waited on; moving a confirmed booking back to PARTIALLY_PAID
+		 * would un-confirm a trip the operator has already promised.
+		 *
+		 * What is owed lives in balance_due, which is where the next action reads it.
+		 */
+		expect(partly.status).toBe('CONFIRMED');
 
 		await payments.createPayment(tenantA.id, { bookingId: booking.id, amount: '1300.00', provider: 'MANUAL' });
 		const settled = await ctx.bookings.getBooking(tenantA.id, booking.id);

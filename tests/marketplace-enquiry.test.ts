@@ -9,6 +9,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { provisionTestTenant } from './support';
 
+/** Unique per run: a tour slug is unique globally, and freeSlug() gives up after 8. */
+const stamp = Date.now().toString(36);
+
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const suite = TEST_DB ? describe : describe.skip;
 process.env.CREDENTIALS_ENCRYPTION_KEY ||= 'integration-test-encryption-key!!';
@@ -22,9 +25,9 @@ suite('marketplace enquiry ownership', () => {
 	let publishedTourId: string;
 	let draftSlug: string;
 	let route: { POST: (event: never) => Response | Promise<Response> };
-	let db: typeof import('../src/lib/server/db')['db'];
-	let schema: typeof import('../src/lib/server/db')['schema'];
-	let eq: typeof import('drizzle-orm')['eq'];
+	let db: (typeof import('../src/lib/server/db'))['db'];
+	let schema: (typeof import('../src/lib/server/db'))['schema'];
+	let eq: (typeof import('drizzle-orm'))['eq'];
 
 	const post = async (body: unknown, ip = '203.0.113.10') => {
 		const res = await route.POST({
@@ -57,23 +60,41 @@ suite('marketplace enquiry ownership', () => {
 
 		const T = await import('../src/lib/server/tours');
 		const [country] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
-		const [dest] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti-national-park')).limit(1);
-		const [media] = await db().insert(schema.media).values({
-			tenantId: tenantA, objectKey: `enq/${Date.now()}.jpg`, url: 'https://cdn.example.test/e.jpg', mimeType: 'image/jpeg'
-		}).returning();
+		const [dest] = await db()
+			.select()
+			.from(schema.destinations)
+			.where(eq(schema.destinations.slug, 'serengeti-national-park'))
+			.limit(1);
+		const [media] = await db()
+			.insert(schema.media)
+			.values({
+				tenantId: tenantA,
+				objectKey: `enq/${Date.now()}.jpg`,
+				url: 'https://cdn.example.test/e.jpg',
+				mimeType: 'image/jpeg'
+			})
+			.returning();
 
 		// A published listing owned by tenant A.
 		const live = await T.createTour(tenantA, {
-			title: 'Ownership Probe Safari', primaryCountryId: country.id, shortDescription: 'Live.',
-			durationDays: 3, priceFrom: '1500.00', currency: 'USD', heroMediaId: media.id
+			title: `Ownership Probe Safari ${stamp}`,
+			primaryCountryId: country.id,
+			shortDescription: 'Live.',
+			durationDays: 3,
+			priceFrom: '1500.00',
+			currency: 'USD',
+			heroMediaId: media.id
 		});
 		await T.setTourDestinations(tenantA, live.id, [dest.id]);
 		await T.replaceItinerary(tenantA, live.id, [{ dayNumber: 1, title: 'Day one' }] as never);
-		await db().update(schema.tours).set({ status: 'PUBLISHED', publishedAt: new Date() }).where(eq(schema.tours.id, live.id));
+		await db()
+			.update(schema.tours)
+			.set({ status: 'PUBLISHED', publishedAt: new Date() })
+			.where(eq(schema.tours.id, live.id));
 		publishedSlug = live.slug;
 		publishedTourId = live.id;
 
-		const draft = await T.createTour(tenantA, { title: 'Draft Probe', primaryCountryId: country.id });
+		const draft = await T.createTour(tenantA, { title: `Draft Probe ${stamp}`, primaryCountryId: country.id });
 		draftSlug = draft.slug;
 	}, 120_000);
 
@@ -104,9 +125,15 @@ suite('marketplace enquiry ownership', () => {
 	/* ---- the happy path --------------------------------------------------- */
 
 	it('creates an ordinary booking_request owned by the tour’s tenant', async () => {
-		const { status, body } = await post({
-			tour: publishedSlug, firstName: 'Ada', email: 'ada@example.com', adults: 2
-		}, '203.0.113.11');
+		const { status, body } = await post(
+			{
+				tour: publishedSlug,
+				firstName: 'Ada',
+				email: 'ada@example.com',
+				adults: 2
+			},
+			'203.0.113.11'
+		);
 
 		expect(status).toBe(200);
 		const reference = body.data.reference as string;
@@ -122,14 +149,17 @@ suite('marketplace enquiry ownership', () => {
 	/* ---- forged ownership -------------------------------------------------- */
 
 	it('ignores a tenantId the caller supplies', async () => {
-		const { status, body } = await post({
-			tour: publishedSlug,
-			tenantId: tenantB, // the forgery
-			tenant_id: tenantB,
-			tenant: tenantB,
-			firstName: 'Mallory',
-			email: 'mallory@example.com'
-		}, '203.0.113.12');
+		const { status, body } = await post(
+			{
+				tour: publishedSlug,
+				tenantId: tenantB, // the forgery
+				tenant_id: tenantB,
+				tenant: tenantB,
+				firstName: 'Mallory',
+				email: 'mallory@example.com'
+			},
+			'203.0.113.12'
+		);
 
 		expect(status).toBe(200);
 		const row = await rowFor(body.data.reference as string);
@@ -138,8 +168,7 @@ suite('marketplace enquiry ownership', () => {
 	});
 
 	it('leaves tenant B with no enquiries at all after the forgery attempt', async () => {
-		const rows = await db().select().from(schema.bookingRequests)
-			.where(eq(schema.bookingRequests.tenantId, tenantB));
+		const rows = await db().select().from(schema.bookingRequests).where(eq(schema.bookingRequests.tenantId, tenantB));
 		expect(rows, 'nothing may be injected into another operator’s inbox').toHaveLength(0);
 	});
 
@@ -253,9 +282,12 @@ suite('marketplace enquiry ownership', () => {
 			.set({ status: status as 'SUSPENDED' })
 			.where(eq(schema.tenants.id, tenantA));
 
+		// A distinct address per case, which `203.0.113.5${status.length}` was not:
+		// SUSPENDED and CANCELLED are both nine characters, so the two cases shared
+		// one rate-limit bucket and were never independent.
 		const { status: code } = await post(
 			{ operator: profile.slug, firstName: 'Nope', email: `nope-${status}@example.com` },
-			`203.0.113.5${status.length}`
+			status === 'SUSPENDED' ? '203.0.113.58' : '203.0.113.59'
 		);
 		expect(code).toBe(404);
 
@@ -323,9 +355,14 @@ suite('marketplace enquiry ownership', () => {
 		const { resolveCredentials } = await import('../src/lib/server/whatsapp/connections');
 		expect(await resolveCredentials(tenantA), 'no connection means null, never a platform fallback').toBeNull();
 
-		const { status, body } = await post({
-			tour: publishedSlug, firstName: 'Grace', email: 'grace@example.com'
-		}, '203.0.113.16');
+		const { status, body } = await post(
+			{
+				tour: publishedSlug,
+				firstName: 'Grace',
+				email: 'grace@example.com'
+			},
+			'203.0.113.16'
+		);
 
 		expect(status).toBe(200);
 		const row = await rowFor(body.data.reference as string);
@@ -336,9 +373,14 @@ suite('marketplace enquiry ownership', () => {
 	/* ---- what comes back --------------------------------------------------- */
 
 	it('returns a reference and nothing internal', async () => {
-		const { body } = await post({
-			tour: publishedSlug, firstName: 'Alan', email: 'alan@example.com'
-		}, '203.0.113.17');
+		const { body } = await post(
+			{
+				tour: publishedSlug,
+				firstName: 'Alan',
+				email: 'alan@example.com'
+			},
+			'203.0.113.17'
+		);
 
 		expect(Object.keys(body.data).sort()).toEqual(['message', 'reference']);
 		const serialized = JSON.stringify(body);
@@ -350,19 +392,22 @@ suite('marketplace enquiry ownership', () => {
 	/* ---- attribution -------------------------------------------------------- */
 
 	it('stores allow-listed attribution in metadata and drops the rest', async () => {
-		const { body } = await post({
-			tour: publishedSlug,
-			firstName: 'Attr',
-			email: 'attr@example.com',
-			attribution: {
-				utmSource: 'google',
-				utmMedium: 'cpc',
-				sessionId: 'sess_123',
-				// Not in the allow-list — must be stripped, not stored.
-				evilPayload: 'x'.repeat(5000),
-				isAdmin: true
-			}
-		}, '203.0.113.18');
+		const { body } = await post(
+			{
+				tour: publishedSlug,
+				firstName: 'Attr',
+				email: 'attr@example.com',
+				attribution: {
+					utmSource: 'google',
+					utmMedium: 'cpc',
+					sessionId: 'sess_123',
+					// Not in the allow-list — must be stripped, not stored.
+					evilPayload: 'x'.repeat(5000),
+					isAdmin: true
+				}
+			},
+			'203.0.113.18'
+		);
 
 		const row = await rowFor(body.data.reference as string);
 		const meta = row.metadata as { marketplace?: Record<string, unknown> };
@@ -392,7 +437,10 @@ suite('marketplace enquiry ownership', () => {
 		let limited = false;
 		for (let i = 0; i < 15; i++) {
 			const { status } = await post({ tour: publishedSlug, firstName: `Flood${i}`, email: `f${i}@example.com` }, ip);
-			if (status === 429) { limited = true; break; }
+			if (status === 429) {
+				limited = true;
+				break;
+			}
 		}
 		expect(limited, 'an anonymous writer must hit a ceiling').toBe(true);
 	});

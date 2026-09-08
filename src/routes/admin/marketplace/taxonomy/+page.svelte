@@ -106,7 +106,7 @@
 						{#if !e.isActive}
 							<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Retired</span>
 						{:else if e.isFeatured}
-							<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Featured</span>
+							<span class="rounded-full bg-success/10 px-2 py-0.5 text-xs text-success">Featured</span>
 						{:else}
 							<span class="text-xs text-slate-400">Active</span>
 						{/if}

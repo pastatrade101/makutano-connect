@@ -20,12 +20,46 @@ async function hashPassword(password: string): Promise<string> {
 	return `scrypt$16384$8$1$${salt.toString('base64url')}$${hash.toString('base64url')}`;
 }
 
+/*
+ * `limits` and `features` are the ORIGINAL vocabulary and nothing resolves against
+ * them any more — effectiveEntitlements() reads `plans.entitlements`, keyed by the
+ * dotted ENTITLEMENT_KEYS. This seed wrote only the first two for months, so a
+ * freshly seeded database gave every plan an EMPTY entitlement map: every key fell
+ * through to `definition.fallback` and three entitlement tests failed on values
+ * nobody had changed. The old columns stay because existing rows carry them; the
+ * entitlements below are production's, so a local database resolves the way the
+ * live one does.
+ */
 const PLANS = [
 	{
 		code: 'STARTER',
 		name: 'Starter',
 		priceMonthly: '29',
 		sortOrder: 1,
+		entitlements: {
+			'api.enabled': true,
+			'api.maxKeys': 2,
+			'api.maxRequestsPerMonth': 0,
+			'api.requestsPerMinute': 60,
+			'automation.enabled': true,
+			'bookings.enabled': true,
+			'bookings.maxRequestsPerMonth': 200,
+			'forms.embeddedEnabled': true,
+			'forms.hostedEnabled': true,
+			'forms.maxForms': 3,
+			'orders.enabled': true,
+			'orders.maxPerMonth': 200,
+			'payments.enabled': false,
+			'platform.maxUsers': 3,
+			'quotations.enabled': true,
+			'quotations.maxPerMonth': 200,
+			'webhooks.enabled': false,
+			'whatsapp.enabled': true,
+			'whatsapp.maxNumbers': 1,
+			'whatsapp.maxOutboundPerMonth': 1000,
+			'whatsapp.maxTemplates': 10,
+			'whatsapp.templatesEnabled': false
+		},
 		limits: {
 			api_requests_per_minute: 60,
 			booking_requests_per_month: 200,
@@ -47,6 +81,31 @@ const PLANS = [
 		name: 'Business',
 		priceMonthly: '99',
 		sortOrder: 2,
+		entitlements: {
+			'ai.enabled': true,
+			'api.enabled': true,
+			'api.maxKeys': 5,
+			'api.maxRequestsPerMonth': 0,
+			'api.requestsPerMinute': 120,
+			'automation.enabled': true,
+			'bookings.enabled': true,
+			'bookings.maxRequestsPerMonth': 1000,
+			'forms.embeddedEnabled': true,
+			'forms.hostedEnabled': true,
+			'forms.maxForms': 10,
+			'orders.enabled': true,
+			'orders.maxPerMonth': 1000,
+			'payments.enabled': true,
+			'platform.maxUsers': 10,
+			'quotations.enabled': true,
+			'quotations.maxPerMonth': 1000,
+			'webhooks.enabled': true,
+			'whatsapp.enabled': true,
+			'whatsapp.maxNumbers': 1,
+			'whatsapp.maxOutboundPerMonth': 10000,
+			'whatsapp.maxTemplates': 25,
+			'whatsapp.templatesEnabled': true
+		},
 		limits: {
 			api_requests_per_minute: 120,
 			booking_requests_per_month: 1000,
@@ -68,6 +127,31 @@ const PLANS = [
 		name: 'Pro',
 		priceMonthly: '249',
 		sortOrder: 3,
+		entitlements: {
+			'ai.enabled': true,
+			'api.enabled': true,
+			'api.maxKeys': 15,
+			'api.maxRequestsPerMonth': 0,
+			'api.requestsPerMinute': 300,
+			'automation.enabled': true,
+			'bookings.enabled': true,
+			'bookings.maxRequestsPerMonth': 5000,
+			'forms.embeddedEnabled': true,
+			'forms.hostedEnabled': true,
+			'forms.maxForms': 50,
+			'orders.enabled': true,
+			'orders.maxPerMonth': 5000,
+			'payments.enabled': true,
+			'platform.maxUsers': 30,
+			'quotations.enabled': true,
+			'quotations.maxPerMonth': 5000,
+			'webhooks.enabled': true,
+			'whatsapp.enabled': true,
+			'whatsapp.maxNumbers': 5,
+			'whatsapp.maxOutboundPerMonth': 50000,
+			'whatsapp.maxTemplates': 100,
+			'whatsapp.templatesEnabled': true
+		},
 		limits: {
 			api_requests_per_minute: 300,
 			booking_requests_per_month: 5000,
@@ -89,6 +173,31 @@ const PLANS = [
 		name: 'Enterprise',
 		priceMonthly: '0',
 		sortOrder: 4,
+		entitlements: {
+			'ai.enabled': true,
+			'api.enabled': true,
+			'api.maxKeys': 50,
+			'api.maxRequestsPerMonth': 0,
+			'api.requestsPerMinute': 1000,
+			'automation.enabled': true,
+			'bookings.enabled': true,
+			'bookings.maxRequestsPerMonth': 0,
+			'forms.embeddedEnabled': true,
+			'forms.hostedEnabled': true,
+			'forms.maxForms': 0,
+			'orders.enabled': true,
+			'orders.maxPerMonth': 0,
+			'payments.enabled': true,
+			'platform.maxUsers': 200,
+			'quotations.enabled': true,
+			'quotations.maxPerMonth': 0,
+			'webhooks.enabled': true,
+			'whatsapp.enabled': true,
+			'whatsapp.maxNumbers': 0,
+			'whatsapp.maxOutboundPerMonth': 0,
+			'whatsapp.maxTemplates': 0,
+			'whatsapp.templatesEnabled': true
+		},
 		limits: {
 			api_requests_per_minute: 1000,
 			booking_requests_per_month: 0,
@@ -126,6 +235,7 @@ try {
 					name: plan.name,
 					limits: plan.limits,
 					features: plan.features,
+					entitlements: plan.entitlements,
 					priceMonthly: plan.priceMonthly,
 					sortOrder: plan.sortOrder
 				}

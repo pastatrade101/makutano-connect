@@ -12,6 +12,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { provisionTestTenant } from './support';
 
+/** Unique per run: a tour slug is unique globally, and freeSlug() gives up after 8. */
+const stamp = Date.now().toString(36);
+
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const suite = TEST_DB ? describe : describe.skip;
 process.env.CREDENTIALS_ENCRYPTION_KEY ||= 'integration-test-encryption-key!!';
@@ -22,28 +25,39 @@ const VENDOR = { canPublish: false };
 const PLATFORM = { canPublish: true };
 
 type Status =
-	| 'DRAFT' | 'SUBMITTED' | 'IN_REVIEW' | 'CHANGES_REQUESTED'
-	| 'APPROVED' | 'PUBLISHED' | 'UNPUBLISHED' | 'ARCHIVED';
+	'DRAFT' | 'SUBMITTED' | 'IN_REVIEW' | 'CHANGES_REQUESTED' | 'APPROVED' | 'PUBLISHED' | 'UNPUBLISHED' | 'ARCHIVED';
 type Action =
-	| 'submit' | 'start_review' | 'approve' | 'request_changes'
-	| 'publish' | 'unpublish' | 'archive' | 'restore';
+	'submit' | 'start_review' | 'approve' | 'request_changes' | 'publish' | 'unpublish' | 'archive' | 'restore';
 
 /** The lifecycle, restated independently of the implementation. */
 const LEGAL: Record<Action, { from: Status[]; to: Status; platform: boolean }> = {
-	submit:          { from: ['DRAFT', 'CHANGES_REQUESTED', 'UNPUBLISHED'], to: 'SUBMITTED', platform: false },
-	start_review:    { from: ['SUBMITTED'], to: 'IN_REVIEW', platform: true },
-	approve:         { from: ['SUBMITTED', 'IN_REVIEW'], to: 'APPROVED', platform: true },
+	submit: { from: ['DRAFT', 'CHANGES_REQUESTED', 'UNPUBLISHED'], to: 'SUBMITTED', platform: false },
+	start_review: { from: ['SUBMITTED'], to: 'IN_REVIEW', platform: true },
+	approve: { from: ['SUBMITTED', 'IN_REVIEW'], to: 'APPROVED', platform: true },
 	request_changes: { from: ['SUBMITTED', 'IN_REVIEW'], to: 'CHANGES_REQUESTED', platform: true },
 	// UNPUBLISHED as well as APPROVED: a listing pulled from the marketplace has to
 	// be something the platform can put back, or the admin who took it down has to
 	// ask the operator to resubmit for a whole review round.
-	publish:         { from: ['APPROVED', 'UNPUBLISHED'], to: 'PUBLISHED', platform: true },
-	unpublish:       { from: ['PUBLISHED'], to: 'UNPUBLISHED', platform: false },
-	archive:         { from: ['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'UNPUBLISHED'], to: 'ARCHIVED', platform: false },
-	restore:         { from: ['ARCHIVED'], to: 'DRAFT', platform: false }
+	publish: { from: ['APPROVED', 'UNPUBLISHED'], to: 'PUBLISHED', platform: true },
+	unpublish: { from: ['PUBLISHED'], to: 'UNPUBLISHED', platform: false },
+	archive: {
+		from: ['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'UNPUBLISHED'],
+		to: 'ARCHIVED',
+		platform: false
+	},
+	restore: { from: ['ARCHIVED'], to: 'DRAFT', platform: false }
 };
 
-const ALL_STATUSES: Status[] = ['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'];
+const ALL_STATUSES: Status[] = [
+	'DRAFT',
+	'SUBMITTED',
+	'IN_REVIEW',
+	'CHANGES_REQUESTED',
+	'APPROVED',
+	'PUBLISHED',
+	'UNPUBLISHED',
+	'ARCHIVED'
+];
 const ALL_ACTIONS = Object.keys(LEGAL) as Action[];
 
 suite('marketplace listing moderation', () => {
@@ -53,9 +67,9 @@ suite('marketplace listing moderation', () => {
 	let categoryId: string;
 	let mediaId: string;
 	let T: typeof import('../src/lib/server/tours');
-	let db: typeof import('../src/lib/server/db')['db'];
-	let schema: typeof import('../src/lib/server/db')['schema'];
-	let eq: typeof import('drizzle-orm')['eq'];
+	let db: (typeof import('../src/lib/server/db'))['db'];
+	let schema: (typeof import('../src/lib/server/db'))['schema'];
+	let eq: (typeof import('drizzle-orm'))['eq'];
 
 	beforeAll(async () => {
 		const tenant = await provisionTestTenant({ name: 'Moderation Co', slug: `test-mod-${Date.now()}` } as never);
@@ -68,16 +82,30 @@ suite('marketplace listing moderation', () => {
 
 		const [c] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
 		countryId = c.id;
-		const [d] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti-national-park')).limit(1);
+		const [d] = await db()
+			.select()
+			.from(schema.destinations)
+			.where(eq(schema.destinations.slug, 'serengeti-national-park'))
+			.limit(1);
 		destinationId = d.id;
 		// A listing with no category appears under no category filter, so
 		// assertPublishable now counts one as missing.
-		const [cat] = await db().select().from(schema.tourCategories).where(eq(schema.tourCategories.slug, 'safari')).limit(1);
+		const [cat] = await db()
+			.select()
+			.from(schema.tourCategories)
+			.where(eq(schema.tourCategories.slug, 'safari'))
+			.limit(1);
 		categoryId = cat.id;
 		// A media row stands in for an uploaded hero; publishability requires one.
-		const [m] = await db().insert(schema.media).values({
-			tenantId, objectKey: `probe/${Date.now()}.jpg`, url: 'https://example.test/hero.jpg', mimeType: 'image/jpeg'
-		}).returning();
+		const [m] = await db()
+			.insert(schema.media)
+			.values({
+				tenantId,
+				objectKey: `probe/${Date.now()}.jpg`,
+				url: 'https://example.test/hero.jpg',
+				mimeType: 'image/jpeg'
+			})
+			.returning();
 		mediaId = m.id;
 	}, 120_000);
 
@@ -95,7 +123,9 @@ suite('marketplace listing moderation', () => {
 		});
 		await T.setTourDestinations(tenantId, tour.id, [destinationId]);
 		await T.replaceItinerary(tenantId, tour.id, [
-			{ dayNumber: 1, title: 'Arrive' }, { dayNumber: 2, title: 'Drive' }, { dayNumber: 3, title: 'Depart' }
+			{ dayNumber: 1, title: 'Arrive' },
+			{ dayNumber: 2, title: 'Drive' },
+			{ dayNumber: 3, title: 'Depart' }
 		] as never);
 		return tour;
 	};
@@ -140,7 +170,13 @@ suite('marketplace listing moderation', () => {
 			'a rejection with no reason is useless to the operator'
 		).rejects.toThrow();
 
-		const changed = await T.transitionTour(tenantId, tour.id, 'request_changes', {}, { ...PLATFORM, note: 'Add a price.' });
+		const changed = await T.transitionTour(
+			tenantId,
+			tour.id,
+			'request_changes',
+			{},
+			{ ...PLATFORM, note: 'Add a price.' }
+		);
 		expect(changed.status).toBe('CHANGES_REQUESTED');
 		expect(changed.reviewNote).toBe('Add a price.');
 
@@ -221,13 +257,18 @@ suite('marketplace listing moderation', () => {
 	/* ---- publishability --------------------------------------------------- */
 
 	it('will not let an incomplete listing be submitted, and says what is missing', async () => {
-		const bare = await T.createTour(tenantId, { title: 'Bare Listing' });
+		const bare = await T.createTour(tenantId, { title: `Bare Listing ${stamp}` });
 		const missing = await T.assertPublishable(tenantId, bare.id);
 
 		expect(missing).toEqual(
 			expect.arrayContaining([
-				'a short description', 'a country', 'a starting price', 'a currency',
-				'a main photo', 'at least one itinerary day', 'at least one destination'
+				'a short description',
+				'a country',
+				'a starting price',
+				'a currency',
+				'a main photo',
+				'at least one itinerary day',
+				'at least one destination'
 			])
 		);
 

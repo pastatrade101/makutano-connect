@@ -58,8 +58,24 @@ suite('reviews', () => {
 		operatorA = await provisionTestTenant({ name: 'Op A', slug: `op-a-${stamp}`, bookingReferencePrefix: 'OPA' });
 		operatorB = await provisionTestTenant({ name: 'Op B', slug: `op-b-${stamp}`, bookingReferencePrefix: 'OPB' });
 		const { schema, db } = ctx.db;
-		const [user] = await db().select({ id: schema.users.id }).from(schema.users).limit(1);
-		moderatorId = user.id;
+		/*
+		 * Our OWN moderator, not `select id from users limit 1`.
+		 *
+		 * That borrowed whichever user happened to be first in a shared table —
+		 * another suite's — and captured the id here in beforeAll. Vitest runs files
+		 * in parallel, so by the time moderateReview() wrote it to reviews.moderated_by
+		 * the owning suite could already have taken its tenant (and that user with it)
+		 * away, and four tests died on reviews_moderated_by_fkey. It passed alone every
+		 * time, which is what made it look like a reviews bug rather than a borrowed row.
+		 */
+		const [moderator] = await db()
+			.insert(schema.users)
+			.values({
+				email: `reviews-moderator-${stamp}@test.local`,
+				fullName: 'Reviews Moderator'
+			})
+			.returning({ id: schema.users.id });
+		moderatorId = moderator.id;
 	});
 
 	afterAll(async () => {
@@ -90,7 +106,11 @@ suite('reviews', () => {
 
 		// PENDING is not public. This is the assertion that stops a marketplace
 		// showing unmoderated words.
-		const beforePublish = await ctx.reviews.getPublicOperatorReviews(operatorA.id, { page: 1, limit: 20, order: 'desc' });
+		const beforePublish = await ctx.reviews.getPublicOperatorReviews(operatorA.id, {
+			page: 1,
+			limit: 20,
+			order: 'desc'
+		});
 		expect(beforePublish.items).toHaveLength(0);
 		expect(beforePublish.summary.average).toBeNull();
 
@@ -101,7 +121,11 @@ suite('reviews', () => {
 
 		await ctx.reviews.moderateReview(reviewId, 'publish', { userId: moderatorId });
 
-		const afterPublish = await ctx.reviews.getPublicOperatorReviews(operatorA.id, { page: 1, limit: 20, order: 'desc' });
+		const afterPublish = await ctx.reviews.getPublicOperatorReviews(operatorA.id, {
+			page: 1,
+			limit: 20,
+			order: 'desc'
+		});
 		expect(afterPublish.items).toHaveLength(1);
 		expect(afterPublish.summary.average).toBe(5);
 		// Privacy: a first name and an initial, never the address it was sent to.
@@ -180,9 +204,9 @@ suite('reviews', () => {
 	it('rejects an invalid or unknown token', async () => {
 		expect(await ctx.reviews.getOwnReview('not-a-token')).toBeNull();
 		expect(await ctx.reviews.getOwnReview('a'.repeat(40))).toBeNull();
-		await expect(
-			ctx.reviews.submitReview('b'.repeat(40), { rating: 5, body: 'Hello.' })
-		).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(ctx.reviews.submitReview('b'.repeat(40), { rating: 5, body: 'Hello.' })).rejects.toMatchObject({
+			code: 'NOT_FOUND'
+		});
 	});
 
 	it('refuses to write through an expired invitation but still shows the review', async () => {
@@ -204,15 +228,15 @@ suite('reviews', () => {
 		expect(await ctx.reviews.getOwnReview(token)).not.toBeNull();
 	});
 
-	it('will not let one operator respond to another operator\'s review', async () => {
+	it("will not let one operator respond to another operator's review", async () => {
 		const { booking } = await completedBooking(operatorA.id, 'Crossed');
 		const { token, reviewId } = await ctx.reviews.inviteReview(booking.id);
 		await ctx.reviews.submitReview(token, { rating: 5, body: 'Wonderful.' });
 		await ctx.reviews.moderateReview(reviewId, 'publish', { userId: moderatorId });
 
-		await expect(
-			ctx.reviews.respondToReview(operatorB.id, reviewId, 'Not our review.')
-		).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(ctx.reviews.respondToReview(operatorB.id, reviewId, 'Not our review.')).rejects.toMatchObject({
+			code: 'NOT_FOUND'
+		});
 	});
 
 	it('gives no tenant role — not even OWNER — the power to moderate', () => {
@@ -275,8 +299,8 @@ suite('reviews', () => {
 		const { booking } = await completedBooking(operatorA.id, 'Reasoned');
 		const { token, reviewId } = await ctx.reviews.inviteReview(booking.id);
 		await ctx.reviews.submitReview(token, { rating: 2, body: 'Not for us.' });
-		await expect(
-			ctx.reviews.moderateReview(reviewId, 'hide', { userId: moderatorId })
-		).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+		await expect(ctx.reviews.moderateReview(reviewId, 'hide', { userId: moderatorId })).rejects.toMatchObject({
+			code: 'VALIDATION_ERROR'
+		});
 	});
 });

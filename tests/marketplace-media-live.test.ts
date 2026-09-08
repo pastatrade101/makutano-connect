@@ -11,13 +11,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { provisionTestTenant } from './support';
 
+/** Unique per run: a tour slug is unique globally, and freeSlug() gives up after 8. */
+const stamp = Date.now().toString(36);
+
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const R2_READY = Boolean(
 	process.env.R2_ACCOUNT_ID &&
-		process.env.R2_ACCESS_KEY_ID &&
-		process.env.R2_SECRET_ACCESS_KEY &&
-		process.env.R2_BUCKET_NAME &&
-		process.env.R2_PUBLIC_URL
+	process.env.R2_ACCESS_KEY_ID &&
+	process.env.R2_SECRET_ACCESS_KEY &&
+	process.env.R2_BUCKET_NAME &&
+	process.env.R2_PUBLIC_URL
 );
 const suite = TEST_DB && R2_READY ? describe : describe.skip;
 
@@ -37,9 +40,9 @@ suite('R2 media, end to end', () => {
 	let tenantId: string;
 	let tourId: string;
 	let M: typeof import('../src/lib/server/media');
-	let db: typeof import('../src/lib/server/db')['db'];
-	let schema: typeof import('../src/lib/server/db')['schema'];
-	let eq: typeof import('drizzle-orm')['eq'];
+	let db: (typeof import('../src/lib/server/db'))['db'];
+	let schema: (typeof import('../src/lib/server/db'))['schema'];
+	let eq: (typeof import('drizzle-orm'))['eq'];
 	const created: string[] = [];
 
 	beforeAll(async () => {
@@ -53,7 +56,7 @@ suite('R2 media, end to end', () => {
 
 		const T = await import('../src/lib/server/tours');
 		const [country] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
-		tourId = (await T.createTour(tenantId, { title: 'Live Media Probe', primaryCountryId: country.id })).id;
+		tourId = (await T.createTour(tenantId, { title: `Live Media Probe ${stamp}`, primaryCountryId: country.id })).id;
 	}, 120_000);
 
 	afterAll(async () => {
@@ -72,12 +75,9 @@ suite('R2 media, end to end', () => {
 	});
 
 	it('uploads a photo, stores a row, and serves it at the public url', async () => {
-		const media = await M.uploadMedia(
-			{ kind: 'tour-gallery', tenantId, tourId },
-			PNG,
-			'image/png',
-			{ altText: 'A test photograph' }
-		);
+		const media = await M.uploadMedia({ kind: 'tour-gallery', tenantId, tourId }, PNG, 'image/png', {
+			altText: 'A test photograph'
+		});
 		created.push(media.id);
 
 		expect(media.tenantId).toBe(tenantId);
@@ -151,8 +151,8 @@ suite('R2 media, end to end', () => {
 		// The rule is enforced BEFORE anything reaches storage, so a rejected
 		// upload must leave no object behind at all.
 		const liar = new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00]);
-		await expect(
-			M.uploadMedia({ kind: 'tour-gallery', tenantId, tourId }, liar, 'image/png')
-		).rejects.toThrow(/not a valid image/i);
+		await expect(M.uploadMedia({ kind: 'tour-gallery', tenantId, tourId }, liar, 'image/png')).rejects.toThrow(
+			/not a valid image/i
+		);
 	});
 });

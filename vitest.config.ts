@@ -9,6 +9,9 @@ export default defineConfig({
 		// TEST_DATABASE_URL — see the comment in that file for what went wrong
 		// without it.
 		setupFiles: ['./tests/pin-database.ts'],
+		// Once per RUN, not once per file: clears the durable rate-limit counters
+		// that otherwise make a suite's result depend on how recently it last ran.
+		globalSetup: ['./tests/reset-rate-limits.ts'],
 		environment: 'node',
 		globals: false,
 		// The integration suite can run against a REMOTE Postgres (Supabase, eu-west-1),

@@ -63,23 +63,24 @@ suite('marketplace taxonomy', () => {
 	let ownStyleSlug: string;
 
 	const styleBySlug = async (slug: string) => {
-		const [row] = await db()
-			.select()
-			.from(schema.travelStyles)
-			.where(eq(schema.travelStyles.slug, slug))
-			.limit(1);
+		const [row] = await db().select().from(schema.travelStyles).where(eq(schema.travelStyles.slug, slug)).limit(1);
 		return row;
 	};
 	const categoryBySlug = async (slug: string) => {
-		const [row] = await db()
-			.select()
-			.from(schema.tourCategories)
-			.where(eq(schema.tourCategories.slug, slug))
-			.limit(1);
+		const [row] = await db().select().from(schema.tourCategories).where(eq(schema.tourCategories.slug, slug)).limit(1);
 		return row;
 	};
 
-	const draft = async (title: string) => tours.createTour(tenantId, { title }, { userId: null });
+	/*
+	 * A per-run token on every title. A tour slug is unique GLOBALLY and
+	 * freeSlug() gives up after 8 candidates, so fixed titles let this suite run
+	 * exactly eight times against a database before beforeAll starts throwing
+	 * "Too many listings share this title" — a failure that points at the tour
+	 * code rather than at the fixtures that filled the slug space.
+	 */
+	const slugToken = Date.now().toString(36);
+	const draft = async (title: string) =>
+		tours.createTour(tenantId, { title: `${title} ${slugToken}` }, { userId: null });
 
 	/* --------------------------------------------------------------- seeding -- */
 
@@ -113,26 +114,20 @@ suite('marketplace taxonomy', () => {
 
 	it('refuses a travel style that is not in the taxonomy', async () => {
 		const tour = await draft('Invented style');
-		await expect(
-			tours.setTourTravelStyles(tenantId, tour.id, [crypto.randomUUID()], { userId: null })
-		).rejects.toThrow(/not available/i);
+		await expect(tours.setTourTravelStyles(tenantId, tour.id, [crypto.randomUUID()], { userId: null })).rejects.toThrow(
+			/not available/i
+		);
 	});
 
 	it('refuses a RETIRED style, so deactivating actually withdraws it', async () => {
 		const tour = await draft('Retired style');
-		await db()
-			.update(schema.travelStyles)
-			.set({ isActive: false })
-			.where(eq(schema.travelStyles.id, ownStyleId));
+		await db().update(schema.travelStyles).set({ isActive: false }).where(eq(schema.travelStyles.id, ownStyleId));
 		try {
-			await expect(
-				tours.setTourTravelStyles(tenantId, tour.id, [ownStyleId], { userId: null })
-			).rejects.toThrow(/not available/i);
+			await expect(tours.setTourTravelStyles(tenantId, tour.id, [ownStyleId], { userId: null })).rejects.toThrow(
+				/not available/i
+			);
 		} finally {
-			await db()
-				.update(schema.travelStyles)
-				.set({ isActive: true })
-				.where(eq(schema.travelStyles.id, ownStyleId));
+			await db().update(schema.travelStyles).set({ isActive: true }).where(eq(schema.travelStyles.id, ownStyleId));
 		}
 	});
 
@@ -195,13 +190,13 @@ suite('marketplace taxonomy', () => {
 		// have damaged. Setting the primary column does not itself write a row.
 		await tours.setTourCategories(tenantId, tour.id, [], { userId: null });
 
-		await expect(
-			tours.setTourCategories(tenantId, tour.id, [other!.id], { userId: null })
-		).rejects.toThrow(/one category/i);
+		await expect(tours.setTourCategories(tenantId, tour.id, [other!.id], { userId: null })).rejects.toThrow(
+			/one category/i
+		);
 
 		// A refused write leaves the listing exactly as it was — filed under its
 		// primary, not emptied by a replace that got half way.
-		
+
 		const rows = await db()
 			.select({ id: schema.tourCategoryLinks.categoryId })
 			.from(schema.tourCategoryLinks)

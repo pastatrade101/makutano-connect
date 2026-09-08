@@ -176,7 +176,7 @@ function htmlToText(value: string | null | undefined): string | null {
 		.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
 		.replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
 		.replace(/&([a-z]+);/gi, (m, name) => ENTITIES[String(name).toLowerCase()] ?? m)
-		.replace(/[ \t ]+/g, ' ')
+		.replace(/[ \t\u00a0]+/g, ' ')
 		.split('\n')
 		.map((line) => line.trim())
 		.join('\n')
@@ -763,7 +763,8 @@ for (const pkg of packages) {
 				`styles=${styleIds.length}  days=${(pkg.itinerary ?? []).length}  ` +
 				`images=${(pkg.images ?? []).length}`
 		);
-		existing ? report.updated++ : report.created++;
+		if (existing) report.updated++;
+		else report.created++;
 		report.days += (pkg.itinerary ?? []).length;
 		continue;
 	}

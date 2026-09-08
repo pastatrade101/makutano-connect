@@ -57,7 +57,7 @@
 				<article class="card p-4">
 					<div class="flex flex-wrap items-start justify-between gap-2">
 						<div class="min-w-0">
-							<p class="text-base text-amber-500" aria-label="{review.rating} out of 5">{stars(review.rating)}</p>
+							<p class="text-base text-warning" aria-label="{review.rating} out of 5">{stars(review.rating)}</p>
 							{#if review.title}<h2 class="mt-1 font-semibold text-slate-900">{review.title}</h2>{/if}
 							<p class="text-[12.5px] text-slate-500">
 								{[review.firstName, review.lastName].filter(Boolean).join(' ') || 'A traveller'}

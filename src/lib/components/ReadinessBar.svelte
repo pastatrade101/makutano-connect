@@ -12,7 +12,7 @@
 
 	const blocked = $derived(readiness.missing.some((c) => c.critical));
 	const tone = $derived(
-		blocked ? 'bg-danger' : readiness.percent === 100 ? 'bg-success' : 'bg-amber-500'
+		blocked ? 'bg-danger' : readiness.percent === 100 ? 'bg-success' : 'bg-warning'
 	);
 	const text = $derived(
 		blocked ? 'text-danger' : readiness.percent === 100 ? 'text-success' : 'text-slate-600'

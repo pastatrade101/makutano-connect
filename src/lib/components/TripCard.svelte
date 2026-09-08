@@ -86,7 +86,7 @@
 					<!-- Marked ready, and then something that made it ready went away. Saying
 					     "Ready" over a list of blockers would be the card contradicting
 					     itself; the trip needs looking at again. -->
-					<span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+					<span class="shrink-0 rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
 						No longer ready
 					</span>
 				{:else if row.trip.status === 'READY'}

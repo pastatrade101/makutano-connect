@@ -54,7 +54,7 @@
 				<article class="card p-4">
 					<div class="flex flex-wrap items-start justify-between gap-2">
 						<div class="min-w-0">
-							<p class="text-base text-amber-500" aria-label="{review.rating} out of 5">{stars(review.rating)}</p>
+							<p class="text-base text-warning" aria-label="{review.rating} out of 5">{stars(review.rating)}</p>
 							{#if review.title}<h2 class="mt-1 font-semibold text-slate-900">{review.title}</h2>{/if}
 						</div>
 						<div class="flex shrink-0 items-center gap-2">
@@ -92,7 +92,7 @@
 					</dl>
 
 					{#if review.editedAt}
-						<p class="mt-2 text-[12px] text-amber-700">Edited by the traveller after submission.</p>
+						<p class="mt-2 text-[12px] text-warning">Edited by the traveller after submission.</p>
 					{/if}
 					{#if review.moderationReason}
 						<p class="mt-2 text-[12px] text-slate-500">Reason on file: {review.moderationReason}</p>

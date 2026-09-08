@@ -45,7 +45,7 @@
 		{
 			done: 'text-slate-400',
 			urgent: 'text-danger',
-			pending: 'text-amber-600',
+			pending: 'text-warning',
 			clear: 'text-success',
 			progress: 'text-slate-700'
 		}[tone]

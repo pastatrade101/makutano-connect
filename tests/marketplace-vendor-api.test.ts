@@ -8,6 +8,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { provisionTestTenant } from './support';
 
+/** Unique per run: a tour slug is unique globally, and freeSlug() gives up after 8. */
+const stamp = Date.now().toString(36);
+
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const suite = TEST_DB ? describe : describe.skip;
 process.env.CREDENTIALS_ENCRYPTION_KEY ||= 'integration-test-encryption-key!!';
@@ -29,12 +32,15 @@ suite('vendor tour API', () => {
 	let tourB: string;
 
 	let routes: Record<string, { GET?: never; POST?: never; PATCH?: never; PUT?: never; DELETE?: never }>;
-	let db: typeof import('../src/lib/server/db')['db'];
-	let schema: typeof import('../src/lib/server/db')['schema'];
-	let eq: typeof import('drizzle-orm')['eq'];
+	let db: (typeof import('../src/lib/server/db'))['db'];
+	let schema: (typeof import('../src/lib/server/db'))['schema'];
+	let eq: (typeof import('drizzle-orm'))['eq'];
 
 	/** A request event shaped the way apiContext() reads it. */
-	const ev = (tenantId: string, opts: { body?: unknown; params?: Record<string, string>; query?: string; scopes?: string[] } = {}) =>
+	const ev = (
+		tenantId: string,
+		opts: { body?: unknown; params?: Record<string, string>; query?: string; scopes?: string[] } = {}
+	) =>
 		({
 			locals: {
 				tenant: { id: tenantId, name: 'T', currency: 'USD' },
@@ -83,35 +89,67 @@ suite('vendor tour API', () => {
 
 		const [c] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
 		countryId = c.id;
-		const [s] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti-national-park')).limit(1);
+		const [s] = await db()
+			.select()
+			.from(schema.destinations)
+			.where(eq(schema.destinations.slug, 'serengeti-national-park'))
+			.limit(1);
 		serengeti = s.id;
-		const [n] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'ngorongoro-conservation-area')).limit(1);
+		const [n] = await db()
+			.select()
+			.from(schema.destinations)
+			.where(eq(schema.destinations.slug, 'ngorongoro-conservation-area'))
+			.limit(1);
 		ngorongoro = n.id;
 
-		const [ha] = await db().insert(schema.media).values({
-			tenantId: tenantA, objectKey: `va/${Date.now()}.jpg`, url: 'https://cdn.test/a.jpg', mimeType: 'image/jpeg'
-		}).returning();
+		const [ha] = await db()
+			.insert(schema.media)
+			.values({
+				tenantId: tenantA,
+				objectKey: `va/${Date.now()}.jpg`,
+				url: 'https://cdn.test/a.jpg',
+				mimeType: 'image/jpeg'
+			})
+			.returning();
 		heroA = ha.id;
-		const [mb] = await db().insert(schema.media).values({
-			tenantId: tenantB, objectKey: `vb/${Date.now()}.jpg`, url: 'https://cdn.test/b.jpg', mimeType: 'image/jpeg'
-		}).returning();
+		const [mb] = await db()
+			.insert(schema.media)
+			.values({
+				tenantId: tenantB,
+				objectKey: `vb/${Date.now()}.jpg`,
+				url: 'https://cdn.test/b.jpg',
+				mimeType: 'image/jpeg'
+			})
+			.returning();
 		mediaB = mb.id;
 
 		const T = await import('../src/lib/server/tours');
-		tourA = (await T.createTour(tenantA, { title: 'Vendor A Listing', primaryCountryId: countryId })).id;
-		tourB = (await T.createTour(tenantB, { title: 'Vendor B Listing', primaryCountryId: countryId })).id;
+		tourA = (await T.createTour(tenantA, { title: `Vendor A Listing ${stamp}`, primaryCountryId: countryId })).id;
+		tourB = (await T.createTour(tenantB, { title: `Vendor B Listing ${stamp}`, primaryCountryId: countryId })).id;
 	}, 120_000);
 
 	/* ---- ordinary use ------------------------------------------------------ */
 
 	it('creates a listing owned by the calling key’s tenant', async () => {
-		const { status, body } = await call(routes.list.POST, ev(tenantA, {
-			body: { title: 'Created Through The API', primaryCountryId: countryId, durationDays: 4 }
-		}));
+		/*
+		 * A unique title, because a tour slug is unique GLOBALLY (tours_slug_live_idx)
+		 * and createTour de-duplicates by appending a number. Asserting the fixed slug
+		 * 'created-through-the-api' therefore passed exactly once per database and
+		 * failed on every run after that, having quietly left
+		 * created-through-the-api-2, -3, -4 behind it. The claim worth pinning is that
+		 * the slug is DERIVED FROM THE TITLE, which needs a title nothing else owns.
+		 */
+		const token = Date.now().toString(36);
+		const { status, body } = await call(
+			routes.list.POST,
+			ev(tenantA, {
+				body: { title: `Created Through The API ${token}`, primaryCountryId: countryId, durationDays: 4 }
+			})
+		);
 		expect(status).toBe(201);
 		expect(body.data.tenantId).toBe(tenantA);
 		expect(body.data.status, 'a new listing is never live').toBe('DRAFT');
-		expect(body.data.slug).toBe('created-through-the-api');
+		expect(body.data.slug).toBe(`created-through-the-api-${token}`);
 	});
 
 	it('lists only the calling tenant’s listings', async () => {
@@ -122,27 +160,35 @@ suite('vendor tour API', () => {
 	});
 
 	it('updates a draft', async () => {
-		const { status, body } = await call(routes.one.PATCH, ev(tenantA, {
-			params: { id: tourA }, body: { shortDescription: 'Edited.', durationDays: 6 }
-		}));
+		const { status, body } = await call(
+			routes.one.PATCH,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { shortDescription: 'Edited.', durationDays: 6 }
+			})
+		);
 		expect(status).toBe(200);
 		expect(body.data.shortDescription).toBe('Edited.');
 		expect(body.data.durationDays).toBe(6);
 	});
 
 	it('persists itinerary order and renumbers contiguously', async () => {
-		const { status } = await call(routes.itinerary.PUT, ev(tenantA, {
-			params: { id: tourA },
-			body: { days: [
-				{ dayNumber: 1, title: 'Arusha', destinationId: null },
-				{ dayNumber: 2, title: 'Serengeti', destinationId: serengeti },
-				{ dayNumber: 3, title: 'Ngorongoro', destinationId: ngorongoro }
-			] }
-		}));
+		const { status } = await call(
+			routes.itinerary.PUT,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: {
+					days: [
+						{ dayNumber: 1, title: 'Arusha', destinationId: null },
+						{ dayNumber: 2, title: 'Serengeti', destinationId: serengeti },
+						{ dayNumber: 3, title: 'Ngorongoro', destinationId: ngorongoro }
+					]
+				}
+			})
+		);
 		expect(status).toBe(200);
 
-		const rows = await db().select().from(schema.tourItineraryDays)
-			.where(eq(schema.tourItineraryDays.tourId, tourA));
+		const rows = await db().select().from(schema.tourItineraryDays).where(eq(schema.tourItineraryDays.tourId, tourA));
 		expect(rows.map((r) => r.dayNumber).sort((x, y) => x - y)).toEqual([1, 2, 3]);
 		expect(rows.find((r) => r.dayNumber === 2)?.title).toBe('Serengeti');
 	});
@@ -155,13 +201,17 @@ suite('vendor tour API', () => {
 	});
 
 	it('cannot update another tenant’s listing', async () => {
-		const { status } = await call(routes.one.PATCH, ev(tenantA, {
-			params: { id: tourB }, body: { title: 'Hijacked' }
-		}));
+		const { status } = await call(
+			routes.one.PATCH,
+			ev(tenantA, {
+				params: { id: tourB },
+				body: { title: 'Hijacked' }
+			})
+		);
 		expect(status).toBe(404);
 
 		const [row] = await db().select().from(schema.tours).where(eq(schema.tours.id, tourB)).limit(1);
-		expect(row.title).toBe('Vendor B Listing');
+		expect(row.title).toBe(`Vendor B Listing ${stamp}`);
 	});
 
 	it('cannot delete another tenant’s listing', async () => {
@@ -172,9 +222,13 @@ suite('vendor tour API', () => {
 	});
 
 	it('cannot attach another tenant’s media as its hero', async () => {
-		const { status, body } = await call(routes.one.PATCH, ev(tenantA, {
-			params: { id: tourA }, body: { heroMediaId: mediaB }
-		}));
+		const { status, body } = await call(
+			routes.one.PATCH,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { heroMediaId: mediaB }
+			})
+		);
 		expect(status).toBe(422);
 		expect(body.error?.message).toMatch(/does not belong/i);
 	});
@@ -183,9 +237,13 @@ suite('vendor tour API', () => {
 
 	it('refuses every platform action over an API key, by name', async () => {
 		for (const action of ['approve', 'publish', 'request_changes', 'start_review']) {
-			const { status, body } = await call(routes.transitions.POST, ev(tenantA, {
-				params: { id: tourA }, body: { action, note: 'x' }
-			}));
+			const { status, body } = await call(
+				routes.transitions.POST,
+				ev(tenantA, {
+					params: { id: tourA },
+					body: { action, note: 'x' }
+				})
+			);
 			expect(status, `${action} must be refused`).toBe(403);
 			expect(body.error?.message).toMatch(/Makutano team/i);
 		}
@@ -194,19 +252,25 @@ suite('vendor tour API', () => {
 	it('refuses a key that carries tours:publish anyway — the scope does not exist', async () => {
 		// Even a forged scope list cannot help: requireApiScope only accepts values
 		// in API_SCOPES, and tours:publish was deliberately left out of it.
-		const { status } = await call(routes.transitions.POST, ev(tenantA, {
-			params: { id: tourA },
-			body: { action: 'publish' },
-			scopes: [...SCOPES, 'tours:publish']
-		}));
+		const { status } = await call(
+			routes.transitions.POST,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { action: 'publish' },
+				scopes: [...SCOPES, 'tours:publish']
+			})
+		);
 		expect(status).toBe(403);
 	});
 
 	it('does not let PATCH set status, featured or publishedAt', async () => {
-		await call(routes.one.PATCH, ev(tenantA, {
-			params: { id: tourA },
-			body: { title: 'Still A Draft', status: 'PUBLISHED', featured: true, publishedAt: '2020-01-01' }
-		}));
+		await call(
+			routes.one.PATCH,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { title: 'Still A Draft', status: 'PUBLISHED', featured: true, publishedAt: '2020-01-01' }
+			})
+		);
 		const [row] = await db().select().from(schema.tours).where(eq(schema.tours.id, tourA)).limit(1);
 		expect(row.title).toBe('Still A Draft');
 		expect(row.status, 'status is not an editable column').toBe('DRAFT');
@@ -217,20 +281,26 @@ suite('vendor tour API', () => {
 	/* ---- destinations ------------------------------------------------------- */
 
 	it('accepts canonical destinations', async () => {
-		const { status } = await call(routes.destinations.PUT, ev(tenantA, {
-			params: { id: tourA }, body: { destinationIds: [serengeti, ngorongoro] }
-		}));
+		const { status } = await call(
+			routes.destinations.PUT,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { destinationIds: [serengeti, ngorongoro] }
+			})
+		);
 		expect(status).toBe(200);
-		const links = await db().select().from(schema.tourDestinations)
-			.where(eq(schema.tourDestinations.tourId, tourA));
+		const links = await db().select().from(schema.tourDestinations).where(eq(schema.tourDestinations.tourId, tourA));
 		expect(links).toHaveLength(2);
 	});
 
 	it('refuses an unknown destination rather than silently dropping it', async () => {
-		const { status } = await call(routes.destinations.PUT, ev(tenantA, {
-			params: { id: tourA },
-			body: { destinationIds: [serengeti, '00000000-0000-0000-0000-000000000000'] }
-		}));
+		const { status } = await call(
+			routes.destinations.PUT,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { destinationIds: [serengeti, '00000000-0000-0000-0000-000000000000'] }
+			})
+		);
 		expect(status).toBe(422);
 	});
 
@@ -244,9 +314,13 @@ suite('vendor tour API', () => {
 			.values({ countryId, name: 'Unpublished Probe', slug, status: 'DRAFT' })
 			.returning();
 
-		const { status } = await call(routes.destinations.PUT, ev(tenantA, {
-			params: { id: tourA }, body: { destinationIds: [temp.id] }
-		}));
+		const { status } = await call(
+			routes.destinations.PUT,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { destinationIds: [temp.id] }
+			})
+		);
 		expect(status).toBe(422);
 
 		await db().delete(schema.destinations).where(eq(schema.destinations.id, temp.id));
@@ -259,9 +333,13 @@ suite('vendor tour API', () => {
 		expect(body.data.canSubmit).toBe(false);
 		expect(Array.isArray(body.data.missing)).toBe(true);
 
-		const { status } = await call(routes.transitions.POST, ev(tenantA, {
-			params: { id: tourA }, body: { action: 'submit' }
-		}));
+		const { status } = await call(
+			routes.transitions.POST,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { action: 'submit' }
+			})
+		);
 		expect(status).toBe(422);
 	});
 
@@ -273,46 +351,68 @@ suite('vendor tour API', () => {
 			.from(schema.tourCategories)
 			.where(eq(schema.tourCategories.isActive, true))
 			.limit(1);
-		await call(routes.one.PATCH, ev(tenantA, {
-			params: { id: tourA },
-			body: {
-				shortDescription: 'Complete now.',
-				priceFrom: '1900.00',
-				currency: 'USD',
-				heroMediaId: heroA,
-				primaryCategoryId: category.id
-			}
-		}));
+		await call(
+			routes.one.PATCH,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: {
+					shortDescription: 'Complete now.',
+					priceFrom: '1900.00',
+					currency: 'USD',
+					heroMediaId: heroA,
+					primaryCategoryId: category.id
+				}
+			})
+		);
 
 		const ready = await call(routes.transitions.GET, ev(tenantA, { params: { id: tourA } }));
 		expect(ready.body.data.missing, 'nothing should be outstanding').toEqual([]);
 
-		const submitted = await call(routes.transitions.POST, ev(tenantA, {
-			params: { id: tourA }, body: { action: 'submit' }
-		}));
+		const submitted = await call(
+			routes.transitions.POST,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { action: 'submit' }
+			})
+		);
 		expect(submitted.status).toBe(200);
 		expect(submitted.body.data.status).toBe('SUBMITTED');
 
 		// The platform sends it back. Only the platform can do this, so it is done
 		// through the service with canPublish: true, as the admin screen does.
 		const T = await import('../src/lib/server/tours');
-		await T.transitionTour(tenantA, tourA, 'request_changes', {}, {
-			canPublish: true, note: 'Please add accommodation for days 3-5.'
-		});
+		await T.transitionTour(
+			tenantA,
+			tourA,
+			'request_changes',
+			{},
+			{
+				canPublish: true,
+				note: 'Please add accommodation for days 3-5.'
+			}
+		);
 
 		const after = await call(routes.transitions.GET, ev(tenantA, { params: { id: tourA } }));
 		expect(after.body.data.status).toBe('CHANGES_REQUESTED');
 		expect(after.body.data.reviewNote).toBe('Please add accommodation for days 3-5.');
 
 		// The vendor edits and resubmits.
-		const edited = await call(routes.one.PATCH, ev(tenantA, {
-			params: { id: tourA }, body: { accommodationSummary: 'Mobile camp, days 3-5.' }
-		}));
+		const edited = await call(
+			routes.one.PATCH,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { accommodationSummary: 'Mobile camp, days 3-5.' }
+			})
+		);
 		expect(edited.status).toBe(200);
 
-		const resubmitted = await call(routes.transitions.POST, ev(tenantA, {
-			params: { id: tourA }, body: { action: 'submit' }
-		}));
+		const resubmitted = await call(
+			routes.transitions.POST,
+			ev(tenantA, {
+				params: { id: tourA },
+				body: { action: 'submit' }
+			})
+		);
 		expect(resubmitted.status).toBe(200);
 		expect(resubmitted.body.data.status).toBe('SUBMITTED');
 	});
@@ -320,9 +420,13 @@ suite('vendor tour API', () => {
 	/* ---- scopes -------------------------------------------------------------- */
 
 	it('refuses a read-only key on writes', async () => {
-		const { status } = await call(routes.list.POST, ev(tenantA, {
-			body: { title: 'No Write Scope' }, scopes: ['tours:read']
-		}));
+		const { status } = await call(
+			routes.list.POST,
+			ev(tenantA, {
+				body: { title: 'No Write Scope' },
+				scopes: ['tours:read']
+			})
+		);
 		expect(status).toBe(403);
 	});
 });

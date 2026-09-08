@@ -79,7 +79,7 @@
 				<p class="mt-1 text-xs text-slate-400">What travellers see on the marketplace.</p>
 			</div>
 			{#if data.profile.isVerified}
-				<span class="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Verified operator</span>
+				<span class="rounded-full bg-success/10 px-2.5 py-1 text-[11px] font-semibold text-success">Verified operator</span>
 			{/if}
 		</div>
 
