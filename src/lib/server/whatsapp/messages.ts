@@ -100,7 +100,7 @@ async function renderTemplate(
 	components: unknown[] | undefined
 ): Promise<string | null> {
 	const [row] = await db()
-		.select({ bodyText: schema.whatsappTemplates.bodyText })
+		.select({ bodyText: schema.whatsappTemplates.bodyText, variables: schema.whatsappTemplates.variables })
 		.from(schema.whatsappTemplates)
 		.where(and(eq(schema.whatsappTemplates.tenantId, tenantId), eq(schema.whatsappTemplates.name, templateName)))
 		.limit(1);
@@ -110,9 +110,24 @@ async function renderTemplate(
 		{ parameters?: Array<{ text?: string }> } | undefined;
 	const values = (body?.parameters ?? []).map((p) => String(p?.text ?? ''));
 
-	// Named placeholders resolve at send time elsewhere; only the positional ones
-	// carry values a caller supplied, so only those are substituted here.
-	return row.bodyText.replace(/\{\{\s*(\d+)\s*\}\}/g, (match, n) => values[Number(n) - 1] ?? match);
+	/*
+	 * Both forms, because the stored body is named and the parameters are ordered.
+	 *
+	 * whatsapp_templates.bodyText keeps the NAMED placeholders an operator wrote —
+	 * toPositional() converts them for Meta at submit time and the result is never
+	 * written back. The parameters we send are in the order of `variables`, so
+	 * index i of that list names the placeholder that index i of the values fills.
+	 * Substituting only {{1}}-style placeholders, as this did, left every stored
+	 * body exactly as it started.
+	 */
+	const names = (row.variables ?? []) as string[];
+	let out = row.bodyText;
+	names.forEach((name, i) => {
+		if (values[i] === undefined) return;
+		const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		out = out.replace(new RegExp(`\\{\\{\\s*${escaped}\\s*\\}\\}`, 'g'), values[i]);
+	});
+	return out.replace(/\{\{\s*(\d+)\s*\}\}/g, (match, n) => values[Number(n) - 1] ?? match);
 }
 
 function previewOf(content: OutboundContent): string {
@@ -175,9 +190,26 @@ export async function queueMessage(params: SendParams): Promise<schema.Message> 
 			channel: 'WHATSAPP',
 			status: 'QUEUED',
 			type: params.content.type,
+			/*
+			 * The rendered text FIRST, and this order is the whole fix.
+			 *
+			 * sendEventTemplate already resolves the named variables against the real
+			 * context and puts the result in content.preview — "Hello DEOGRATIUS,
+			 * your quotation QT-2026-00002 is ready". renderTemplate below only ever
+			 * substituted POSITIONAL {{1}} placeholders, but whatsapp_templates
+			 * stores the NAMED form; the positional conversion happens at submit time
+			 * and is never written back. So its regex matched nothing, it returned
+			 * the raw template unchanged, and because that is non-null it won —
+			 * putting "Hello {{customer.first_name}}" in the inbox while the correct
+			 * sentence sat unused in the payload beside it.
+			 *
+			 * renderTemplate is the fallback now: it is still the only thing that can
+			 * reconstruct a body for a template queued without a preview.
+			 */
 			body:
 				params.content.type === 'template'
-					? ((await renderTemplate(params.tenantId, params.content.templateName, params.content.components)) ??
+					? (params.content.preview?.trim() ||
+						(await renderTemplate(params.tenantId, params.content.templateName, params.content.components)) ||
 						previewOf(params.content))
 					: previewOf(params.content),
 			payload: params.content as unknown as Record<string, unknown>,
