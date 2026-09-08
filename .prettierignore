@@ -3,3 +3,9 @@ build
 .svelte-kit
 drizzle
 package-lock.json
+
+# Compared byte for byte against production by tool/deploy.sh, which refuses to
+# deploy on any difference — the file DESCRIBES the running stack rather than
+# being shipped to it. Reformatting it is a drift the guard cannot tell from a
+# real one, and it stopped a deploy the first time prettier touched it.
+docker-compose.yml
