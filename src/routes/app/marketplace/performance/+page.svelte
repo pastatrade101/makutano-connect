@@ -16,6 +16,33 @@
 	];
 
 	const number = new Intl.NumberFormat('en');
+
+	/**
+	 * Money is never totalled across currencies — there is no rate table behind
+	 * this page — so each bucket can carry more than one figure and every one of
+	 * them is rendered. Whole units only: a pipeline is read for its size.
+	 */
+	type MoneyTotal = { currency: string; amount: number };
+	const money = (totals: MoneyTotal[]) =>
+		totals.map((total) => {
+			try {
+				return new Intl.NumberFormat('en', {
+					style: 'currency',
+					currency: total.currency,
+					maximumFractionDigits: 0
+				}).format(total.amount);
+			} catch {
+				return `${total.currency} ${Math.round(total.amount).toLocaleString('en')}`;
+			}
+		});
+	const moneyLine = (totals: MoneyTotal[]) => (totals.length ? money(totals).join(' · ') : null);
+	/** In a dense row only the largest fits; the rest stay reachable on hover. */
+	const moneyShort = (totals: MoneyTotal[]) => {
+		const parts = money(totals);
+		if (!parts.length) return null;
+		return parts.length === 1 ? parts[0] : `${parts[0]} +${parts.length - 1}`;
+	};
+	const formatRatio = (value: number | null) => (value === null ? '—' : value.toFixed(1));
 	const day = $derived(new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: data.timezone }));
 	const formatRate = (value: number | null) => (value === null ? '—' : `${value.toFixed(1)}%`);
 	const formatResponse = (hours: number | null) => {
@@ -117,6 +144,39 @@
 		{ label: 'Booked', value: current.booked }
 	]);
 	const maxFunnel = $derived(Math.max(...funnel.map((step) => step.value), 1));
+
+	/**
+	 * The three ways an enquiry can stand. They partition the cohort, so the counts
+	 * add back to "Enquiries" above — and each carries what it is worth, because
+	 * "we lost five" and "we lost $48,000" are different sentences.
+	 */
+	const outcomes = $derived([
+		{
+			key: 'stillOpen',
+			label: 'Still open',
+			hint: 'Awaiting a decision — this is the follow-up list',
+			bucket: current.funnel.stillOpen,
+			tone: 'text-warning',
+			bar: 'bg-warning'
+		},
+		{
+			key: 'notBooked',
+			label: 'Not booked',
+			hint: 'Declined, cancelled, or the offer lapsed',
+			bucket: current.funnel.notBooked,
+			tone: 'text-slate-600',
+			bar: 'bg-slate-300'
+		},
+		{
+			key: 'booked',
+			label: 'Booked',
+			hint: 'Won',
+			bucket: current.funnel.booked,
+			tone: 'text-success',
+			bar: 'bg-success'
+		}
+	]);
+	const decided = $derived(current.funnel.notBooked.count + current.funnel.booked.count);
 </script>
 
 <svelte:head><title>Marketplace performance</title></svelte:head>
@@ -197,6 +257,41 @@
 					</div>
 				{/each}
 			</div>
+			<div class="mt-6 border-t border-slate-100 pt-5">
+				<div class="flex items-baseline justify-between gap-3">
+					<h3 class="text-[12.5px] font-semibold text-slate-800">Where they stand</h3>
+					<span class="text-[11px] text-slate-400">{number.format(current.enquiries)} enquiries</span>
+				</div>
+				<dl class="mt-3 space-y-3">
+					{#each outcomes as outcome (outcome.key)}
+						{@const line = moneyLine(outcome.bucket.value)}
+						<div>
+							<div class="flex items-baseline justify-between gap-3">
+								<dt class="text-[12.5px] text-slate-600" title={outcome.hint}>{outcome.label}</dt>
+								<dd class="text-right">
+									<strong class="text-sm tabular-nums {outcome.tone}">{number.format(outcome.bucket.count)}</strong>
+									{#if line}<span class="ml-1.5 text-[11.5px] text-slate-400 tabular-nums">{line}</span>{/if}
+								</dd>
+							</div>
+							<div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+								<div
+									class="h-full rounded-full {outcome.bar} transition-all"
+									style={`width:${current.enquiries ? (outcome.bucket.count / current.enquiries) * 100 : 0}%`}
+								></div>
+							</div>
+						</div>
+					{/each}
+				</dl>
+				<div class="mt-4 flex items-baseline justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+					<span class="text-[12px] font-medium text-slate-600">Enquiries per booking</span>
+					<strong class="text-sm text-slate-900 tabular-nums">{formatRatio(current.funnel.requestsPerBooking)}</strong>
+				</div>
+				<p class="mt-1.5 text-[11px] leading-4 text-slate-400">
+					Counts the {number.format(decided)} enquir{decided === 1 ? 'y' : 'ies'} that reached an outcome, so a
+					fresh batch of leads does not make the ratio look worse.
+				</p>
+			</div>
+
 			{#if current.enquiries > 0 && current.enquiries < 5}
 				<p class="mt-5 rounded-lg bg-slate-50 px-3 py-2 text-[11.5px] text-slate-500">
 					Rates can move sharply with fewer than five enquiries. Read the counts alongside the percentages.
@@ -231,11 +326,19 @@
 									<h3 class="truncate text-sm font-semibold text-slate-900">{tour.title}</h3>
 									<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">{tour.status.replaceAll('_', ' ')}</span>
 								</div>
-								<div class="mt-3 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
+								<div class="mt-3 grid grid-cols-4 gap-2 text-[11px] text-slate-500">
 									<span><strong class="block text-sm text-slate-800">{number.format(tour.views)}</strong>Views</span>
 									<span><strong class="block text-sm text-slate-800">{number.format(tour.enquiries)}</strong>Enquiries</span>
-									<span><strong class="block text-sm text-slate-800">{formatRate(tour.bookingConversion)}</strong>Booked</span>
+									<span><strong class="block text-sm text-warning">{number.format(tour.funnel.stillOpen.count)}</strong>Open</span>
+									<span><strong class="block text-sm text-success">{number.format(tour.funnel.booked.count)}</strong>Booked</span>
 								</div>
+								{#if moneyLine(tour.funnel.booked.value) || moneyLine(tour.funnel.stillOpen.value)}
+									<p class="mt-2 text-[11px] text-slate-400">
+										{#if moneyLine(tour.funnel.booked.value)}<span class="text-success">Won {moneyLine(tour.funnel.booked.value)}</span>{/if}
+										{#if moneyLine(tour.funnel.booked.value) && moneyLine(tour.funnel.stillOpen.value)}<span class="text-slate-300"> · </span>{/if}
+										{#if moneyLine(tour.funnel.stillOpen.value)}<span>Open {moneyLine(tour.funnel.stillOpen.value)}</span>{/if}
+									</p>
+								{/if}
 							</div>
 						</div>
 					</a>
@@ -250,7 +353,10 @@
 							<th class="px-3 py-2.5 text-right font-bold">Views</th>
 							<th class="px-3 py-2.5 text-right font-bold">Enquiries</th>
 							<th class="px-3 py-2.5 text-right font-bold">Quote rate</th>
-							<th class="px-3 py-2.5 text-right font-bold">Booking</th>
+							<th class="px-3 py-2.5 text-right font-bold" title="Awaiting a decision">Still open</th>
+							<th class="px-3 py-2.5 text-right font-bold" title="Declined, cancelled, or the offer lapsed">Not booked</th>
+							<th class="px-3 py-2.5 text-right font-bold" title="Won">Booked</th>
+							<th class="px-3 py-2.5 text-right font-bold" title="Enquiries that reached an outcome, per booking">Per booking</th>
 							<th class="px-4 py-2.5 text-right font-bold">Reviews</th>
 						</tr>
 					</thead>
@@ -273,7 +379,16 @@
 								<td class="px-3 py-3 text-right font-semibold text-slate-800 tabular-nums">{number.format(tour.views)}</td>
 								<td class="px-3 py-3 text-right text-slate-600 tabular-nums">{number.format(tour.enquiries)}</td>
 								<td class="px-3 py-3 text-right text-slate-600 tabular-nums">{formatRate(tour.quoteRate)}</td>
-								<td class="px-3 py-3 text-right text-slate-600 tabular-nums">{formatRate(tour.bookingConversion)}</td>
+								{#each [{ b: tour.funnel.stillOpen, tone: 'text-warning' }, { b: tour.funnel.notBooked, tone: 'text-slate-700' }, { b: tour.funnel.booked, tone: 'text-success' }] as cell (cell.tone)}
+									{@const short = moneyShort(cell.b.value)}
+									<td class="px-3 py-3 text-right tabular-nums">
+										<span class="font-semibold {cell.b.count ? cell.tone : 'text-slate-300'}">{number.format(cell.b.count)}</span>
+										{#if short}
+											<span class="block text-[11px] text-slate-400" title={money(cell.b.value).join(' · ')}>{short}</span>
+										{/if}
+									</td>
+								{/each}
+								<td class="px-3 py-3 text-right text-slate-600 tabular-nums">{formatRatio(tour.funnel.requestsPerBooking)}</td>
 								<td class="px-4 py-3 text-right text-slate-600 tabular-nums">{tour.reviews.average === null ? '—' : `${tour.reviews.average.toFixed(1)} ★`} <span class="text-slate-400">({tour.reviews.count})</span></td>
 							</tr>
 						{/each}
@@ -290,6 +405,9 @@
 	</section>
 
 	<p class="px-1 text-[11.5px] leading-5 text-slate-400">
+		Still open, not booked and booked account for every enquiry in the period, so they add up to the enquiry count.
+		A won enquiry is valued at its booking; anything else at the most recent offer sent, which means a re-quoted
+		enquiry counts once, not once per version. Totals are kept per currency and never converted.
 		Views are unique per page and anonymous marketplace session within 30 minutes. Quote and booking rates use enquiries created in the selected period. Response time starts at the first sent quotation, delivered staff WhatsApp reply, or explicit “Contacted” action. Reviews are your current published marketplace rating.
 		Response timing is captured from this release onward; historical update timestamps are not used as a substitute.
 	</p>

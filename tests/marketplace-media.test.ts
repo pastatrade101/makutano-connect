@@ -29,9 +29,9 @@ suite('marketplace media', () => {
 	let tenantA: string;
 	let tenantB: string;
 	let M: typeof import('../src/lib/server/media');
-	let db: typeof import('../src/lib/server/db')['db'];
-	let schema: typeof import('../src/lib/server/db')['schema'];
-	let eq: typeof import('drizzle-orm')['eq'];
+	let db: (typeof import('../src/lib/server/db'))['db'];
+	let schema: (typeof import('../src/lib/server/db'))['schema'];
+	let eq: (typeof import('drizzle-orm'))['eq'];
 
 	beforeAll(async () => {
 		const a = await provisionTestTenant({ name: 'Media A', slug: `test-media-a-${Date.now()}` } as never);
@@ -64,7 +64,7 @@ suite('marketplace media', () => {
 		const row = await seedMedia(tenantA);
 		const projected = M.publicMedia(row)!;
 
-		expect(Object.keys(projected).sort()).toEqual(['altText', 'height', 'id', 'url', 'width']);
+		expect(Object.keys(projected).sort()).toEqual(['altText', 'height', 'id', 'srcset', 'url', 'width']);
 		const serialized = JSON.stringify(projected);
 		expect(serialized).not.toContain(row.objectKey);
 		expect(serialized).not.toContain(tenantA);
@@ -128,9 +128,9 @@ suite('marketplace media', () => {
 	/* ---- upload validation, before a byte is stored ---------------------- */
 
 	it('refuses a MIME type that is not an allowed image', async () => {
-		await expect(
-			M.uploadMedia({ kind: 'operator', tenantId: tenantA }, PNG(), 'application/pdf')
-		).rejects.toThrow(/Unsupported image type/i);
+		await expect(M.uploadMedia({ kind: 'operator', tenantId: tenantA }, PNG(), 'application/pdf')).rejects.toThrow(
+			/Unsupported image type/i
+		);
 	});
 
 	it('refuses an oversized file', async () => {
@@ -157,9 +157,7 @@ suite('marketplace media', () => {
 	});
 
 	it('publishes an allow-list of image types and a sane size ceiling', () => {
-		expect([...M.ALLOWED_MIME_TYPES].sort()).toEqual(
-			['image/avif', 'image/jpeg', 'image/png', 'image/webp'].sort()
-		);
+		expect([...M.ALLOWED_MIME_TYPES].sort()).toEqual(['image/avif', 'image/jpeg', 'image/png', 'image/webp'].sort());
 		expect(M.MAX_BYTES).toBeGreaterThan(0);
 		expect(M.MAX_BYTES).toBeLessThanOrEqual(32 * 1024 * 1024);
 	});
