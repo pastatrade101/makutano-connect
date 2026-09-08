@@ -27,9 +27,9 @@ suite('marketplace public reads', () => {
 	let mediaId: string;
 	let MP: typeof import('../src/lib/server/marketplace');
 	let T: typeof import('../src/lib/server/tours');
-	let db: typeof import('../src/lib/server/db')['db'];
-	let schema: typeof import('../src/lib/server/db')['schema'];
-	let eq: typeof import('drizzle-orm')['eq'];
+	let db: (typeof import('../src/lib/server/db'))['db'];
+	let schema: (typeof import('../src/lib/server/db'))['schema'];
+	let eq: (typeof import('drizzle-orm'))['eq'];
 
 	beforeAll(async () => {
 		const tenant = await provisionTestTenant({ name: 'Public Reads Co', slug: `test-pub-${Date.now()}` } as never);
@@ -43,26 +43,52 @@ suite('marketplace public reads', () => {
 
 		const [c] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
 		countryId = c.id;
-		const [s] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'serengeti-national-park')).limit(1);
+		const [s] = await db()
+			.select()
+			.from(schema.destinations)
+			.where(eq(schema.destinations.slug, 'serengeti-national-park'))
+			.limit(1);
 		serengeti = s.id;
-		const [n] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, 'ngorongoro-conservation-area')).limit(1);
+		const [n] = await db()
+			.select()
+			.from(schema.destinations)
+			.where(eq(schema.destinations.slug, 'ngorongoro-conservation-area'))
+			.limit(1);
 		ngorongoro = n.id;
-		const [m] = await db().insert(schema.media).values({
-			tenantId, objectKey: `pub/${Date.now()}.jpg`, url: 'https://cdn.example.test/h.jpg', mimeType: 'image/jpeg'
-		}).returning();
+		const [m] = await db()
+			.insert(schema.media)
+			.values({
+				tenantId,
+				objectKey: `pub/${Date.now()}.jpg`,
+				url: 'https://cdn.example.test/h.jpg',
+				mimeType: 'image/jpeg'
+			})
+			.returning();
 		mediaId = m.id;
 
 		// An operator profile, so the public tour detail has one to project.
-		await db().insert(schema.operatorProfiles).values({
-			tenantId, slug: `pub-operator-${Date.now()}`, displayName: 'Public Reads Safaris',
-			location: 'Arusha, Tanzania', isVerified: true, specialties: ['Migration'], languages: ['English']
-		});
+		await db()
+			.insert(schema.operatorProfiles)
+			.values({
+				tenantId,
+				slug: `pub-operator-${Date.now()}`,
+				displayName: 'Public Reads Safaris',
+				location: 'Arusha, Tanzania',
+				isVerified: true,
+				specialties: ['Migration'],
+				languages: ['English']
+			});
 	}, 120_000);
 
 	const buildTour = async (status: string, title = `Public Probe ${Math.random().toString(36).slice(2, 8)}`) => {
 		const tour = await T.createTour(tenantId, {
-			title, primaryCountryId: countryId, shortDescription: 'Visible only when published.',
-			durationDays: 4, priceFrom: '2000.00', currency: 'USD', heroMediaId: mediaId
+			title,
+			primaryCountryId: countryId,
+			shortDescription: 'Visible only when published.',
+			durationDays: 4,
+			priceFrom: '2000.00',
+			currency: 'USD',
+			heroMediaId: mediaId
 		});
 		await T.setTourDestinations(tenantId, tour.id, [serengeti, ngorongoro]);
 		await T.replaceItinerary(tenantId, tour.id, [
@@ -71,7 +97,8 @@ suite('marketplace public reads', () => {
 			{ dayNumber: 3, title: 'Crater', destinationId: ngorongoro },
 			{ dayNumber: 4, title: 'Depart', destinationId: ngorongoro }
 		] as never);
-		await db().update(schema.tours)
+		await db()
+			.update(schema.tours)
 			.set({ status: status as never, publishedAt: status === 'PUBLISHED' ? new Date() : null })
 			.where(eq(schema.tours.id, tour.id));
 		const [row] = await db().select().from(schema.tours).where(eq(schema.tours.id, tour.id)).limit(1);
@@ -91,7 +118,10 @@ suite('marketplace public reads', () => {
 			const tour = await buildTour(status);
 
 			const { items } = await MP.listPublishedTours({ page: 1, perPage: 100 } as never);
-			expect(items.map((t) => t.slug), `${status} must not be listed`).not.toContain(tour.slug);
+			expect(
+				items.map((t) => t.slug),
+				`${status} must not be listed`
+			).not.toContain(tour.slug);
 
 			expect(await MP.getPublishedTourBySlug(tour.slug), `${status} must 404 like an unknown slug`).toBeNull();
 		}
@@ -145,7 +175,8 @@ suite('marketplace public reads', () => {
 
 	it('never exposes tenant identity, review notes or storage keys', async () => {
 		const tour = await buildTour('PUBLISHED');
-		await db().update(schema.tours)
+		await db()
+			.update(schema.tours)
 			.set({ reviewNote: 'INTERNAL-REVIEW-NOTE', metadata: { secret: 'INTERNAL-METADATA' } })
 			.where(eq(schema.tours.id, tour.id));
 
@@ -242,10 +273,16 @@ suite('marketplace public reads', () => {
 			.onConflictDoNothing();
 
 		// Exactly what the public endpoint asks for.
-		const { items } = await MP.listPublishedTours({ page: 1, limit: 50 } as never, {
-			styleSlug: style.slug
-		} as never);
-		expect(items.map((t) => t.slug), 'the join table decides').toContain(tour.slug);
+		const { items } = await MP.listPublishedTours(
+			{ page: 1, limit: 50 } as never,
+			{
+				styleSlug: style.slug
+			} as never
+		);
+		expect(
+			items.map((t) => t.slug),
+			'the join table decides'
+		).toContain(tour.slug);
 
 		// And the legacy column is genuinely empty, so it cannot be what matched.
 		const [row] = await db()
@@ -293,11 +330,7 @@ suite('marketplace public reads', () => {
 		// parallel — flipping Tsavo's status here made an unrelated suite see it
 		// mid-flip. Anything that mutates shared reference data has to bring its
 		// own row.
-		const [tanzania] = await db()
-			.select()
-			.from(schema.countries)
-			.where(eq(schema.countries.slug, 'tanzania'))
-			.limit(1);
+		const [tanzania] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
 		const slug = `probe-hidden-${Date.now()}`;
 		const [temp] = await db()
 			.insert(schema.destinations)
@@ -309,10 +342,7 @@ suite('marketplace public reads', () => {
 		expect(await MP.getDestinationBySlug(slug)).toBeNull();
 
 		// Publishing it makes it appear — the status is genuinely what gates it.
-		await db()
-			.update(schema.destinations)
-			.set({ status: 'PUBLISHED' })
-			.where(eq(schema.destinations.id, temp.id));
+		await db().update(schema.destinations).set({ status: 'PUBLISHED' }).where(eq(schema.destinations.id, temp.id));
 		const after = await MP.listDestinations({} as never);
 		expect(after.items.map((d) => d.slug)).toContain(slug);
 

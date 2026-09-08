@@ -11,7 +11,9 @@ import commerce from '$lib/docs/05-orders-forms.md?raw';
 import accounts from '$lib/docs/07-accounts-onboarding.md?raw';
 import type { PageServerLoad } from './$types';
 
-const SOURCE = [gettingStarted, accounts, bookingLifecycle, commerce, whatsapp, whatsappTemplates, webhooks].join('\n\n');
+const SOURCE = [gettingStarted, accounts, bookingLifecycle, commerce, whatsapp, whatsappTemplates, webhooks].join(
+	'\n\n'
+);
 
 const slugify = (text: string) =>
 	text

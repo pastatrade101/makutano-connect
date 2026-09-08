@@ -112,7 +112,10 @@ const CORS = {
 };
 
 export function publicJson(data: unknown, cacheControl: string, meta?: Record<string, unknown>): Response {
-	return json({ success: true, data, ...(meta ? { meta } : {}) }, { headers: { ...CORS, 'cache-control': cacheControl } });
+	return json(
+		{ success: true, data, ...(meta ? { meta } : {}) },
+		{ headers: { ...CORS, 'cache-control': cacheControl } }
+	);
 }
 
 /** CORS has to be on the error too, or the browser reports a CORS failure instead of the 404. */

@@ -44,25 +44,38 @@ const base = need('R2_PUBLIC_URL').replace(/\/+$/, '');
 
 const files = readdirSync(DIR).filter((f) => f.endsWith('.webp'));
 console.log(`${APPLY ? 'REPLACE' : 'DRY RUN'}  ${files.length} destination heroes`);
-let done = 0, saved = 0, skipped = 0;
+let done = 0,
+	saved = 0,
+	skipped = 0;
 
 for (const file of files) {
-  const id = file.replace(/\.webp$/, '');
-  const [row] = await sql`select id, object_key, size, url from media where id = ${id}`;
-  if (!row) { skipped++; continue; }
-  const bytes = readFileSync(`${DIR}/${file}`);
-  if (row.size && bytes.length >= row.size) { skipped++; continue; }  // never make one bigger
-  const key = row.object_key.replace(/\.[a-z0-9]+$/i, '') + '-opt.webp';
-  if (APPLY) {
-    await r2.send(new PutObjectCommand({
-      Bucket: BUCKET, Key: key, Body: bytes,
-      ContentType: 'image/webp', CacheControl: 'public, max-age=31536000, immutable'
-    }));
-    await sql`update media set object_key = ${key}, url = ${`${base}/${key}`},
+	const id = file.replace(/\.webp$/, '');
+	const [row] = await sql`select id, object_key, size, url from media where id = ${id}`;
+	if (!row) {
+		skipped++;
+		continue;
+	}
+	const bytes = readFileSync(`${DIR}/${file}`);
+	if (row.size && bytes.length >= row.size) {
+		skipped++;
+		continue;
+	} // never make one bigger
+	const key = row.object_key.replace(/\.[a-z0-9]+$/i, '') + '-opt.webp';
+	if (APPLY) {
+		await r2.send(
+			new PutObjectCommand({
+				Bucket: BUCKET,
+				Key: key,
+				Body: bytes,
+				ContentType: 'image/webp',
+				CacheControl: 'public, max-age=31536000, immutable'
+			})
+		);
+		await sql`update media set object_key = ${key}, url = ${`${base}/${key}`},
               mime_type = 'image/webp', size = ${bytes.length}, updated_at = now() where id = ${id}`;
-  }
-  saved += (row.size ?? 0) - bytes.length;
-  done++;
+	}
+	saved += (row.size ?? 0) - bytes.length;
+	done++;
 }
 console.log(`  replaced ${done}`);
 console.log(`  skipped  ${skipped} (missing row, or the optimised file was not smaller)`);

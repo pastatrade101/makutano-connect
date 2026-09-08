@@ -19,9 +19,9 @@ process.env.JOB_WORKER = 'off';
 suite('marketplace geography integrity', () => {
 	let tenantId: string;
 	let sql: typeof import('postgres') extends never ? never : any;
-	let db: typeof import('../src/lib/server/db')['db'];
-	let schema: typeof import('../src/lib/server/db')['schema'];
-	let eq: typeof import('drizzle-orm')['eq'];
+	let db: (typeof import('../src/lib/server/db'))['db'];
+	let schema: (typeof import('../src/lib/server/db'))['schema'];
+	let eq: (typeof import('drizzle-orm'))['eq'];
 
 	beforeAll(async () => {
 		const tenant = await provisionTestTenant({
@@ -34,20 +34,12 @@ suite('marketplace geography integrity', () => {
 	}, 120_000);
 
 	const country = async (slug: string) => {
-		const [row] = await db()
-			.select()
-			.from(schema.countries)
-			.where(eq(schema.countries.slug, slug))
-			.limit(1);
+		const [row] = await db().select().from(schema.countries).where(eq(schema.countries.slug, slug)).limit(1);
 		return row;
 	};
 
 	const destination = async (slug: string) => {
-		const [row] = await db()
-			.select()
-			.from(schema.destinations)
-			.where(eq(schema.destinations.slug, slug))
-			.limit(1);
+		const [row] = await db().select().from(schema.destinations).where(eq(schema.destinations.slug, slug)).limit(1);
 		return row;
 	};
 
@@ -176,9 +168,7 @@ suite('marketplace geography integrity', () => {
 			})
 			.returning();
 
-		await db()
-			.insert(schema.tourDestinations)
-			.values({ tourId: tour.id, destinationId: serengeti.id });
+		await db().insert(schema.tourDestinations).values({ tourId: tour.id, destinationId: serengeti.id });
 
 		// RESTRICT, not cascade: removing a place must never silently delete the
 		// listings that sell it. Retire it with status instead.
@@ -187,10 +177,7 @@ suite('marketplace geography integrity', () => {
 		// Cleaning up the tour DOES release the link — the protection is on the
 		// destination, not on the join row.
 		await db().delete(schema.tours).where(eq(schema.tours.id, tour.id));
-		const links = await db()
-			.select()
-			.from(schema.tourDestinations)
-			.where(eq(schema.tourDestinations.tourId, tour.id));
+		const links = await db().select().from(schema.tourDestinations).where(eq(schema.tourDestinations.tourId, tour.id));
 		expect(links).toHaveLength(0);
 	});
 
@@ -206,17 +193,12 @@ suite('marketplace geography integrity', () => {
 			.returning();
 
 		await expect(
-			db()
-				.insert(schema.tours)
-				.values({ tenantId, primaryCountryId: tanzania.id, title: 'Probe B', slug })
+			db().insert(schema.tours).values({ tenantId, primaryCountryId: tanzania.id, title: 'Probe B', slug })
 		).rejects.toThrow();
 
 		// tours_slug_live_idx is PARTIAL (WHERE deleted_at IS NULL), so retiring a
 		// listing hands its slug back rather than burning it forever.
-		await db()
-			.update(schema.tours)
-			.set({ deletedAt: new Date() })
-			.where(eq(schema.tours.id, first.id));
+		await db().update(schema.tours).set({ deletedAt: new Date() }).where(eq(schema.tours.id, first.id));
 
 		const [reused] = await db()
 			.insert(schema.tours)

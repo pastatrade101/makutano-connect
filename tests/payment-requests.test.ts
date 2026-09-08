@@ -373,34 +373,33 @@ suite('payment requests', () => {
 		const { db, schema } = ctx.db;
 		const { and, eq } = await import('drizzle-orm');
 		const templates = await import('../src/lib/server/whatsapp/templates');
-		await db().insert(schema.whatsappTemplates).values([
-			{
-				tenantId: tenantA.id,
-				name: 'payment_reminder',
-				language: 'en',
-				status: 'APPROVED',
-				eventKey: 'PAYMENT_REMINDER',
-				enabled: true
-			},
-			{
-				tenantId: tenantA.id,
-				name: 'payment_reminder_v2',
-				language: 'en',
-				status: 'PENDING',
-				eventKey: 'PAYMENT_REMINDER',
-				enabled: false
-			}
-		]);
+		await db()
+			.insert(schema.whatsappTemplates)
+			.values([
+				{
+					tenantId: tenantA.id,
+					name: 'payment_reminder',
+					language: 'en',
+					status: 'APPROVED',
+					eventKey: 'PAYMENT_REMINDER',
+					enabled: true
+				},
+				{
+					tenantId: tenantA.id,
+					name: 'payment_reminder_v2',
+					language: 'en',
+					status: 'PENDING',
+					eventKey: 'PAYMENT_REMINDER',
+					enabled: false
+				}
+			]);
 
 		expect(await templates.promoteApprovedPaymentReminderV2(tenantA.id)).toBe(false);
 		await db()
 			.update(schema.whatsappTemplates)
 			.set({ status: 'APPROVED' })
 			.where(
-				and(
-					eq(schema.whatsappTemplates.tenantId, tenantA.id),
-					eq(schema.whatsappTemplates.name, 'payment_reminder_v2')
-				)
+				and(eq(schema.whatsappTemplates.tenantId, tenantA.id), eq(schema.whatsappTemplates.name, 'payment_reminder_v2'))
 			);
 		expect(await templates.promoteApprovedPaymentReminderV2(tenantA.id)).toBe(true);
 

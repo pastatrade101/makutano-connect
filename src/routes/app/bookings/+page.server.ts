@@ -20,5 +20,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		bookingStats(requireTenant(locals).id)
 	]);
 	return {
-		workspaceRelevant, items, total, pagination, stats };
+		workspaceRelevant,
+		items,
+		total,
+		pagination,
+		stats
+	};
 };

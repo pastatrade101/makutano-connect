@@ -29,10 +29,10 @@ The Tenants list shows how each account arrived — **Self-service**, **Platform
 
 ### Trials and activation
 
-| `SIGNUP_TRIAL_DAYS` | Tenant status at signup | Subscription |
-| --- | --- | --- |
-| `14` (default) | `TRIAL` | `TRIALING`, with a real `trialEndsAt` |
-| `0` | `PENDING` | none until an admin activates the account |
+| `SIGNUP_TRIAL_DAYS` | Tenant status at signup | Subscription                              |
+| ------------------- | ----------------------- | ----------------------------------------- |
+| `14` (default)      | `TRIAL`                 | `TRIALING`, with a real `trialEndsAt`     |
+| `0`                 | `PENDING`               | none until an admin activates the account |
 
 A trial is a real subscription state, not a bypass: entitlements, monthly limits, tenant
 isolation and WhatsApp policy all apply exactly as they do on a paid plan. Nothing in the
@@ -40,12 +40,12 @@ signup path marks a subscription as paid.
 
 ### Account states
 
-| Status | Portal | Reads | Writes |
-| --- | --- | --- | --- |
-| `ACTIVE` / `TRIAL` | Full access | Yes | Yes |
-| `PENDING` | Redirected to a dedicated screen | Yes | Blocked — `SUBSCRIPTION_INACTIVE` |
-| `SUSPENDED` | Redirected to a dedicated screen | Yes | Blocked — `TENANT_SUSPENDED` |
-| `CANCELLED` | Redirected to a dedicated screen | Yes | Blocked — `TENANT_SUSPENDED` |
+| Status             | Portal                           | Reads | Writes                            |
+| ------------------ | -------------------------------- | ----- | --------------------------------- |
+| `ACTIVE` / `TRIAL` | Full access                      | Yes   | Yes                               |
+| `PENDING`          | Redirected to a dedicated screen | Yes   | Blocked — `SUBSCRIPTION_INACTIVE` |
+| `SUSPENDED`        | Redirected to a dedicated screen | Yes   | Blocked — `TENANT_SUSPENDED`      |
+| `CANCELLED`        | Redirected to a dedicated screen | Yes   | Blocked — `TENANT_SUSPENDED`      |
 
 Blocked accounts get one clear explanation rather than a failure on every action, and
 their data is never deleted.
@@ -79,10 +79,10 @@ secrets are never written to an audit row.
 
 ### Configuration
 
-| Variable | Default | Effect |
-| --- | --- | --- |
-| `SIGNUP_ENABLED` | `on` | `off` closes `/signup`; admin provisioning is unaffected |
-| `SIGNUP_DEFAULT_PLAN` | `STARTER` | Plan applied when the visitor does not choose one |
-| `SIGNUP_TRIAL_DAYS` | `14` | `0` disables trials — new tenants wait in `PENDING` |
-| `EMAIL_FROM`, `EMAIL_PROVIDER_KEY` | — | **Required.** Without them verification email cannot be delivered |
-| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | — | Set both to switch on the bot challenge |
+| Variable                                     | Default   | Effect                                                            |
+| -------------------------------------------- | --------- | ----------------------------------------------------------------- |
+| `SIGNUP_ENABLED`                             | `on`      | `off` closes `/signup`; admin provisioning is unaffected          |
+| `SIGNUP_DEFAULT_PLAN`                        | `STARTER` | Plan applied when the visitor does not choose one                 |
+| `SIGNUP_TRIAL_DAYS`                          | `14`      | `0` disables trials — new tenants wait in `PENDING`               |
+| `EMAIL_FROM`, `EMAIL_PROVIDER_KEY`           | —         | **Required.** Without them verification email cannot be delivered |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | —         | Set both to switch on the bot challenge                           |

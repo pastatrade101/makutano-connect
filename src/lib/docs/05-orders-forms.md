@@ -20,7 +20,7 @@ curl -X POST "$MAKUTANO_API_URL/api/v1/orders" \
   -H "Idempotency-Key: wa-chat-5512" \
   -H "Content-Type: application/json" \
   -d '{
-    "conversationId": "…",          
+    "conversationId": "…",
     "source": "WHATSAPP_DIRECT",
     "deliveryMethod": "DELIVERY", "deliveryFee": "5.00",
     "deliveryLocation": "Kariakoo, Dar es Salaam",
@@ -44,7 +44,7 @@ In the portal, staff open a WhatsApp conversation and click **Create order** —
 
 ## Hosted forms & the embeddable widget
 
-The no-code layer for businesses whose current pipeline is *website form → email*. A form is configuration over the same domain services the API uses — never a second engine.
+The no-code layer for businesses whose current pipeline is _website form → email_. A form is configuration over the same domain services the API uses — never a second engine.
 
 In the portal under **Forms & Widgets** a tenant creates a form from a template — **Booking enquiry**, **Product order**, **Quote request** or **Contact / lead** — toggles fields, sets copy and branding, sets an embed-domain allow-list, then copies either:
 
@@ -72,12 +72,12 @@ Available variables include `customer.first_name`, `business.name`, `order.numbe
 
 Connect converts the design to Meta's format and submits it for approval (`DRAFT → SUBMITTED → APPROVED / REJECTED`, synced from Meta). Once approved, map it to a business event:
 
-| Event | Fires when |
-|---|---|
-| `ORDER_RECEIVED` | An order arrives from a form or the API awaiting confirmation |
-| `ORDER_CONFIRMED` / `ORDER_READY` / `ORDER_DISPATCHED` / `ORDER_DELIVERED` | Fulfilment transitions |
-| `PAYMENT_RECEIVED` | A payment against an order succeeds |
-| `BOOKING_REQUEST_RECEIVED`, `BOOKING_CONFIRMED`, `QUOTATION_READY`, `PAYMENT_REMINDER`, `TRIP_REMINDER` | Booking-side events |
+| Event                                                                                                   | Fires when                                                    |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `ORDER_RECEIVED`                                                                                        | An order arrives from a form or the API awaiting confirmation |
+| `ORDER_CONFIRMED` / `ORDER_READY` / `ORDER_DISPATCHED` / `ORDER_DELIVERED`                              | Fulfilment transitions                                        |
+| `PAYMENT_RECEIVED`                                                                                      | A payment against an order succeeds                           |
+| `BOOKING_REQUEST_RECEIVED`, `BOOKING_CONFIRMED`, `QUOTATION_READY`, `PAYMENT_REMINDER`, `TRIP_REMINDER` | Booking-side events                                           |
 
 Your code emits the event; the tenant's mapping decides what the customer receives, from the tenant's own number. Free-form chat in the Inbox stays free-form — templates exist for business-initiated notifications outside the 24-hour window.
 
@@ -87,8 +87,8 @@ The webhook catalogue gains `order.created`, `order.confirmed`, `order.processin
 
 ### Order batches
 
-For businesses that sell around a delivery day — the fish seller who posts *"Fresh fish
-available Saturday, TZS 14,000/KG"* in a WhatsApp group and collects orders in replies —
+For businesses that sell around a delivery day — the fish seller who posts _"Fresh fish
+available Saturday, TZS 14,000/KG"_ in a WhatsApp group and collects orders in replies —
 a **batch** holds the shared details once: item, unit, price, currency and the delivery
 date. Recording an order inside the batch then takes two fields: the customer and the
 quantity. The total is calculated automatically.

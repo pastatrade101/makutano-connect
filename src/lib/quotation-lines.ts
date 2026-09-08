@@ -41,7 +41,9 @@ export const isPrice = (value: string): boolean => /^\d+(\.\d{1,2})?$/.test(valu
 
 /** "1,200" and "1 200" are how people type; both mean 1200.00. */
 export const normalisePrice = (raw: string): string => {
-	const cleaned = String(raw ?? '').replace(/[,\s]/g, '').trim();
+	const cleaned = String(raw ?? '')
+		.replace(/[,\s]/g, '')
+		.trim();
 	const value = Number(cleaned);
 	return cleaned !== '' && Number.isFinite(value) && value >= 0 ? value.toFixed(2) : '';
 };
@@ -66,9 +68,7 @@ export function quotationLines(input: QuotationLineInput): QuotationLine[] {
 	// Rules 2 and 3: two lines, so the traveller can see what each part of the
 	// party costs and the booking this becomes carries the same breakdown.
 	return [
-		...(adults > 0
-			? [{ title: `${input.title} — adults`, description, quantity: adults, unitPrice: adultPrice }]
-			: []),
+		...(adults > 0 ? [{ title: `${input.title} — adults`, description, quantity: adults, unitPrice: adultPrice }] : []),
 		{
 			title: `${input.title} — children`,
 			description: adults > 0 ? null : description,

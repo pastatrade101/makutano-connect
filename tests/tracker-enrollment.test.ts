@@ -89,7 +89,8 @@ describe('the minted reference is credential material', () => {
 describe('ownership is decided at mint, never by knowing a reference', () => {
 	it('no route accepts a tracker reference from a caller', () => {
 		const hits = execSync("grep -rln 'deviceRef' src/routes/ || true", { encoding: 'utf8' })
-			.split('\n').filter(Boolean);
+			.split('\n')
+			.filter(Boolean);
 		// The setup page renders the minted code; nothing READS one from a request.
 		for (const f of hits) {
 			const src = read(f);
@@ -108,7 +109,9 @@ describe('ownership is decided at mint, never by knowing a reference', () => {
 	});
 
 	it('the database refuses an active tracker that never proved liveness', () => {
-		expect(MIGRATION).toContain("CONSTRAINT te_evid_chk CHECK (status <> 'ACTIVE' OR identifier_source = 'LEGACY' OR first_fix_at IS NOT NULL)");
+		expect(MIGRATION).toContain(
+			"CONSTRAINT te_evid_chk CHECK (status <> 'ACTIVE' OR identifier_source = 'LEGACY' OR first_fix_at IS NOT NULL)"
+		);
 	});
 });
 
@@ -124,14 +127,18 @@ describe('the lifecycle cannot be raced or replayed', () => {
 	it('one setup in flight and one active per vehicle, enforced by the database', () => {
 		// In flight covers BOTH stages now, so a second click while the worker is
 		// still provisioning cannot create a parallel setup.
-		expect(MIGRATION).toContain("te_one_inflight_key ON tracker_enrollments (vehicle_id) WHERE status IN ('PENDING','PROVISIONED')");
+		expect(MIGRATION).toContain(
+			"te_one_inflight_key ON tracker_enrollments (vehicle_id) WHERE status IN ('PENDING','PROVISIONED')"
+		);
 		expect(MIGRATION).toContain("te_one_active_key ON tracker_enrollments (vehicle_id) WHERE status = 'ACTIVE'");
 	});
 
 	it('a reference is burned forever, never returned to a pool', () => {
 		// A retired phone flushing its offline buffer into another vehicle's track
 		// is the failure this prevents.
-		expect(MIGRATION).toContain("te_ref_forever_key ON tracker_enrollments (provider, device_ref) WHERE status <> 'RELEASED'");
+		expect(MIGRATION).toContain(
+			"te_ref_forever_key ON tracker_enrollments (provider, device_ref) WHERE status <> 'RELEASED'"
+		);
 		// RELEASED is the ONE status that lifts the forever-lock, and only a
 		// platform admin may set it on an admin-asserted hardware reference. The
 		// operator-facing service must never write it.
@@ -152,7 +159,7 @@ describe('the lifecycle cannot be raced or replayed', () => {
 		// common action in the flow; it must never wait on a sweeper.
 		expect(SERVICE).toContain("closedReason: 'EXPIRED'");
 		expect(SERVICE).toMatch(/lt\(schema\.trackerEnrollments\.expiresAt, new Date\(\)\)/);
-		expect(SERVICE).toContain("row.expiresAt.getTime() > Date.now()");
+		expect(SERVICE).toContain('row.expiresAt.getTime() > Date.now()');
 	});
 
 	it('replacing keeps the old tracker live until the new one binds', () => {

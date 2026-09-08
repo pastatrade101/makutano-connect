@@ -120,15 +120,17 @@ export async function createTripFromBooking(
 			);
 	}
 
-	await db().insert(schema.tripStatusHistory).values({
-		tenantId,
-		tripId: trip.id,
-		fromStatus: null,
-		toStatus: 'PREPARING',
-		reason: 'Handed over to operations',
-		changedByUserId: actor.userId ?? null,
-		changedByApiKeyId: actor.apiKeyId ?? null
-	});
+	await db()
+		.insert(schema.tripStatusHistory)
+		.values({
+			tenantId,
+			tripId: trip.id,
+			fromStatus: null,
+			toStatus: 'PREPARING',
+			reason: 'Handed over to operations',
+			changedByUserId: actor.userId ?? null,
+			changedByApiKeyId: actor.apiKeyId ?? null
+		});
 
 	await emit(tenantId, 'trip.created', {
 		id: trip.id,
@@ -172,9 +174,7 @@ async function bookingForTrip(tenantId: string, bookingId: string) {
 		db()
 			.select()
 			.from(schema.bookingTravelers)
-			.where(
-				and(eq(schema.bookingTravelers.tenantId, tenantId), eq(schema.bookingTravelers.bookingId, bookingId))
-			),
+			.where(and(eq(schema.bookingTravelers.tenantId, tenantId), eq(schema.bookingTravelers.bookingId, bookingId))),
 		booking.customerId
 			? db().select().from(schema.customers).where(eq(schema.customers.id, booking.customerId)).limit(1)
 			: Promise.resolve([])
@@ -314,10 +314,34 @@ const CHECKS: CheckDef[] = [
 		critical: true,
 		fix: () => ({ label: 'Set accommodation', tab: 'setup' })
 	},
-	{ key: 'hotel_confirmed', label: () => 'Hotel confirmed', done: (i) => i.trip.hotelConfirmed, critical: false, fix: () => ({ label: 'Confirm the hotel', tab: 'setup' }) },
-	{ key: 'vehicle', label: () => 'Vehicle assigned', done: (i) => Boolean(i.trip.vehicle?.trim()), critical: true, fix: () => ({ label: 'Assign a vehicle', tab: 'setup' }) },
-	{ key: 'driver', label: () => 'Driver assigned', done: (i) => Boolean(i.trip.driver?.trim()), critical: true, fix: () => ({ label: 'Assign a driver', tab: 'setup' }) },
-	{ key: 'guide', label: () => 'Guide assigned', done: (i) => Boolean(i.trip.guide?.trim()), critical: false, fix: () => ({ label: 'Assign a guide', tab: 'setup' }) },
+	{
+		key: 'hotel_confirmed',
+		label: () => 'Hotel confirmed',
+		done: (i) => i.trip.hotelConfirmed,
+		critical: false,
+		fix: () => ({ label: 'Confirm the hotel', tab: 'setup' })
+	},
+	{
+		key: 'vehicle',
+		label: () => 'Vehicle assigned',
+		done: (i) => Boolean(i.trip.vehicle?.trim()),
+		critical: true,
+		fix: () => ({ label: 'Assign a vehicle', tab: 'setup' })
+	},
+	{
+		key: 'driver',
+		label: () => 'Driver assigned',
+		done: (i) => Boolean(i.trip.driver?.trim()),
+		critical: true,
+		fix: () => ({ label: 'Assign a driver', tab: 'setup' })
+	},
+	{
+		key: 'guide',
+		label: () => 'Guide assigned',
+		done: (i) => Boolean(i.trip.guide?.trim()),
+		critical: false,
+		fix: () => ({ label: 'Assign a guide', tab: 'setup' })
+	},
 	{
 		key: 'passports',
 		label: (i) => {
@@ -451,31 +475,24 @@ async function tripsWithBooking(tenantId: string, where: SQL, page?: { limit: nu
 export async function listTripsForWork(tenantId: string, limit = 40) {
 	const rows = await tripsWithBooking(
 		tenantId,
-		and(
-			eq(schema.trips.tenantId, tenantId),
-			inArray(schema.trips.status, ['PREPARING', 'READY', 'IN_PROGRESS'])
-		)!,
+		and(eq(schema.trips.tenantId, tenantId), inArray(schema.trips.status, ['PREPARING', 'READY', 'IN_PROGRESS']))!,
 		{ limit }
 	);
 	const day = 24 * 60 * 60 * 1000;
 	const today = new Date();
 	const midnight = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
 	return rows.map((r) => ({
-			trip: r.trip,
-			booking: r.booking,
-			customerName: [r.customerFirstName, r.customerLastName].filter(Boolean).join(' ').trim() || null,
-			daysToDeparture: r.trip.startDate
-				? Math.round(
-						(Date.UTC(
-							r.trip.startDate.getUTCFullYear(),
-							r.trip.startDate.getUTCMonth(),
-							r.trip.startDate.getUTCDate()
-						) -
-							midnight) /
-							day
-					)
-				: null
-		}));
+		trip: r.trip,
+		booking: r.booking,
+		customerName: [r.customerFirstName, r.customerLastName].filter(Boolean).join(' ').trim() || null,
+		daysToDeparture: r.trip.startDate
+			? Math.round(
+					(Date.UTC(r.trip.startDate.getUTCFullYear(), r.trip.startDate.getUTCMonth(), r.trip.startDate.getUTCDate()) -
+						midnight) /
+						day
+				)
+			: null
+	}));
 }
 
 /**
@@ -595,10 +612,7 @@ export async function listTripsWithReadiness(
 			})
 			.from(schema.bookingTravelers)
 			.where(
-				and(
-					eq(schema.bookingTravelers.tenantId, tenantId),
-					inArray(schema.bookingTravelers.bookingId, bookingIds)
-				)
+				and(eq(schema.bookingTravelers.tenantId, tenantId), inArray(schema.bookingTravelers.bookingId, bookingIds))
 			)
 			.groupBy(schema.bookingTravelers.bookingId)
 	]);
@@ -613,7 +627,11 @@ export async function listTripsWithReadiness(
 		const held = passports.get(trip.bookingId) ?? 0;
 		return {
 			trip,
-			readiness: readinessFor(trip, j.booking, Array.from({ length: held }, () => ({ passportNumber: 'x' }))),
+			readiness: readinessFor(
+				trip,
+				j.booking,
+				Array.from({ length: held }, () => ({ passportNumber: 'x' }))
+			),
 			bookingReference: j.booking.bookingReference,
 			customerName: [j.customerFirstName, j.customerLastName].filter(Boolean).join(' ').trim() || null,
 			// ONE rule about money on a trip, applied by every surface: whoever can
@@ -724,23 +742,23 @@ export async function changeTripStatus(
 			...(toStatus === 'CANCELLED' ? { cancelledAt: now } : {}),
 			updatedAt: now
 		})
-		.where(
-			and(eq(schema.trips.id, id), eq(schema.trips.tenantId, tenantId), eq(schema.trips.status, trip.status))
-		)
+		.where(and(eq(schema.trips.id, id), eq(schema.trips.tenantId, tenantId), eq(schema.trips.status, trip.status)))
 		.returning();
 	if (!updated) {
 		throw new AppError('CONFLICT', 'Somebody else moved this trip while you were working on it. Reload and try again.');
 	}
 
-	await db().insert(schema.tripStatusHistory).values({
-		tenantId,
-		tripId: id,
-		fromStatus: trip.status,
-		toStatus,
-		reason: reason ?? null,
-		changedByUserId: actor.userId ?? null,
-		changedByApiKeyId: actor.apiKeyId ?? null
-	});
+	await db()
+		.insert(schema.tripStatusHistory)
+		.values({
+			tenantId,
+			tripId: id,
+			fromStatus: trip.status,
+			toStatus,
+			reason: reason ?? null,
+			changedByUserId: actor.userId ?? null,
+			changedByApiKeyId: actor.apiKeyId ?? null
+		});
 
 	const event = {
 		PREPARING: 'trip.preparing',

@@ -31,10 +31,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				})
 				.from(schema.trips)
 				.where(
-					and(
-						inArray(schema.trips.vehicleId, ids),
-						inArray(schema.trips.status, ['PREPARING', 'READY', 'IN_PROGRESS'])
-					)
+					and(inArray(schema.trips.vehicleId, ids), inArray(schema.trips.status, ['PREPARING', 'READY', 'IN_PROGRESS']))
 				)
 		: [];
 	const onTrip = new Map(assigned.map((a) => [a.vehicleId as string, a]));

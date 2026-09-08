@@ -84,7 +84,11 @@ export const load: PageServerLoad = async () => {
 			.orderBy(asc(schema.travelStyles.sortOrder), asc(schema.travelStyles.name))
 	]);
 
-	const project = (r: { row: typeof schema.tourCategories.$inferSelect | typeof schema.travelStyles.$inferSelect; tours: number; primaryFor: number }) => ({
+	const project = (r: {
+		row: typeof schema.tourCategories.$inferSelect | typeof schema.travelStyles.$inferSelect;
+		tours: number;
+		primaryFor: number;
+	}) => ({
 		id: r.row.id,
 		name: r.row.name,
 		slug: r.row.slug,

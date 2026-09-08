@@ -11,7 +11,9 @@ import { limitPasswordReset } from '$lib/server/signup';
 export const actions: Actions = {
 	default: async (event) => {
 		const data = await event.request.formData();
-		const email = String(data.get('email') ?? '').trim().toLowerCase();
+		const email = String(data.get('email') ?? '')
+			.trim()
+			.toLowerCase();
 		if (!email) return fail(400, { message: 'Enter your email address.' });
 
 		try {

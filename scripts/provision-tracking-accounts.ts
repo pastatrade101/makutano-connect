@@ -46,7 +46,9 @@ async function main() {
 	for (const row of tracked) {
 		byTenant.set(row.tenantId, [...(byTenant.get(row.tenantId) ?? []), row]);
 	}
-	console.log(`${tracked.length} tracked vehicle(s) across ${byTenant.size} tenant(s).${dryRun ? '  DRY RUN — nothing will be written.' : ''}`);
+	console.log(
+		`${tracked.length} tracked vehicle(s) across ${byTenant.size} tenant(s).${dryRun ? '  DRY RUN — nothing will be written.' : ''}`
+	);
 
 	for (const [tenantId, vehicles] of byTenant) {
 		// Never log the reference itself; it is credential material.

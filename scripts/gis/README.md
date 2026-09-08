@@ -5,10 +5,10 @@ Statistics shapefiles, not hand-drawn and not traced from a tile provider.
 
 ## Source
 
-| Layer | File | Projection |
-|---|---|---|
-| Districts and Town Councils, 2020 | `Districts and TC as 2020.shp` | WGS84 geographic |
-| Water bodies | `water_bodies.shp` | Arc 1960 geographic |
+| Layer                             | File                           | Projection          |
+| --------------------------------- | ------------------------------ | ------------------- |
+| Districts and Town Councils, 2020 | `Districts and TC as 2020.shp` | WGS84 geographic    |
+| Water bodies                      | `water_bodies.shp`             | Arc 1960 geographic |
 
 The district layer carries `Region_Nam`, so the 31 regions are produced by
 DISSOLVING districts rather than by trusting a separate region layer that was a

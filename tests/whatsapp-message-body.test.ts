@@ -34,7 +34,10 @@ describe('renderPreview resolves what the customer actually read', () => {
 });
 
 describe('the stored body is the rendered text', () => {
-	const queue = MESSAGES.slice(MESSAGES.indexOf('export async function queueMessage'), MESSAGES.indexOf('payload: params.content'));
+	const queue = MESSAGES.slice(
+		MESSAGES.indexOf('export async function queueMessage'),
+		MESSAGES.indexOf('payload: params.content')
+	);
 
 	it('takes the preview before falling back to reconstruction', () => {
 		const preview = queue.indexOf('params.content.preview');

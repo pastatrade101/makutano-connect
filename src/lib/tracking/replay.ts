@@ -19,8 +19,7 @@ export function haversineMetres(aLat: number, aLng: number, bLat: number, bLng: 
 	const toRad = (d: number) => (d * Math.PI) / 180;
 	const dLat = toRad(bLat - aLat);
 	const dLng = toRad(bLng - aLng);
-	const s =
-		Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+	const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
 	return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
@@ -102,7 +101,8 @@ export function hoursForPreset(preset: HistoryPreset, now: Date, customHours = 1
  */
 export function truncationNotice(points: number, limit: number | null | undefined): string {
 	const n = points.toLocaleString('en-US');
-	if (limit && limit > 0 && points >= limit) return `Showing the most recent ${n} recorded points — earlier points in this range were cut off.`;
+	if (limit && limit > 0 && points >= limit)
+		return `Showing the most recent ${n} recorded points — earlier points in this range were cut off.`;
 	return `Showing the most recent ${n} recorded points — the route for this range is incomplete.`;
 }
 

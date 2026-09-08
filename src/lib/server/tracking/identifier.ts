@@ -78,10 +78,5 @@ export function looksWellFormed(candidate: string): boolean {
  * dashes are what people add to long codes unprompted.
  */
 export function normaliseTyped(input: string): string {
-	return input
-		.trim()
-		.toUpperCase()
-		.replace(/[\s-]/g, '')
-		.replace(/[IL]/g, '1')
-		.replace(/O/g, '0');
+	return input.trim().toUpperCase().replace(/[\s-]/g, '').replace(/[IL]/g, '1').replace(/O/g, '0');
 }

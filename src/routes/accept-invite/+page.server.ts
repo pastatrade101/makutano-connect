@@ -95,7 +95,8 @@ export const actions: Actions = {
 
 		const pendingPassword = !held.user.passwordHash;
 		if (pendingPassword) {
-			if (!password) return fail(400, { needsPassword: true, message: 'Choose a password to finish setting up your account.' });
+			if (!password)
+				return fail(400, { needsPassword: true, message: 'Choose a password to finish setting up your account.' });
 			if (password !== confirm) return fail(400, { needsPassword: true, message: 'Those passwords do not match.' });
 			const strength = checkPassword(password, held.user.email);
 			if (!strength.ok) return fail(400, { needsPassword: true, message: strength.message });
@@ -109,7 +110,11 @@ export const actions: Actions = {
 		if (pendingPassword) {
 			await db()
 				.update(schema.users)
-				.set({ passwordHash: await hashPassword(password), emailVerifiedAt: user.emailVerifiedAt ?? new Date(), updatedAt: new Date() })
+				.set({
+					passwordHash: await hashPassword(password),
+					emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+					updatedAt: new Date()
+				})
 				.where(eq(schema.users.id, user.id));
 		} else if (!user.emailVerifiedAt) {
 			// Receiving the invite email proves the address.
@@ -117,11 +122,18 @@ export const actions: Actions = {
 		}
 
 		const membership = await activate(user.id, tenantId);
-		if (!membership) return fail(400, { message: 'This invitation is no longer valid — the seat may have been removed.' });
+		if (!membership)
+			return fail(400, { message: 'This invitation is no longer valid — the seat may have been removed.' });
 
-		await audit(tenantId, 'user.invite_accepted', { type: 'user', userId: user.id, ipHash: event.locals.ipHash }, { type: 'user', id: user.id }, {
-			role: membership.role
-		});
+		await audit(
+			tenantId,
+			'user.invite_accepted',
+			{ type: 'user', userId: user.id, ipHash: event.locals.ipHash },
+			{ type: 'user', id: user.id },
+			{
+				role: membership.role
+			}
+		);
 
 		const session = await createSession(user.id, {
 			activeTenantId: tenantId,

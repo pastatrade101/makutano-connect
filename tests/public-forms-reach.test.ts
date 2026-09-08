@@ -28,8 +28,7 @@ describe('a public form is reachable for any tenant that is not suspended, cance
 	it('refuses a soft-deleted tenant whatever its status', () =>
 		expect(reachable('ACTIVE', new Date(), true)).toBe(false));
 
-	it('still refuses a deactivated form on a healthy tenant', () =>
-		expect(reachable('TRIAL', null, false)).toBe(false));
+	it('still refuses a deactivated form on a healthy tenant', () => expect(reachable('TRIAL', null, false)).toBe(false));
 
 	it('matches the marketplace, which fixed this first', async () => {
 		// Both gates must agree, or an enquiry and a form disagree about the same

@@ -27,9 +27,7 @@ describe('activityFor — wording variants collapse to one activity', () => {
 	});
 
 	it('does not create a separate activity per wording variant', () => {
-		const slugs = new Set(
-			['morning game drive', 'afternoon game drive', 'en-route game drive'].map(activityFor)
-		);
+		const slugs = new Set(['morning game drive', 'afternoon game drive', 'en-route game drive'].map(activityFor));
 		expect(slugs.size).toBe(1);
 	});
 
@@ -74,9 +72,7 @@ describe('activityFor — operational lines are not activities', () => {
 	});
 
 	it('returns null for descriptive prose that is not an activity at all', () => {
-		expect(
-			activityFor('a park famous for tree-climbing lions, flamingos and large elephant herds')
-		).toBeNull();
+		expect(activityFor('a park famous for tree-climbing lions, flamingos and large elephant herds')).toBeNull();
 		expect(activityFor('meet your private safari guide and luxury 4x4 vehicle')).toBeNull();
 	});
 
@@ -100,13 +96,9 @@ describe('activityFor — the more decisive activity wins', () => {
 
 describe('activitiesFor — a day list becomes a tour-level set', () => {
 	it('says a thing once however many days do it', () => {
-		expect(
-			activitiesFor([
-				'serengeti game drive',
-				'tarangire game drive',
-				'ngorongoro crater game drive'
-			])
-		).toEqual(['game-drive']);
+		expect(activitiesFor(['serengeti game drive', 'tarangire game drive', 'ngorongoro crater game drive'])).toEqual([
+			'game-drive'
+		]);
 	});
 
 	it('returns taxonomy order, not the order the days happened to be written', () => {
@@ -115,9 +107,9 @@ describe('activitiesFor — a day list becomes a tour-level set', () => {
 	});
 
 	it('drops the operational lines and keeps the rest', () => {
-		expect(
-			activitiesFor(['picnic lunch', 'airport transfer', 'serengeti game drive', 'domestic flight'])
-		).toEqual(['game-drive']);
+		expect(activitiesFor(['picnic lunch', 'airport transfer', 'serengeti game drive', 'domestic flight'])).toEqual([
+			'game-drive'
+		]);
 	});
 
 	it('is empty for an itinerary of pure logistics', () => {

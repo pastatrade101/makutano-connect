@@ -36,7 +36,10 @@ const bodySchema = z.object({
 				title: z.string().trim().min(1).max(200),
 				description: z.string().trim().max(1000).optional(),
 				quantity: z.coerce.number().int().min(1).max(999).default(1),
-				unitPrice: z.string().trim().regex(/^\d+(\.\d{1,2})?$/, 'Price must be a number.')
+				unitPrice: z
+					.string()
+					.trim()
+					.regex(/^\d+(\.\d{1,2})?$/, 'Price must be a number.')
 			})
 		)
 		.min(1, 'A quotation needs at least one line.')
@@ -55,11 +58,18 @@ const bodySchema = z.object({
 			perGroup: z.boolean().optional(),
 			adults: z.coerce.number().int().min(0).max(40),
 			children: z.coerce.number().int().min(0).max(40),
-			adultPrice: z.string().trim().regex(/^\d+(\.\d{1,2})?$/, 'Price must be a number.'),
+			adultPrice: z
+				.string()
+				.trim()
+				.regex(/^\d+(\.\d{1,2})?$/, 'Price must be a number.'),
 			// Optional in the schema, required by the rule below when the party has
 			// children — so the phone gets the same guard as the portal rather than
 			// a second, laxer path to the same silent equality.
-			childPrice: z.string().trim().regex(/^\d+(\.\d{1,2})?$/, 'Price must be a number.').optional()
+			childPrice: z
+				.string()
+				.trim()
+				.regex(/^\d+(\.\d{1,2})?$/, 'Price must be a number.')
+				.optional()
 		})
 		.refine((party) => !party || party.children === 0 || Boolean(party.childPrice), {
 			message: 'Enter the price per child. If children pay the same as adults, send that amount.',
@@ -95,7 +105,12 @@ export const POST: RequestHandler = async (event) => {
 		 * supplied one. Traveller counts happened to survive because the app sends
 		 * them; the date did not.
 		 */
-		let fallback: { startDate: Date | null; endDate: Date | null; adults: number | null; children: number | null } | null = null;
+		let fallback: {
+			startDate: Date | null;
+			endDate: Date | null;
+			adults: number | null;
+			children: number | null;
+		} | null = null;
 		if (body.bookingRequestId && (!body.startDate || !body.endDate || body.adults == null || body.children == null)) {
 			const enquiry = await getBookingRequest(viewer.tenantId, body.bookingRequestId).catch(() => null);
 			if (enquiry) {

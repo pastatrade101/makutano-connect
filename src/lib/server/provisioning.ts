@@ -59,8 +59,7 @@ export type Industry = (typeof INDUSTRIES)[number]['value'];
  */
 export const SIGNUP_INDUSTRIES = INDUSTRIES.filter((i) => i.value === 'TRAVEL_TOURISM');
 
-export const isSignupIndustry = (value: string): boolean =>
-	SIGNUP_INDUSTRIES.some((i) => i.value === value);
+export const isSignupIndustry = (value: string): boolean => SIGNUP_INDUSTRIES.some((i) => i.value === value);
 
 /** The one industry signup creates, used when the question is not worth asking. */
 export const DEFAULT_SIGNUP_INDUSTRY: Industry = 'TRAVEL_TOURISM';
@@ -102,7 +101,11 @@ export function planHighlights(
 
 	const members = owns('platform.maxUsers') ? Number(entitlements['platform.maxUsers']) : limits.members;
 	if (Number.isFinite(members)) {
-		out.push(members === 0 ? 'Unlimited team members' : `Up to ${members.toLocaleString()} team member${members === 1 ? '' : 's'}`);
+		out.push(
+			members === 0
+				? 'Unlimited team members'
+				: `Up to ${members.toLocaleString()} team member${members === 1 ? '' : 's'}`
+		);
 	}
 
 	if (entitlements['bookings.enabled'] !== false) {
@@ -115,8 +118,12 @@ export function planHighlights(
 	}
 
 	const payments = owns('payments.enabled') ? entitlements['payments.enabled'] === true : features.payments === true;
-	const webhooks = owns('webhooks.enabled') ? entitlements['webhooks.enabled'] === true : features.client_webhooks === true;
-	const quotations = owns('quotations.enabled') ? entitlements['quotations.enabled'] !== false : features.quotations !== false;
+	const webhooks = owns('webhooks.enabled')
+		? entitlements['webhooks.enabled'] === true
+		: features.client_webhooks === true;
+	const quotations = owns('quotations.enabled')
+		? entitlements['quotations.enabled'] !== false
+		: features.quotations !== false;
 	const capabilities = [payments && 'Payments', webhooks && 'Webhooks', quotations && 'Quotations'].filter(Boolean);
 	if (capabilities.length) out.push(capabilities.join(', '));
 
@@ -378,12 +385,8 @@ export async function provisionTenant(input: ProvisionTenantInput): Promise<Prov
 				// gated by the plan's entitlements at the point of use.
 				settings: {
 					capabilities: input.capabilities ?? capabilitiesFor(input.industry),
-					...(input.onboardingProfile?.primaryGoal
-						? { onboardingGoal: input.onboardingProfile.primaryGoal }
-						: {}),
-					...(input.onboardingProfile?.systemSource
-						? { systemSource: input.onboardingProfile.systemSource }
-						: {})
+					...(input.onboardingProfile?.primaryGoal ? { onboardingGoal: input.onboardingProfile.primaryGoal } : {}),
+					...(input.onboardingProfile?.systemSource ? { systemSource: input.onboardingProfile.systemSource } : {})
 				},
 				notificationPreferences: { inApp: true, email: true }
 			})

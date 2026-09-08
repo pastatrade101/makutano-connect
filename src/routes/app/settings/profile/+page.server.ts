@@ -182,7 +182,13 @@ export const actions: Actions = {
 				})
 				.where(eq(schema.operatorProfiles.tenantId, tenant.id));
 
-			await audit(tenant.id, 'tenant.updated', { type: 'user', userId: locals.user?.id }, { type: 'operator_profile', id: tenant.id }, { slug });
+			await audit(
+				tenant.id,
+				'tenant.updated',
+				{ type: 'user', userId: locals.user?.id },
+				{ type: 'operator_profile', id: tenant.id },
+				{ slug }
+			);
 			return { success: true, saved: 'profile' };
 		} catch (err) {
 			const message = String((err as Error)?.message ?? '');

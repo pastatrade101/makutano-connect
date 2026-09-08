@@ -346,17 +346,18 @@ async function sendAcknowledgement(
 		tenantId,
 		to: waPhone,
 		dedupeKey: `br-ack:${request.id}`,
-		content: template && values.length && values.every((v) => v && v.trim())
-			? {
-					type: 'template',
-					templateName: template.name,
-					language: template.language,
-					components: [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }]
-				}
-			: {
-					type: 'text',
-					text: `Hi ${name}, thanks for your enquiry. We have received it (reference ${request.reference}) and will reply here shortly.`
-				}
+		content:
+			template && values.length && values.every((v) => v && v.trim())
+				? {
+						type: 'template',
+						templateName: template.name,
+						language: template.language,
+						components: [{ type: 'body', parameters: values.map((text) => ({ type: 'text', text })) }]
+					}
+				: {
+						type: 'text',
+						text: `Hi ${name}, thanks for your enquiry. We have received it (reference ${request.reference}) and will reply here shortly.`
+					}
 	});
 }
 
@@ -566,7 +567,6 @@ export async function bookingRequestStats(tenantId: string) {
 	};
 }
 
-
 /**
  * The source system says one of its enquiries is gone.
  *
@@ -584,7 +584,11 @@ export async function deleteMirroredBookingRequest(
 	externalReference: string
 ): Promise<{ deleted: boolean; reference: string | null }> {
 	const [existing] = await db()
-		.select({ id: schema.bookingRequests.id, reference: schema.bookingRequests.reference, deletedAt: schema.bookingRequests.deletedAt })
+		.select({
+			id: schema.bookingRequests.id,
+			reference: schema.bookingRequests.reference,
+			deletedAt: schema.bookingRequests.deletedAt
+		})
 		.from(schema.bookingRequests)
 		.where(
 			and(
@@ -597,7 +601,6 @@ export async function deleteMirroredBookingRequest(
 	const row = await softDeleteBookingRequest(tenantId, existing.id);
 	return { deleted: true, reference: row.reference };
 }
-
 
 /* ------------------------------------------------- the enquiry mirror ------ */
 
@@ -655,7 +658,8 @@ export async function upsertBookingRequestMirror(
 			)
 		)
 		.limit(1);
-	if (!existing || existing.deletedAt) return { updated: false, reference: existing?.reference ?? null, bookingId: null };
+	if (!existing || existing.deletedAt)
+		return { updated: false, reference: existing?.reference ?? null, bookingId: null };
 
 	const patch: Partial<typeof schema.bookingRequests.$inferInsert> = { updatedAt: new Date() };
 	const mapped = input.status ? SOURCE_STATUS[input.status.toLowerCase()] : undefined;

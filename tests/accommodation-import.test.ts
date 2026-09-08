@@ -43,7 +43,10 @@ describe('accommodation import rules', () => {
 		expect(slugify("Manyara's Secret")).toBe('manyara-s-secret');
 	});
 
-	let file: { totals?: { properties: number; images: number; onR2: number; external: number }; accommodation?: unknown[] };
+	let file: {
+		totals?: { properties: number; images: number; onR2: number; external: number };
+		accommodation?: unknown[];
+	};
 	try {
 		file = JSON.parse(readFileSync(FILE, 'utf8'));
 	} catch {

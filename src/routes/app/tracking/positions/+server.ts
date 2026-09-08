@@ -25,9 +25,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 					checkedAt: new Date().toISOString(),
 					vehicles: vehicles.map((v) => {
 						const snap = live.get(v.id);
-						const state: TrackingState = !v.trackerDeviceRef
-							? 'NOT_CONFIGURED'
-							: (snap?.state ?? 'NOT_CONFIGURED');
+						const state: TrackingState = !v.trackerDeviceRef ? 'NOT_CONFIGURED' : (snap?.state ?? 'NOT_CONFIGURED');
 						return {
 							id: v.id,
 							state,

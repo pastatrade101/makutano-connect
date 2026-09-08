@@ -138,7 +138,7 @@ describe('F-G: acceptance is of a specific version', () => {
 		expect(SNAPSHOT).toMatch(/has been updated since you opened it/);
 	});
 
-    it('takes the latest SENT version when no expectation is supplied', () => {
+	it('takes the latest SENT version when no expectation is supplied', () => {
 		expect(SNAPSHOT).toMatch(/orderBy\(desc\(schema\.quotationVersions\.version\)\)/);
 	});
 

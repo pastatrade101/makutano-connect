@@ -125,8 +125,15 @@ const orphanLogos = await db.execute(raw`
 `);
 
 if (orphanLogos.length) {
-	console.log(`\n${APPLY ? 'ADOPT' : 'DRY RUN'}  ${orphanLogos.length} operator(s) with a logo the marketplace cannot see`);
-	for (const row of orphanLogos as unknown as { tenant_id: string; name: string; logo_url: string; profile_id: string }[]) {
+	console.log(
+		`\n${APPLY ? 'ADOPT' : 'DRY RUN'}  ${orphanLogos.length} operator(s) with a logo the marketplace cannot see`
+	);
+	for (const row of orphanLogos as unknown as {
+		tenant_id: string;
+		name: string;
+		logo_url: string;
+		profile_id: string;
+	}[]) {
 		const ours = mediaHost && row.logo_url.startsWith(mediaHost);
 		console.log(`  ${row.name.padEnd(24)} ${ours ? 'adoptable' : 'SKIPPED — not on our media host'}  ${row.logo_url}`);
 		if (!ours || !APPLY) continue;
@@ -134,10 +141,7 @@ if (orphanLogos.length) {
 		const key = row.logo_url.slice(mediaHost.length).replace(/^\/+/, '');
 		const ext = key.split('.').pop()?.toLowerCase() ?? '';
 		const mime =
-			ext === 'avif' ? 'image/avif'
-			: ext === 'webp' ? 'image/webp'
-			: ext === 'png' ? 'image/png'
-			: 'image/jpeg';
+			ext === 'avif' ? 'image/avif' : ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
 
 		const [media] = await db
 			.insert(schema.media)

@@ -38,7 +38,9 @@ describe('1-2, 16 · the web process does no provider work at all', () => {
 		expect(SERVICE).not.toContain('adminCredentials');
 		const hits = execSync("grep -rln 'traccar-admin\\|adminCredentials\\|provisioning-worker' src/routes/ || true", {
 			encoding: 'utf8'
-		}).split('\n').filter(Boolean);
+		})
+			.split('\n')
+			.filter(Boolean);
 		expect(hits).toEqual([]);
 	});
 });
@@ -58,7 +60,10 @@ describe('3-5 · the worker detects, scoped, as the tenant', () => {
 	});
 
 	it('reads positions with the tenant identity, not the privileged one', () => {
-		const detect = WORKER.slice(WORKER.indexOf('async function detectFirstFixes'), WORKER.indexOf('async function bindEnrollment'));
+		const detect = WORKER.slice(
+			WORKER.indexOf('async function detectFirstFixes'),
+			WORKER.indexOf('async function bindEnrollment')
+		);
 		// Possessing a privileged credential is not a reason to read with it: the
 		// tenant identity is scoped by the provider to that tenant's own devices.
 		expect(detect).toContain('tenantCredentials(row.tenantId)');
@@ -92,7 +97,9 @@ describe('9-11 · replacement is seamless, then the old device is deleted', () =
 		const bindAt = WORKER.indexOf('async function bindEnrollment');
 		expect(WORKER.indexOf("closedReason: 'REPLACED'")).toBeGreaterThan(bindAt);
 		// Both partial indexes tolerate one ACTIVE plus one in-flight row.
-		expect(MIGRATION).toContain("te_one_inflight_key ON tracker_enrollments (vehicle_id) WHERE status IN ('PENDING','PROVISIONED')");
+		expect(MIGRATION).toContain(
+			"te_one_inflight_key ON tracker_enrollments (vehicle_id) WHERE status IN ('PENDING','PROVISIONED')"
+		);
 	});
 
 	it('the switch and the close happen in one transaction', () => {
@@ -133,7 +140,9 @@ describe('12-14 · closing an enrollment deletes the device, never disables it',
 
 describe('15, 17-18 · identity, history and wording', () => {
 	it('a tracker identity is never reused', () => {
-		expect(MIGRATION).toContain("te_ref_forever_key ON tracker_enrollments (provider, device_ref) WHERE status <> 'RELEASED'");
+		expect(MIGRATION).toContain(
+			"te_ref_forever_key ON tracker_enrollments (provider, device_ref) WHERE status <> 'RELEASED'"
+		);
 		// Ledger rows are closed, never deleted, so the lock survives cleanup —
 		// which is also what lets a trip's history be traced to its tracker later.
 		expect(WORKER).not.toMatch(/\.delete\(schema\.trackerEnrollments\)/);
@@ -150,7 +159,9 @@ describe('15, 17-18 · identity, history and wording', () => {
 	it('the raw identifier appears nowhere outside the QR material', () => {
 		expect(PAGE_UI).not.toContain('deviceRef');
 		const svelteHits = execSync("grep -rl 'deviceRef' src/routes/ || true", { encoding: 'utf8' })
-			.split('\n').filter(Boolean).filter((f) => f.endsWith('.svelte'));
+			.split('\n')
+			.filter(Boolean)
+			.filter((f) => f.endsWith('.svelte'));
 		expect(svelteHits).toEqual([]);
 	});
 });

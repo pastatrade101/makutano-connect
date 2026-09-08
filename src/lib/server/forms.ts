@@ -16,7 +16,10 @@ import { assertAllowed, assertWithinCount } from './entitlements';
 export type FormType = schema.Form['type'];
 
 /** Per-type field vocabulary. Keys double as payload keys on submission. */
-export const FORM_FIELD_CATALOG: Record<FormType, Array<{ key: string; label: string; defaultEnabled: boolean; defaultRequired: boolean }>> = {
+export const FORM_FIELD_CATALOG: Record<
+	FormType,
+	Array<{ key: string; label: string; defaultEnabled: boolean; defaultRequired: boolean }>
+> = {
 	BOOKING: [
 		{ key: 'firstName', label: 'First name', defaultEnabled: true, defaultRequired: true },
 		{ key: 'lastName', label: 'Last name', defaultEnabled: true, defaultRequired: false },
@@ -78,9 +81,21 @@ export function defaultFieldsFor(type: FormType): Record<string, { enabled: bool
 }
 
 const DEFAULT_COPY: Record<FormType, { heading: string; cta: string; success: string }> = {
-	BOOKING: { heading: 'Book with us', cta: 'Send enquiry', success: 'Thank you — we have received your enquiry and will be in touch shortly.' },
-	ORDER: { heading: 'Place an order', cta: 'Place order', success: 'Thank you — your order has been received and we will confirm it shortly.' },
-	QUOTE: { heading: 'Request a quote', cta: 'Request quote', success: 'Thank you — we will prepare your quotation and get back to you.' },
+	BOOKING: {
+		heading: 'Book with us',
+		cta: 'Send enquiry',
+		success: 'Thank you — we have received your enquiry and will be in touch shortly.'
+	},
+	ORDER: {
+		heading: 'Place an order',
+		cta: 'Place order',
+		success: 'Thank you — your order has been received and we will confirm it shortly.'
+	},
+	QUOTE: {
+		heading: 'Request a quote',
+		cta: 'Request quote',
+		success: 'Thank you — we will prepare your quotation and get back to you.'
+	},
 	LEAD: { heading: 'Get in touch', cta: 'Send message', success: 'Thank you — we have received your message.' }
 };
 
@@ -247,7 +262,10 @@ export function originAllowed(form: schema.Form, origin: string | null): boolean
 	try {
 		const host = new URL(origin).hostname.toLowerCase();
 		return allowed.some((entry) => {
-			const pattern = entry.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+			const pattern = entry
+				.toLowerCase()
+				.replace(/^https?:\/\//, '')
+				.replace(/\/.*$/, '');
 			return host === pattern || host.endsWith(`.${pattern}`);
 		});
 	} catch {

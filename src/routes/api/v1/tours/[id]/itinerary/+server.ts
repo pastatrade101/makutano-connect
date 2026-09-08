@@ -12,7 +12,10 @@ const daySchema = z.object({
 	destinationId: z.string().uuid().optional().nullable(),
 	accommodation: z.string().max(300).optional().nullable(),
 	/* Either the closed set or the sentence this endpoint has always taken. */
-	meals: z.union([z.string().max(200), z.array(z.string().max(40)).max(3)]).optional().nullable(),
+	meals: z
+		.union([z.string().max(200), z.array(z.string().max(40)).max(3)])
+		.optional()
+		.nullable(),
 	activities: z.array(z.string().max(200)).max(20).optional(),
 	distance: z.string().max(80).optional().nullable(),
 	estimatedTravelTime: z.string().max(80).optional().nullable(),

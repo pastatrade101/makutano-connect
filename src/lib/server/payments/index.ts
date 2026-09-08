@@ -427,7 +427,6 @@ export async function paymentStats(tenantId: string) {
 	};
 }
 
-
 /**
  * The code the tenant's own system knows this booking by.
  *

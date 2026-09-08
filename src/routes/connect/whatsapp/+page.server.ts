@@ -55,7 +55,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			 */
 			if (error instanceof AppError && error.code === 'UNAUTHORIZED') {
 				log.info('whatsapp_connect_link_rejected', { reason: 'expired_or_used' });
-				return { ready: false, meta: publicSignupConfig(), mode: 'unauthenticated' as const, tenantName: '', hostedUrl: null };
+				return {
+					ready: false,
+					meta: publicSignupConfig(),
+					mode: 'unauthenticated' as const,
+					tenantName: '',
+					hostedUrl: null
+				};
 			}
 			throw error;
 		}
@@ -73,7 +79,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	if (!locals.user || !locals.tenant) {
-		return { ready: false, meta: publicSignupConfig(), mode: 'unauthenticated' as const, tenantName: '', hostedUrl: null };
+		return {
+			ready: false,
+			meta: publicSignupConfig(),
+			mode: 'unauthenticated' as const,
+			tenantName: '',
+			hostedUrl: null
+		};
 	}
 	requirePermission(locals.permissions, 'whatsapp:connect');
 

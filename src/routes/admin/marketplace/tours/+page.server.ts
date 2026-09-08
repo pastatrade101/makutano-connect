@@ -159,24 +159,26 @@ export const load: PageServerLoad = async ({ url }) => {
 	}));
 
 	return {
-		rows: rows.map(({ operatorDisplayName, operator: name, dayCount, destinationCount, hasCategory, hasCountry, ...r }) => ({
-			...r,
-			operator: operatorDisplayName || name,
-			destinations: placesByTour.get(r.id) ?? [],
-			// What the operator would still be told to fix. Rendered only when non-empty,
-			// and the reason bulk publish refuses a row.
-			gaps: [
-				!r.heroUrl && 'a main photo',
-				Number(dayCount) < 1 && 'an itinerary',
-				Number(destinationCount) < 1 && 'a destination',
-				!hasCategory && 'a category',
-				!hasCountry && 'a country',
-				!r.priceFrom && 'a price'
-			].filter((v): v is string => typeof v === 'string'),
-			// The listing you half-reviewed yesterday is not the one on screen now.
-			editedSinceSubmitted: Boolean(r.submittedAt && r.updatedAt && r.updatedAt > r.submittedAt),
-			actions: platformActionsFor(r.status)
-		})),
+		rows: rows.map(
+			({ operatorDisplayName, operator: name, dayCount, destinationCount, hasCategory, hasCountry, ...r }) => ({
+				...r,
+				operator: operatorDisplayName || name,
+				destinations: placesByTour.get(r.id) ?? [],
+				// What the operator would still be told to fix. Rendered only when non-empty,
+				// and the reason bulk publish refuses a row.
+				gaps: [
+					!r.heroUrl && 'a main photo',
+					Number(dayCount) < 1 && 'an itinerary',
+					Number(destinationCount) < 1 && 'a destination',
+					!hasCategory && 'a category',
+					!hasCountry && 'a country',
+					!r.priceFrom && 'a price'
+				].filter((v): v is string => typeof v === 'string'),
+				// The listing you half-reviewed yesterday is not the one on screen now.
+				editedSinceSubmitted: Boolean(r.submittedAt && r.updatedAt && r.updatedAt > r.submittedAt),
+				actions: platformActionsFor(r.status)
+			})
+		),
 		tabs,
 		tab,
 		q: pagination.q ?? '',
@@ -218,7 +220,12 @@ export const actions: Actions = {
 		if (ids.length > 100) return fail(400, { message: 'Too many at once — filter the list down first.' });
 
 		const rows = await db()
-			.select({ id: schema.tours.id, title: schema.tours.title, status: schema.tours.status, tenantId: schema.tours.tenantId })
+			.select({
+				id: schema.tours.id,
+				title: schema.tours.title,
+				status: schema.tours.status,
+				tenantId: schema.tours.tenantId
+			})
 			.from(schema.tours)
 			.where(and(inArray(schema.tours.id, ids), isNull(schema.tours.deletedAt)));
 
@@ -247,7 +254,13 @@ export const actions: Actions = {
 				continue;
 			}
 			try {
-				await transitionTour(row.tenantId, row.id, action, { userId: locals.user!.id }, { canPublish: true, note: note || null });
+				await transitionTour(
+					row.tenantId,
+					row.id,
+					action,
+					{ userId: locals.user!.id },
+					{ canPublish: true, note: note || null }
+				);
 				moved.push(row.title);
 			} catch (err) {
 				failures.push({ title: row.title, reason: toAppError(err).message });

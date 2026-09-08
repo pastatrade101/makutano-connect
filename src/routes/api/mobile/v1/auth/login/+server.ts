@@ -50,7 +50,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		);
 	}
 
-
 	const [user] = await db().select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
 	const valid = user && user.isActive && (await verifyPassword(password, user.passwordHash));
 	if (!valid) {

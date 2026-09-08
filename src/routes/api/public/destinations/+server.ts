@@ -8,8 +8,16 @@ import { CACHE_REFERENCE, handlePublic, preflight, publicJson } from '$lib/serve
 // The destination taxonomy, restated as an input allow-list so an unknown value
 // is refused rather than reaching the query.
 const TYPES = [
-	'NATIONAL_PARK', 'GAME_RESERVE', 'CONSERVATION_AREA', 'MOUNTAIN', 'ISLAND',
-	'BEACH', 'CITY', 'CULTURAL_AREA', 'LAKE', 'OTHER'
+	'NATIONAL_PARK',
+	'GAME_RESERVE',
+	'CONSERVATION_AREA',
+	'MOUNTAIN',
+	'ISLAND',
+	'BEACH',
+	'CITY',
+	'CULTURAL_AREA',
+	'LAKE',
+	'OTHER'
 ] as const;
 
 const filterSchema = z.object({

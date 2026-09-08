@@ -263,7 +263,8 @@ export class TraccarProvider implements TrackingProvider {
 			// A mapped device the provider has no position for is OFFLINE, not absent:
 			// the caller asked about it and deserves an answer.
 			for (const ref of deviceRefs) {
-				if (!out.has(ref)) out.set(ref, { state: 'OFFLINE', position: null, providerOnline: onlineByRef.get(ref) ?? null });
+				if (!out.has(ref))
+					out.set(ref, { state: 'OFFLINE', position: null, providerOnline: onlineByRef.get(ref) ?? null });
 			}
 			return out;
 		} catch (err) {

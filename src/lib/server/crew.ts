@@ -24,10 +24,7 @@ export type CrewInput = {
 	isActive?: boolean;
 };
 
-export async function listCrew(
-	tenantId: string,
-	filters: { type?: schema.Crew['type'][]; activeOnly?: boolean } = {}
-) {
+export async function listCrew(tenantId: string, filters: { type?: schema.Crew['type'][]; activeOnly?: boolean } = {}) {
 	const clauses: SQL[] = [eq(schema.crew.tenantId, tenantId)];
 	if (filters.type?.length) clauses.push(inArray(schema.crew.type, filters.type));
 	if (filters.activeOnly) clauses.push(eq(schema.crew.isActive, true));

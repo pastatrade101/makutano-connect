@@ -265,9 +265,9 @@ suite('tour pricing -> quotation -> frozen offer -> booking', () => {
 
 		// A link claiming a version that was never sent must be refused, not
 		// resolved to whatever is current.
-		await expect(
-			ctx.quotations.acceptQuotation(tenantId, quotation.id, {}, sent.version + 1)
-		).rejects.toThrow(/updated since you opened it/i);
+		await expect(ctx.quotations.acceptQuotation(tenantId, quotation.id, {}, sent.version + 1)).rejects.toThrow(
+			/updated since you opened it/i
+		);
 
 		// The quotation is untouched: nothing was accepted.
 		const [after] = await db().select().from(schema.quotations).where(eq(schema.quotations.id, quotation.id));

@@ -89,13 +89,17 @@ describe('a public caller is counted as the person, not the relay', () => {
 		const peer = '203.0.113.9';
 		const base = clientKey(eventWith({}, peer));
 		for (const junk of ['not an ip', '1.2.3.4, 5.6.7.8', 'x'.repeat(200), '<script>', '../../etc']) {
-			expect(clientKey(eventWith({ 'x-makutano-origin-secret': SECRET, 'x-makutano-client-ip': junk }, peer))).toBe(base);
+			expect(clientKey(eventWith({ 'x-makutano-origin-secret': SECRET, 'x-makutano-client-ip': junk }, peer))).toBe(
+				base
+			);
 		}
 	});
 
 	it('never returns the address itself', async () => {
 		const clientKey = await loadClientKey(SECRET);
-		const key = clientKey(eventWith({ 'x-makutano-origin-secret': SECRET, 'x-makutano-client-ip': '1.2.3.4' }, '10.0.0.5'));
+		const key = clientKey(
+			eventWith({ 'x-makutano-origin-secret': SECRET, 'x-makutano-client-ip': '1.2.3.4' }, '10.0.0.5')
+		);
 		expect(key).not.toContain('1.2.3.4');
 		expect(key).toHaveLength(24);
 	});

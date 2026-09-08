@@ -176,10 +176,7 @@ export function fitProjection(bounds: BBox, width: number, padding = 8): Project
 	const inner = width - padding * 2;
 	const k = inner / spanX;
 	const height = spanY * k + padding * 2;
-	const project = ((p: LngLat) => [
-		padding + (p[0] - minLon) * k,
-		padding + (yTop - mercY(p[1])) * k
-	]) as Projection;
+	const project = ((p: LngLat) => [padding + (p[0] - minLon) * k, padding + (yTop - mercY(p[1])) * k]) as Projection;
 	project.width = width;
 	project.height = height;
 	project.invert = ([x, y]: [number, number]): LngLat => [

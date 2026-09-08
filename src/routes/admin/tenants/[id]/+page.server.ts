@@ -120,7 +120,10 @@ export const actions: Actions = {
 	plan: async ({ locals, params, request }) => {
 		const data = await request.formData();
 		try {
-			await changeTenantPlan(idOf(params), String(data.get('planId') ?? ''), { userId: locals.user!.id, requestId: locals.requestId });
+			await changeTenantPlan(idOf(params), String(data.get('planId') ?? ''), {
+				userId: locals.user!.id,
+				requestId: locals.requestId
+			});
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -150,12 +153,10 @@ export const actions: Actions = {
 		const kind = String(data.get('kind') ?? 'number');
 		const raw = String(data.get('value') ?? '');
 		try {
-			await setEntitlementOverride(
-				idOf(params),
-				key,
-				kind === 'boolean' ? raw === 'true' : Number(raw),
-				{ userId: locals.user!.id, requestId: locals.requestId }
-			);
+			await setEntitlementOverride(idOf(params), key, kind === 'boolean' ? raw === 'true' : Number(raw), {
+				userId: locals.user!.id,
+				requestId: locals.requestId
+			});
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -165,7 +166,10 @@ export const actions: Actions = {
 	resetOverride: async ({ locals, params, request }) => {
 		const data = await request.formData();
 		try {
-			await clearEntitlementOverride(idOf(params), String(data.get('key') ?? ''), { userId: locals.user!.id, requestId: locals.requestId });
+			await clearEntitlementOverride(idOf(params), String(data.get('key') ?? ''), {
+				userId: locals.user!.id,
+				requestId: locals.requestId
+			});
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });

@@ -25,7 +25,7 @@ Measured on the marketplace homepage, mobile Lighthouse, median of three runs:
 first contentful paint 5.0s to 3.6s, largest contentful paint 6.3s to 4.8s. The
 document itself went from 267 KB to 43 KB.
 
-```caddyfile
+````caddyfile
 connect.makutano.co.tz {
     # Proxied responses are not compressed by anything upstream: the Node adapter
     # only pre-compresses the files it built, so every API payload and every
@@ -43,3 +43,4 @@ journeys.makutano.co.tz {
     encode zstd gzip
     reverse_proxy makutano-journeys:3000
 }```
+````

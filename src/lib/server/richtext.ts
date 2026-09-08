@@ -33,14 +33,7 @@ import sanitizeHtml from 'sanitize-html';
  * confuses the very SEO this exists to serve), no images (media is a first
  * class field with its own pipeline), no tables, no iframes, no styles.
  */
-const ALLOWED_TAGS = [
-	'p', 'br',
-	'strong', 'b', 'em', 'i',
-	'ul', 'ol', 'li',
-	'h3', 'h4',
-	'blockquote',
-	'a'
-] as const;
+const ALLOWED_TAGS = ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h3', 'h4', 'blockquote', 'a'] as const;
 
 /*
  * Everything else is dropped.

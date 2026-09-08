@@ -24,10 +24,7 @@ export const GET: RequestHandler = async (event) =>
 	handle(event, async () => {
 		const ctx = requireApiScope(event, 'tours:read');
 		const id = event.params.id!;
-		const [tour, missing] = await Promise.all([
-			getTour(ctx.tenantId, id),
-			assertPublishable(ctx.tenantId, id)
-		]);
+		const [tour, missing] = await Promise.all([getTour(ctx.tenantId, id), assertPublishable(ctx.tenantId, id)]);
 		return ok({
 			status: tour.status,
 			reviewNote: tour.reviewNote,

@@ -50,9 +50,7 @@ const isLive = (row: schema.TrackerEnrollment): boolean =>
  * yet — the provider rejects an unknown identifier outright — and the operator
  * would be debugging a phone that was configured correctly.
  */
-export function canShowCode(
-	row: schema.TrackerEnrollment | null
-): row is schema.TrackerEnrollment {
+export function canShowCode(row: schema.TrackerEnrollment | null): row is schema.TrackerEnrollment {
 	return Boolean(row && row.status === 'PROVISIONED' && isLive(row));
 }
 
@@ -77,7 +75,11 @@ export function ingestConfigured(): boolean {
 	const base = ingestBaseUrl();
 	// A private hostname or plain http is not "configured", it is the old bug
 	// with a new variable name: a phone on the road can reach neither.
-	return /^https:\/\/[^/]+$/.test(base) && !/^https:\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base) && !/^https:\/\/[^./]+$/.test(base);
+	return (
+		/^https:\/\/[^/]+$/.test(base) &&
+		!/^https:\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base) &&
+		!/^https:\/\/[^./]+$/.test(base)
+	);
 }
 
 export function configurationUri(deviceRef: string, profile: ProfileKey): string {
@@ -88,7 +90,8 @@ export function configurationUri(deviceRef: string, profile: ProfileKey): string
 	 * first real phone scanned one and posted into a void. The phone needs the
 	 * public origin Caddy serves; the two are different by design.
 	 */
-	if (!ingestConfigured()) throw new Error('TRACKING_INGEST_URL is not a public https origin; setup codes cannot be issued');
+	if (!ingestConfigured())
+		throw new Error('TRACKING_INGEST_URL is not a public https origin; setup codes cannot be issued');
 	const base = ingestBaseUrl();
 	const params = new URLSearchParams({
 		id: deviceRef,
@@ -136,9 +139,8 @@ export function selectEnrollmentView(
 	const live = inFlight !== null && inFlight.expiresAt.getTime() > now;
 	// Newest first: a vehicle that failed twice should report the second failure.
 	const failed =
-		[...rows]
-			.filter((r) => r.status === 'FAILED')
-			.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
+		[...rows].filter((r) => r.status === 'FAILED').sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ??
+		null;
 	return {
 		active,
 		pending: live ? inFlight : null,
@@ -218,9 +220,7 @@ export async function startEnrollment(input: {
 		await tx
 			.update(schema.trackerEnrollments)
 			.set({ status: 'CLOSED', closedReason: 'SUPERSEDED', closedAt: new Date(), providerDeleteAfter: new Date() })
-			.where(
-				and(eq(schema.trackerEnrollments.vehicleId, vehicleId), sql`status IN ('PENDING','PROVISIONED')`)
-			);
+			.where(and(eq(schema.trackerEnrollments.vehicleId, vehicleId), sql`status IN ('PENDING','PROVISIONED')`));
 
 		const [created] = await tx
 			.insert(schema.trackerEnrollments)
@@ -324,7 +324,8 @@ export async function extendEnrollment(tenantId: string, enrollmentId: string): 
 		.limit(1);
 	if (!row || !IN_FLIGHT.includes(row.status)) throw new AppError('CONFLICT', 'That setup can no longer be extended.');
 	const extensions = Number((row.metadata as Record<string, unknown>)?.extensions ?? 0);
-	if (extensions >= 1) throw new AppError('CONFLICT', 'This code has already been extended once. Start again for a new one.');
+	if (extensions >= 1)
+		throw new AppError('CONFLICT', 'This code has already been extended once. Start again for a new one.');
 	await db()
 		.update(schema.trackerEnrollments)
 		.set({

@@ -23,8 +23,5 @@ export const GET: RequestHandler = async (event) =>
 			// reader stops trusting about anything else.
 			tourCountsForAccommodations([detail.id])
 		]);
-		return publicJson(
-			{ ...detail, tours, tourCount: counts.get(detail.id) ?? tours.length },
-			CACHE_REFERENCE
-		);
+		return publicJson({ ...detail, tours, tourCount: counts.get(detail.id) ?? tours.length }, CACHE_REFERENCE);
 	});

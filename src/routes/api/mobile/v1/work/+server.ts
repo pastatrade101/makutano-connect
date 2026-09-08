@@ -153,10 +153,7 @@ export const GET: RequestHandler = async (event) => {
 								)
 							: r.kind === 'quotation'
 								? nextForQuotation({ id: r.id, status: r.status, convertedBookingId: r.converted_booking_id }, ability)
-								: nextForEnquiry(
-										{ id: r.id, status: r.status, hasQuotation: hasQuotationFor.has(r.id) },
-										ability
-									);
+								: nextForEnquiry({ id: r.id, status: r.status, hasQuotation: hasQuotationFor.has(r.id) }, ability);
 				return {
 					kind: r.kind,
 					id: r.id,

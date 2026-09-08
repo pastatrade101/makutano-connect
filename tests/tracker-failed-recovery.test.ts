@@ -89,7 +89,10 @@ describe('a failed enrollment is visible, and recoverable', () => {
 	it('never leaks the provider reason to the operator', () => {
 		// lastError holds whatever the provider said — it names the provider, its
 		// endpoint, and sometimes the identifier it rejected.
-		const failedBranch = SERVICE.slice(SERVICE.indexOf("if (failed) return"), SERVICE.indexOf("if (failed) return") + 120);
+		const failedBranch = SERVICE.slice(
+			SERVICE.indexOf('if (failed) return'),
+			SERVICE.indexOf('if (failed) return') + 120
+		);
 		expect(failedBranch).toContain('lastError: null');
 		expect(PAGE).toContain('failed: Boolean(failed)');
 		expect(PAGE).not.toMatch(/lastError/);
@@ -111,10 +114,14 @@ describe('a failed enrollment is visible, and recoverable', () => {
 	it('cannot produce a second in-flight or active enrollment for a vehicle', () => {
 		// The retry path relies on these: a FAILED row is outside both partial
 		// indexes, so a new attempt inserts — and no second live one ever can.
-		expect(MIGRATION).toContain("te_one_inflight_key ON tracker_enrollments (vehicle_id) WHERE status IN ('PENDING','PROVISIONED')");
+		expect(MIGRATION).toContain(
+			"te_one_inflight_key ON tracker_enrollments (vehicle_id) WHERE status IN ('PENDING','PROVISIONED')"
+		);
 		expect(MIGRATION).toContain("te_one_active_key ON tracker_enrollments (vehicle_id) WHERE status = 'ACTIVE'");
 		// And an identifier is never reused, whatever the row's fate.
-		expect(MIGRATION).toContain("te_ref_forever_key ON tracker_enrollments (provider, device_ref) WHERE status <> 'RELEASED'");
+		expect(MIGRATION).toContain(
+			"te_ref_forever_key ON tracker_enrollments (provider, device_ref) WHERE status <> 'RELEASED'"
+		);
 	});
 
 	it('reads the ledger only within one tenant', () => {

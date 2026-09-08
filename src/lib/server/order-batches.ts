@@ -58,12 +58,18 @@ export async function createBatch(
 		})
 		.returning();
 
-	await audit(tenantId, 'order_batch.created', { type: 'user', userId: actor.userId }, { type: 'order_batch', id: batch.id }, {
-		name,
-		item,
-		unitPrice: batch.defaultUnitPrice,
-		currency: batch.currency
-	});
+	await audit(
+		tenantId,
+		'order_batch.created',
+		{ type: 'user', userId: actor.userId },
+		{ type: 'order_batch', id: batch.id },
+		{
+			name,
+			item,
+			unitPrice: batch.defaultUnitPrice,
+			currency: batch.currency
+		}
+	);
 	return batch;
 }
 
@@ -109,7 +115,13 @@ export async function updateBatch(
 		changes.status = { from: before.status, to: patch.status };
 	}
 	if (Object.keys(changes).length) {
-		await audit(tenantId, 'order_batch.updated', { type: 'user', userId: actor.userId }, { type: 'order_batch', id }, changes);
+		await audit(
+			tenantId,
+			'order_batch.updated',
+			{ type: 'user', userId: actor.userId },
+			{ type: 'order_batch', id },
+			changes
+		);
 	}
 	return after;
 }
@@ -169,7 +181,11 @@ export async function batchSummary(tenantId: string, batchId: string): Promise<B
 	};
 }
 
-export async function listBatches(tenantId: string, p: Pagination, filters: { status?: schema.OrderBatch['status'] } = {}) {
+export async function listBatches(
+	tenantId: string,
+	p: Pagination,
+	filters: { status?: schema.OrderBatch['status'] } = {}
+) {
 	const conditions: SQL[] = [eq(schema.orderBatches.tenantId, tenantId)];
 	if (filters.status) conditions.push(eq(schema.orderBatches.status, filters.status));
 	const where = and(...conditions);
@@ -187,7 +203,10 @@ export async function listBatches(tenantId: string, p: Pagination, filters: { st
 			.orderBy(desc(schema.orderBatches.createdAt))
 			.limit(p.limit)
 			.offset((p.page - 1) * p.limit),
-		db().select({ value: sql<number>`count(*)::int` }).from(schema.orderBatches).where(where)
+		db()
+			.select({ value: sql<number>`count(*)::int` })
+			.from(schema.orderBatches)
+			.where(where)
 	]);
 	return { items: rows, total: Number(total), page: p.page, limit: p.limit };
 }

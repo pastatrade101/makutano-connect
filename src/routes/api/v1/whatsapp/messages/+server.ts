@@ -10,7 +10,6 @@ import { db, schema } from '$lib/server/db';
 import { eq } from 'drizzle-orm';
 import { AppError } from '$lib/server/errors';
 
-
 const contentSchema = z.discriminatedUnion('type', [
 	z.object({ type: z.literal('text'), text: z.string().min(1).max(4096), previewUrl: z.boolean().optional() }),
 	z.object({
@@ -72,11 +71,7 @@ export const POST: RequestHandler = async (event) =>
 					// The caller waits for Meta. Failures surface as an API error now,
 					// not as a later status flip the caller would never see.
 					await sendQueuedMessage(message.id);
-					const [sent] = await db()
-						.select()
-						.from(schema.messages)
-						.where(eq(schema.messages.id, message.id))
-						.limit(1);
+					const [sent] = await db().select().from(schema.messages).where(eq(schema.messages.id, message.id)).limit(1);
 					if (!sent?.waMessageId || sent.status === 'FAILED') {
 						throw new AppError('META_API_ERROR', sent?.errorMessage ?? 'WhatsApp did not accept the message.');
 					}

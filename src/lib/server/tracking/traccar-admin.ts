@@ -50,10 +50,7 @@ export const TENANT_USER_FLAGS = {
 	limitCommands: true
 } as const;
 
-async function adminRequest<T>(
-	path: string,
-	init: { method?: string; body?: unknown } = {}
-): Promise<T> {
+async function adminRequest<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
 	const creds = adminCredentials();
 	if (!creds) throw new Error('traccar_admin_not_configured');
 
@@ -105,9 +102,7 @@ export async function ensureTenantAccount(tenantId: string): Promise<schema.Trac
 	const [existing] = await db()
 		.select()
 		.from(schema.trackingAccounts)
-		.where(
-			and(eq(schema.trackingAccounts.tenantId, tenantId), eq(schema.trackingAccounts.provider, 'TRACCAR'))
-		)
+		.where(and(eq(schema.trackingAccounts.tenantId, tenantId), eq(schema.trackingAccounts.provider, 'TRACCAR')))
 		.limit(1);
 	if (existing) return existing;
 
@@ -221,7 +216,6 @@ export async function disableTenantAccount(tenantId: string): Promise<void> {
 		.set({ disabledAt: new Date(), updatedAt: new Date() })
 		.where(eq(schema.trackingAccounts.id, row.id));
 }
-
 
 /**
  * The privileges this identity actually needs — deliberately NOT administrator.

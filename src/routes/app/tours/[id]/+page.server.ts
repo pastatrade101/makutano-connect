@@ -169,7 +169,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			longitude: d.longitude === null ? null : Number(d.longitude)
 		})),
 		categories: categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug, shortDescription: c.shortDescription })),
-		travelStyles: travelStyles.map((s) => ({ id: s.id, name: s.name, slug: s.slug, shortDescription: s.shortDescription })),
+		travelStyles: travelStyles.map((s) => ({
+			id: s.id,
+			name: s.name,
+			slug: s.slug,
+			shortDescription: s.shortDescription
+		})),
 		activities: activities.map((a) => ({ id: a.id, name: a.name, slug: a.slug, shortDescription: a.shortDescription })),
 		maxTravelStyles: MAX_TRAVEL_STYLES,
 		// The service's own words for what is still missing. The page ticks off the rest
@@ -198,8 +203,7 @@ const text = (f: FormData, key: string): string | null => String(f.get(key) ?? '
  * boundary stays the load-bearing one, because rows predating this were never
  * cleaned.
  */
-const richText = (f: FormData, key: string): string | null =>
-	sanitizeRichText(String(f.get(key) ?? ''));
+const richText = (f: FormData, key: string): string | null => sanitizeRichText(String(f.get(key) ?? ''));
 
 /**
  * Blank CLEARS the column; anything that is not a number is refused.
@@ -470,7 +474,9 @@ export const actions: Actions = {
 		const f = await request.formData();
 
 		const rate = (value: FormDataEntryValue | null): string | null => {
-			const raw = String(value ?? '').replace(/[,\s]/g, '').trim();
+			const raw = String(value ?? '')
+				.replace(/[,\s]/g, '')
+				.trim();
 			return raw === '' ? null : raw;
 		};
 		const rows = (key: string): Record<string, string>[] => {
@@ -548,12 +554,9 @@ export const actions: Actions = {
 					)
 				);
 			}
-			await setTourGallery(
-				tenantId,
-				params.id,
-				[...detail.gallery.map((m) => m.id), ...uploaded.map((m) => m.id)],
-				{ userId: locals.user?.id }
-			);
+			await setTourGallery(tenantId, params.id, [...detail.gallery.map((m) => m.id), ...uploaded.map((m) => m.id)], {
+				userId: locals.user?.id
+			});
 			// The first photo becomes the main one. A listing holding photographs and no
 			// main photo is a gap the vendor did not knowingly leave.
 			if (!detail.tour.heroMediaId) {

@@ -77,7 +77,10 @@ export async function onboardingState(
 			.from(schema.whatsappConnections)
 			.where(and(eq(schema.whatsappConnections.tenantId, tenantId), eq(schema.whatsappConnections.status, 'CONNECTED')))
 			.limit(1),
-		db().select({ id: schema.tenantMemberships.id }).from(schema.tenantMemberships).where(eq(schema.tenantMemberships.tenantId, tenantId)),
+		db()
+			.select({ id: schema.tenantMemberships.id })
+			.from(schema.tenantMemberships)
+			.where(eq(schema.tenantMemberships.tenantId, tenantId)),
 		count('whatsapp_templates', tenantId),
 		count('booking_requests', tenantId).then(async (n) => n + (await count('orders', tenantId))),
 		count('api_keys', tenantId).then(async (n) => n + (await count('webhook_endpoints', tenantId))),
@@ -91,7 +94,9 @@ export async function onboardingState(
 	const paymentMethods = Array.isArray(settings.paymentMethods) ? settings.paymentMethods : [];
 	const systemSource = String(settings.systemSource ?? '');
 	const usesExternalSystem =
-		!!systemSource && systemSource !== 'CONNECT_MANUAL' && ['WEBSITE_CMS', 'BOOKING_SYSTEM', 'OTHER_SYSTEM'].includes(systemSource);
+		!!systemSource &&
+		systemSource !== 'CONNECT_MANUAL' &&
+		['WEBSITE_CMS', 'BOOKING_SYSTEM', 'OTHER_SYSTEM'].includes(systemSource);
 
 	const items: ChecklistItem[] = [
 		{

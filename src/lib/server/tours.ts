@@ -447,10 +447,7 @@ export async function getTourDetail(tenantId: string, id: string) {
 	]);
 	// Where the traveller sleeps, and the directory to pick from. Loaded here so
 	// the composer and the public tour page read the same list.
-	const [stays, stayOptions] = await Promise.all([
-		accommodationsForTours([id]),
-		accommodationOptions()
-	]);
+	const [stays, stayOptions] = await Promise.all([accommodationsForTours([id]), accommodationOptions()]);
 
 	return {
 		tour,
@@ -759,10 +756,16 @@ export async function setTourTravelStyles(
 		await tx.update(schema.tours).set({ updatedAt: new Date() }).where(eq(schema.tours.id, tourId));
 	});
 
-	await audit(tenantId, 'tour.updated', auditActor(actor), { type: 'tour', id: tourId }, {
-		title: tour.title,
-		travelStyles: ids.length
-	});
+	await audit(
+		tenantId,
+		'tour.updated',
+		auditActor(actor),
+		{ type: 'tour', id: tourId },
+		{
+			title: tour.title,
+			travelStyles: ids.length
+		}
+	);
 }
 
 /**
@@ -803,10 +806,7 @@ export async function setTourCategories(
 	 * How it is experienced stays plural — that is what travel styles are for.
 	 */
 	if (ids.length > 1) {
-		throw new AppError(
-			'VALIDATION_ERROR',
-			'A tour belongs to one category. Choose it as the primary category.'
-		);
+		throw new AppError('VALIDATION_ERROR', 'A tour belongs to one category. Choose it as the primary category.');
 	}
 
 	if (ids.length) {
@@ -836,10 +836,16 @@ export async function setTourCategories(
 		await tx.update(schema.tours).set({ updatedAt: new Date() }).where(eq(schema.tours.id, tourId));
 	});
 
-	await audit(tenantId, 'tour.updated', auditActor(actor), { type: 'tour', id: tourId }, {
-		title: tour.title,
-		categories: ids.length
-	});
+	await audit(
+		tenantId,
+		'tour.updated',
+		auditActor(actor),
+		{ type: 'tour', id: tourId },
+		{
+			title: tour.title,
+			categories: ids.length
+		}
+	);
 }
 
 /** The taxonomy a vendor may choose from. */
@@ -923,10 +929,16 @@ export async function setTourActivities(
 		await tx.update(schema.tours).set({ updatedAt: new Date() }).where(eq(schema.tours.id, tourId));
 	});
 
-	await audit(tenantId, 'tour.updated', auditActor(actor), { type: 'tour', id: tourId }, {
-		title: tour.title,
-		activities: ids.length
-	});
+	await audit(
+		tenantId,
+		'tour.updated',
+		auditActor(actor),
+		{ type: 'tour', id: tourId },
+		{
+			title: tour.title,
+			activities: ids.length
+		}
+	);
 }
 
 /**
@@ -1042,9 +1054,7 @@ export async function replaceItinerary(
 					// Anything not one of the three is stored as "not stated" rather
 					// than refused: the mode is a nicety, and losing a whole itinerary
 					// save over a stray value would not be.
-					travelMode: TRAVEL_MODES.includes(day.travelMode as never)
-						? (day.travelMode as schema.TravelMode)
-						: null
+					travelMode: TRAVEL_MODES.includes(day.travelMode as never) ? (day.travelMode as schema.TravelMode) : null
 				}))
 			)
 			.returning();
@@ -1112,17 +1122,21 @@ export async function setTourGallery(
 
 		await tx.delete(schema.tourMedia).where(eq(schema.tourMedia.tourId, tourId));
 		if (ids.length) {
-			await tx
-				.insert(schema.tourMedia)
-				.values(ids.map((mediaId, index) => ({ tourId, mediaId, sortOrder: index })));
+			await tx.insert(schema.tourMedia).values(ids.map((mediaId, index) => ({ tourId, mediaId, sortOrder: index })));
 		}
 		await tx.update(schema.tours).set({ updatedAt: new Date() }).where(eq(schema.tours.id, tourId));
 	});
 
-	await audit(tenantId, 'tour.media_added', auditActor(actor), { type: 'tour', id: tourId }, {
-		title: tour.title,
-		count: ids.length
-	});
+	await audit(
+		tenantId,
+		'tour.media_added',
+		auditActor(actor),
+		{ type: 'tour', id: tourId },
+		{
+			title: tour.title,
+			count: ids.length
+		}
+	);
 }
 
 export async function assertPublishable(tenantId: string, id: string): Promise<string[]> {

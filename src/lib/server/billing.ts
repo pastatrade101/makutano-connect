@@ -18,18 +18,10 @@ export type UsageMetric =
 	| 'storage_bytes'
 	| 'ai_tokens';
 
-
-
-
-
-
-
 /** Kept for existing callers — plan/entitlement caching now lives in entitlements.ts. */
 export function invalidatePlanCache(tenantId?: string): void {
 	invalidateEntitlements(tenantId);
 }
-
-
 
 export function currentPeriod(now: Date = new Date()): string {
 	return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -58,8 +50,6 @@ export async function usageFor(tenantId: string, metric: UsageMetric, period = c
 	`)) as unknown as Array<{ quantity: number }>;
 	return Number(rows[0]?.quantity ?? 0);
 }
-
-
 
 export const DEFAULT_PLANS = [
 	{

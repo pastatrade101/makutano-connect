@@ -63,7 +63,9 @@ suite('order batches', () => {
 	afterAll(async () => {
 		const { db, schema } = ctx.db;
 		const { inArray } = await import('drizzle-orm');
-		await db().delete(schema.tenants).where(inArray(schema.tenants.id, [tenantA.id, tenantB.id]));
+		await db()
+			.delete(schema.tenants)
+			.where(inArray(schema.tenants.id, [tenantA.id, tenantB.id]));
 		await ctx.db.closeDb();
 	});
 
@@ -174,7 +176,7 @@ suite('order batches', () => {
 		).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
 	});
 
-	it('tenant B can neither read nor order into tenant A\'s batch', async () => {
+	it("tenant B can neither read nor order into tenant A's batch", async () => {
 		await expect(ctx.batches.getBatch(tenantB.id, batchId)).rejects.toMatchObject({ code: 'NOT_FOUND' });
 		const intruder = await ctx.customers.createCustomer(tenantB.id, { firstName: 'Intruder' });
 		await expect(
@@ -195,9 +197,9 @@ suite('order batches', () => {
 			.where(eq(schema.tenants.id, tenantB.id));
 		ctx.ent.invalidateEntitlements(tenantB.id);
 
-		await expect(
-			ctx.batches.createBatch(tenantB.id, { name: 'Blocked', defaultItemTitle: 'X' })
-		).rejects.toMatchObject({ code: 'FEATURE_NOT_AVAILABLE' });
+		await expect(ctx.batches.createBatch(tenantB.id, { name: 'Blocked', defaultItemTitle: 'X' })).rejects.toMatchObject(
+			{ code: 'FEATURE_NOT_AVAILABLE' }
+		);
 
 		await liftLimits(tenantB.id); // restore
 	});

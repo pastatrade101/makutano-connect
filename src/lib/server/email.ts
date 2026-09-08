@@ -97,11 +97,13 @@ export function verificationEmail(link: string, expiresInHours: number): Omit<Ou
 export function existingAccountEmail(signInUrl: string, resetUrl: string): Omit<OutboundEmail, 'to'> {
 	return {
 		subject: 'You already have a Makutano Connect account',
-		html: WRAPPER(
-			'You already have an account',
-			'Someone just tried to sign up with this email address. There is already an account here, so nothing has changed. Sign in below — and if the password has slipped your mind, you can reset it.',
-			{ label: 'Sign in', url: signInUrl }
-		) + `<div style="max-width:520px;margin:-20px auto 0;padding:0 20px 24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"><p style="font-size:12px;color:#94a3b8">Forgot your password? <a href="${resetUrl}" style="color:#4f7df3">Reset it here</a>.</p></div>`,
+		html:
+			WRAPPER(
+				'You already have an account',
+				'Someone just tried to sign up with this email address. There is already an account here, so nothing has changed. Sign in below — and if the password has slipped your mind, you can reset it.',
+				{ label: 'Sign in', url: signInUrl }
+			) +
+			`<div style="max-width:520px;margin:-20px auto 0;padding:0 20px 24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"><p style="font-size:12px;color:#94a3b8">Forgot your password? <a href="${resetUrl}" style="color:#4f7df3">Reset it here</a>.</p></div>`,
 		text: `Someone just tried to sign up for Makutano Connect with this email address. You already have an account, so nothing has changed.\n\nSign in: ${signInUrl}\nForgot your password: ${resetUrl}\n\nIf this was not you, you can safely ignore this email.`
 	};
 }

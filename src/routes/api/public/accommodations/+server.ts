@@ -7,7 +7,14 @@ import { z } from 'zod';
 import { listAccommodations } from '$lib/server/accommodations';
 import { tourCountsForAccommodations } from '$lib/server/marketplace';
 import { AppError } from '$lib/server/errors';
-import { CACHE_REFERENCE, handlePublic, pageMeta, preflight, publicJson, publicPagination } from '$lib/server/public-api';
+import {
+	CACHE_REFERENCE,
+	handlePublic,
+	pageMeta,
+	preflight,
+	publicJson,
+	publicPagination
+} from '$lib/server/public-api';
 import type { RequestHandler } from './$types';
 
 const filterSchema = z.object({
@@ -16,9 +23,7 @@ const filterSchema = z.object({
 	country: z.string().trim().max(120).optional(),
 	/* Closed lists, so an unknown value is a 400 rather than an empty page. */
 	level: z.enum(['LUXURY', 'MID_RANGE', 'BUDGET']).optional(),
-	lodgeType: z
-		.enum(['SAFARI_LODGE', 'HOTEL', 'TENTED_CAMP', 'BEACH_RESORT', 'ECO_LODGE', 'BOUTIQUE_HOTEL'])
-		.optional()
+	lodgeType: z.enum(['SAFARI_LODGE', 'HOTEL', 'TENTED_CAMP', 'BEACH_RESORT', 'ECO_LODGE', 'BOUTIQUE_HOTEL']).optional()
 });
 
 export const OPTIONS: RequestHandler = async () => preflight();

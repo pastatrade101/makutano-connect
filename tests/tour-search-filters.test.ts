@@ -11,18 +11,10 @@ import { describe, expect, it } from 'vitest';
  * The SQL is exercised against the live schema by the DB suite; these pin the
  * RULES so a later change that tightens a null into an exclusion fails here.
  */
-const partyMatches = (
-	travellers: number,
-	min: number | null,
-	max: number | null
-): boolean => (min === null || min <= travellers) && (max === null || max >= travellers);
+const partyMatches = (travellers: number, min: number | null, max: number | null): boolean =>
+	(min === null || min <= travellers) && (max === null || max >= travellers);
 
-const dateMatches = (
-	date: string,
-	availabilityType: string,
-	from: string | null,
-	to: string | null
-): boolean =>
+const dateMatches = (date: string, availabilityType: string, from: string | null, to: string | null): boolean =>
 	availabilityType === 'YEAR_ROUND' || ((from === null || from <= date) && (to === null || to >= date));
 
 describe('travellers filter', () => {

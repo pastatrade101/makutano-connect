@@ -22,8 +22,6 @@ export type VehicleInput = {
 	notes?: string | null;
 };
 
-
-
 /**
  * The one line a trip stores as its snapshot.
  *
@@ -39,7 +37,11 @@ export function vehicleSnapshotText(v: {
 	make?: string | null;
 	model?: string | null;
 }): string {
-	const descriptor = [v.make, v.model].map((s) => s?.trim()).filter(Boolean).join(' ') || v.name.trim();
+	const descriptor =
+		[v.make, v.model]
+			.map((s) => s?.trim())
+			.filter(Boolean)
+			.join(' ') || v.name.trim();
 	const plate = v.registration?.trim();
 	return plate ? `${descriptor} ${plate}`.trim() : descriptor;
 }

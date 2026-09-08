@@ -146,7 +146,8 @@ export const actions: Actions = {
 		if (!isSignupIndustry(industry)) {
 			return fail(400, {
 				...values,
-				message: 'Makutano Connect is for tour and travel operators. Please contact us if you run a different kind of business.'
+				message:
+					'Makutano Connect is for tour and travel operators. Please contact us if you run a different kind of business.'
 			});
 		}
 		if (primaryGoal && !(primaryGoal in GOAL_WORKSPACE)) {
@@ -160,7 +161,10 @@ export const actions: Actions = {
 			return fail(400, { ...values, message: 'That phone number does not look right — or leave it blank for now.' });
 		}
 		if (websiteUrl && !/^https?:\/\/[^\s.]+\.[^\s]{2,}$/i.test(websiteUrl)) {
-			return fail(400, { ...values, message: 'Enter the website as a full URL, e.g. https://example.com — or leave it blank.' });
+			return fail(400, {
+				...values,
+				message: 'Enter the website as a full URL, e.g. https://example.com — or leave it blank.'
+			});
 		}
 
 		// Connect now leads with tour operators, so BOOKINGS — enquiry, quote,

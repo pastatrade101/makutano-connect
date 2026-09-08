@@ -131,7 +131,11 @@ export function readSnapshot(raw: Record<string, unknown>, version: number): Fro
 	if (typeof raw.schema === 'number' && Array.isArray(raw.items)) return raw as unknown as FrozenOffer;
 	const legacy = raw as { quotation?: Record<string, unknown>; items?: Record<string, unknown>[] };
 	if (!legacy.quotation) return null;
-	return { ...freezeOffer(legacy.quotation, legacy.items ?? []), version, frozenAt: asDate(legacy.quotation.sentAt) ?? '' };
+	return {
+		...freezeOffer(legacy.quotation, legacy.items ?? []),
+		version,
+		frozenAt: asDate(legacy.quotation.sentAt) ?? ''
+	};
 }
 
 /**

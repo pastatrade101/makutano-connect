@@ -103,7 +103,11 @@ describe('readiness has exactly one definition', () => {
 		['balance owing only', {}, { balanceDue: '900.00' }],
 		['guide missing only', { guide: null }, {}],
 		['hotel unconfirmed only', { hotelConfirmed: false }, {}],
-		['nothing at all', { vehicle: null, driver: null, guide: null, accommodation: null, startDate: null, hotelConfirmed: false }, { status: 'DRAFT', amountPaid: '0.00', balanceDue: '5000.00' }]
+		[
+			'nothing at all',
+			{ vehicle: null, driver: null, guide: null, accommodation: null, startDate: null, hotelConfirmed: false },
+			{ status: 'DRAFT', amountPaid: '0.00', balanceDue: '5000.00' }
+		]
 	];
 
 	for (const [name, overTrip, overBooking] of cases) {
@@ -239,8 +243,20 @@ suite('trips against the database', () => {
 			endDate: '2026-10-18T00:00:00.000Z',
 			adults: 4,
 			items: [
-				{ title: '6-Day Serengeti Safari', type: 'TOUR', quantity: 4, unitPrice: '2000.00', startDate: '2026-10-12T00:00:00.000Z' },
-				{ title: 'Serena Lodge', type: 'HOTEL', quantity: 1, unitPrice: '400.00', startDate: '2026-10-14T00:00:00.000Z' }
+				{
+					title: '6-Day Serengeti Safari',
+					type: 'TOUR',
+					quantity: 4,
+					unitPrice: '2000.00',
+					startDate: '2026-10-12T00:00:00.000Z'
+				},
+				{
+					title: 'Serena Lodge',
+					type: 'HOTEL',
+					quantity: 1,
+					unitPrice: '400.00',
+					startDate: '2026-10-14T00:00:00.000Z'
+				}
 			]
 		});
 		bookingId = b.id;
@@ -337,7 +353,10 @@ suite('trips against the database', () => {
 		// whole payment pipeline — this test is about the trip, not about money.
 		const { db, schema } = await import('../src/lib/server/db');
 		const { eq } = await import('drizzle-orm');
-		await db().update(schema.bookings).set({ amountPaid: '100.00', balanceDue: '0.00' }).where(eq(schema.bookings.id, b.id));
+		await db()
+			.update(schema.bookings)
+			.set({ amountPaid: '100.00', balanceDue: '0.00' })
+			.where(eq(schema.bookings.id, b.id));
 		await changeTripStatus(tenantId, t.id, 'READY');
 		await changeTripStatus(tenantId, t.id, 'IN_PROGRESS');
 
@@ -395,7 +414,10 @@ suite('trips against the database', () => {
 			items: [{ title: 'Day trip', type: 'TOUR', quantity: 1, unitPrice: '100.00' }]
 		});
 		await changeBookingStatus(tenantId, b.id, 'CONFIRMED');
-		await db().update(schema.bookings).set({ amountPaid: '100.00', balanceDue: '0.00' }).where(eq(schema.bookings.id, b.id));
+		await db()
+			.update(schema.bookings)
+			.set({ amountPaid: '100.00', balanceDue: '0.00' })
+			.where(eq(schema.bookings.id, b.id));
 
 		const trip = await createTripFromBooking(tenantId, b.id, {});
 		await updateTrip(tenantId, trip.id, { accommodation: 'Serena', vehicle: 'T 1 ABC', driver: 'Michael' });
@@ -455,7 +477,9 @@ suite('trips against the database', () => {
 		});
 		const trip = await createTripFromBooking(tenantId, b.id, {});
 
-		await expect(updateTrip(tenantId, trip.id, { driverCrewId: guide.id })).rejects.toThrow(/not registered as a driver/i);
+		await expect(updateTrip(tenantId, trip.id, { driverCrewId: guide.id })).rejects.toThrow(
+			/not registered as a driver/i
+		);
 
 		await updateCrew(tenantId, guide.id, { isActive: false });
 		await expect(updateTrip(tenantId, trip.id, { guideCrewId: guide.id })).rejects.toThrow(/no longer active/i);
@@ -488,9 +512,8 @@ suite('trips against the database', () => {
 		// a driver sees their own departures and nothing else.
 		const { createCrew } = await import('../src/lib/server/crew');
 		const { createBooking } = await import('../src/lib/server/bookings');
-		const { createTripFromBooking, updateTrip, listTrips, getTrip, tripScope } = await import(
-			'../src/lib/server/trips'
-		);
+		const { createTripFromBooking, updateTrip, listTrips, getTrip, tripScope } =
+			await import('../src/lib/server/trips');
 
 		const mine = await createCrew(tenantId, { type: 'DRIVER', name: 'Scoped Driver' });
 		const theirs = await createCrew(tenantId, { type: 'DRIVER', name: 'Other Driver' });
@@ -604,9 +627,8 @@ suite('trips against the database', () => {
 		// about drivers and guides.
 		const { createCrew } = await import('../src/lib/server/crew');
 		const { createBooking } = await import('../src/lib/server/bookings');
-		const { createTripFromBooking, updateTrip, listTrips, getTrip, tripScope } = await import(
-			'../src/lib/server/trips'
-		);
+		const { createTripFromBooking, updateTrip, listTrips, getTrip, tripScope } =
+			await import('../src/lib/server/trips');
 
 		const specialist = await createCrew(tenantId, { type: 'SPECIALIST', name: 'Scoped Specialist' });
 		const mk = async () => {

@@ -145,20 +145,20 @@ Counted against production on 2 September 2026. Every stage exists as a real
 table with a real service behind it — what varies is how much of it has been
 used, and that is the honest measure of which parts are finished.
 
-| Stage | Built | In production |
-|---|---|---|
-| Discover — destinations, categories, styles | yes | 108 destinations, 39 tours, 55 stays |
-| Compare | yes | 2–4 tours, shortlist held in the browser |
-| Enquire | yes | 18 booking requests |
-| WhatsApp | yes | 12 conversations, per-tenant numbers |
-| Quotation | yes | 24 quotations, public link on the marketplace |
-| Revision → Acceptance | yes | accepting one confirms its booking |
-| Booking | yes | 5 bookings |
-| Payment | yes | 3 payments |
-| Trip | yes | **0** — built, never used |
-| Review | yes | **0** — built, never used |
-| Reputation | no | — |
-| Ranking from reputation | **no** | see below |
+| Stage                                       | Built  | In production                                 |
+| ------------------------------------------- | ------ | --------------------------------------------- |
+| Discover — destinations, categories, styles | yes    | 108 destinations, 39 tours, 55 stays          |
+| Compare                                     | yes    | 2–4 tours, shortlist held in the browser      |
+| Enquire                                     | yes    | 18 booking requests                           |
+| WhatsApp                                    | yes    | 12 conversations, per-tenant numbers          |
+| Quotation                                   | yes    | 24 quotations, public link on the marketplace |
+| Revision → Acceptance                       | yes    | accepting one confirms its booking            |
+| Booking                                     | yes    | 5 bookings                                    |
+| Payment                                     | yes    | 3 payments                                    |
+| Trip                                        | yes    | **0** — built, never used                     |
+| Review                                      | yes    | **0** — built, never used                     |
+| Reputation                                  | no     | —                                             |
+| Ranking from reputation                     | **no** | see below                                     |
 
 Two things follow from that table.
 
@@ -174,8 +174,8 @@ code says why in as many words:
 > It is deliberately not a popularity score: nothing counts views yet, and
 > inventing one would be a claim about other travellers that is not true.
 
-So the last two arrows of the diagram, *reputation → better ranking → more
-enquiries*, are the part still to build. They are also the part that makes the
+So the last two arrows of the diagram, _reputation → better ranking → more
+enquiries_, are the part still to build. They are also the part that makes the
 loop a circuit rather than a line, which is why they matter more than their
 size suggests.
 

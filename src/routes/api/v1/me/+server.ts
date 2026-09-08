@@ -19,7 +19,12 @@ export const GET: RequestHandler = async (event) =>
 			plan: { code: ent.planCode, name: ent.planName, status: ent.subscriptionStatus },
 			// Effective entitlements — what this tenant may actually do right now.
 			entitlements: Object.fromEntries(Object.values(ent.resolved).map((r) => [r.key, r.effective])),
-			usage: usage.map((u) => ({ key: u.key, used: u.used, limit: u.unlimited ? null : u.limit, percent: u.unlimited ? null : u.percent })),
+			usage: usage.map((u) => ({
+				key: u.key,
+				used: u.used,
+				limit: u.unlimited ? null : u.limit,
+				percent: u.unlimited ? null : u.percent
+			})),
 			whatsapp: {
 				connected: connection?.status === 'CONNECTED',
 				displayPhoneNumber: connection?.displayPhoneNumber ?? null

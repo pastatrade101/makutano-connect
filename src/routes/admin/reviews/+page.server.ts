@@ -8,7 +8,12 @@ import { fail, type Actions } from '@sveltejs/kit';
 import { error } from '@sveltejs/kit';
 import { paginationFrom } from '$lib/server/http';
 import { toAppError } from '$lib/server/errors';
-import { listReviewsForModeration, moderateReview, MODERATION_REASONS, type ModerationAction } from '$lib/server/reviews';
+import {
+	listReviewsForModeration,
+	moderateReview,
+	MODERATION_REASONS,
+	type ModerationAction
+} from '$lib/server/reviews';
 import type { PageServerLoad } from './$types';
 
 const STATUSES = ['PENDING', 'PUBLISHED', 'HIDDEN', 'REJECTED'] as const;

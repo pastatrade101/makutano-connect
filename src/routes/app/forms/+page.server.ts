@@ -19,7 +19,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	 * public page refuses to show an unpublished tour, and rightly — so the
 	 * builder must not offer one.
 	 */
-	const tours = await listTours(tenantId, { page: 1, limit: 200, order: 'asc' }, { status: ['PUBLISHED'] }).catch(() => ({ items: [] as { title: string; slug: string }[] }));
+	const tours = await listTours(tenantId, { page: 1, limit: 200, order: 'asc' }, { status: ['PUBLISHED'] }).catch(
+		() => ({ items: [] as { title: string; slug: string }[] })
+	);
 	return {
 		forms: formsList,
 		tours: (tours.items ?? []).map((t) => ({ title: t.title, slug: t.slug })),
@@ -37,7 +39,12 @@ export const actions: Actions = {
 		if (!name) return fail(400, { message: 'Give the form a name.' });
 		try {
 			const created = await createForm(requireTenant(locals).id, { type, name });
-			await audit(requireTenant(locals).id, 'form.created', { type: 'user', userId: locals.user!.id }, { type: 'form', id: created.id });
+			await audit(
+				requireTenant(locals).id,
+				'form.created',
+				{ type: 'user', userId: locals.user!.id },
+				{ type: 'form', id: created.id }
+			);
 			return { success: true, editId: created.id };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -70,7 +77,12 @@ export const actions: Actions = {
 					.filter(Boolean),
 				branding: { accentColor: String(data.get('accentColor') ?? '') || undefined }
 			});
-			await audit(requireTenant(locals).id, 'form.updated', { type: 'user', userId: locals.user!.id }, { type: 'form', id });
+			await audit(
+				requireTenant(locals).id,
+				'form.updated',
+				{ type: 'user', userId: locals.user!.id },
+				{ type: 'form', id }
+			);
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
@@ -89,7 +101,13 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'forms:write');
 		const data = await request.formData();
 		await regeneratePublicId(requireTenant(locals).id, String(data.get('id') ?? ''));
-		await audit(requireTenant(locals).id, 'form.updated', { type: 'user', userId: locals.user!.id }, { type: 'form', id: String(data.get('id')) }, { action: 'public_id_regenerated' });
+		await audit(
+			requireTenant(locals).id,
+			'form.updated',
+			{ type: 'user', userId: locals.user!.id },
+			{ type: 'form', id: String(data.get('id')) },
+			{ action: 'public_id_regenerated' }
+		);
 		return { success: true };
 	}
 };

@@ -24,7 +24,6 @@ describe('isAllowedRelayUrl', () => {
 	});
 });
 
-
 /** Test tenants exercise behaviour, not plan limits — lift the caps explicitly. */
 async function liftLimits(tenantId: string): Promise<void> {
 	const { db, schema } = await import('../src/lib/server/db');
@@ -101,15 +100,26 @@ suite('relay end-to-end', () => {
 			.set({ settings: { legacy_webhook_url: `http://127.0.0.1:${sinkPort}/legacy` } })
 			.where(eq(schema.tenants.id, relayTenant.id));
 
-		await ctx.connections.upsertConnection({ tenantId: relayTenant.id, phoneNumberId: `pn-relay-${stamp}`, wabaId: `waba-relay-${stamp}`, accessToken: 't' });
-		await ctx.connections.upsertConnection({ tenantId: plainTenant.id, phoneNumberId: `pn-plain-${stamp}`, accessToken: 't' });
+		await ctx.connections.upsertConnection({
+			tenantId: relayTenant.id,
+			phoneNumberId: `pn-relay-${stamp}`,
+			wabaId: `waba-relay-${stamp}`,
+			accessToken: 't'
+		});
+		await ctx.connections.upsertConnection({
+			tenantId: plainTenant.id,
+			phoneNumberId: `pn-plain-${stamp}`,
+			accessToken: 't'
+		});
 	});
 
 	afterAll(async () => {
 		await new Promise<void>((resolve) => server.close(() => resolve()));
 		const { db, schema } = ctx.db;
 		const { inArray } = await import('drizzle-orm');
-		await db().delete(schema.tenants).where(inArray(schema.tenants.id, [relayTenant.id, plainTenant.id]));
+		await db()
+			.delete(schema.tenants)
+			.where(inArray(schema.tenants.id, [relayTenant.id, plainTenant.id]));
 	});
 
 	it('resolves the relay target for a tenant that configured one', async () => {
@@ -172,7 +182,9 @@ suite('relay end-to-end', () => {
 	});
 
 	it('silently drops a malformed job instead of retrying forever', async () => {
-		await expect(ctx.relay.relayRawWebhook({ url: 'http://not-loopback/x', rawBody: '{}', signature: '' })).resolves.toBeUndefined();
+		await expect(
+			ctx.relay.relayRawWebhook({ url: 'http://not-loopback/x', rawBody: '{}', signature: '' })
+		).resolves.toBeUndefined();
 	});
 });
 
@@ -202,9 +214,17 @@ suite('multi-number primary selection', () => {
 	});
 
 	it('a newly connected number takes over sending from the previous one', async () => {
-		await ctx2.connections.upsertConnection({ tenantId: tenant.id, phoneNumberId: `old-${stamp2}`, accessToken: 'old-token' });
+		await ctx2.connections.upsertConnection({
+			tenantId: tenant.id,
+			phoneNumberId: `old-${stamp2}`,
+			accessToken: 'old-token'
+		});
 		await new Promise((r) => setTimeout(r, 20)); // distinct updated_at
-		await ctx2.connections.upsertConnection({ tenantId: tenant.id, phoneNumberId: `new-${stamp2}`, accessToken: 'new-token' });
+		await ctx2.connections.upsertConnection({
+			tenantId: tenant.id,
+			phoneNumberId: `new-${stamp2}`,
+			accessToken: 'new-token'
+		});
 
 		const chosen = await ctx2.connections.getConnectionForTenant(tenant.id);
 		expect(chosen?.phoneNumberId).toBe(`new-${stamp2}`);

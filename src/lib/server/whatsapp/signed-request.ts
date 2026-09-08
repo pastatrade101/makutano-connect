@@ -18,8 +18,7 @@ export type SignedRequestPayload = {
 };
 
 export type SignedRequestResult =
-	| { ok: true; payload: SignedRequestPayload; userId: string | null }
-	| { ok: false; reason: string };
+	{ ok: true; payload: SignedRequestPayload; userId: string | null } | { ok: false; reason: string };
 
 function fromBase64Url(input: string): Buffer {
 	// Meta strips the padding; Buffer's base64url decoder restores it.
@@ -53,7 +52,11 @@ export function parseSignedRequest(raw: string | null, appSecret: string): Signe
 
 	// Meta has only ever sent HMAC-SHA256 here. Accepting whatever the payload names
 	// would let a caller pick a weaker one — the classic signed-token downgrade.
-	if (String(payload.algorithm ?? '').toUpperCase().replace('-', '') !== 'HMACSHA256') {
+	if (
+		String(payload.algorithm ?? '')
+			.toUpperCase()
+			.replace('-', '') !== 'HMACSHA256'
+	) {
 		return { ok: false, reason: 'unexpected_algorithm' };
 	}
 

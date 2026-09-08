@@ -58,8 +58,16 @@ const bodySchema = z.object({
 	whatsappPhone: z.string().trim().max(40).optional(),
 	country: z.string().trim().max(120).optional(),
 
-	startDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-	endDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+	startDate: z
+		.string()
+		.trim()
+		.regex(/^\d{4}-\d{2}-\d{2}$/)
+		.optional(),
+	endDate: z
+		.string()
+		.trim()
+		.regex(/^\d{4}-\d{2}-\d{2}$/)
+		.optional(),
 	adults: z.coerce.number().int().min(1).max(40).default(2),
 	children: z.coerce.number().int().min(0).max(40).default(0),
 	message: z.string().trim().max(4000).optional(),

@@ -28,7 +28,8 @@ describe('1-2 · the privileged credential lives in exactly one process', () => 
 		expect(SERVICE).not.toContain('adminCredentials');
 		expect(SERVICE).not.toContain('traccar-admin');
 		const routeHits = execSync("grep -rln 'traccar-admin\\|adminCredentials' src/routes/ || true", { encoding: 'utf8' })
-			.split('\n').filter(Boolean);
+			.split('\n')
+			.filter(Boolean);
 		expect(routeHits).toEqual([]);
 	});
 
@@ -74,7 +75,9 @@ describe('6-11 · the QR window', () => {
 		}
 		// enrollmentFor filters on BOTH tenant and vehicle, so another tenant's
 		// vehicle id resolves to nothing rather than to someone else's code.
-		expect(SERVICE).toMatch(/eq\(schema\.trackerEnrollments\.tenantId, tenantId\)[\s\S]{0,120}eq\(schema\.trackerEnrollments\.vehicleId, vehicleId\)/);
+		expect(SERVICE).toMatch(
+			/eq\(schema\.trackerEnrollments\.tenantId, tenantId\)[\s\S]{0,120}eq\(schema\.trackerEnrollments\.vehicleId, vehicleId\)/
+		);
 	});
 
 	it('opens only for PROVISIONED and unexpired', () => {
@@ -140,7 +143,9 @@ describe('13 · the identifier is not in ordinary payloads', () => {
 
 	it('is absent from every browser-reachable file', () => {
 		const hits = execSync("grep -rl 'trackerDeviceRef\\|deviceRef' src/routes/ || true", { encoding: 'utf8' })
-			.split('\n').filter(Boolean).filter((f) => f.endsWith('.svelte'));
+			.split('\n')
+			.filter(Boolean)
+			.filter((f) => f.endsWith('.svelte'));
 		expect(hits).toEqual([]);
 	});
 });
@@ -164,7 +169,9 @@ describe('15 · cleanup cannot reach another tenant', () => {
 
 	it('keeps the reference locked after cleanup', () => {
 		expect(WORKER).not.toMatch(/\.delete\(schema\.trackerEnrollments\)/);
-		expect(MIGRATION).toContain("te_ref_forever_key ON tracker_enrollments (provider, device_ref) WHERE status <> 'RELEASED'");
+		expect(MIGRATION).toContain(
+			"te_ref_forever_key ON tracker_enrollments (provider, device_ref) WHERE status <> 'RELEASED'"
+		);
 	});
 });
 
@@ -226,7 +233,9 @@ describe('a replacement in progress shows its code', () => {
 		// and a rate limit.
 		const PAGE_UI = readFileSync('src/routes/app/vehicles/[id]/tracking/+page.svelte', 'utf8');
 		expect(PAGE_UI).toContain('{#if data.active && !data.preparing && !data.pending}');
-		expect(PAGE_UI.indexOf('{#if data.active && !data.preparing')).toBeLessThan(PAGE_UI.indexOf('{:else if data.pending}'));
+		expect(PAGE_UI.indexOf('{#if data.active && !data.preparing')).toBeLessThan(
+			PAGE_UI.indexOf('{:else if data.pending}')
+		);
 	});
 });
 

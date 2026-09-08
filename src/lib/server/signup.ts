@@ -19,8 +19,20 @@ export const TERMS_VERSION = '2026-08-23';
 
 /** Deliberately short list — the obvious ones, not a 100k-entry dictionary. */
 const WEAK = new Set([
-	'password', 'password1', 'password123', '12345678', '123456789', 'qwertyui', 'qwerty123',
-	'iloveyou', 'letmein1', 'welcome1', 'admin123', 'changeme', 'makutano', 'connect1'
+	'password',
+	'password1',
+	'password123',
+	'12345678',
+	'123456789',
+	'qwertyui',
+	'qwerty123',
+	'iloveyou',
+	'letmein1',
+	'welcome1',
+	'admin123',
+	'changeme',
+	'makutano',
+	'connect1'
 ]);
 
 export type PasswordVerdict = { ok: boolean; message?: string; score: number };
@@ -188,7 +200,11 @@ export async function createAccount(input: CreateAccountInput): Promise<CreateAc
 		// an abandoned signup can be picked up again.
 		const [updated] = await db()
 			.update(schema.users)
-			.set({ passwordHash: await hashPassword(input.password), fullName: fullName || existing.fullName, updatedAt: new Date() })
+			.set({
+				passwordHash: await hashPassword(input.password),
+				fullName: fullName || existing.fullName,
+				updatedAt: new Date()
+			})
 			.where(eq(schema.users.id, existing.id))
 			.returning();
 		return { user: updated, created: true };

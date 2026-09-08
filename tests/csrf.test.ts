@@ -45,7 +45,9 @@ describe('it blocks what SvelteKit blocked', () => {
 	});
 
 	it('is not fooled by casing or charset parameters', () => {
-		expect(post({ contentType: 'APPLICATION/X-WWW-FORM-URLENCODED; charset=UTF-8', origin: 'https://evil.example' })).toBe(true);
+		expect(
+			post({ contentType: 'APPLICATION/X-WWW-FORM-URLENCODED; charset=UTF-8', origin: 'https://evil.example' })
+		).toBe(true);
 	});
 
 	it('blocks a near-miss origin — a prefix is not a match', () => {

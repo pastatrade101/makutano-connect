@@ -267,7 +267,7 @@ const MAX_BODY = 4000;
 export type OwnReview = {
 	id: string;
 	rating: number | null;
-    title: string | null;
+	title: string | null;
 	body: string;
 	status: schema.Review['status'];
 	submitted: boolean;
@@ -794,16 +794,16 @@ export async function listTenantReviews(
 			.orderBy(desc(schema.reviews.submittedAt))
 			.limit(p.limit)
 			.offset((p.page - 1) * p.limit),
-		db().select({ value: sql<number>`count(*)::int` }).from(schema.reviews).where(where)
+		db()
+			.select({ value: sql<number>`count(*)::int` })
+			.from(schema.reviews)
+			.where(where)
 	]);
 	return { items, total: Number(total) };
 }
 
 /** The platform's moderation queue, across every tenant. */
-export async function listReviewsForModeration(
-	p: Pagination,
-	filters: { status?: schema.Review['status'] } = {}
-) {
+export async function listReviewsForModeration(p: Pagination, filters: { status?: schema.Review['status'] } = {}) {
 	const conditions = [ne(schema.reviews.body, '')];
 	if (filters.status) conditions.push(eq(schema.reviews.status, filters.status));
 	const where = and(...conditions);
@@ -837,7 +837,10 @@ export async function listReviewsForModeration(
 			.orderBy(asc(schema.reviews.submittedAt))
 			.limit(p.limit)
 			.offset((p.page - 1) * p.limit),
-		db().select({ value: sql<number>`count(*)::int` }).from(schema.reviews).where(where)
+		db()
+			.select({ value: sql<number>`count(*)::int` })
+			.from(schema.reviews)
+			.where(where)
 	]);
 	return { items, total: Number(total) };
 }

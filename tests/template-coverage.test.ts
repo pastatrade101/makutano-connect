@@ -63,7 +63,9 @@ suite('WhatsApp template coverage', () => {
 				...(moduleRelevant(ws, 'orders') ? EVENTS_BY_MODULE.orders : [])
 			];
 
-			report.push(`\n${tenant.slug} [workspace=${ws}, whatsapp=${connected.length ? 'connected' : 'NOT CONNECTED'}, templates=${templates.length}]`);
+			report.push(
+				`\n${tenant.slug} [workspace=${ws}, whatsapp=${connected.length ? 'connected' : 'NOT CONNECTED'}, templates=${templates.length}]`
+			);
 			for (const event of relevantEvents) {
 				const mapped = templates.filter((t) => t.eventKey === event);
 				const live = mapped.find((t) => t.status === 'APPROVED' && t.enabled);

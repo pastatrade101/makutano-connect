@@ -27,7 +27,17 @@ const mirrorSchema = z.object({
 	status: z.enum(['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'DECLINED', 'EXPIRED']),
 	currency: z.string().length(3),
 	total: z.string().regex(/^\d+(\.\d{1,2})?$/),
-	items: z.array(z.object({ label: z.string().max(300).optional(), title: z.string().max(300).optional(), amount: z.union([z.number(), z.string()]).optional() })).max(100).optional().nullable(),
+	items: z
+		.array(
+			z.object({
+				label: z.string().max(300).optional(),
+				title: z.string().max(300).optional(),
+				amount: z.union([z.number(), z.string()]).optional()
+			})
+		)
+		.max(100)
+		.optional()
+		.nullable(),
 	adults: z.number().int().min(0).max(200).optional(),
 	children: z.number().int().min(0).max(200).optional(),
 	travelDate: z.string().optional().nullable(),
@@ -47,5 +57,10 @@ export const PUT: RequestHandler = async (event) =>
 		await assertFeature(ctx.tenantId, 'quotations.enabled');
 		const body = await parseBody(event, mirrorSchema);
 		const quotation = await upsertQuotationMirror(ctx.tenantId, body);
-		return ok({ id: quotation.id, reference: quotation.reference, status: quotation.status, externalReference: body.externalReference });
+		return ok({
+			id: quotation.id,
+			reference: quotation.reference,
+			status: quotation.status,
+			externalReference: body.externalReference
+		});
 	});

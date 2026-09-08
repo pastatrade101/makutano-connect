@@ -208,9 +208,9 @@ export async function queueMessage(params: SendParams): Promise<schema.Message> 
 			 */
 			body:
 				params.content.type === 'template'
-					? (params.content.preview?.trim() ||
+					? params.content.preview?.trim() ||
 						(await renderTemplate(params.tenantId, params.content.templateName, params.content.components)) ||
-						previewOf(params.content))
+						previewOf(params.content)
 					: previewOf(params.content),
 			payload: params.content as unknown as Record<string, unknown>,
 			toAddress: to,

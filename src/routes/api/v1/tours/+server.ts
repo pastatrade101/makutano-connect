@@ -9,8 +9,14 @@ import { createTour, listTours } from '$lib/server/tours';
 import { handle, listResponse, ok, paginationFrom, parseBody, parseQuery, requireApiScope } from '$lib/server/http';
 
 const STATUSES = [
-	'DRAFT', 'SUBMITTED', 'IN_REVIEW', 'CHANGES_REQUESTED',
-	'APPROVED', 'PUBLISHED', 'UNPUBLISHED', 'ARCHIVED'
+	'DRAFT',
+	'SUBMITTED',
+	'IN_REVIEW',
+	'CHANGES_REQUESTED',
+	'APPROVED',
+	'PUBLISHED',
+	'UNPUBLISHED',
+	'ARCHIVED'
 ] as const;
 
 const money = z.string().regex(/^\d+(\.\d{1,2})?$/, 'Use a price like 1200 or 1200.50');
@@ -38,8 +44,16 @@ const createSchema = z.object({
 	mealsSummary: z.string().max(2000).optional().nullable(),
 	bestTimeSummary: z.string().max(2000).optional().nullable(),
 	availabilityType: z.enum(['YEAR_ROUND', 'SEASONAL', 'DATE_RANGE']).optional(),
-	availableFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-	availableTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+	availableFrom: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/)
+		.optional()
+		.nullable(),
+	availableTo: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/)
+		.optional()
+		.nullable(),
 	seoTitle: z.string().max(200).optional().nullable(),
 	seoDescription: z.string().max(400).optional().nullable(),
 	highlights: z.array(z.string().max(300)).max(20).optional(),

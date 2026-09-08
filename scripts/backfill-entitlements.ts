@@ -25,7 +25,10 @@ const sql = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
 type Legacy = { limits: Record<string, number>; features: Record<string, boolean> };
 
 /** Tiered allowances for the newer modules, indexed by plan code. */
-const TIERS: Record<string, { orders: number; quotations: number; forms: number; templates: number; numbers: number; apiKeys: number }> = {
+const TIERS: Record<
+	string,
+	{ orders: number; quotations: number; forms: number; templates: number; numbers: number; apiKeys: number }
+> = {
 	STARTER: { orders: 200, quotations: 200, forms: 3, templates: 10, numbers: 1, apiKeys: 2 },
 	BUSINESS: { orders: 1000, quotations: 1000, forms: 10, templates: 25, numbers: 1, apiKeys: 5 },
 	PRO: { orders: 5000, quotations: 5000, forms: 50, templates: 100, numbers: 5, apiKeys: 15 },
@@ -73,16 +76,31 @@ function entitlementsFor(code: string, legacy: Legacy): Record<string, boolean |
 
 console.log(DRY_RUN ? '— DRY RUN —\n' : '— APPLYING —\n');
 
-const plans = await sql<Array<{ id: string; code: string; name: string; limits: Record<string, number>; features: Record<string, boolean>; entitlements: Record<string, unknown> }>>`
+const plans = await sql<
+	Array<{
+		id: string;
+		code: string;
+		name: string;
+		limits: Record<string, number>;
+		features: Record<string, boolean>;
+		entitlements: Record<string, unknown>;
+	}>
+>`
 	select id, code, name, limits, features, entitlements from plans order by sort_order`;
 
 for (const plan of plans) {
 	const next = entitlementsFor(plan.code, { limits: plan.limits, features: plan.features });
 	const existing = Object.keys(plan.entitlements ?? {}).length;
 	console.log(`${plan.code.padEnd(11)} ${existing ? `(has ${existing} keys — recomputing)` : '(empty — seeding)'}`);
-	console.log(`   whatsapp=${next['whatsapp.enabled']} numbers=${next['whatsapp.maxNumbers']} outbound/mo=${next['whatsapp.maxOutboundPerMonth'] || 'unlimited'}`);
-	console.log(`   bookings/mo=${next['bookings.maxRequestsPerMonth'] || 'unlimited'} orders/mo=${next['orders.maxPerMonth'] || 'unlimited'} forms=${next['forms.maxForms'] || 'unlimited'}`);
-	console.log(`   webhooks=${next['webhooks.enabled']} payments=${next['payments.enabled']} templates=${next['whatsapp.templatesEnabled']}`);
+	console.log(
+		`   whatsapp=${next['whatsapp.enabled']} numbers=${next['whatsapp.maxNumbers']} outbound/mo=${next['whatsapp.maxOutboundPerMonth'] || 'unlimited'}`
+	);
+	console.log(
+		`   bookings/mo=${next['bookings.maxRequestsPerMonth'] || 'unlimited'} orders/mo=${next['orders.maxPerMonth'] || 'unlimited'} forms=${next['forms.maxForms'] || 'unlimited'}`
+	);
+	console.log(
+		`   webhooks=${next['webhooks.enabled']} payments=${next['payments.enabled']} templates=${next['whatsapp.templatesEnabled']}`
+	);
 	if (!DRY_RUN) {
 		await sql`update plans set entitlements = ${sql.json(next)}, updated_at = now() where id = ${plan.id}`;
 	}
@@ -109,14 +127,31 @@ for (const tenant of orphans) {
 
 // Nothing may silently disable a live tenant: report what each one ends up with.
 console.log('\n=== resulting effective access per tenant (overrides applied) ===');
-const tenants = await sql<Array<{ slug: string; status: string; code: string | null; entitlements: Record<string, boolean | number> | null; overrides: Record<string, boolean | number> }>>`
+const tenants = await sql<
+	Array<{
+		slug: string;
+		status: string;
+		code: string | null;
+		entitlements: Record<string, boolean | number> | null;
+		overrides: Record<string, boolean | number>;
+	}>
+>`
 	select t.slug, t.status, p.code, p.entitlements, t.entitlement_overrides as overrides
 	from tenants t left join plans p on p.id = t.plan_id where t.deleted_at is null order by t.slug`;
 for (const t of tenants) {
 	const planEnt = (t.entitlements ?? {}) as Record<string, boolean | number>;
 	const merged = { ...planEnt, ...(t.overrides ?? {}) };
-	const shown = ['whatsapp.enabled', 'bookings.enabled', 'orders.enabled', 'quotations.enabled', 'api.enabled', 'webhooks.enabled'];
-	console.log(`  ${t.slug.padEnd(18)} [${t.status}] ${t.code ?? 'NO PLAN'} → ${shown.map((k) => `${k.split('.')[0]}=${merged[k] ?? '(fallback)'}`).join(' ')}`);
+	const shown = [
+		'whatsapp.enabled',
+		'bookings.enabled',
+		'orders.enabled',
+		'quotations.enabled',
+		'api.enabled',
+		'webhooks.enabled'
+	];
+	console.log(
+		`  ${t.slug.padEnd(18)} [${t.status}] ${t.code ?? 'NO PLAN'} → ${shown.map((k) => `${k.split('.')[0]}=${merged[k] ?? '(fallback)'}`).join(' ')}`
+	);
 }
 
 await sql.end();

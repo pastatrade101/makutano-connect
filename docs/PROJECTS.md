@@ -29,7 +29,7 @@ Before modifying anything:
 3. **Confirm the local repository path.** `~/Desktop/pastatrade/makutano-…`,
    and the marketplace directory does not match its repo name.
 4. **Confirm the current Git branch and HEAD** — `git rev-parse --abbrev-ref
-   HEAD` and `git log -1`. Two repos sit on feature branches; `main` matching
+HEAD` and `git log -1`. Two repos sit on feature branches; `main` matching
    production is a snapshot, not a rule.
 5. **If deploying, confirm the live Compose working directory from the RUNNING
    CONTAINER**, never from a path that looks right:
@@ -429,17 +429,17 @@ for this app".
 That is NOT a code fault and no code change reaches it. Everything Meta gates on
 is green, checked on the dashboard 5 Sep 2026 rather than assumed:
 
-| Gate | State |
-| --- | --- |
-| Permissions | Advanced Access approved |
-| App mode | Published |
-| Data Use Checkup | Complete |
-| Required actions | Clear |
-| Business verification | **Approved** |
-| App Review documentation | **Approved** |
-| **Tech Provider** | **Granted** — "2 of 2 steps complete" |
+| Gate                     | State                                 |
+| ------------------------ | ------------------------------------- |
+| Permissions              | Advanced Access approved              |
+| App mode                 | Published                             |
+| Data Use Checkup         | Complete                              |
+| Required actions         | Clear                                 |
+| Business verification    | **Approved**                          |
+| App Review documentation | **Approved**                          |
+| **Tech Provider**        | **Granted** — "2 of 2 steps complete" |
 
-Note the trap: the *Overview* checklist still shows "Become Tech Provider"
+Note the trap: the _Overview_ checklist still shows "Become Tech Provider"
 unticked while the Become Tech Provider page itself says the status is granted.
 The Overview tick is stale. Do not diagnose from it.
 
@@ -482,12 +482,12 @@ either because both are the historical record of a decision.
 - **`makutano-traccar/docs/HARDENING-V2-PROPOSAL.md`** numbers the IMPLEMENTATION
   steps that shipped it, ordered so production is never broken between them.
 
-| Capability (here) | Implementation steps (proposal) |
-| --- | --- |
+| Capability (here)              | Implementation steps (proposal)                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- |
 | Phase 1 — credential isolation | Phase 0 (probe), 1 (schema), 2 (admin path, dark), 3 (one tenant), 5 (remove the shared credential) |
-| Phase 2 — phone enrollment | Phase 4 (enrollment UI + read-path hardening) |
-| Phase 3 — position retention | Phase 7 (retention, dry-run first) |
-| — | Phase 6 (image pins) — infrastructure, no capability |
+| Phase 2 — phone enrollment     | Phase 4 (enrollment UI + read-path hardening)                                                       |
+| Phase 3 — position retention   | Phase 7 (retention, dry-run first)                                                                  |
+| —                              | Phase 6 (image pins) — infrastructure, no capability                                                |
 
 So "Phase 2 is done" means **phone enrollment** in this document and **the dark
 admin path** in the proposal. When either is quoted without its source, say which.
@@ -498,10 +498,10 @@ Found during the 5 Sep audit. None of these is a bug to fix by starting to write
 them — a column filled in without a decision about who owns it becomes a second
 source of truth that disagrees with the first.
 
-| Column | State | What it would need |
-| --- | --- | --- |
-| `vehicles.last_fix_at` | **Reserved, never written.** Every write sets null; the one read is a fallback that therefore never fires | A decision on who writes it, what invalidates it, and what it should mean during a provider outage — a remembered "last seen" shown during an outage is a lie |
-| `tracker_enrollments.first_fix_at` | **In use.** Written on activation and enforced by `te_evid_chk` | Nothing — the audit's grouping of this with the unused columns was wrong |
+| Column                             | State                                                                                                     | What it would need                                                                                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vehicles.last_fix_at`             | **Reserved, never written.** Every write sets null; the one read is a fallback that therefore never fires | A decision on who writes it, what invalidates it, and what it should mean during a provider outage — a remembered "last seen" shown during an outage is a lie |
+| `tracker_enrollments.first_fix_at` | **In use.** Written on activation and enforced by `te_evid_chk`                                           | Nothing — the audit's grouping of this with the unused columns was wrong                                                                                      |
 
 ### Tracking revocation has no trigger _(5 Sep 2026)_
 
@@ -514,7 +514,7 @@ The events that should plausibly revoke, in order of how clearly they qualify:
 
 1. **Tenant status → SUSPENDED or CANCELLED** (`/admin/tenants`). Enforcement
    today is request-time only (`entitlements.ts`, `api-keys.ts`), which covers
-   access *through Connect* and says nothing about the provider identity itself.
+   access _through Connect_ and says nothing about the provider identity itself.
 2. **Offboarding / tenant deletion**, where the Traccar user should not outlive
    the account.
 3. **Losing the tracking entitlement** on a plan change.
@@ -552,13 +552,13 @@ page on the web beyond tracker setup — the header row leads to what exists.
 
 ### Vehicle tracking _(4 Sep 2026)_
 
-| | |
-| --- | --- |
-| V1 fleet & trip tracking | ✅ Live |
-| Phase 1 credential isolation | ✅ Verified |
-| Phase 2 phone enrollment | ⚠️ Live — one step short of verified (no handset scan yet) |
-| Phase 3 position retention | ⬜ Not started |
-| Tracking UX | ✅ Live |
+|                              |                                                            |
+| ---------------------------- | ---------------------------------------------------------- |
+| V1 fleet & trip tracking     | ✅ Live                                                    |
+| Phase 1 credential isolation | ✅ Verified                                                |
+| Phase 2 phone enrollment     | ⚠️ Live — one step short of verified (no handset scan yet) |
+| Phase 3 position retention   | ⬜ Not started                                             |
+| Tracking UX                  | ✅ Live                                                    |
 
 **Phase 1 — security prerequisites: live.** Two Traccar identities, split by
 job. Provisioning belongs to `tracking-worker@tracking.invalid` (NOT an

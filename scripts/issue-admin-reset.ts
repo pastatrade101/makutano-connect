@@ -40,9 +40,11 @@ if (!dbUrl) {
 const urlArg = process.argv.indexOf('--url');
 const envUrl = process.env.PUBLIC_APP_URL ?? '';
 const appUrl = (
-	urlArg > -1 ? process.argv[urlArg + 1]
-	: /localhost|127\.0\.0\.1/.test(envUrl) || !envUrl ? 'https://connect.makutano.co.tz'
-	: envUrl
+	urlArg > -1
+		? process.argv[urlArg + 1]
+		: /localhost|127\.0\.0\.1/.test(envUrl) || !envUrl
+			? 'https://connect.makutano.co.tz'
+			: envUrl
 ).replace(/\/+$/, '');
 
 const sql = postgres(dbUrl, { max: 1, onnotice: () => {} });

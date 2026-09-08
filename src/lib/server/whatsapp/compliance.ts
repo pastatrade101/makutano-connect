@@ -29,10 +29,18 @@ const OPT_OUT_WORDS = new Set(['stop', 'unsubscribe', 'cancel', 'end', 'quit', '
 const OPT_IN_WORDS = new Set(['start', 'unstop', 'subscribe', 'anza']);
 
 export function isOptOutMessage(text: string | null | undefined): boolean {
-	return OPT_OUT_WORDS.has(String(text ?? '').trim().toLowerCase());
+	return OPT_OUT_WORDS.has(
+		String(text ?? '')
+			.trim()
+			.toLowerCase()
+	);
 }
 export function isOptInMessage(text: string | null | undefined): boolean {
-	return OPT_IN_WORDS.has(String(text ?? '').trim().toLowerCase());
+	return OPT_IN_WORDS.has(
+		String(text ?? '')
+			.trim()
+			.toLowerCase()
+	);
 }
 
 export function serviceWindowOpen(lastInboundAt: Date | null | undefined): boolean {
@@ -103,10 +111,14 @@ export async function assertSendCompliant(params: {
 		// approved and enabled — that check is ours to make and we make it strictly.
 		if (template) {
 			if (template.status !== 'APPROVED') {
-				throw new AppError('WHATSAPP_POLICY_BLOCKED', `Template "${name}" is ${template.status.toLowerCase()}, not approved by Meta.`, {
-					reason: 'TEMPLATE_NOT_APPROVED',
-					template: name
-				});
+				throw new AppError(
+					'WHATSAPP_POLICY_BLOCKED',
+					`Template "${name}" is ${template.status.toLowerCase()}, not approved by Meta.`,
+					{
+						reason: 'TEMPLATE_NOT_APPROVED',
+						template: name
+					}
+				);
 			}
 			if (!template.enabled) {
 				throw new AppError('WHATSAPP_POLICY_BLOCKED', `Template "${name}" is switched off for this account.`, {

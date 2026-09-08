@@ -98,7 +98,6 @@ export async function marketplacePriceFrom(tenantId: string, tourId: string): Pr
 	return pricing ? lowestAdultPrice(pricing) : null;
 }
 
-
 /* ------------------------------------------------------------------ save --- */
 
 export type PricingInput = {

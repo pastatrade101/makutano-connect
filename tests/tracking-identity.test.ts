@@ -91,10 +91,9 @@ describe('runtime reads speak as the tenant, never as the platform', () => {
 	});
 
 	it('the provisioning client is unreachable from any route', () => {
-		const hits = execSync(
-			"grep -rl 'traccar-admin' src/routes/ || true",
-			{ encoding: 'utf8' }
-		).split('\n').filter(Boolean);
+		const hits = execSync("grep -rl 'traccar-admin' src/routes/ || true", { encoding: 'utf8' })
+			.split('\n')
+			.filter(Boolean);
 		// Creating users and devices is not something a request handler may do.
 		expect(hits).toEqual([]);
 	});

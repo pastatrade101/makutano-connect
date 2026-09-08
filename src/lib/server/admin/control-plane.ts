@@ -248,10 +248,7 @@ async function closeStrandedAccounts(tenantId: string): Promise<string[]> {
 			.limit(1);
 		if (alive) continue;
 
-		await db()
-			.update(schema.users)
-			.set({ isActive: false, updatedAt: new Date() })
-			.where(eq(schema.users.id, userId));
+		await db().update(schema.users).set({ isActive: false, updatedAt: new Date() }).where(eq(schema.users.id, userId));
 		await db().delete(schema.sessions).where(eq(schema.sessions.userId, userId));
 		stranded.push(userId);
 	}

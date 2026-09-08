@@ -19,7 +19,14 @@ import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
 import { db, schema, txDb } from '$lib/server/db';
 import { log } from '$lib/server/logger';
 import { adminCredentials, tenantCredentials } from './credentials';
-import { ensureTenantAccount, findDeviceByRef, findDeviceByRefForTenant, linkDeviceToTenant, unlinkDeviceFromTenant, deleteProviderDevice } from './traccar-admin';
+import {
+	ensureTenantAccount,
+	findDeviceByRef,
+	findDeviceByRefForTenant,
+	linkDeviceToTenant,
+	unlinkDeviceFromTenant,
+	deleteProviderDevice
+} from './traccar-admin';
 
 /** How long a claim is honoured before another run may take the row. */
 const LEASE_MS = 2 * 60 * 1000;
@@ -234,28 +241,30 @@ async function cleanupProvider(): Promise<number> {
 			const deviceId =
 				row.providerDeviceId ??
 				(await findDeviceByRef(row.deviceRef))?.id ??
-				(account.providerUserId ? (await findDeviceByRefForTenant(row.deviceRef, account.providerUserId))?.id : undefined) ??
+				(account.providerUserId
+					? (await findDeviceByRefForTenant(row.deviceRef, account.providerUserId))?.id
+					: undefined) ??
 				null;
 			if (deviceId === null) {
 				log.info('tracker_cleanup_nothing_to_delete', { enrollmentId: row.id, source: row.identifierSource });
 			} else {
 				if (account.providerUserId) await unlinkDeviceFromTenant(account.providerUserId, deviceId);
-			/*
-			 * DELETE, always. Never "disable".
-			 *
-			 * Proven against the deployed 6.15.3, not assumed: a device with
-			 * disabled=true KEEPS INGESTING. Positions posted to a disabled device
-			 * are still stored and the device's current-position pointer still
-			 * advances. Disabling affects what the provider's own UI and permissions
-			 * do; it is not revocation, and treating it as revocation would have
-			 * left every retired tracker able to keep writing.
-			 *
-			 * Deleting the device is the only thing that stops ingestion. Its past
-			 * positions are then orphaned rather than removed — there is no foreign
-			 * key from positions to devices in this schema — so trip history that
-			 * has already been read stays readable, and retention has to find those
-			 * rows by scanning positions rather than by walking devices.
-			 */
+				/*
+				 * DELETE, always. Never "disable".
+				 *
+				 * Proven against the deployed 6.15.3, not assumed: a device with
+				 * disabled=true KEEPS INGESTING. Positions posted to a disabled device
+				 * are still stored and the device's current-position pointer still
+				 * advances. Disabling affects what the provider's own UI and permissions
+				 * do; it is not revocation, and treating it as revocation would have
+				 * left every retired tracker able to keep writing.
+				 *
+				 * Deleting the device is the only thing that stops ingestion. Its past
+				 * positions are then orphaned rather than removed — there is no foreign
+				 * key from positions to devices in this schema — so trip history that
+				 * has already been read stays readable, and retention has to find those
+				 * rows by scanning positions rather than by walking devices.
+				 */
 				await deleteProviderDevice(deviceId, { disableOnly: false });
 				log.info('tracker_device_deleted', { enrollmentId: row.id, source: row.identifierSource });
 			}
@@ -270,12 +279,15 @@ async function cleanupProvider(): Promise<number> {
 		}
 		await db()
 			.update(schema.trackerEnrollments)
-			.set({ cleanupState: state, cleanupAt: new Date(), providerDeleteAfter: state === 'DONE' ? null : new Date(Date.now() + 300_000) })
+			.set({
+				cleanupState: state,
+				cleanupAt: new Date(),
+				providerDeleteAfter: state === 'DONE' ? null : new Date(Date.now() + 300_000)
+			})
 			.where(eq(schema.trackerEnrollments.id, row.id));
 	}
 	return due.length;
 }
-
 
 /**
  * Has the phone reported yet?
@@ -293,7 +305,13 @@ async function detectFirstFixes(): Promise<number> {
 	const rows = await db()
 		.select()
 		.from(schema.trackerEnrollments)
-		.where(and(eq(schema.trackerEnrollments.status, 'PROVISIONED'), sql`expires_at > now()`, isNotNull(schema.trackerEnrollments.providerDeviceId)))
+		.where(
+			and(
+				eq(schema.trackerEnrollments.status, 'PROVISIONED'),
+				sql`expires_at > now()`,
+				isNotNull(schema.trackerEnrollments.providerDeviceId)
+			)
+		)
 		.limit(50);
 
 	let activated = 0;
@@ -335,7 +353,14 @@ async function detectFirstFixes(): Promise<number> {
 			);
 			if (!fix) continue;
 
-			if (await bindEnrollment(row.id, new Date(fix.fixTime ?? Date.now()), fix.latitude as number, fix.longitude as number)) {
+			if (
+				await bindEnrollment(
+					row.id,
+					new Date(fix.fixTime ?? Date.now()),
+					fix.latitude as number,
+					fix.longitude as number
+				)
+			) {
 				activated++;
 			}
 		} catch (err) {

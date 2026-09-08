@@ -37,7 +37,7 @@ vehicle is untracked, and nothing is deleted on the strength of an intention.
 ## Operator steps
 
 1. **Vehicles → the tracked vehicle → GPS Tracking.**
-   It shows *Tracking is set up · Connected*.
+   It shows _Tracking is set up · Connected_.
 2. Press **"Replace tracking device"**.
    This starts a second enrollment beside the live one. The current tracker keeps
    reporting — the screen says so.
@@ -62,20 +62,20 @@ vehicle is untracked, and nothing is deleted on the strength of an intention.
 
 9. The worker sees the first genuine fix, activates the new enrollment, closes
    the old one in the same transaction, and schedules the old device for
-   deletion. The page flips to *Tracking is set up* against the new tracker.
+   deletion. The page flips to _Tracking is set up_ against the new tracker.
 
 ## Verify before calling the old credential revoked
 
-| Check | How |
-| --- | --- |
-| Vehicle points at the new tracker | Vehicles → the vehicle shows Connected; one ACTIVE enrollment for it |
-| Latest position advances | `tc_positions` max `fixtime` moves after the phone reports |
-| Web tracking works | The vehicle appears on the fleet list and Live Map with a recent position |
-| Mobile read path works | The vehicle shows in the app's tracking view |
-| Old device deleted | `tc_devices` no longer contains the legacy identifier |
-| Old identifier no longer accepted | See below |
-| Exactly one new provider device | `tc_devices` count unchanged overall — one added, one removed |
-| No identifier displayed anywhere | It appeared only inside the QR image |
+| Check                             | How                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| Vehicle points at the new tracker | Vehicles → the vehicle shows Connected; one ACTIVE enrollment for it      |
+| Latest position advances          | `tc_positions` max `fixtime` moves after the phone reports                |
+| Web tracking works                | The vehicle appears on the fleet list and Live Map with a recent position |
+| Mobile read path works            | The vehicle shows in the app's tracking view                              |
+| Old device deleted                | `tc_devices` no longer contains the legacy identifier                     |
+| Old identifier no longer accepted | See below                                                                 |
+| Exactly one new provider device   | `tc_devices` count unchanged overall — one added, one removed             |
+| No identifier displayed anywhere  | It appeared only inside the QR image                                      |
 
 **Proving the old identifier is dead.** Traccar caches device sessions, so a POST
 immediately after deletion can still be attributed. Wait for the cache to settle,
@@ -100,4 +100,4 @@ Rotation exercises the replace path with a real handset, which is worth having.
 It does **not** close the Phase 2 gate: that requires the full operator flow on a
 **controlled test vehicle with a second handset**, driven by someone who did not
 build the integration. See `PHASE2-HANDSET-TEST.md`. Phase 2 stays
-*operational proof still limited* until that happens.
+_operational proof still limited_ until that happens.

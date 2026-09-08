@@ -51,7 +51,10 @@ const submissionSchema = z
 	})
 	.strict();
 
-const str = (v: unknown, max = 500): string => String(v ?? '').slice(0, max).trim();
+const str = (v: unknown, max = 500): string =>
+	String(v ?? '')
+		.slice(0, max)
+		.trim();
 const num = (v: unknown, fallback: number): number => {
 	const n = Number(v);
 	return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
@@ -103,17 +106,23 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		// Required-field enforcement from the form's own configuration.
-		const enabledKeys = new Set(FORM_FIELD_CATALOG[form.type].filter((f) => form.fields[f.key]?.enabled).map((f) => f.key));
+		const enabledKeys = new Set(
+			FORM_FIELD_CATALOG[form.type].filter((f) => form.fields[f.key]?.enabled).map((f) => f.key)
+		);
 		for (const fieldDef of FORM_FIELD_CATALOG[form.type]) {
 			if (form.fields[fieldDef.key]?.enabled && form.fields[fieldDef.key]?.required) {
 				const value = body.fields[fieldDef.key];
 				if (value === undefined || String(value).trim() === '') {
-					throw new AppError('VALIDATION_ERROR', `${fieldDef.label} is required.`, [{ path: fieldDef.key, message: 'Required' }]);
+					throw new AppError('VALIDATION_ERROR', `${fieldDef.label} is required.`, [
+						{ path: fieldDef.key, message: 'Required' }
+					]);
 				}
 			}
 		}
 		// Drop anything not enabled on this form — a visitor cannot invent fields.
-		const f: Record<string, unknown> = Object.fromEntries(Object.entries(body.fields).filter(([k]) => enabledKeys.has(k)));
+		const f: Record<string, unknown> = Object.fromEntries(
+			Object.entries(body.fields).filter(([k]) => enabledKeys.has(k))
+		);
 
 		/*
 		 * Re-resolve the tour here rather than trusting the body.
@@ -157,7 +166,12 @@ export const POST: RequestHandler = async (event) => {
 				children: num(f.children, 0),
 				estimatedTotal: /^\d+(\.\d{1,2})?$/.test(str(f.budget, 20)) ? str(f.budget, 20) : null,
 				notes: [offerNote, str(f.service, 300), str(f.message, 3000)].filter(Boolean).join('\n\n') || null,
-				metadata: { form_public_id: form.publicId, form_type: form.type, ...(body.offer ? { offer: body.offer } : {}), ...(form.type === 'QUOTE' ? { quote_request: true } : {}) },
+				metadata: {
+					form_public_id: form.publicId,
+					form_type: form.type,
+					...(body.offer ? { offer: body.offer } : {}),
+					...(form.type === 'QUOTE' ? { quote_request: true } : {})
+				},
 				items: str(f.service, 300) ? [{ title: str(f.service, 300) }] : undefined
 			});
 			resultRef = request.reference;
@@ -179,7 +193,12 @@ export const POST: RequestHandler = async (event) => {
 				customerId: customer.id,
 				status: 'PENDING_CONFIRMATION', // never auto-fulfilled, never auto-paid
 				source: 'WEBSITE',
-				deliveryMethod: str(f.deliveryMethod, 20).toUpperCase() === 'PICKUP' ? 'PICKUP' : str(f.deliveryMethod, 20) ? 'DELIVERY' : null,
+				deliveryMethod:
+					str(f.deliveryMethod, 20).toUpperCase() === 'PICKUP'
+						? 'PICKUP'
+						: str(f.deliveryMethod, 20)
+							? 'DELIVERY'
+							: null,
 				deliveryLocation: str(f.deliveryLocation, 500) || null,
 				notes: str(f.notes, 3000) || null,
 				metadata: { form_public_id: form.publicId },
@@ -209,7 +228,13 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		await bumpSubmissionCount(form.id);
-		await audit(tenant.id, 'form.submission', { type: 'system' }, { type: 'form', id: form.id }, { formType: form.type, reference: resultRef });
+		await audit(
+			tenant.id,
+			'form.submission',
+			{ type: 'system' },
+			{ type: 'form', id: form.id },
+			{ formType: form.type, reference: resultRef }
+		);
 
 		return json(
 			{ success: true, data: { message: form.successMessage ?? 'Thank you.', reference: resultRef } },
@@ -222,7 +247,8 @@ export const POST: RequestHandler = async (event) => {
 			return res;
 		}
 		const appError = toAppError(err);
-		if (appError.status >= 500) log.error('widget_submit_failed', { publicId: event.params.publicId, message: (err as Error)?.message });
+		if (appError.status >= 500)
+			log.error('widget_submit_failed', { publicId: event.params.publicId, message: (err as Error)?.message });
 		const res = errorResponse(appError);
 		res.headers.set('access-control-allow-origin', '*');
 		return res;

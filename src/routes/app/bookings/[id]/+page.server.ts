@@ -114,7 +114,6 @@ export const actions: Actions = {
 		}
 	},
 
-
 	/**
 	 * Hand the sale over to operations.
 	 *
@@ -129,7 +128,12 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const operationsUserId = String(data.get('operationsUserId') ?? '').trim() || null;
 		try {
-			const trip = await createTripFromBooking(tenantId, idOf(params), { operationsUserId }, { userId: locals.user?.id });
+			const trip = await createTripFromBooking(
+				tenantId,
+				idOf(params),
+				{ operationsUserId },
+				{ userId: locals.user?.id }
+			);
 			await audit(
 				tenantId,
 				'trip.created',

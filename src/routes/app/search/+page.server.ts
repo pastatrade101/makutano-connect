@@ -73,7 +73,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		) t
 		order by at desc
 		limit 30
-	`)) as unknown as Array<{ kind: SearchHit['kind']; id: string; title: string; subtitle: string | null; status: string | null }>;
+	`)) as unknown as Array<{
+		kind: SearchHit['kind'];
+		id: string;
+		title: string;
+		subtitle: string | null;
+		status: string | null;
+	}>;
 
 	const HREF: Record<SearchHit['kind'], (id: string) => string> = {
 		customer: () => `/app/customers`,

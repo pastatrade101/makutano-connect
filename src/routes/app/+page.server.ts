@@ -122,9 +122,7 @@ async function marketplaceState(tenantId: string) {
 	const marketplace = env().MARKETPLACE_URL.replace(/\/+$/, '');
 	return {
 		counts: rows[0] ?? {},
-		operator: operator
-			? { ...operator, publicUrl: `${marketplace}/operators/${operator.slug}` }
-			: null,
+		operator: operator ? { ...operator, publicUrl: `${marketplace}/operators/${operator.slug}` } : null,
 		marketplaceUrl: marketplace
 	};
 }
@@ -150,26 +148,26 @@ export const load: PageServerLoad = async ({ locals }) => {
 		continuing,
 		marketplace
 	] = await Promise.all([
-			bookingRequestStats(tenantId),
-			bookingStats(tenantId),
-			customerStats(tenantId),
-			paymentStats(tenantId),
-			listBookingRequests(tenantId, pagination),
-			listConversations(
-				tenantId,
-				pagination,
-				{ open: true },
-				{ userId: locals.user!.id, permissions: locals.permissions }
-			),
-			getConnectionForTenant(tenantId),
-			dailySeries(tenantId),
-			actionCentre(tenantId),
-			// Who is looking, and what is waiting for THEM — visibility-scoped on the server.
-			attentionFor(tenantId, viewer, workspace),
-			// Where each customer actually stands, not a second copy of the inbox.
-			continueWorking(tenantId, viewer, workspace),
-			marketplaceState(tenantId)
-		]);
+		bookingRequestStats(tenantId),
+		bookingStats(tenantId),
+		customerStats(tenantId),
+		paymentStats(tenantId),
+		listBookingRequests(tenantId, pagination),
+		listConversations(
+			tenantId,
+			pagination,
+			{ open: true },
+			{ userId: locals.user!.id, permissions: locals.permissions }
+		),
+		getConnectionForTenant(tenantId),
+		dailySeries(tenantId),
+		actionCentre(tenantId),
+		// Who is looking, and what is waiting for THEM — visibility-scoped on the server.
+		attentionFor(tenantId, viewer, workspace),
+		// Where each customer actually stands, not a second copy of the inbox.
+		continueWorking(tenantId, viewer, workspace),
+		marketplaceState(tenantId)
+	]);
 
 	// Built for the person looking, not just the tenant: an item they could never
 	// action is not offered to them.

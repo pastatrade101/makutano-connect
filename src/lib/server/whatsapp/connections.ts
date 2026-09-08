@@ -95,7 +95,9 @@ export async function upsertConnection(input: UpsertConnectionInput): Promise<sc
 	const live = await db()
 		.select({ phoneNumberId: schema.whatsappConnections.phoneNumberId })
 		.from(schema.whatsappConnections)
-		.where(and(eq(schema.whatsappConnections.tenantId, input.tenantId), eq(schema.whatsappConnections.status, 'CONNECTED')));
+		.where(
+			and(eq(schema.whatsappConnections.tenantId, input.tenantId), eq(schema.whatsappConnections.status, 'CONNECTED'))
+		);
 	if (!live.some((c) => c.phoneNumberId === input.phoneNumberId)) {
 		await assertWithinCount(input.tenantId, 'whatsapp.maxNumbers', live.length);
 	}
@@ -148,13 +150,13 @@ export async function upsertConnection(input: UpsertConnectionInput): Promise<sc
 		.update(schema.whatsappConnections)
 		.set({ isPrimary: false })
 		.where(
-			and(
-				eq(schema.whatsappConnections.tenantId, input.tenantId),
-				sql`${schema.whatsappConnections.id} <> ${row.id}`
-			)
+			and(eq(schema.whatsappConnections.tenantId, input.tenantId), sql`${schema.whatsappConnections.id} <> ${row.id}`)
 		);
 	if (!row.isPrimary) {
-		await db().update(schema.whatsappConnections).set({ isPrimary: true }).where(eq(schema.whatsappConnections.id, row.id));
+		await db()
+			.update(schema.whatsappConnections)
+			.set({ isPrimary: true })
+			.where(eq(schema.whatsappConnections.id, row.id));
 	}
 
 	/*
@@ -234,7 +236,11 @@ export async function getConnectionByWabaId(wabaId: string): Promise<schema.What
 export async function resolveTenantForEvent(identifiers: {
 	phoneNumberId?: string | null;
 	wabaId?: string | null;
-}): Promise<{ tenantId: string; connection: schema.WhatsappConnection; matchedOn: 'phone_number_id' | 'waba_id' } | null> {
+}): Promise<{
+	tenantId: string;
+	connection: schema.WhatsappConnection;
+	matchedOn: 'phone_number_id' | 'waba_id';
+} | null> {
 	if (identifiers.phoneNumberId) {
 		const connection = await getConnectionByPhoneNumberId(identifiers.phoneNumberId);
 		if (connection) return { tenantId: connection.tenantId, connection, matchedOn: 'phone_number_id' };
@@ -333,10 +339,7 @@ export async function revokeByMetaUserId(metaUserId: string): Promise<schema.Wha
 			updatedAt: now
 		})
 		.where(
-			and(
-				eq(schema.whatsappConnections.metaUserId, metaUserId),
-				ne(schema.whatsappConnections.status, 'DISCONNECTED')
-			)
+			and(eq(schema.whatsappConnections.metaUserId, metaUserId), ne(schema.whatsappConnections.status, 'DISCONNECTED'))
 		)
 		.returning();
 }

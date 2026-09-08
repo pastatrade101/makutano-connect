@@ -38,10 +38,7 @@ const KNOWN_PROVIDERS = ['TRACCAR'] as const;
  * with no provider identity yet gets null — which is NOT_CONFIGURED, never an
  * outage.
  */
-async function providerFor(
-	tenantId: string,
-	name: string | null | undefined
-): Promise<TrackingProvider | null> {
+async function providerFor(tenantId: string, name: string | null | undefined): Promise<TrackingProvider | null> {
 	if (!name || !KNOWN_PROVIDERS.includes(name as (typeof KNOWN_PROVIDERS)[number])) return null;
 	const credentials = await tenantCredentials(tenantId);
 	if (!credentials) return null;
@@ -103,7 +100,11 @@ export async function vehicleSnapshot(tenantId: string, vehicleId: string): Prom
  */
 export async function fleetSnapshot(tenantId: string): Promise<Map<string, TrackingSnapshot>> {
 	const rows = await db()
-		.select({ id: schema.vehicles.id, provider: schema.vehicles.trackerProvider, ref: schema.vehicles.trackerDeviceRef })
+		.select({
+			id: schema.vehicles.id,
+			provider: schema.vehicles.trackerProvider,
+			ref: schema.vehicles.trackerDeviceRef
+		})
 		.from(schema.vehicles)
 		.where(and(eq(schema.vehicles.tenantId, tenantId), isNotNull(schema.vehicles.trackerDeviceRef)));
 
@@ -189,12 +190,7 @@ export async function vehicleHistory(
 }
 
 /** A trip's track over a window. Empty rather than an error when unavailable. */
-export async function tripHistory(
-	tenantId: string,
-	tripId: string,
-	from: Date,
-	to: Date
-): Promise<TrackingHistory> {
+export async function tripHistory(tenantId: string, tripId: string, from: Date, to: Date): Promise<TrackingHistory> {
 	const empty: TrackingHistory = { positions: [], from, to, truncated: false };
 	const [trip] = await db()
 		.select({ vehicleId: schema.trips.vehicleId })

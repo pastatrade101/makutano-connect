@@ -34,10 +34,14 @@ try {
 
 		const current = t.current ?? '(unset)';
 		if (!derived || derived === t.current) {
-			console.log(`  keep   ${t.slug}: ${current} (requests=${t.requests} bookings=${t.bookings} orders=${t.orders} quotes=${t.quotations})`);
+			console.log(
+				`  keep   ${t.slug}: ${current} (requests=${t.requests} bookings=${t.bookings} orders=${t.orders} quotes=${t.quotations})`
+			);
 			continue;
 		}
-		console.log(`${apply ? '✱ SET   ' : '  would '} ${t.slug}: ${current} → ${derived} (requests=${t.requests} bookings=${t.bookings} orders=${t.orders} quotes=${t.quotations})`);
+		console.log(
+			`${apply ? '✱ SET   ' : '  would '} ${t.slug}: ${current} → ${derived} (requests=${t.requests} bookings=${t.bookings} orders=${t.orders} quotes=${t.quotations})`
+		);
 		if (apply) {
 			await sql`
 				update tenants

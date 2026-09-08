@@ -55,11 +55,7 @@ describe('the vehicle snapshot written onto a trip', () => {
 	it('never returns an empty string, because empty means "not assigned" to readiness', () => {
 		// readinessFor() reads Boolean(trip.vehicle?.trim()). A snapshot that trims to
 		// nothing is indistinguishable from no vehicle at all.
-		for (const v of [
-			{ name: 'A', registration: '   ' },
-			{ name: 'B', make: '  ', model: '  ' },
-			{ name: 'C' }
-		]) {
+		for (const v of [{ name: 'A', registration: '   ' }, { name: 'B', make: '  ', model: '  ' }, { name: 'C' }]) {
 			expect(vehicleSnapshotText(v).trim().length).toBeGreaterThan(0);
 		}
 	});
@@ -324,8 +320,15 @@ describe('every readiness blocker still says where it is fixed', () => {
 	it('gives each check a destination', () => {
 		const r = readinessFor(
 			{
-				bookingId: 'b1', adults: 2, children: 0, startDate: null, accommodation: null,
-				vehicle: null, driver: null, guide: null, hotelConfirmed: false
+				bookingId: 'b1',
+				adults: 2,
+				children: 0,
+				startDate: null,
+				accommodation: null,
+				vehicle: null,
+				driver: null,
+				guide: null,
+				hotelConfirmed: false
 			} as never,
 			{ status: 'CONFIRMED', amountPaid: '0', balanceDue: '100' } as never,
 			[]

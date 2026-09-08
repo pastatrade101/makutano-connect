@@ -18,10 +18,10 @@ process.env.JOB_WORKER = 'off';
 suite('marketplace enquiry is an ordinary enquiry to the phone', () => {
 	let tenantId: string;
 	let tourId: string;
-	let db: typeof import('../src/lib/server/db')['db'];
-	let schema: typeof import('../src/lib/server/db')['schema'];
-	let eq: typeof import('drizzle-orm')['eq'];
-	let createBookingRequest: typeof import('../src/lib/server/booking-requests')['createBookingRequest'];
+	let db: (typeof import('../src/lib/server/db'))['db'];
+	let schema: (typeof import('../src/lib/server/db'))['schema'];
+	let eq: (typeof import('drizzle-orm'))['eq'];
+	let createBookingRequest: (typeof import('../src/lib/server/booking-requests'))['createBookingRequest'];
 	/**
 	 * The REAL mobile route handler, not a re-implementation of its query.
 	 *
@@ -68,11 +68,7 @@ suite('marketplace enquiry is an ordinary enquiry to the phone', () => {
 		const { liftLimits } = await import('./support');
 		await liftLimits(tenantId);
 
-		const [country] = await db()
-			.select()
-			.from(schema.countries)
-			.where(eq(schema.countries.slug, 'tanzania'))
-			.limit(1);
+		const [country] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
 
 		const [tour] = await db()
 			.insert(schema.tours)
@@ -91,26 +87,32 @@ suite('marketplace enquiry is an ordinary enquiry to the phone', () => {
 	// createBookingRequest returns { request, customer, leadId, conversationId },
 	// so unwrap once here rather than at every call site.
 	const makeEnquiry = async (marketplace: boolean) =>
-		(await createBookingRequest(tenantId, {
-			customer: { firstName: marketplace ? 'Marketplace' : 'Website', lastName: 'Traveller', email: `t${Date.now()}@example.com` },
-			source: marketplace ? 'MARKETPLACE' : 'WEBSITE',
-			tourId: marketplace ? tourId : null,
-			adults: 2,
-			notes: 'Interested in July.',
-			metadata: marketplace
-				? {
-						marketplace: {
-							utmSource: 'google',
-							utmMedium: 'organic',
-							landingPage: '/tours/contract-probe',
-							sessionId: 'sess_probe'
+		(
+			await createBookingRequest(tenantId, {
+				customer: {
+					firstName: marketplace ? 'Marketplace' : 'Website',
+					lastName: 'Traveller',
+					email: `t${Date.now()}@example.com`
+				},
+				source: marketplace ? 'MARKETPLACE' : 'WEBSITE',
+				tourId: marketplace ? tourId : null,
+				adults: 2,
+				notes: 'Interested in July.',
+				metadata: marketplace
+					? {
+							marketplace: {
+								utmSource: 'google',
+								utmMedium: 'organic',
+								landingPage: '/tours/contract-probe',
+								sessionId: 'sess_probe'
+							}
 						}
-					}
-				: {},
-			// The acknowledgement path is exercised separately; keep these tests
-			// about the data contract.
-			sendAcknowledgement: false
-		} as never)).request;
+					: {},
+				// The acknowledgement path is exercised separately; keep these tests
+				// about the data contract.
+				sendAcknowledgement: false
+			} as never)
+		).request;
 
 	it('stores a marketplace enquiry as a booking_request, not a new type', async () => {
 		const req = await makeEnquiry(true);
@@ -191,11 +193,7 @@ suite('marketplace enquiry is an ordinary enquiry to the phone', () => {
 	it('keeps the enquiry when its tour is later deleted', async () => {
 		// SET NULL, not cascade: a real customer's enquiry must survive an
 		// operator retiring the listing that produced it.
-		const [country] = await db()
-			.select()
-			.from(schema.countries)
-			.where(eq(schema.countries.slug, 'tanzania'))
-			.limit(1);
+		const [country] = await db().select().from(schema.countries).where(eq(schema.countries.slug, 'tanzania')).limit(1);
 		const [doomed] = await db()
 			.insert(schema.tours)
 			.values({

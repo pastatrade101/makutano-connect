@@ -37,7 +37,9 @@ suite('deleting is hiding, not destroying', () => {
 		const { listBookings, getBooking, softDeleteBooking, restoreBooking } = await import('../src/lib/server/bookings');
 		const booking = await newBooking();
 
-		expect((await listBookings(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.booking.id)).toContain(booking.id);
+		expect(
+			(await listBookings(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.booking.id)
+		).toContain(booking.id);
 
 		await softDeleteBooking(tenantId, booking.id);
 		const after = await listBookings(tenantId, { limit: 50, page: 1, order: 'desc' });
@@ -46,7 +48,9 @@ suite('deleting is hiding, not destroying', () => {
 		await expect(getBooking(tenantId, booking.id)).rejects.toThrow(/could not be found/i);
 
 		await restoreBooking(tenantId, booking.id);
-		expect((await listBookings(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.booking.id)).toContain(booking.id);
+		expect(
+			(await listBookings(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.booking.id)
+		).toContain(booking.id);
 		expect((await getBooking(tenantId, booking.id)).status).toBe('CONFIRMED');
 	}, 120_000);
 
@@ -95,21 +99,24 @@ suite('deleting is hiding, not destroying', () => {
 		await softDeleteBookingRequest(tenantId, enquiry.id);
 		const after = await bookingRequestStats(tenantId);
 
-		expect((await listBookingRequests(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.request.id)).not.toContain(enquiry.id);
+		expect(
+			(await listBookingRequests(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.request.id)
+		).not.toContain(enquiry.id);
 		// The stats query is raw SQL and does not share the list's filter, which is
 		// exactly the sort of surface a soft delete leaks out of.
 		expect(after.total).toBe(before.total - 1);
 
 		await restoreBookingRequest(tenantId, enquiry.id);
-		expect((await listBookingRequests(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.request.id)).toContain(enquiry.id);
+		expect(
+			(await listBookingRequests(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.request.id)
+		).toContain(enquiry.id);
 	}, 120_000);
 
 	it('clears an enquiry when the source says it deleted it', async () => {
 		// The source holds its own reference and has never seen Connect's uuid,
 		// so the mirror delete is keyed on external_reference.
-		const { createBookingRequest, deleteMirroredBookingRequest, listBookingRequests } = await import(
-			'../src/lib/server/booking-requests'
-		);
+		const { createBookingRequest, deleteMirroredBookingRequest, listBookingRequests } =
+			await import('../src/lib/server/booking-requests');
 		const { request } = await createBookingRequest(tenantId, {
 			customer: { firstName: 'Mirrored', lastName: 'Enquiry' },
 			source: 'WEBSITE',
@@ -121,7 +128,9 @@ suite('deleting is hiding, not destroying', () => {
 
 		const hit = await deleteMirroredBookingRequest(tenantId, 'GF-BK-9001');
 		expect(hit.deleted).toBe(true);
-		expect((await listBookingRequests(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.request.id)).not.toContain(request.id);
+		expect(
+			(await listBookingRequests(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.request.id)
+		).not.toContain(request.id);
 
 		// Idempotent: a replayed delete is not an error, and does not claim a
 		// second deletion.
@@ -131,9 +140,8 @@ suite('deleting is hiding, not destroying', () => {
 	}, 120_000);
 
 	it('clears a quotation when the source says it deleted it', async () => {
-		const { upsertQuotationMirror, deleteMirroredQuotation, listQuotations } = await import(
-			'../src/lib/server/quotations'
-		);
+		const { upsertQuotationMirror, deleteMirroredQuotation, listQuotations } =
+			await import('../src/lib/server/quotations');
 		const mirrored = await upsertQuotationMirror(tenantId, {
 			externalReference: 'GFQ-TEST01',
 			externalSource: 'goldfinch',
@@ -143,23 +151,26 @@ suite('deleting is hiding, not destroying', () => {
 			total: '1200.00'
 		} as never);
 
-		expect((await listQuotations(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.quotation.id)).toContain(mirrored.id);
+		expect(
+			(await listQuotations(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.quotation.id)
+		).toContain(mirrored.id);
 
 		const hit = await deleteMirroredQuotation(tenantId, 'GFQ-TEST01');
 		expect(hit.deleted).toBe(true);
-		expect((await listQuotations(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.quotation.id)).not.toContain(mirrored.id);
+		expect(
+			(await listQuotations(tenantId, { limit: 50, page: 1, order: 'desc' })).items.map((r) => r.quotation.id)
+		).not.toContain(mirrored.id);
 
 		expect((await deleteMirroredQuotation(tenantId, 'GFQ-TEST01')).deleted).toBe(false);
 		expect((await deleteMirroredQuotation(tenantId, 'GFQ-NEVER-SEEN')).deleted).toBe(false);
 	}, 120_000);
 
-	it('keeps Connect\'s copy of an enquiry current as the source changes it', async () => {
+	it("keeps Connect's copy of an enquiry current as the source changes it", async () => {
 		// Connect's copy used to freeze at creation: nothing told it the booking
 		// had been confirmed, that money had moved, or that an amendment changed
 		// the price.
-		const { createBookingRequest, upsertBookingRequestMirror, getBookingRequest } = await import(
-			'../src/lib/server/booking-requests'
-		);
+		const { createBookingRequest, upsertBookingRequestMirror, getBookingRequest } =
+			await import('../src/lib/server/booking-requests');
 		const { request } = await createBookingRequest(tenantId, {
 			customer: { firstName: 'Deo', lastName: 'Robert' },
 			source: 'WEBSITE',
@@ -184,7 +195,7 @@ suite('deleting is hiding, not destroying', () => {
 		expect(after.estimatedTotal).toBe('4620.00');
 		const meta = after.metadata as Record<string, unknown>;
 		expect(meta.goldfinch_payment_status).toBe('partially_paid');
-		expect((meta.goldfinch_amendments as unknown[])).toHaveLength(1);
+		expect(meta.goldfinch_amendments as unknown[]).toHaveLength(1);
 		// The original link must survive a status change.
 		expect(meta.goldfinch_booking_id ?? 'kept').toBeTruthy();
 
@@ -193,7 +204,9 @@ suite('deleting is hiding, not destroying', () => {
 			externalReference: 'GF-BKG-000042',
 			amendment: { summary: 'Removed the balloon flight', priceEffect: '-USD 500.00', state: 'applied' }
 		});
-		expect(((await getBookingRequest(tenantId, request.id)).metadata as Record<string, unknown>).goldfinch_amendments).toHaveLength(2);
+		expect(
+			((await getBookingRequest(tenantId, request.id)).metadata as Record<string, unknown>).goldfinch_amendments
+		).toHaveLength(2);
 	}, 120_000);
 
 	it('promotes a confirmed enquiry into a real booking, exactly once', async () => {
@@ -265,7 +278,11 @@ suite('deleting is hiding, not destroying', () => {
 		const { listBookings, softDeleteBooking } = await import('../src/lib/server/bookings');
 		const booking = await newBooking();
 		await softDeleteBooking(tenantId, booking.id);
-		const deleted = await listBookings(tenantId, { limit: 50, page: 1, order: 'desc' }, { includeDeleted: true, onlyDeleted: true });
+		const deleted = await listBookings(
+			tenantId,
+			{ limit: 50, page: 1, order: 'desc' },
+			{ includeDeleted: true, onlyDeleted: true }
+		);
 		expect(deleted.items.map((r) => r.booking.id)).toContain(booking.id);
 	}, 120_000);
 });

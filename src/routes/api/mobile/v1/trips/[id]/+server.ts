@@ -54,9 +54,7 @@ export const GET: RequestHandler = async (event) => {
 		// it, and only people who are actually here — handing a departure to a
 		// deactivated account is a quiet way to lose it.
 		const [team, crew, accommodations] = await Promise.all([
-			viewer.permissions.includes('trips:assign')
-				? listAssignableMembers(viewer.tenantId)
-				: Promise.resolve([]),
+			viewer.permissions.includes('trips:assign') ? listAssignableMembers(viewer.tenantId) : Promise.resolve([]),
 			crewForPicker(viewer.tenantId),
 			accommodationsForPicker(viewer.tenantId)
 		]);

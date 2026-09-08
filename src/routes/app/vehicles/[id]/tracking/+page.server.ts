@@ -8,7 +8,19 @@ import { requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
 import { toAppError } from '$lib/server/errors';
 import { getVehicle } from '$lib/server/vehicles';
-import { PHONE_EXPIRY_MS, PROFILES, canShowCode, cancelEnrollment, configurationUri, enrollmentFor, extendEnrollment, ingestConfigured, removeTracking, startEnrollment, type ProfileKey } from '$lib/server/tracking/enrollment';
+import {
+	PHONE_EXPIRY_MS,
+	PROFILES,
+	canShowCode,
+	cancelEnrollment,
+	configurationUri,
+	enrollmentFor,
+	extendEnrollment,
+	ingestConfigured,
+	removeTracking,
+	startEnrollment,
+	type ProfileKey
+} from '$lib/server/tracking/enrollment';
 import { trackingEnabled } from '$lib/server/tracking';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -29,9 +41,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		vehicle: { id: vehicle.id, name: vehicle.name, registration: vehicle.registration },
 		profiles: Object.entries(PROFILES).map(([key, p]) => ({ key, label: p.label })),
 		expiryMinutes: Math.round(PHONE_EXPIRY_MS / 60000),
-		active: active
-			? { id: active.id, label: active.label, boundAt: active.boundAt, since: active.createdAt }
-			: null,
+		active: active ? { id: active.id, label: active.label, boundAt: active.boundAt, since: active.createdAt } : null,
 		expiredJustNow: Boolean(expired),
 		/*
 		 * The setup code and its QR are rendered ONCE, by this load, to the one
@@ -69,14 +79,15 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		 * fix it.
 		 */
 		ingestMisconfigured: Boolean(canShowCode(pending) && !ingestConfigured()),
-		pending: canShowCode(pending) && ingestConfigured()
-			? {
-					id: pending.id,
-					serverUrl: configurationUri(pending.deviceRef, pending.profile as ProfileKey).split('?')[0],
-					expiresAt: pending.expiresAt,
-					profile: pending.profile
-				}
-			: null
+		pending:
+			canShowCode(pending) && ingestConfigured()
+				? {
+						id: pending.id,
+						serverUrl: configurationUri(pending.deviceRef, pending.profile as ProfileKey).split('?')[0],
+						expiresAt: pending.expiresAt,
+						profile: pending.profile
+					}
+				: null
 	};
 };
 
@@ -89,7 +100,7 @@ export const actions: Actions = {
 				tenantId: tenant.id,
 				vehicleId: params.id,
 				userId: locals.user!.id,
-				profile: (String(data.get('profile') ?? 'SAFARI') as ProfileKey),
+				profile: String(data.get('profile') ?? 'SAFARI') as ProfileKey,
 				label: String(data.get('label') ?? '').trim() || null
 			});
 			return { started: true };

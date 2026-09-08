@@ -14,7 +14,12 @@ export const load: PageServerLoad = async ({ params }) => {
 		// never reach a page payload even for a platform admin.
 		const c = health.connection;
 		return {
-			tenant: { id: health.tenant.id, name: health.tenant.name, slug: health.tenant.slug, status: health.tenant.status },
+			tenant: {
+				id: health.tenant.id,
+				name: health.tenant.name,
+				slug: health.tenant.slug,
+				status: health.tenant.status
+			},
 			connection: {
 				id: c.id,
 				status: c.status,
@@ -53,7 +58,11 @@ export const actions: Actions = {
 	disable: async ({ locals, params, request }) => {
 		const data = await request.formData();
 		try {
-			await disableConnection(idOf(params), { userId: locals.user!.id, requestId: locals.requestId }, String(data.get('reason') ?? '') || undefined);
+			await disableConnection(
+				idOf(params),
+				{ userId: locals.user!.id, requestId: locals.requestId },
+				String(data.get('reason') ?? '') || undefined
+			);
 			return { success: true };
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });

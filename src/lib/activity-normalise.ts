@@ -34,7 +34,10 @@ const PATTERNS: [ActivitySlug, RegExp][] = [
 	['boat-safari', /\bboat safari\b|\bcanoe\b|\bmokoro\b|\bboat trip\b/i],
 	['waterfall-walk', /\bwaterfalls?\b/i],
 	['cultural-visit', /\bvillage visit\b|\bspice tour\b|\bstone town\b|\bcoffee experience\b|\bcultural visit\b/i],
-	['beach-time', /\bbeach leisure\b|\bbeach time\b|\brelax by the ocean\b|\bbeach day\b|\bsnorkell?ing\b|\bwater sports\b/i],
+	[
+		'beach-time',
+		/\bbeach leisure\b|\bbeach time\b|\brelax by the ocean\b|\bbeach day\b|\bsnorkell?ing\b|\bwater sports\b/i
+	],
 	['game-drive', /\bgame drive(s)?\b|\bgame viewing\b|\bwildlife viewing\b/i]
 ];
 

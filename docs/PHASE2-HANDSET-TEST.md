@@ -56,16 +56,16 @@ EOF
 
 ## What must be true at the end
 
-| Check | Why it matters |
-| --- | --- |
-| Exactly **one** new enrollment row | A retry that duplicated the ledger would break the one-in-flight invariant |
-| Exactly **one** new `tc_devices` row | Two devices means the worker provisioned twice |
-| `identifier_source = 'MINTED'` | An operator-typed identifier is the attack the design removed |
-| `first_fix_at` is set, and matches a real position | `te_evid_chk` allows ACTIVE without it only for LEGACY rows |
-| The device is granted to the tenant's read-only user, not the admin | Isolation stops depending on Connect's filtering |
-| `attempts` = 1 | More than one means provisioning retried; worth knowing why |
-| Web tracking, Live Map and the mobile read path all show it | Three read paths, one device |
-| Nothing rendered the reference anywhere but the QR | It is credential material |
+| Check                                                               | Why it matters                                                             |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Exactly **one** new enrollment row                                  | A retry that duplicated the ledger would break the one-in-flight invariant |
+| Exactly **one** new `tc_devices` row                                | Two devices means the worker provisioned twice                             |
+| `identifier_source = 'MINTED'`                                      | An operator-typed identifier is the attack the design removed              |
+| `first_fix_at` is set, and matches a real position                  | `te_evid_chk` allows ACTIVE without it only for LEGACY rows                |
+| The device is granted to the tenant's read-only user, not the admin | Isolation stops depending on Connect's filtering                           |
+| `attempts` = 1                                                      | More than one means provisioning retried; worth knowing why                |
+| Web tracking, Live Map and the mobile read path all show it         | Three read paths, one device                                               |
+| Nothing rendered the reference anywhere but the QR                  | It is credential material                                                  |
 
 ## What to write down about the person
 

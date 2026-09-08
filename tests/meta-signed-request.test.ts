@@ -44,10 +44,7 @@ describe('anything it cannot prove is refused', () => {
 	it('refuses a payload edited after signing', () => {
 		const signed = signRequest(PAYLOAD, SECRET);
 		const [signature] = signed.split('.');
-		const forged = Buffer.from(
-			JSON.stringify({ ...PAYLOAD, user_id: '99999999999999' }),
-			'utf8'
-		).toString('base64url');
+		const forged = Buffer.from(JSON.stringify({ ...PAYLOAD, user_id: '99999999999999' }), 'utf8').toString('base64url');
 		expect(parseSignedRequest(`${signature}.${forged}`, SECRET)).toEqual({
 			ok: false,
 			reason: 'bad_signature'

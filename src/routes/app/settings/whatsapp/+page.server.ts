@@ -53,7 +53,13 @@ export const actions: Actions = {
 		requirePermission(locals.permissions, 'whatsapp:templates');
 		try {
 			const result = await applyTemplatePack(requireTenant(locals).id, { userId: locals.user!.id });
-			return { pack: { submitted: result.submitted.length, skipped: result.skippedExisting.length, failed: result.failed.length } };
+			return {
+				pack: {
+					submitted: result.submitted.length,
+					skipped: result.skippedExisting.length,
+					failed: result.failed.length
+				}
+			};
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}
@@ -74,7 +80,11 @@ export const actions: Actions = {
 
 	sync: async ({ locals }) => {
 		requirePermission(locals.permissions, 'whatsapp:connect');
-		await enqueue('whatsapp.templates.sync', { tenantId: requireTenant(locals).id }, { tenantId: requireTenant(locals).id });
+		await enqueue(
+			'whatsapp.templates.sync',
+			{ tenantId: requireTenant(locals).id },
+			{ tenantId: requireTenant(locals).id }
+		);
 		return { success: true, queued: true };
 	},
 

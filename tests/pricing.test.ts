@@ -132,13 +132,21 @@ describe('seasons', () => {
 	});
 
 	it('holds both boundary days inclusively', () => {
-		expect(calculateTourPrice(seasonal, { travelDate: '2026-07-01', adults: 1, children: 0 })!.adultPrice).toBe('1250.00');
-		expect(calculateTourPrice(seasonal, { travelDate: '2026-10-31', adults: 1, children: 0 })!.adultPrice).toBe('1250.00');
+		expect(calculateTourPrice(seasonal, { travelDate: '2026-07-01', adults: 1, children: 0 })!.adultPrice).toBe(
+			'1250.00'
+		);
+		expect(calculateTourPrice(seasonal, { travelDate: '2026-10-31', adults: 1, children: 0 })!.adultPrice).toBe(
+			'1250.00'
+		);
 	});
 
 	it('does not apply the day before or the day after', () => {
-		expect(calculateTourPrice(seasonal, { travelDate: '2026-06-30', adults: 1, children: 0 })!.applied).toBe('Standard pricing');
-		expect(calculateTourPrice(seasonal, { travelDate: '2026-11-01', adults: 1, children: 0 })!.applied).toBe('Standard pricing');
+		expect(calculateTourPrice(seasonal, { travelDate: '2026-06-30', adults: 1, children: 0 })!.applied).toBe(
+			'Standard pricing'
+		);
+		expect(calculateTourPrice(seasonal, { travelDate: '2026-11-01', adults: 1, children: 0 })!.applied).toBe(
+			'Standard pricing'
+		);
 	});
 
 	it('wraps the year — 20 Dec to 5 Jan is ONE season', () => {
@@ -157,7 +165,9 @@ describe('seasons', () => {
 	});
 
 	it('falls back to base when no season covers the date', () => {
-		expect(calculateTourPrice(seasonal, { travelDate: '2026-03-05', adults: 1, children: 0 })!.applied).toBe('Standard pricing');
+		expect(calculateTourPrice(seasonal, { travelDate: '2026-03-05', adults: 1, children: 0 })!.applied).toBe(
+			'Standard pricing'
+		);
 	});
 
 	it('ignores seasons entirely when the enquiry has no date yet', () => {
@@ -227,7 +237,9 @@ describe('validation, in words an operator can act on', () => {
 	});
 
 	it('catches a band that ends before it starts', () => {
-		const problems = validatePricing(base({ tiers: [{ minTravellers: 6, maxTravellers: 4, adult: '1.00', child: null }] }));
+		const problems = validatePricing(
+			base({ tiers: [{ minTravellers: 6, maxTravellers: 4, adult: '1.00', child: null }] })
+		);
 		expect(problems.some((p) => p.message.includes('ends before it starts'))).toBe(true);
 	});
 

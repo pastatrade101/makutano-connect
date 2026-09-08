@@ -56,10 +56,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				 * vehicle, and calling that vehicle busy months later would be wrong.
 				 */
 				.where(
-					and(
-						inArray(schema.trips.vehicleId, ids),
-						inArray(schema.trips.status, ['PREPARING', 'READY', 'IN_PROGRESS'])
-					)
+					and(inArray(schema.trips.vehicleId, ids), inArray(schema.trips.status, ['PREPARING', 'READY', 'IN_PROGRESS']))
 				)
 		: [];
 	const onTrip = new Map(assigned.map((a) => [a.vehicleId as string, a]));

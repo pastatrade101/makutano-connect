@@ -104,8 +104,6 @@ describe('marketplace publishing is platform-only', () => {
 			expect(owner, `OWNER should still hold ${p}`).toContain(p);
 		}
 		expect(permissionsForRole('VIEWER')).not.toContain('bookings:write');
-		expect(permissionsForRole('CREW')).toEqual(
-			expect.arrayContaining(['trips:read', 'trips:write', 'crew:read'])
-		);
+		expect(permissionsForRole('CREW')).toEqual(expect.arrayContaining(['trips:read', 'trips:write', 'crew:read']));
 	});
 });

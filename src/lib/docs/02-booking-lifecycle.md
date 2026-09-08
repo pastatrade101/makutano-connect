@@ -42,12 +42,15 @@ curl -X POST "$MAKUTANO_API_URL/api/v1/booking-requests" \
 
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "8cd0…", "reference": "GFA-RQ-2026-00007", "status": "NEW",
-    "customer": { "id": "…", "firstName": "Amina", "whatsappPhone": "255712345678" },
-    "leadId": "…", "conversationId": "…"
-  }
+	"success": true,
+	"data": {
+		"id": "8cd0…",
+		"reference": "GFA-RQ-2026-00007",
+		"status": "NEW",
+		"customer": { "id": "…", "firstName": "Amina", "whatsappPhone": "255712345678" },
+		"leadId": "…",
+		"conversationId": "…"
+	}
 }
 ```
 

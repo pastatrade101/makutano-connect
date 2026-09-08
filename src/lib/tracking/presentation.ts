@@ -61,7 +61,14 @@ export const hasPosition = (v: { latitude: number | null; longitude: number | nu
  * Order for a fleet list: the vehicles an operator needs to look at first.
  * Reporting first, then quiet, then faults, then unconfigured; ties by name.
  */
-const RANK: Record<TrackingState, number> = { LIVE: 0, RECENT: 1, STALE: 2, OFFLINE: 3, UNAVAILABLE: 4, NOT_CONFIGURED: 5 };
+const RANK: Record<TrackingState, number> = {
+	LIVE: 0,
+	RECENT: 1,
+	STALE: 2,
+	OFFLINE: 3,
+	UNAVAILABLE: 4,
+	NOT_CONFIGURED: 5
+};
 export function fleetOrder<T extends { state: TrackingState; name: string }>(rows: T[]): T[] {
 	return [...rows].sort((a, b) => RANK[a.state] - RANK[b.state] || a.name.localeCompare(b.name));
 }

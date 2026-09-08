@@ -11,11 +11,26 @@ export const POST: RequestHandler = async (event) =>
 		const body = await parseBody(
 			event,
 			z.object({
-				status: z.enum(['PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'DELIVERED', 'CANCELLED', 'REFUNDED']),
+				status: z.enum([
+					'PENDING_CONFIRMATION',
+					'CONFIRMED',
+					'PROCESSING',
+					'READY',
+					'DISPATCHED',
+					'DELIVERED',
+					'CANCELLED',
+					'REFUNDED'
+				]),
 				reason: z.string().max(500).optional()
 			})
 		);
 		const order = await changeOrderStatus(ctx.tenantId, id, body.status, { apiKeyId: ctx.apiKeyId }, body.reason);
-		await audit(ctx.tenantId, 'order.status_changed', { type: 'api_key', apiKeyId: ctx.apiKeyId, requestId: ctx.requestId }, { type: 'order', id }, { status: body.status });
+		await audit(
+			ctx.tenantId,
+			'order.status_changed',
+			{ type: 'api_key', apiKeyId: ctx.apiKeyId, requestId: ctx.requestId },
+			{ type: 'order', id },
+			{ status: body.status }
+		);
 		return ok(order);
 	});

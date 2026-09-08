@@ -88,7 +88,10 @@ export async function assertFetchableUrl(raw: string): Promise<URL> {
 	for (const address of resolved) {
 		const reason = blockedAddressReason(address);
 		if (reason) {
-			throw new AppError('VALIDATION_ERROR', `${url.hostname} resolves to a ${reason} address, which cannot be synced.`);
+			throw new AppError(
+				'VALIDATION_ERROR',
+				`${url.hostname} resolves to a ${reason} address, which cannot be synced.`
+			);
 		}
 	}
 	return url;

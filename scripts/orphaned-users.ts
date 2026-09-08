@@ -86,7 +86,9 @@ const kept = rows.filter((r) => KEEP.has(r.email.toLowerCase()));
 const open = rows.filter((r) => r.is_active && !KEEP.has(r.email.toLowerCase()));
 
 console.log(APPLY ? 'mode     APPLY — accounts will be closed' : 'mode     DRY RUN — nothing will change');
-console.log(`orphaned ${rows.length}  (to close: ${open.length}${kept.length ? `, kept by name: ${kept.length}` : ''})\n`);
+console.log(
+	`orphaned ${rows.length}  (to close: ${open.length}${kept.length ? `, kept by name: ${kept.length}` : ''})\n`
+);
 
 for (const r of rows) {
 	const where = r.memberships === 0 ? 'never joined a tenant' : `deleted tenant: ${r.dead_tenants ?? '?'}`;

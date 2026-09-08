@@ -232,7 +232,10 @@ describe('nothing that names a provider device reaches a client', () => {
 		expect(web).toMatch(/searchParams\.get\('hours'\)/);
 		expect(web).not.toMatch(/searchParams\.get\('(device|ref|deviceId|uniqueId)'\)/);
 		expect(web).toContain('limit: HISTORY_POINT_LIMIT');
-		for (const f of ['src/routes/api/mobile/v1/vehicles/[id]/tracking/+server.ts', 'src/routes/api/mobile/v1/trips/[id]/tracking/+server.ts']) {
+		for (const f of [
+			'src/routes/api/mobile/v1/vehicles/[id]/tracking/+server.ts',
+			'src/routes/api/mobile/v1/trips/[id]/tracking/+server.ts'
+		]) {
 			const src = readFileSync(f, 'utf8');
 			expect(src).toContain("searchParams.get('hours')");
 			expect(src).toMatch(/Math\.min\(MAX_HOURS/);

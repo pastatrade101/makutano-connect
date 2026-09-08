@@ -1933,9 +1933,7 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
  * whole page, not getOperatorReviewSummary once per card, which is the N+1 that
  * would make an index the slowest page on the site.
  */
-export async function listOperators(): Promise<
-	(OperatorCard & { tourCount: number; reviews: ReviewSummary })[]
-> {
+export async function listOperators(): Promise<(OperatorCard & { tourCount: number; reviews: ReviewSummary })[]> {
 	const rows = await db()
 		.select({
 			tenantId: schema.operatorProfiles.tenantId,

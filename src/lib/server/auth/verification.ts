@@ -45,14 +45,16 @@ export async function issueToken(
 			)
 		);
 
-	await db().insert(schema.verificationTokens).values({
-		userId,
-		purpose,
-		tenantId: tenantId ?? null,
-		tokenHash: sha256(token),
-		expiresAt,
-		ipHash: ipHash ?? null
-	});
+	await db()
+		.insert(schema.verificationTokens)
+		.values({
+			userId,
+			purpose,
+			tenantId: tenantId ?? null,
+			tokenHash: sha256(token),
+			expiresAt,
+			ipHash: ipHash ?? null
+		});
 
 	return { token, expiresAt };
 }
@@ -61,10 +63,7 @@ export async function issueToken(
  * Spend a token. Returns the user it belonged to, or null when it is unknown, expired
  * or already used — the caller must not distinguish those cases to the visitor.
  */
-export async function consumeToken(
-	token: string,
-	purpose: schema.VerificationPurpose
-): Promise<schema.User | null> {
+export async function consumeToken(token: string, purpose: schema.VerificationPurpose): Promise<schema.User | null> {
 	if (!token) return null;
 	const rows = (await db().execute<{ user_id: string }>(sql`
 		update verification_tokens
@@ -84,9 +83,7 @@ export async function consumeToken(
 }
 
 /** Like consumeToken, but also returns the tenant an invite is bound to. */
-export async function consumeInviteToken(
-	token: string
-): Promise<{ user: schema.User; tenantId: string } | null> {
+export async function consumeInviteToken(token: string): Promise<{ user: schema.User; tenantId: string } | null> {
 	if (!token) return null;
 	const rows = (await db().execute<{ user_id: string; tenant_id: string | null }>(sql`
 		update verification_tokens
@@ -125,10 +122,7 @@ export async function inviteTokenOwner(
 		.select()
 		.from(schema.verificationTokens)
 		.where(
-			and(
-				eq(schema.verificationTokens.tokenHash, sha256(token)),
-				eq(schema.verificationTokens.purpose, 'TEAM_INVITE')
-			)
+			and(eq(schema.verificationTokens.tokenHash, sha256(token)), eq(schema.verificationTokens.purpose, 'TEAM_INVITE'))
 		)
 		.limit(1);
 	if (!row?.tenantId) return null;

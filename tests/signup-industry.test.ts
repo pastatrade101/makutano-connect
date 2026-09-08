@@ -2,12 +2,7 @@
 // it is the only thing standing between the form and the tenants table — the
 // industry field arrived with no validation at all before this.
 import { describe, expect, it } from 'vitest';
-import {
-	DEFAULT_SIGNUP_INDUSTRY,
-	INDUSTRIES,
-	isSignupIndustry,
-	SIGNUP_INDUSTRIES
-} from '$lib/server/provisioning';
+import { DEFAULT_SIGNUP_INDUSTRY, INDUSTRIES, isSignupIndustry, SIGNUP_INDUSTRIES } from '$lib/server/provisioning';
 
 describe('what signup will create', () => {
 	it('offers tour and travel operators, and nothing else', () => {

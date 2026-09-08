@@ -25,7 +25,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}),
 		orderStats(requireTenant(locals).id)
 	]);
-	const filtered = payment === 'unpaid' ? items.filter((r) => r.order.paymentStatus === 'UNPAID' || r.order.paymentStatus === 'PARTIALLY_PAID') : items;
+	const filtered =
+		payment === 'unpaid'
+			? items.filter((r) => r.order.paymentStatus === 'UNPAID' || r.order.paymentStatus === 'PARTIALLY_PAID')
+			: items;
 	return {
-		workspaceRelevant, items: filtered, total, pagination, stats };
+		workspaceRelevant,
+		items: filtered,
+		total,
+		pagination,
+		stats
+	};
 };

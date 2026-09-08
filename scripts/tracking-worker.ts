@@ -28,9 +28,7 @@ async function once() {
 	// Bounded on purpose: one line per pass, and silent when there is nothing to
 	// say, so a worker running every ten seconds cannot fill a disk.
 	if (result.provisioned || result.activated || result.expired || result.cleaned) {
-		console.log(
-			JSON.stringify({ event: 'tracking_worker_pass', ...result, ms: Date.now() - started })
-		);
+		console.log(JSON.stringify({ event: 'tracking_worker_pass', ...result, ms: Date.now() - started }));
 	}
 }
 

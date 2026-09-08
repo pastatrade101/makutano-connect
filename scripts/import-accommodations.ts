@@ -101,9 +101,7 @@ const source = raw.source ?? file;
  * import mint new ones would fragment exactly the list it is meant to join.
  */
 const destinationSlugs = [
-	...new Set(
-		properties.map((p) => p.destination?.slug?.trim()).filter((slug): slug is string => Boolean(slug))
-	)
+	...new Set(properties.map((p) => p.destination?.slug?.trim()).filter((slug): slug is string => Boolean(slug)))
 ];
 const destinationRows = destinationSlugs.length
 	? await db
@@ -118,7 +116,9 @@ const LEVELS = ['LUXURY', 'MID_RANGE', 'BUDGET'];
 const LODGE_TYPES = ['SAFARI_LODGE', 'HOTEL', 'TENTED_CAMP', 'BEACH_RESORT', 'ECO_LODGE', 'BOUTIQUE_HOTEL'];
 /** Anything outside the vocabulary is dropped, never stored — the CHECK agrees. */
 const oneOf = (value: unknown, allowed: string[]) => {
-	const text = String(value ?? '').trim().toUpperCase();
+	const text = String(value ?? '')
+		.trim()
+		.toUpperCase();
 	return allowed.includes(text) ? text : null;
 };
 const text = (value: unknown) => {

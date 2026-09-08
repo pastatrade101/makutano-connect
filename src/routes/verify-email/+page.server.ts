@@ -26,7 +26,13 @@ export const load: PageServerLoad = async (event) => {
 		const user = await consumeToken(token, 'EMAIL_VERIFICATION');
 		if (!user) {
 			// Unknown, expired or already spent — all the same to the visitor.
-			return { state: 'invalid' as const, email: null, sent: false, emailConfigured: emailReady(), ttlHours: ttlHours('EMAIL_VERIFICATION') };
+			return {
+				state: 'invalid' as const,
+				email: null,
+				sent: false,
+				emailConfigured: emailReady(),
+				ttlHours: ttlHours('EMAIL_VERIFICATION')
+			};
 		}
 		await markEmailVerified(user, event.locals.ipHash);
 
@@ -71,7 +77,9 @@ export const actions: Actions = {
 			await limitResend(event.locals.ipHash ?? 'unknown');
 		} catch (err) {
 			if (toAppError(err).code === 'RATE_LIMITED') {
-				return fail(429, { message: 'You have requested several emails already. Please wait a while before trying again.' });
+				return fail(429, {
+					message: 'You have requested several emails already. Please wait a while before trying again.'
+				});
 			}
 			log.error('resend_rate_limit_failed', { requestId: event.locals.requestId });
 			return fail(500, { message: 'Could not resend right now.' });

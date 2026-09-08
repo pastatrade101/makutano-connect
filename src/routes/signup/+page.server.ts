@@ -17,7 +17,9 @@ import {
 	stageForUser,
 	turnstileEnabled,
 	turnstileSiteKey,
-	verifyTurnstile, landingPathFor } from '$lib/server/signup';
+	verifyTurnstile,
+	landingPathFor
+} from '$lib/server/signup';
 import type { PageServerLoad } from './$types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -39,7 +41,9 @@ export const actions: Actions = {
 
 		const data = await event.request.formData();
 		const fullName = String(data.get('fullName') ?? '').trim();
-		const email = String(data.get('email') ?? '').trim().toLowerCase();
+		const email = String(data.get('email') ?? '')
+			.trim()
+			.toLowerCase();
 		const password = String(data.get('password') ?? '');
 		const confirm = String(data.get('confirmPassword') ?? '');
 		const terms = data.get('terms') === 'on';

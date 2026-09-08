@@ -48,9 +48,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [rows, team, workload] = await Promise.all([
 		listCrew(tenantId),
 		seesUsers ? listTeam(tenantId) : Promise.resolve([]),
-		seesUsers
-			? teamWorkload(tenantId)
-			: Promise.resolve({ open_total: 0, open_unassigned: 0, replies_today: 0 })
+		seesUsers ? teamWorkload(tenantId) : Promise.resolve({ open_total: 0, open_unassigned: 0, replies_today: 0 })
 	]);
 
 	return {
@@ -211,9 +209,7 @@ export const actions: Actions = {
 		} catch (error) {
 			return asFailure(error);
 		}
-	}
-,
-
+	},
 	/* ----------------------------------------------------- app access ----- */
 	//
 	// Moved here from /app/settings/team so that "who works here" is one page
@@ -347,11 +343,9 @@ export const actions: Actions = {
 		requireTenantPermission(locals, 'members:write');
 		const data = await request.formData();
 		try {
-			await removeMember(
-				requireTenant(locals).id,
-				parseUuid(String(data.get('membershipId') ?? ''), 'membership id'),
-				{ userId: locals.user!.id }
-			);
+			await removeMember(requireTenant(locals).id, parseUuid(String(data.get('membershipId') ?? ''), 'membership id'), {
+				userId: locals.user!.id
+			});
 			return { success: true };
 		} catch (error) {
 			return asFailure(error);

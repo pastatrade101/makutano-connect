@@ -364,11 +364,7 @@ export async function suggestEnquiry(
 			.select({ name: schema.tours.title })
 			.from(schema.tours)
 			.where(
-				and(
-					eq(schema.tours.tenantId, tenantId),
-					eq(schema.tours.status, 'PUBLISHED'),
-					isNull(schema.tours.deletedAt)
-				)
+				and(eq(schema.tours.tenantId, tenantId), eq(schema.tours.status, 'PUBLISHED'), isNull(schema.tours.deletedAt))
 			)
 			.limit(60);
 		const wanted = extraction.travel.destinations.map((d) => d.toLowerCase());

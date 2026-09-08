@@ -75,12 +75,12 @@ Makutano Connect is one SvelteKit application containing the web UI, server acti
 
 ### Main layers
 
-| Layer | Responsibility |
-|---|---|
-| Customer channels | WhatsApp, public Order Links, hosted forms, websites, and CMS integrations |
-| Daily operations | Home, Inbox, Customers, Enquiries, Quotations, Bookings, Orders, Payments |
-| Reusable setup | Catalog, templates, forms, payment methods, team, and WhatsApp connection |
-| Technical tools | API keys, webhooks, mobile APIs, audit, usage, plans, and platform administration |
+| Layer             | Responsibility                                                                    |
+| ----------------- | --------------------------------------------------------------------------------- |
+| Customer channels | WhatsApp, public Order Links, hosted forms, websites, and CMS integrations        |
+| Daily operations  | Home, Inbox, Customers, Enquiries, Quotations, Bookings, Orders, Payments         |
+| Reusable setup    | Catalog, templates, forms, payment methods, team, and WhatsApp connection         |
+| Technical tools   | API keys, webhooks, mobile APIs, audit, usage, plans, and platform administration |
 | Data and services | PostgreSQL, Drizzle ORM, tenant scoping, permissions, domain lifecycles, and jobs |
 
 Client businesses keep their own websites, branding, catalogs where appropriate, customer relationships, and WhatsApp Business Accounts. Makutano Connect supplies the shared operational infrastructure.
@@ -158,14 +158,14 @@ The server must still authorize every read and mutation.
 
 Current roles:
 
-| Role | Product intent |
-|---|---|
-| SUPER_ADMIN | Platform administration across tenants |
-| OWNER | Full business ownership and configuration |
-| ADMIN | Business administration and advanced controls |
+| Role          | Product intent                                                                    |
+| ------------- | --------------------------------------------------------------------------------- |
+| SUPER_ADMIN   | Platform administration across tenants                                            |
+| OWNER         | Full business ownership and configuration                                         |
+| ADMIN         | Business administration and advanced controls                                     |
 | BOOKING_AGENT | Presented as Manager; full daily operations, assignment, and payment verification |
-| SALES | Agent or consultant handling customers and operational work |
-| VIEWER | Read-only access |
+| SALES         | Agent or consultant handling customers and operational work                       |
+| VIEWER        | Read-only access                                                                  |
 
 There is no dedicated finance role. A finance-focused experience is created from effective permissions, normally a read-only user with `payments:verify` granted.
 
@@ -487,14 +487,14 @@ Journey:
 
 Next actions:
 
-| State | Primary action |
-|---|---|
-| Outstanding balance with no request | Request payment |
-| Customer reports payment | Verify payment |
-| Fully paid pending booking | Confirm booking |
-| Confirmed | Start trip or service |
-| In progress | Complete |
-| Completed or cancelled | No operational action |
+| State                               | Primary action        |
+| ----------------------------------- | --------------------- |
+| Outstanding balance with no request | Request payment       |
+| Customer reports payment            | Verify payment        |
+| Fully paid pending booking          | Confirm booking       |
+| Confirmed                           | Start trip or service |
+| In progress                         | Complete              |
+| Completed or cancelled              | No operational action |
 
 Booking detail uses the shared next-action model. Domain services remain responsible for valid transitions.
 
@@ -538,14 +538,14 @@ The user can save a draft or save for confirmation.
 
 ### Order next actions
 
-| State | Primary action |
-|---|---|
-| Reported payment exists | Verify payment |
-| Draft or pending confirmation | Confirm order |
-| Confirmed and unpaid | Request payment |
-| Confirmed or processing | Mark ready |
-| Ready | Dispatch order |
-| Dispatched | Mark delivered |
+| State                                        | Primary action        |
+| -------------------------------------------- | --------------------- |
+| Reported payment exists                      | Verify payment        |
+| Draft or pending confirmation                | Confirm order         |
+| Confirmed and unpaid                         | Request payment       |
+| Confirmed or processing                      | Mark ready            |
+| Ready                                        | Dispatch order        |
+| Dispatched                                   | Mark delivered        |
 | Delivered, completed, cancelled, or refunded | No operational action |
 
 Manual creation should end in a refresh-safe Order created hand-off.
@@ -890,17 +890,17 @@ Domain services remain authoritative.
 
 ## 26. Business vocabulary
 
-| Internal concept | User-facing language |
-|---|---|
-| Booking request | Enquiry |
-| REQUESTED payment | Waiting for payment |
-| REPORTED payment | Customer says they have paid |
-| Reported payment without verification access | Waiting for finance |
-| WHATSAPP_GROUP | WhatsApp group |
-| PENDING_CONFIRMATION order | Needs confirmation |
-| BOOKING_AGENT | Manager |
-| Catalog for tour/service tenants | Services & Packages |
-| Internal IDs and enum keys | Hidden outside advanced/developer contexts |
+| Internal concept                             | User-facing language                       |
+| -------------------------------------------- | ------------------------------------------ |
+| Booking request                              | Enquiry                                    |
+| REQUESTED payment                            | Waiting for payment                        |
+| REPORTED payment                             | Customer says they have paid               |
+| Reported payment without verification access | Waiting for finance                        |
+| WHATSAPP_GROUP                               | WhatsApp group                             |
+| PENDING_CONFIRMATION order                   | Needs confirmation                         |
+| BOOKING_AGENT                                | Manager                                    |
+| Catalog for tour/service tenants             | Services & Packages                        |
+| Internal IDs and enum keys                   | Hidden outside advanced/developer contexts |
 
 Content rules:
 

@@ -18,10 +18,10 @@ Makutano Connect ── Meta WhatsApp Cloud API
 
 Every business on Connect is a **tenant**. Your tenant is provisioned for you — there is nothing to sign up for. You receive:
 
-| Item | Example | Notes |
-|---|---|---|
+| Item         | Example                                 | Notes                                    |
+| ------------ | --------------------------------------- | ---------------------------------------- |
 | API base URL | `https://connect.makutano.co.tz/api/v1` | All endpoints below are relative to this |
-| API key | `mk_live_…` | Shown once at creation. Server-side only |
+| API key      | `mk_live_…`                             | Shown once at creation. Server-side only |
 
 Store both in your backend's environment:
 
@@ -50,7 +50,7 @@ Your tenant is resolved **from the key** — there is no tenant id parameter any
 Every endpoint returns one of two JSON shapes:
 
 ```json
-{ "success": true, "data": { }, "meta": { "page": 1, "limit": 25, "total": 128, "totalPages": 6 } }
+{ "success": true, "data": {}, "meta": { "page": 1, "limit": 25, "total": 128, "totalPages": 6 } }
 ```
 
 ```json
@@ -61,7 +61,7 @@ Every endpoint returns one of two JSON shapes:
 
 ### Idempotency
 
-Every `POST` that creates something accepts an `Idempotency-Key` header (any string up to 255 characters — your own record id is ideal). Retrying with the same key replays the original response instead of creating a duplicate; reusing a key with a *different* body is rejected with `IDEMPOTENCY_CONFLICT`. Keys expire after 24 hours.
+Every `POST` that creates something accepts an `Idempotency-Key` header (any string up to 255 characters — your own record id is ideal). Retrying with the same key replays the original response instead of creating a duplicate; reusing a key with a _different_ body is rejected with `IDEMPOTENCY_CONFLICT`. Keys expire after 24 hours.
 
 ```bash
 -H "Idempotency-Key: enquiry-8842"

@@ -12,12 +12,12 @@ From your own CMS, request a short-lived onboarding link instead:
 
 ```json
 {
-  "success": true,
-  "data": {
-    "launchUrl": "https://connect.makutano.co.tz/connect/whatsapp?session=…",
-    "expiresAt": "2026-08-23T12:15:00.000Z",
-    "meta": { "appId": "…", "configId": "…", "graphVersion": "v23.0" }
-  }
+	"success": true,
+	"data": {
+		"launchUrl": "https://connect.makutano.co.tz/connect/whatsapp?session=…",
+		"expiresAt": "2026-08-23T12:15:00.000Z",
+		"meta": { "appId": "…", "configId": "…", "graphVersion": "v23.0" }
+	}
 }
 ```
 
@@ -29,14 +29,17 @@ Redirect your signed-in business user to `launchUrl`. The session is single-use,
 
 ```json
 {
-  "success": true,
-  "data": {
-    "connected": true,
-    "connection": {
-      "displayPhoneNumber": "+255 658 001 939", "businessName": "Goldfinch Adventures",
-      "status": "CONNECTED", "lastWebhookAt": "…", "lastSuccessfulSendAt": "…"
-    }
-  }
+	"success": true,
+	"data": {
+		"connected": true,
+		"connection": {
+			"displayPhoneNumber": "+255 658 001 939",
+			"businessName": "Goldfinch Adventures",
+			"status": "CONNECTED",
+			"lastWebhookAt": "…",
+			"lastSuccessfulSendAt": "…"
+		}
+	}
 }
 ```
 

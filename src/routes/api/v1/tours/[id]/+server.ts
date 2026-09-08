@@ -33,8 +33,14 @@ const patchSchema = z
 		mealsSummary: z.string().max(2000).nullable(),
 		bestTimeSummary: z.string().max(2000).nullable(),
 		availabilityType: z.enum(['YEAR_ROUND', 'SEASONAL', 'DATE_RANGE']),
-		availableFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
-		availableTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+		availableFrom: z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/)
+			.nullable(),
+		availableTo: z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/)
+			.nullable(),
 		seoTitle: z.string().max(200).nullable(),
 		seoDescription: z.string().max(400).nullable(),
 		highlights: z.array(z.string().max(300)).max(20),

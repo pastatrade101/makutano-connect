@@ -4,7 +4,16 @@ import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { audit } from '$lib/server/audit';
 import { createOrder, listOrders } from '$lib/server/orders';
-import { handle, idempotencyKeyOf, listResponse, ok, paginationFrom, parseBody, parseQuery, requireApiScope } from '$lib/server/http';
+import {
+	handle,
+	idempotencyKeyOf,
+	listResponse,
+	ok,
+	paginationFrom,
+	parseBody,
+	parseQuery,
+	requireApiScope
+} from '$lib/server/http';
 import { withIdempotency } from '$lib/server/idempotency';
 
 const money = z.string().regex(/^\d+(\.\d{1,2})?$/);
@@ -21,8 +30,28 @@ const itemSchema = z.object({
 	metadata: z.record(z.unknown()).optional()
 });
 
-const SOURCES = ['WHATSAPP_DIRECT', 'WHATSAPP_STATUS', 'WHATSAPP_GROUP', 'WEBSITE', 'INSTAGRAM', 'FACEBOOK', 'MANUAL', 'API', 'OTHER'] as const;
-const STATUSES = ['DRAFT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'DELIVERED', 'CANCELLED', 'REFUNDED'] as const;
+const SOURCES = [
+	'WHATSAPP_DIRECT',
+	'WHATSAPP_STATUS',
+	'WHATSAPP_GROUP',
+	'WEBSITE',
+	'INSTAGRAM',
+	'FACEBOOK',
+	'MANUAL',
+	'API',
+	'OTHER'
+] as const;
+const STATUSES = [
+	'DRAFT',
+	'PENDING_CONFIRMATION',
+	'CONFIRMED',
+	'PROCESSING',
+	'READY',
+	'DISPATCHED',
+	'DELIVERED',
+	'CANCELLED',
+	'REFUNDED'
+] as const;
 
 const createSchema = z.object({
 	customerId: z.string().uuid().optional().nullable(),
@@ -70,12 +99,31 @@ export const POST: RequestHandler = async (event) =>
 		const ctx = requireApiScope(event, 'orders:write');
 		const body = await parseBody(event, createSchema);
 		const outcome = await withIdempotency(
-			{ tenantId: ctx.tenantId, endpoint: 'POST /api/v1/orders', key: idempotencyKeyOf(event), method: 'POST', path: event.url.pathname, body },
+			{
+				tenantId: ctx.tenantId,
+				endpoint: 'POST /api/v1/orders',
+				key: idempotencyKeyOf(event),
+				method: 'POST',
+				path: event.url.pathname,
+				body
+			},
 			async () => {
-				const order = await createOrder(ctx.tenantId, { ...body, source: body.source ?? 'API' }, { apiKeyId: ctx.apiKeyId });
-				await audit(ctx.tenantId, 'order.created', { type: 'api_key', apiKeyId: ctx.apiKeyId, requestId: ctx.requestId }, { type: 'order', id: order.id });
+				const order = await createOrder(
+					ctx.tenantId,
+					{ ...body, source: body.source ?? 'API' },
+					{ apiKeyId: ctx.apiKeyId }
+				);
+				await audit(
+					ctx.tenantId,
+					'order.created',
+					{ type: 'api_key', apiKeyId: ctx.apiKeyId, requestId: ctx.requestId },
+					{ type: 'order', id: order.id }
+				);
 				return { status: 201, body: order as unknown as Record<string, unknown> };
 			}
 		);
-		return ok(outcome.body, undefined, { status: outcome.status, headers: outcome.replayed ? { 'idempotent-replayed': 'true' } : undefined });
+		return ok(outcome.body, undefined, {
+			status: outcome.status,
+			headers: outcome.replayed ? { 'idempotent-replayed': 'true' } : undefined
+		});
 	});

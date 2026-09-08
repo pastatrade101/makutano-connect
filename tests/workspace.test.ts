@@ -1,12 +1,7 @@
 // Workspace resolver — the §9 rule (relevance is never authorization) and the
 // acceptance matrix for all four business types.
 import { describe, expect, it } from 'vitest';
-import {
-	moduleRelevant,
-	normalizeWorkspace,
-	showModule,
-	workspaceForIndustry
-} from '../src/lib/workspace';
+import { moduleRelevant, normalizeWorkspace, showModule, workspaceForIndustry } from '../src/lib/workspace';
 
 describe('workspace resolver', () => {
 	it('normalizes legacy and unknown values safely', () => {

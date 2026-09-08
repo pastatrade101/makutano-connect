@@ -27,8 +27,8 @@ describe('travel dates survive enquiry -> quotation -> booking', () => {
 
 	it('falls back to what the traveller asked for when the operator types nothing', () => {
 		const src = readFileSync(WEB, 'utf8');
-		expect(src).toContain("draft.enquiry.startDate");
-		expect(src).toContain("draft.enquiry.endDate");
+		expect(src).toContain('draft.enquiry.startDate');
+		expect(src).toContain('draft.enquiry.endDate');
 	});
 
 	it('the mobile conversion still passes them too', () => {

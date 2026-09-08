@@ -244,7 +244,8 @@ export function validatePricing(pricing: TourPricing): PricingProblem[] {
 
 	const tiers = [...pricing.tiers].sort((a, b) => a.minTravellers - b.minTravellers);
 	tiers.forEach((tier, index) => {
-		const label = tier.maxTravellers === null ? `${tier.minTravellers}+` : `${tier.minTravellers}-${tier.maxTravellers}`;
+		const label =
+			tier.maxTravellers === null ? `${tier.minTravellers}+` : `${tier.minTravellers}-${tier.maxTravellers}`;
 		amount(`The ${label} traveller adult price`, `tier.${index}.adult`, tier.adult, true);
 		amount(`The ${label} traveller child price`, `tier.${index}.child`, tier.child, false);
 		if (tier.minTravellers < 1) {

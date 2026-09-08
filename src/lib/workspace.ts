@@ -44,12 +44,7 @@ export function moduleRelevant(workspace: Workspace, module: Module): boolean {
  * plan AND permitted for the user. Pass `entitled`/`permitted` as already-resolved
  * booleans — this module never reads entitlements itself.
  */
-export function showModule(
-	workspace: Workspace,
-	module: Module,
-	entitled: boolean,
-	permitted: boolean
-): boolean {
+export function showModule(workspace: Workspace, module: Module, entitled: boolean, permitted: boolean): boolean {
 	return moduleRelevant(workspace, module) && entitled && permitted;
 }
 
