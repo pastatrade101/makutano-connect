@@ -317,6 +317,23 @@
 			}))
 	});
 
+	/*
+	 * Rows where an adult rate is set and the child rate is not.
+	 *
+	 * A blank child box does not mean "children pay the adult rate" — the engine
+	 * reports childRateMissing and the marketplace estimate leaves children out of
+	 * the total altogether. Silence here therefore produces a quote that is wrong
+	 * by however many children travel, and the field used to be labelled
+	 * "optional", which actively invited it. If children genuinely pay the adult
+	 * rate the operator should type that number.
+	 */
+	const childGaps = $derived([
+		...draftPricing.tiers
+			.filter((t) => t.adult && !t.child)
+			.map((t) => (t.maxTravellers === null ? `${t.minTravellers}+ travellers` : `${t.minTravellers}–${t.maxTravellers} travellers`)),
+		...draftPricing.seasons.filter((sn) => sn.adult && !sn.child).map((sn) => sn.name || 'a season')
+	]);
+
 	const derivedFrom = $derived(lowestAdultPrice(draftPricing));
 	/*
 	 * What the marketplace CARD will advertise: two adults, no date.
@@ -1837,7 +1854,12 @@
 													<input bind:value={tier.adult} inputmode="decimal" class="input mt-1" placeholder="1099.00" />
 												</label>
 												<label class="text-xs text-slate-500">Child
-													<input bind:value={tier.child} inputmode="decimal" class="input mt-1" placeholder="optional" />
+													<input
+														bind:value={tier.child}
+														inputmode="decimal"
+														class="input mt-1"
+														placeholder={priceChild.trim() || '825.00'}
+													/>
 												</label>
 											</div>
 										</div>
@@ -1875,7 +1897,12 @@
 													<input bind:value={season.adult} inputmode="decimal" class="input mt-1" placeholder="1250.00" />
 												</label>
 												<label class="text-xs text-slate-500">Child
-													<input bind:value={season.child} inputmode="decimal" class="input mt-1" placeholder="optional" />
+													<input
+														bind:value={season.child}
+														inputmode="decimal"
+														class="input mt-1"
+														placeholder={priceChild.trim() || '825.00'}
+													/>
 												</label>
 											</div>
 										</div>
@@ -1885,6 +1912,14 @@
 									</button>
 								</div>
 							</details>
+
+							{#if childGaps.length}
+								<p class="rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
+									No child price on {childGaps.join(', ')}. A blank child rate is not “same as an
+									adult” — children are left out of the traveller's estimate until you set one. If
+									children pay the adult rate here, type that amount.
+								</p>
+							{/if}
 
 							<!--
 								MARKETPLACE PRICE. Shown, never asked for.
