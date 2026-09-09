@@ -10,4 +10,4 @@ export const GET: RequestHandler = async (event) =>
 		return publicJson(await listTravelStyles(featuredOnly), CACHE_REFERENCE);
 	});
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);

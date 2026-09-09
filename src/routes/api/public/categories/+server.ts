@@ -8,4 +8,4 @@ export const GET: RequestHandler = async (event) =>
 		publicJson(await listCategories(), CACHE_REFERENCE)
 	);
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);

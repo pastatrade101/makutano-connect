@@ -16,7 +16,7 @@ const bodySchema = z.object({
 	body: z.string().trim().min(1).max(4000)
 });
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);
 
 export const GET: RequestHandler = async (event) =>
 	// Rate-limited hard: a token is 40 hex characters, and this is the one public

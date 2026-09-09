@@ -14,8 +14,8 @@ import { z } from 'zod';
 import { AppError, errorResponse, toAppError } from './errors';
 import { enforce } from './rate-limit';
 import { sha256 } from './encryption';
-import { log } from './logger';
-import { env } from './env';
+import { log, redactPath } from './logger';
+import { env, isProduction } from './env';
 import { createHash, timingSafeEqual } from 'node:crypto';
 
 /** Headers a trusted first-party origin uses to speak for the person it relays. */
@@ -104,29 +104,81 @@ export const CACHE_LISTING = 'public, max-age=60, stale-while-revalidate=300';
  * edit before it is ever sent, and the failure reads as a CORS error rather than
  * anything about reviews. Every method any public endpoint exports has to be
  * listed here or it cannot be called cross-origin from the marketplace.
+ *
+ * The METHODS are a ceiling, not a grant: a route only answers what it exports,
+ * so a PATCH to the accept endpoint is a 405 whatever this says.
  */
-const CORS = {
-	'access-control-allow-origin': '*',
-	'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS',
-	'access-control-allow-headers': 'content-type'
-};
+const CORS_METHODS = 'GET, POST, PATCH, OPTIONS';
 
-export function publicJson(data: unknown, cacheControl: string, meta?: Record<string, unknown>): Response {
-	return json(
-		{ success: true, data, ...(meta ? { meta } : {}) },
-		{ headers: { ...CORS, 'cache-control': cacheControl } }
-	);
+/**
+ * Who may read these responses from a browser.
+ *
+ * This was `*`. Exactly one browser origin calls these routes — the marketplace,
+ * which is a different origin from Connect, so some CORS is genuinely required:
+ * the quote page's load re-runs client-side on navigation, and the accept POST
+ * sends application/json, which is not a safelisted content type and therefore
+ * preflights. Everything else is server-to-server (enquiries, analytics), a
+ * same-origin iframe (the tenant widget) or not a browser at all (the Flutter
+ * app, which speaks /api/mobile/v1).
+ *
+ * NOT a CSRF control, and it must never be recorded as one. CORS is enforced by
+ * the browser, on the response, and governs only whether foreign JavaScript may
+ * READ the body; a curl POST is unaffected by any value here. What actually
+ * protects acceptance is the unguessable token, the total absence of ambient
+ * credentials on these routes, the rate limit, and the SENT|VIEWED allow-list
+ * inside the transaction. This is blast-radius reduction if a token leaks.
+ */
+function allowedOrigin(event: RequestEvent): string | null {
+	const origin = event.request.headers.get('origin');
+	if (!origin) return null; // same-origin, or a non-browser caller: nothing to echo
+	const allowed = new Set([env().MARKETPLACE_URL.replace(/\/+$/, '')]);
+	if (!isProduction()) {
+		// Vite serves the marketplace on a local port in development; without this the
+		// whole quote flow is untestable outside production.
+		if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return origin;
+	}
+	return allowed.has(origin.replace(/\/+$/, '')) ? origin : null;
 }
 
-/** CORS has to be on the error too, or the browser reports a CORS failure instead of the 404. */
+/**
+ * Vary: Origin is NOT optional here, and it ships in the same change as the
+ * narrowing for a reason: this helper also serves CACHE_REFERENCE and
+ * CACHE_LISTING responses. A cache that stored one origin's response and
+ * replayed it to another would hand the wrong allow-origin header to every
+ * subsequent reader — turning a narrowed policy into a broken one.
+ */
+function corsFor(event: RequestEvent): Record<string, string> {
+	const origin = allowedOrigin(event);
+	return {
+		vary: 'Origin',
+		'access-control-allow-methods': CORS_METHODS,
+		'access-control-allow-headers': 'content-type',
+		'access-control-max-age': '600',
+		...(origin ? { 'access-control-allow-origin': origin } : {})
+	};
+}
+
+/** Applied centrally in handlePublic, so no route can forget it. */
+function withCors(res: Response, event: RequestEvent): Response {
+	for (const [k, v] of Object.entries(corsFor(event))) res.headers.set(k, v);
+	return res;
+}
+
+export function publicJson(data: unknown, cacheControl: string, meta?: Record<string, unknown>): Response {
+	// CORS headers are added by handlePublic, which is the only caller path and the
+	// only place that holds the request.
+	return json({ success: true, data, ...(meta ? { meta } : {}) }, { headers: { 'cache-control': cacheControl } });
+}
+
+/** The error needs the headers too, or the browser reports a CORS failure instead of the 404. */
 function publicError(err: unknown, requestId?: string | null): Response {
 	const res = errorResponse(toAppError(err), requestId ?? undefined);
-	for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
 	res.headers.set('cache-control', 'no-store');
 	return res;
 }
 
-export const preflight = (): Response => new Response(null, { status: 204, headers: CORS });
+export const preflight = (event: RequestEvent): Response =>
+	new Response(null, { status: 204, headers: corsFor(event) });
 
 type HandleOptions = {
 	/** Requests allowed per window, per hashed address. */
@@ -149,13 +201,13 @@ export async function handlePublic(
 ): Promise<Response> {
 	try {
 		await enforce(`${opts.scope}:${clientKey(event)}`, opts.limit ?? 120, opts.windowSeconds ?? 60);
-		return await fn();
+		return withCors(await fn(), event);
 	} catch (err) {
 		const appError = toAppError(err);
 		if (appError.status >= 500) {
-			log.error('public_api_error', { path: event.url.pathname, message: (err as Error)?.message });
+			log.error('public_api_error', { path: redactPath(event.url.pathname), message: (err as Error)?.message });
 		}
-		return publicError(err, event.locals.requestId);
+		return withCors(publicError(err, event.locals.requestId), event);
 	}
 }
 

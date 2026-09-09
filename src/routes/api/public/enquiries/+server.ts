@@ -174,4 +174,4 @@ export const GET: RequestHandler = async () => {
 	throw new AppError('NOT_FOUND', 'Not found.');
 };
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);

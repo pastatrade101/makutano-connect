@@ -495,6 +495,71 @@ suite('acceptance integrity', () => {
 		}
 	});
 
+	it('G3. the DATABASE refuses a second booking for one source record', async () => {
+		// The Goldfinch handover dedupes on the source's reference with a SELECT then an
+		// INSERT and nothing between them — the same read-then-act shape that produced
+		// five bookings from five concurrent accepts. This is the backstop underneath it.
+		const { db, schema } = dbmod;
+		const customer = await (
+			await import('../src/lib/server/customers')
+		).createCustomer(tenantId, {
+			firstName: 'Source',
+			lastName: 'Record'
+		});
+		const row = {
+			tenantId,
+			customerId: customer.id,
+			status: 'PENDING' as const,
+			currency: 'USD',
+			subtotal: '1.00',
+			total: '1.00',
+			balanceDue: '1.00',
+			externalSource: 'goldfinch',
+			externalReference: `GF-DUP-${Date.now()}`
+		};
+		await db()
+			.insert(schema.bookings)
+			.values({ ...row, bookingReference: `SRC-A-${Date.now()}` });
+
+		await expect(
+			db()
+				.insert(schema.bookings)
+				.values({ ...row, bookingReference: `SRC-B-${Date.now()}` })
+		).rejects.toThrow(/bookings_one_per_source_record|duplicate key/i);
+	});
+
+	it('G4. the same reference from a DIFFERENT source is a different record', async () => {
+		// A reference is only unique within the system that issued it, which is why the
+		// key is (tenant, source, reference) rather than the reference alone.
+		const { db, schema } = dbmod;
+		const customer = await (
+			await import('../src/lib/server/customers')
+		).createCustomer(tenantId, {
+			firstName: 'Two',
+			lastName: 'Sources'
+		});
+		const ref = `SHARED-${Date.now()}`;
+		const base = {
+			tenantId,
+			customerId: customer.id,
+			status: 'PENDING' as const,
+			currency: 'USD',
+			subtotal: '1.00',
+			total: '1.00',
+			balanceDue: '1.00',
+			externalReference: ref
+		};
+		await db()
+			.insert(schema.bookings)
+			.values({ ...base, externalSource: 'goldfinch', bookingReference: `SRC-G-${Date.now()}` });
+		await db()
+			.insert(schema.bookings)
+			.values({ ...base, externalSource: 'emnel', bookingReference: `SRC-E-${Date.now()}` });
+		// Both stand — no false collision across integrations.
+		const rows = await db().select().from(schema.bookings);
+		expect(rows.filter((r) => r.externalReference === ref)).toHaveLength(2);
+	});
+
 	it('10. a failure inside acceptance leaves neither a booking nor a claimed quotation', async () => {
 		const { enquiryId, quotationId } = await sentQuote('atomic');
 		const { db, schema } = dbmod;

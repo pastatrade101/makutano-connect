@@ -11,7 +11,7 @@ import { AppError } from '$lib/server/errors';
 import { handlePublic, preflight, publicJson } from '$lib/server/public-api';
 import type { RequestHandler } from './$types';
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);
 
 export const GET: RequestHandler = async (event) =>
 	// Rate-limited harder than the listing feeds: a token is 40 hex characters,

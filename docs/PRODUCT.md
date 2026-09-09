@@ -179,6 +179,52 @@ enquiries_, are the part still to build. They are also the part that makes the
 loop a circuit rather than a line, which is why they matter more than their
 size suggests.
 
+## Milestone 1 — the commercial spine, closed _(9 September 2026)_
+
+The first milestone is the one journey the product exists for, proven rather
+than assumed:
+
+> a traveller finds a tour on Journeys, asks for a price, receives a quotation,
+> accepts it, and exactly one booking exists at exactly the price that was
+> offered.
+
+Every step of that sentence is now enforced by something that fails loudly, and
+each was verified against production rather than reasoned about.
+
+**The price cannot move after it is offered.** A sent quotation is frozen in
+`quotation_versions`, acceptance builds the booking from that snapshot, and the
+pricing engine is deliberately not consulted about the past. Proven by a natural
+experiment on live data: an operator override of 2,100 sits under a live rate
+card of 2,205, and the traveller's page and the booking both say 2,100.
+
+**One quotation, one booking.** Acceptance is a single transaction on a session
+connection, holding an advisory lock keyed on the ENQUIRY and claiming the
+quotation with the allowed statuses in the UPDATE's own WHERE. Before it, five
+concurrent accepts produced five confirmed bookings — measured, not theorised.
+`bookings_one_per_quotation` (0056) is the backstop the application cannot
+bypass, and `bookings_one_per_source_record` (0057) is the same for integrations.
+
+**Only the current offer is acceptable.** Sending a revision supersedes the one
+before it (`SUPERSEDED`, 0055 — the operator's action, distinct from the
+traveller's `DECLINED`). Acceptance is an allow-list of `SENT | VIEWED`, so a
+withdrawn, replaced, expired or already-accepted quotation is refused
+server-side, not merely hidden. The old link stays readable as the version the
+traveller actually received.
+
+**The operator is told the truth.** Sending and delivering are separate facts:
+the offer is frozen and SENT whatever the transport does, and per-channel
+outcomes are recorded and shown. "It has gone to the traveller" is no longer
+printed over a failed send.
+
+**One niche, out of the gate.** Registration creates a tour operator and nothing
+else, and the workspace can no longer be changed from Settings into a shape that
+removes Quotations and Bookings from the operator's own menu.
+
+What this milestone does NOT claim: Trips and Reviews are still built and unused,
+nothing ranks by reputation, and the legacy Goldfinch booking-promotion path is
+switched off by default rather than removed. Those are the next milestone, and
+the table above stays the honest measure.
+
 ## How the two halves are wired
 
 One database, two deployed applications, and a public read API between them.

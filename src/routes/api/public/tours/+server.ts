@@ -80,4 +80,4 @@ export const GET: RequestHandler = async (event) =>
 		return publicJson(items, CACHE_LISTING, pageMeta(pagination.page, pagination.limit, total));
 	});
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);

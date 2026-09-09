@@ -5,7 +5,7 @@ import { AppError } from '$lib/server/errors';
 import { CACHE_REFERENCE, handlePublic, preflight, publicJson } from '$lib/server/public-api';
 import type { RequestHandler } from './$types';
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);
 
 export const GET: RequestHandler = async (event) =>
 	handlePublic(event, { scope: 'pub-stay', limit: 120 }, async () => {

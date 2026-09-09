@@ -10,4 +10,4 @@ export const GET: RequestHandler = async (event) =>
 		return publicJson(items, CACHE_REFERENCE, { total: items.length });
 	});
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);

@@ -43,7 +43,7 @@ const bodySchema = z
 	})
 	.strict();
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);
 
 export const POST: RequestHandler = async (event) =>
 	// Ten a minute. The GET allows thirty because reading a quote you hold the

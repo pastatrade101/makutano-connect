@@ -26,7 +26,7 @@ const filterSchema = z.object({
 	lodgeType: z.enum(['SAFARI_LODGE', 'HOTEL', 'TENTED_CAMP', 'BEACH_RESORT', 'ECO_LODGE', 'BOUTIQUE_HOTEL']).optional()
 });
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);
 
 export const GET: RequestHandler = async (event) =>
 	handlePublic(event, { scope: 'pub-stays', limit: 120 }, async () => {

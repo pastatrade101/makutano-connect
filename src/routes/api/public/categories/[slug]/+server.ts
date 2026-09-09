@@ -19,4 +19,4 @@ export const GET: RequestHandler = async (event) =>
 		return publicJson({ category, tours: items, destinations }, CACHE_LISTING);
 	});
 
-export const OPTIONS: RequestHandler = async () => preflight();
+export const OPTIONS: RequestHandler = async (event) => preflight(event);

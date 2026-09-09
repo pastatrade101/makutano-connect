@@ -623,6 +623,27 @@ This is the next piece of work, and it is deliberately not begun.
 
 ---
 
+## 6b. Milestone 1 — the commercial spine _(closed 9 September 2026)_
+
+enquiry -> quotation -> acceptance -> booking, enforced end to end. Migrations
+0055 (`SUPERSEDED`), 0056 (`bookings_one_per_quotation`) and 0057
+(`bookings_one_per_source_record`) are APPLIED in production. Details in
+docs/PRODUCT.md; the three facts worth carrying in your head:
+
+1. **Money that has been sent is read from `quotation_versions` and nowhere
+   else.** Do not make acceptance consult the pricing engine, ever.
+2. **Acceptance is a txDb() transaction + advisory lock on the ENQUIRY + a
+   conditional claim.** The lock is keyed on the enquiry, not the quotation,
+   because the race that matters is two different quotations on one enquiry.
+3. **Statuses are an allow-list.** Only SENT|VIEWED may be accepted, so a state
+   added later is refused by default rather than accepted by omission — which is
+   exactly how DECLINED became acceptable in the first place.
+
+Still open from this milestone, deliberately: the Goldfinch booking promotion is
+opt-in per tenant (`settings.legacyBookingPromotion`, default off) rather than
+removed, and there is NO unique index on `bookings.booking_request_id` — "one
+enquiry, one booking" is not yet a settled product rule.
+
 ## 7. Known open issues
 
 Not yet fixed. Each was verified against code.
