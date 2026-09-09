@@ -200,7 +200,16 @@ export const quotationStatusEnum = pgEnum('quotation_status', [
 	'ACCEPTED',
 	'DECLINED',
 	'EXPIRED',
-	'CONVERTED'
+	'CONVERTED',
+	/**
+	 * Replaced by a newer offer on the same enquiry (0055).
+	 *
+	 * Deliberately not DECLINED. That is the TRAVELLER's answer; this is the
+	 * OPERATOR's action, and the traveller may never have replied at all. Telling
+	 * someone "you declined this" about a quote they never answered would be a lie
+	 * in the one document they judge the business by.
+	 */
+	'SUPERSEDED'
 ]);
 export const paymentStatusEnum = pgEnum('payment_status', [
 	'PENDING',

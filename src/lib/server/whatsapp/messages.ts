@@ -18,7 +18,7 @@ import { AppError } from '../errors';
 import { enqueue } from '../jobs/queue';
 import { log } from '../logger';
 import { markMarketplaceEnquiryResponded } from '../marketplace-analytics';
-import { normalizePhone } from '../phone';
+import { toE164Digits } from '../phone';
 import { graphRequest, WhatsAppApiError } from './client';
 import { assertSendCompliant } from './compliance';
 import { markError, markSendSuccess, requireCredentials } from './connections';
@@ -140,15 +140,23 @@ function previewOf(content: OutboundContent): string {
 
 /** Queue an outbound message. Returns the persisted row immediately (§18). */
 export async function queueMessage(params: SendParams): Promise<schema.Message> {
-	// The tenant's country expands a locally-typed number (0629142552) into the E.164
-	// form WhatsApp itself uses. Without it the same person gets a second customer and
-	// a second thread — one for what they typed, one for what Meta sends back.
-	const [tenantRow] = await db()
-		.select({ country: schema.tenants.country })
-		.from(schema.tenants)
-		.where(eq(schema.tenants.id, params.tenantId))
-		.limit(1);
-	const to = normalizePhone(params.to, tenantRow?.country);
+	/*
+	 * Digits only — the tenant's dial code is deliberately NOT applied here.
+	 *
+	 * This was normalizePhone(params.to, tenant.country), which promotes a national
+	 * number using the country given. That is correct where a number is CAPTURED — a
+	 * person typing 0629142552 on a Tanzanian operator's form means +255629142552 —
+	 * and wrong here, because by this point the number is already canonical and the
+	 * only country in scope is the TENANT's, never the traveller's. A short foreign
+	 * number that did not begin with the tenant's dial code was quietly given one,
+	 * which does not fail loudly: it yields a real, different, Tanzanian number, and
+	 * the quotation — carrying a live accept link that books at that price — was
+	 * delivered to whoever owns it.
+	 *
+	 * Capture-time expansion is untouched (customers.ts, inbound), so the original
+	 * reason for this line — one person, one thread — still holds.
+	 */
+	const to = toE164Digits(params.to);
 	if (!to) throw new AppError('VALIDATION_ERROR', 'A valid recipient phone number is required.');
 
 	// Entitlements decide whether the tenant MAY send at all. Compliance (below) then

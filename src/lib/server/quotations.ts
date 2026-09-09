@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { db, schema } from './db';
+import { db, schema, txDb } from './db';
 import { nextReference } from './db/references';
 import { recordUsage } from './billing';
 import { assertAllowed } from './entitlements';
@@ -424,6 +424,17 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 	if (quotation.status === 'ACCEPTED' || quotation.status === 'CONVERTED') {
 		throw new AppError('CONFLICT', 'This quotation has already been accepted.');
 	}
+	/*
+	 * Only an open offer may be sent or re-sent.
+	 *
+	 * "Resend" on a DECLINED, EXPIRED or SUPERSEDED quotation used to write it back to
+	 * SENT — un-declining an offer the traveller had turned down, or reviving one the
+	 * operator had already replaced, and re-arming its public link in the process.
+	 * Sending again is for an offer that still stands; anything else is a new quotation.
+	 */
+	if (quotation.status !== 'DRAFT' && quotation.status !== 'SENT' && quotation.status !== 'VIEWED') {
+		throw new AppError('CONFLICT', 'This quotation is no longer open — create a new one instead.');
+	}
 
 	await db()
 		.insert(schema.quotationVersions)
@@ -460,11 +471,56 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 		.onConflictDoNothing();
 
 	const sentAt = new Date();
-	const [updated] = await db()
-		.update(schema.quotations)
-		.set({ status: 'SENT', sentAt, updatedAt: sentAt })
-		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
-		.returning();
+
+	/*
+	 * SENDING THIS OFFER WITHDRAWS THE PREVIOUS ONE.
+	 *
+	 * A re-quote is a new quotations row, and nothing used to touch the old one — so
+	 * an enquiry could hold two live links, each with its own token, each acceptable.
+	 * A traveller holding the earlier, cheaper one could accept it after the operator
+	 * had replaced it, and both could convert.
+	 *
+	 * SUPERSEDED, not DECLINED: the traveller may never have answered. Only offers
+	 * that are still OPEN move — a quotation already ACCEPTED, CONVERTED, DECLINED or
+	 * EXPIRED is settled history and must keep the status that records how it ended.
+	 * Both writes share one transaction on the session connection, so an enquiry is
+	 * never briefly left with two acceptable offers or none.
+	 */
+	const { updated, superseded } = await txDb().transaction(async (tx) => {
+		if (quotation.bookingRequestId) {
+			await tx.execute(
+				sql`select pg_advisory_xact_lock(hashtext(${`accept:${tenantId}:${quotation.bookingRequestId}`}))`
+			);
+		}
+
+		const [row] = await tx
+			.update(schema.quotations)
+			.set({ status: 'SENT', sentAt, updatedAt: sentAt })
+			.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
+			.returning();
+
+		let replaced: { id: string }[] = [];
+		if (quotation.bookingRequestId) {
+			replaced = await tx
+				.update(schema.quotations)
+				.set({ status: 'SUPERSEDED', updatedAt: sentAt })
+				.where(
+					and(
+						eq(schema.quotations.tenantId, tenantId),
+						eq(schema.quotations.bookingRequestId, quotation.bookingRequestId),
+						isNull(schema.quotations.deletedAt),
+						sql`${schema.quotations.id} <> ${id}`,
+						sql`${schema.quotations.status} in ('SENT','VIEWED')`
+					)
+				)
+				.returning({ id: schema.quotations.id });
+		}
+		return { updated: row, superseded: replaced.map((r) => r.id) };
+	});
+
+	if (superseded.length) {
+		log.info('quotations_superseded', { tenantId, by: id, superseded });
+	}
 
 	if (quotation.bookingRequestId) {
 		await db()
@@ -763,12 +819,48 @@ export async function markQuotationViewed(tenantId: string, id: string) {
 }
 
 export async function declineQuotation(tenantId: string, id: string, reason?: string) {
-	await getQuotation(tenantId, id);
+	const existing = await getQuotation(tenantId, id);
+	/*
+	 * A sale that already happened cannot be declined back into an open offer.
+	 *
+	 * Declining wrote DECLINED unconditionally, so declining an already CONVERTED
+	 * quotation moved it out of the one status acceptQuotation treated as settled and
+	 * re-armed its public link — the booking stayed, and the quote became acceptable
+	 * again. Mirrors the acceptance allow-list: only an open offer can be withdrawn.
+	 *
+	 * The reason goes to metadata, not to `notes`: notes is rendered verbatim on the
+	 * traveller's page, so writing an internal reason there publishes it to them.
+	 */
+	if (existing.status === 'CONVERTED' || existing.status === 'ACCEPTED') {
+		throw new AppError('CONFLICT', 'This quotation has already been accepted.');
+	}
+	// A replaced offer is not the traveller's to answer — the one they should be
+	// looking at is the newer one. Declining it would record a refusal of a price
+	// nobody is offering any more.
+	if (existing.status === 'SUPERSEDED') {
+		throw new AppError('CONFLICT', 'This quotation has been replaced by a newer offer.');
+	}
 	const [row] = await db()
 		.update(schema.quotations)
-		.set({ status: 'DECLINED', declinedAt: new Date(), updatedAt: new Date(), notes: reason ?? undefined })
-		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
+		.set({
+			status: 'DECLINED',
+			declinedAt: new Date(),
+			updatedAt: new Date(),
+			...(reason
+				? {
+						metadata: sql`coalesce(${schema.quotations.metadata}, '{}'::jsonb) || ${JSON.stringify({ declineReason: reason })}::jsonb`
+					}
+				: {})
+		})
+		.where(
+			and(
+				eq(schema.quotations.id, id),
+				eq(schema.quotations.tenantId, tenantId),
+				sql`${schema.quotations.status} in ('DRAFT','SENT','VIEWED','DECLINED','EXPIRED')`
+			)
+		)
 		.returning();
+	if (!row) throw new AppError('CONFLICT', 'This quotation can no longer be declined.');
 	return row;
 }
 
@@ -799,12 +891,34 @@ export async function acceptQuotation(
 			.limit(1);
 		if (existing[0]) return { quotation, booking: existing[0] };
 	}
-	if (quotation.status === 'EXPIRED') throw new AppError('CONFLICT', 'This quotation has expired.');
 	if (quotation.validUntil && quotation.validUntil.getTime() < Date.now()) {
-		await db().update(schema.quotations).set({ status: 'EXPIRED' }).where(eq(schema.quotations.id, id));
+		await db()
+			.update(schema.quotations)
+			.set({ status: 'EXPIRED', updatedAt: new Date() })
+			.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)));
 		throw new AppError('CONFLICT', 'This quotation has expired.');
 	}
 	if (!quotation.customerId) throw new AppError('VALIDATION_ERROR', 'This quotation has no customer to book for.');
+
+	/*
+	 * WHICH STATES MAY BE ACCEPTED — an allow-list, not a list of refusals.
+	 *
+	 * This used to reject only EXPIRED, so everything else fell through: a DECLINED
+	 * quotation the operator had formally withdrawn converted to a CONFIRMED booking
+	 * at the withdrawn price, from a link the traveller still had. Naming the states
+	 * that MAY be accepted means a state added later — SUPERSEDED, CANCELLED — is
+	 * refused by default rather than accepted by omission.
+	 */
+	if (quotation.status !== 'SENT' && quotation.status !== 'VIEWED') {
+		// Say which fact refused it: a draft has not been offered yet, which is a
+		// different thing from an offer that has been withdrawn or already answered.
+		throw new AppError(
+			'CONFLICT',
+			quotation.status === 'DRAFT'
+				? 'This quotation has not been sent yet.'
+				: 'This quotation is no longer open for acceptance.'
+		);
+	}
 
 	/*
 	 * THE MONEY COMES FROM THE FROZEN VERSION, not from the live rows.
@@ -822,56 +936,149 @@ export async function acceptQuotation(
 	 */
 	const offer = await frozenOfferFor(tenantId, id, expectedVersion);
 
-	const booking = await createBooking(
-		tenantId,
-		{
-			customerId: quotation.customerId,
-			bookingRequestId: quotation.bookingRequestId,
-			quotationId: quotation.id,
-			currency: offer.currency,
-			discount: offer.discount,
-			tax: offer.tax,
-			startDate: offer.startDate,
-			endDate: offer.endDate,
-			adults: offer.adults,
-			children: offer.children,
-			source: 'ADMIN',
-			status: 'AWAITING_PAYMENT',
-			items: offer.items.map((i) => ({
-				/*
-				 * Coerced, not validated. A snapshot is a historical record and may
-				 * carry an item type that has since been retired from the enum; the
-				 * offer must still be acceptable, because it was already made.
-				 */
-				type: (i.type ?? undefined) as BookingRequestItemInput['type'],
-				title: i.title,
-				description: i.description,
-				quantity: i.quantity,
-				unitPrice: i.unitPrice,
-				total: i.total,
-				startDate: i.startDate,
-				endDate: i.endDate,
-				externalReference: i.externalReference,
-				externalSource: i.externalSource
-			}))
-		},
-		actor
-	);
+	/*
+	 * ONE ACCEPTANCE, ONE BOOKING — decided by the database, not by a prior read.
+	 *
+	 * Everything above is a read, and every check above is therefore only as good as
+	 * the moment it ran. Two requests arriving together both read SENT, both built a
+	 * booking, and both wrote CONVERTED: two confirmed bookings for one enquiry, with
+	 * the quotation pointing at whichever landed second and the other left orphaned
+	 * and unreachable — nothing in the codebase reads bookings.quotationId.
+	 *
+	 * Three things make that impossible now, and they have to be together:
+	 *
+	 *  1. A transaction on txDb() — the SESSION connection. db() is the transaction
+	 *     pooler, and a transaction over it wedges the pool for every later request.
+	 *  2. An advisory lock keyed on the ENQUIRY, not the quotation, because the race
+	 *     that matters is two different quotations on the same enquiry racing each
+	 *     other. Held for the transaction, released by commit or rollback.
+	 *  3. A conditional claim: the UPDATE carries the allowed statuses in its own
+	 *     WHERE, so the check and the write are one statement. Zero rows back means
+	 *     somebody else won, and we return THEIR booking rather than making a second.
+	 *
+	 * The booking is created inside the same transaction, so the two outcomes this
+	 * must never produce — a CONVERTED quotation with no booking, or a booking with
+	 * the quotation still offering itself — cannot be left behind by a partial failure.
+	 */
+	const claimKey = quotation.bookingRequestId ?? quotation.id;
+	const claimed = await txDb().transaction(async (tx) => {
+		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`accept:${tenantId}:${claimKey}`}))`);
 
-	const [updated] = await db()
-		.update(schema.quotations)
-		.set({ status: 'CONVERTED', acceptedAt: new Date(), convertedBookingId: booking.id, updatedAt: new Date() })
-		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
-		.returning();
+		// Re-read inside the lock: what we decided on above may be stale by now.
+		const [current] = await tx
+			.select()
+			.from(schema.quotations)
+			.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
+			.limit(1);
+		if (!current) throw new AppError('NOT_FOUND', 'That quotation could not be found.');
+		if (current.status === 'CONVERTED' && current.convertedBookingId) {
+			const [won] = await tx
+				.select()
+				.from(schema.bookings)
+				.where(and(eq(schema.bookings.id, current.convertedBookingId), eq(schema.bookings.tenantId, tenantId)))
+				.limit(1);
+			if (won) return { quotation: current, booking: won, madeIt: false as const };
+		}
+		if (current.status !== 'SENT' && current.status !== 'VIEWED') {
+			throw new AppError('CONFLICT', 'This quotation is no longer open for acceptance.');
+		}
 
-	if (quotation.bookingRequestId) {
-		await db()
-			.update(schema.bookingRequests)
-			.set({ status: 'CONVERTED', convertedBookingId: booking.id, updatedAt: new Date() })
+		/*
+		 * One booking per ENQUIRY.
+		 *
+		 * A re-quote is a new quotations row and nothing withdraws the old one, so two
+		 * live links can point at the same enquiry. Whichever is accepted first claims
+		 * the enquiry; the second is refused here rather than silently re-pointing
+		 * booking_requests.convertedBookingId at a second confirmed booking.
+		 */
+		if (quotation.bookingRequestId) {
+			const [request] = await tx
+				.select({ convertedBookingId: schema.bookingRequests.convertedBookingId })
+				.from(schema.bookingRequests)
+				.where(
+					and(eq(schema.bookingRequests.id, quotation.bookingRequestId), eq(schema.bookingRequests.tenantId, tenantId))
+				)
+				.limit(1);
+			if (request?.convertedBookingId) {
+				throw new AppError('CONFLICT', 'This enquiry has already been converted to a booking.');
+			}
+		}
+
+		const booking = await createBooking(
+			tenantId,
+			{
+				customerId: quotation.customerId!,
+				bookingRequestId: quotation.bookingRequestId,
+				quotationId: quotation.id,
+				currency: offer.currency,
+				discount: offer.discount,
+				tax: offer.tax,
+				startDate: offer.startDate,
+				endDate: offer.endDate,
+				adults: offer.adults,
+				children: offer.children,
+				source: 'ADMIN',
+				status: 'AWAITING_PAYMENT',
+				items: offer.items.map((i) => ({
+					/*
+					 * Coerced, not validated. A snapshot is a historical record and may
+					 * carry an item type that has since been retired from the enum; the
+					 * offer must still be acceptable, because it was already made.
+					 */
+					type: (i.type ?? undefined) as BookingRequestItemInput['type'],
+					title: i.title,
+					description: i.description,
+					quantity: i.quantity,
+					unitPrice: i.unitPrice,
+					total: i.total,
+					startDate: i.startDate,
+					endDate: i.endDate,
+					externalReference: i.externalReference,
+					externalSource: i.externalSource
+				}))
+			},
+			actor,
+			tx
+		);
+
+		/*
+		 * The claim itself. The allowed statuses are IN THE WHERE, so the check and the
+		 * write are a single statement that nothing can interleave with.
+		 */
+		const [claimedRow] = await tx
+			.update(schema.quotations)
+			.set({ status: 'CONVERTED', acceptedAt: new Date(), convertedBookingId: booking.id, updatedAt: new Date() })
 			.where(
-				and(eq(schema.bookingRequests.id, quotation.bookingRequestId), eq(schema.bookingRequests.tenantId, tenantId))
-			);
-	}
+				and(
+					eq(schema.quotations.id, id),
+					eq(schema.quotations.tenantId, tenantId),
+					sql`${schema.quotations.status} in ('SENT','VIEWED')`
+				)
+			)
+			.returning();
+		if (!claimedRow) {
+			// Claimed between the re-read and here. Roll back — including the booking,
+			// which is precisely why it is created inside this transaction.
+			throw new AppError('CONFLICT', 'This quotation was accepted by another request.');
+		}
+
+		if (quotation.bookingRequestId) {
+			await tx
+				.update(schema.bookingRequests)
+				.set({ status: 'CONVERTED', convertedBookingId: booking.id, updatedAt: new Date() })
+				.where(
+					and(eq(schema.bookingRequests.id, quotation.bookingRequestId), eq(schema.bookingRequests.tenantId, tenantId))
+				);
+		}
+
+		return { quotation: claimedRow, booking, madeIt: true as const };
+	});
+
+	const updated = claimed.quotation;
+	const booking = claimed.booking;
+	// A request that lost the race gets the winner's booking, never a second one, and
+	// none of the after-effects below run a second time.
+	if (!claimed.madeIt) return { quotation: updated, booking };
 
 	/*
 	 * Accepted means confirmed.

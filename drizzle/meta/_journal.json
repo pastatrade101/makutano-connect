@@ -386,6 +386,20 @@
       "when": 1788140070009,
       "tag": "0054_media_variants",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1788140070010,
+      "tag": "0055_quotation_superseded",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1788140070011,
+      "tag": "0056_one_booking_per_quotation",
+      "breakpoints": true
     }
   ]
 }

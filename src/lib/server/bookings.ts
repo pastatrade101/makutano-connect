@@ -2,7 +2,7 @@
 // derived from its items, never trusted from the caller, and every status change is
 // written to booking_status_history so the lifecycle is auditable.
 import { and, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
-import { db, schema } from './db';
+import { db, schema, type Database } from './db';
 import { nextReference } from './db/references';
 import { recordUsage } from './billing';
 import { emit } from './events';
@@ -52,16 +52,29 @@ export function computeTotals(
 	return { subtotal: fixed(subtotal), total: fixed(total) };
 }
 
-export async function createBooking(tenantId: string, input: CreateBookingInput, actor: BookingActor = {}) {
+export async function createBooking(
+	tenantId: string,
+	input: CreateBookingInput,
+	actor: BookingActor = {},
+	/*
+	 * The connection to write the booking's rows on.
+	 *
+	 * Defaults to the pooled db(), which is right for every ordinary caller. Acceptance
+	 * passes its TRANSACTION so that claiming the quotation and creating the booking
+	 * commit together: without that, a failure between the two left a committed booking
+	 * that no guard could find and a quotation still offering itself.
+	 */
+	conn: Database = db()
+) {
 	const tenant = await getTenantById(tenantId);
 	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant could not be found.');
 	if (!input.items?.length) throw new AppError('VALIDATION_ERROR', 'A booking needs at least one item.');
 
 	const { subtotal, total } = computeTotals(input.items, input.discount, input.tax);
-	const reference = await nextReference(db(), tenantId, 'BK', tenant.bookingReferencePrefix);
+	const reference = await nextReference(conn, tenantId, 'BK', tenant.bookingReferencePrefix);
 	const status = input.status ?? 'PENDING';
 
-	const [booking] = await db()
+	const [booking] = await conn
 		.insert(schema.bookings)
 		.values({
 			tenantId,
@@ -89,61 +102,55 @@ export async function createBooking(tenantId: string, input: CreateBookingInput,
 		})
 		.returning();
 
-	await db()
-		.insert(schema.bookingItems)
-		.values(
-			input.items.map((item) => ({
-				tenantId,
-				bookingId: booking.id,
-				type: item.type ?? 'TOUR',
-				title: item.title,
-				description: item.description ?? null,
-				quantity: item.quantity ?? 1,
-				unitPrice: item.unitPrice ?? '0',
-				total: item.total ?? fixed(dec(item.unitPrice) * (item.quantity ?? 1)),
-				startDate: toDate(item.startDate),
-				endDate: toDate(item.endDate),
-				externalReference: item.externalReference ?? null,
-				externalSource: item.externalSource ?? null,
-				metadata: item.metadata ?? {}
-			}))
-		);
-
-	if (input.travelers?.length) {
-		await db()
-			.insert(schema.bookingTravelers)
-			.values(
-				input.travelers.map((t) => ({
-					tenantId,
-					bookingId: booking.id,
-					firstName: t.firstName ?? '',
-					lastName: t.lastName ?? '',
-					nationality: t.nationality ?? null,
-					dateOfBirth: toDate(t.dateOfBirth),
-					passportNumber: t.passportNumber ?? null,
-					passportExpiry: toDate(t.passportExpiry),
-					dietaryRequirements: t.dietaryRequirements ?? null,
-					specialRequests: t.specialRequests ?? null,
-					isLead: t.isLead ?? false
-				}))
-			);
-	}
-
-	await db()
-		.insert(schema.bookingStatusHistory)
-		.values({
+	await conn.insert(schema.bookingItems).values(
+		input.items.map((item) => ({
 			tenantId,
 			bookingId: booking.id,
-			fromStatus: null,
-			toStatus: status,
-			reason: 'Booking created',
-			changedByUserId: actor.userId ?? null,
-			changedByApiKeyId: actor.apiKeyId ?? null
-		});
+			type: item.type ?? 'TOUR',
+			title: item.title,
+			description: item.description ?? null,
+			quantity: item.quantity ?? 1,
+			unitPrice: item.unitPrice ?? '0',
+			total: item.total ?? fixed(dec(item.unitPrice) * (item.quantity ?? 1)),
+			startDate: toDate(item.startDate),
+			endDate: toDate(item.endDate),
+			externalReference: item.externalReference ?? null,
+			externalSource: item.externalSource ?? null,
+			metadata: item.metadata ?? {}
+		}))
+	);
+
+	if (input.travelers?.length) {
+		await conn.insert(schema.bookingTravelers).values(
+			input.travelers.map((t) => ({
+				tenantId,
+				bookingId: booking.id,
+				firstName: t.firstName ?? '',
+				lastName: t.lastName ?? '',
+				nationality: t.nationality ?? null,
+				dateOfBirth: toDate(t.dateOfBirth),
+				passportNumber: t.passportNumber ?? null,
+				passportExpiry: toDate(t.passportExpiry),
+				dietaryRequirements: t.dietaryRequirements ?? null,
+				specialRequests: t.specialRequests ?? null,
+				isLead: t.isLead ?? false
+			}))
+		);
+	}
+
+	await conn.insert(schema.bookingStatusHistory).values({
+		tenantId,
+		bookingId: booking.id,
+		fromStatus: null,
+		toStatus: status,
+		reason: 'Booking created',
+		changedByUserId: actor.userId ?? null,
+		changedByApiKeyId: actor.apiKeyId ?? null
+	});
 
 	// Close the loop on the originating request (§11).
 	if (input.bookingRequestId) {
-		await db()
+		await conn
 			.update(schema.bookingRequests)
 			.set({ status: 'CONVERTED', convertedBookingId: booking.id, updatedAt: new Date() })
 			.where(and(eq(schema.bookingRequests.id, input.bookingRequestId), eq(schema.bookingRequests.tenantId, tenantId)));

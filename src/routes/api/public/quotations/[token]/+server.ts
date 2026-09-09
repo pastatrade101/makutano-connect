@@ -9,7 +9,6 @@ import { alias } from 'drizzle-orm/pg-core';
 import { db, schema } from '$lib/server/db';
 import { AppError } from '$lib/server/errors';
 import { handlePublic, preflight, publicJson } from '$lib/server/public-api';
-import { markQuotationViewed } from '$lib/server/quotations';
 import type { RequestHandler } from './$types';
 
 export const OPTIONS: RequestHandler = async () => preflight();
@@ -59,17 +58,26 @@ export const GET: RequestHandler = async (event) =>
 			.where(eq(schema.quotationItems.quotationId, row.quotation.id))
 			.orderBy(schema.quotationItems.sortOrder);
 
-		// Opening the page is the read receipt the operator sees. Fire and forget:
-		// a failed status write must not cost the customer their quote.
-		if (row.quotation.status === 'SENT') {
-			void markQuotationViewed(row.quotation.tenantId, row.quotation.id).catch(() => undefined);
-		}
-
+		/*
+		 * A GET IS NOT EVIDENCE THAT A PERSON LOOKED.
+		 *
+		 * This marked the quotation VIEWED on any unauthenticated GET, so WhatsApp,
+		 * Gmail and Slack unfurling the link forged the traveller's read receipt: the
+		 * operator saw "viewed", believed the quote had been read, and chased or waited
+		 * on that basis. The status was also reported back as VIEWED whatever the row
+		 * said, so the lie did not even need the write to succeed.
+		 *
+		 * viewedAt is read nowhere else in the product, so removing the write costs no
+		 * feature — a quotation nobody has answered simply stays SENT, which is true.
+		 * VIEWED remains a real state (the Goldfinch mirror sets it from a system that
+		 * has actual evidence) and remains acceptable, so nothing about commercial
+		 * integrity moves either way.
+		 */
 		const q = row.quotation;
 		return publicJson(
 			{
 				reference: q.reference,
-				status: q.status === 'SENT' ? 'VIEWED' : q.status,
+				status: q.status,
 				currency: q.currency,
 				subtotal: q.subtotal,
 				discount: q.discount,

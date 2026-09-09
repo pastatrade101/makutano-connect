@@ -49,6 +49,29 @@ export function normalizePhone(raw: string | null | undefined, country?: string 
 	return digits;
 }
 
+/**
+ * Reduce an ALREADY-CANONICAL number to E.164 digits, without inventing a country.
+ *
+ * normalizePhone() promotes a national number using a country's dial code, which is
+ * correct at CAPTURE time — someone typing 0712345678 into a Tanzanian operator's form
+ * means +255712345678. It is wrong at SEND time, where the stored value is already
+ * canonical and the only country in scope is the TENANT's, not the traveller's: a short
+ * foreign number that does not begin with the tenant's dial code was silently given one,
+ * turning it into a real and different Tanzanian number — and the quotation, carrying a
+ * live accept link, was delivered to whoever owns it.
+ *
+ * So: strip to digits, never prefix.
+ */
+export function toE164Digits(raw: string | null | undefined): string | null {
+	if (!raw) return null;
+	let digits = String(raw).replace(/[^\d+]/g, '');
+	if (digits.startsWith('+')) digits = digits.slice(1);
+	digits = digits.replace(/\D/g, '');
+	if (!digits) return null;
+	if (digits.length < 7 || digits.length > 15) return null;
+	return digits;
+}
+
 /** Display helper — never used for matching. */
 export function formatPhone(e164: string | null | undefined): string {
 	if (!e164) return '';

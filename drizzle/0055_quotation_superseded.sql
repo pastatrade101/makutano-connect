@@ -1,0 +1,14 @@
+-- A quotation the OPERATOR replaced, as against one the traveller turned down.
+--
+-- DECLINED means the traveller said no. SUPERSEDED means a newer offer took this
+-- one's place. Overloading DECLINED for both would make "why did this not sell?"
+-- unanswerable, and would show a traveller "you declined this" about a quote they
+-- never answered.
+--
+-- ALONE IN ITS OWN MIGRATION ON PURPOSE. Postgres refuses to use a new enum label
+-- in the same transaction that added it, and this repo has already paid for that
+-- lesson once (migration 0035 added 'MARKETPLACE' to `source` and a later statement
+-- used it, which is why a from-scratch replay cannot run inside one transaction).
+-- Nothing here may reference 'SUPERSEDED'; the index and the code that writes it
+-- come in 0056.
+ALTER TYPE "quotation_status" ADD VALUE IF NOT EXISTS 'SUPERSEDED';
