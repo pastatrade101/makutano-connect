@@ -1,7 +1,13 @@
 import { error, fail, redirect, type Actions } from '@sveltejs/kit';
 import { requireTenant, requireTenantPermission } from '$lib/server/guards';
 import { requirePermission } from '$lib/server/auth/permissions';
-import { acceptQuotation, declineQuotation, getQuotationDetail, sendQuotation } from '$lib/server/quotations';
+import {
+	acceptQuotation,
+	declineQuotation,
+	deliveryFor,
+	getQuotationDetail,
+	sendQuotation
+} from '$lib/server/quotations';
 import { toAppError } from '$lib/server/errors';
 import { parseUuid } from '$lib/server/http';
 import type { PageServerLoad } from './$types';
@@ -10,8 +16,12 @@ const idOf = (params: { id?: string }) => parseUuid(params.id ?? '', 'quotation 
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	requireTenantPermission(locals, 'quotations:read');
+	const tenantId = requireTenant(locals).id;
 	try {
-		return await getQuotationDetail(requireTenant(locals).id, idOf(params));
+		const detail = await getQuotationDetail(tenantId, idOf(params));
+		// Delivery is a fact about the transport, read from where it was recorded —
+		// never inferred from "the send action did not throw".
+		return { ...detail, delivery: await deliveryFor(tenantId, detail.quotation) };
 	} catch {
 		error(404, 'Quotation not found');
 	}

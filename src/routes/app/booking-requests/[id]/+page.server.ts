@@ -116,6 +116,11 @@ export const actions: Actions = {
 			const included = String(data.get('included') ?? '').trim();
 			const message = String(data.get('message') ?? '').trim();
 			const validUntil = String(data.get('validUntil') ?? '').trim();
+			// Human-readable payment terms — "30% deposit confirms the booking, balance
+			// due 30 days before arrival". The column existed and nothing ever wrote it,
+			// so operators typed terms into the free-text message, where nothing could
+			// treat them as part of the offer or freeze them with it.
+			const terms = String(data.get('terms') ?? '').trim();
 
 			/*
 			 * The travel dates, which this action used to throw away.
@@ -171,10 +176,18 @@ export const actions: Actions = {
 					adults,
 					children,
 					notes: message || null,
+					terms: terms || null,
 					validUntil: validUntil || null,
 					startDate,
 					endDate,
-					items
+					items,
+					// Provenance for the frozen snapshot: which rate card this was priced
+					// from, and which listing it came off. Explanatory only — see
+					// quotation-snapshot.ts; no money is ever rebuilt from these.
+					metadata: {
+						tourId: detail.request.tourId ?? null,
+						appliedPricing: draft.recommended?.applied ?? null
+					}
 				},
 				locals.user!.id
 			);

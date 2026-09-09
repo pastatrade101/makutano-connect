@@ -33,7 +33,6 @@
 	 * mobile endpoint calls.
 	 */
 	let composing = $state(false);
-	let showDetails = $state(false);
 	let adults = $state(1);
 	let children = $state(0);
 	let adultPrice = $state('');
@@ -42,10 +41,30 @@
 	let quoteTitle = $state('');
 	let quoteMessage = $state('');
 	let quoteIncluded = $state('');
+	let quoteTerms = $state('');
 	let validUntil = $state('');
+
+	/** Contact details this enquiry supplied that disagree with the traveller's record. */
+	const contactConflicts = $derived(
+		((data.request.metadata as Record<string, unknown> | null)?.contactConflicts ?? []) as {
+			field: string;
+			submitted: string;
+			onFile: string;
+		}[]
+	);
 	// Seeded from the enquiry so the operator confirms a real date rather than
 	// retyping one the traveller already gave.
-	const asDay = (v: unknown) => (v ? String(v).slice(0, 10) : '');
+	//
+	// A timestamptz arrives through devalue as a Date, and String(date) reads
+	// "Sat Aug 15 2026 00:00:00 GMT+0300" — so taking ten characters produced
+	// "Sat Aug 1", which <input type="date"> rejects and shows as empty. The
+	// enquiry's date sat on the page behind the composer while the composer
+	// opened blank.
+	const asDay = (v: unknown) => {
+		if (!v) return '';
+		const d = v instanceof Date ? v : new Date(String(v));
+		return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+	};
 	let startDate = $state(asDay(data.request.startDate));
 	let endDate = $state(asDay(data.request.endDate));
 
@@ -78,8 +97,8 @@
 		quoteTitle = d?.tour?.title ?? '';
 		quoteMessage = '';
 		quoteIncluded = '';
+		quoteTerms = '';
 		validUntil = '';
-		showDetails = false;
 		composing = true;
 	}
 
@@ -314,31 +333,83 @@
 				<textarea name="message" bind:value={quoteMessage} rows="2" class="input mt-1" placeholder="Add a short message…"></textarea>
 			</label>
 
-			{#if !showDetails}
-				<button type="button" class="text-[13px] font-medium text-brand hover:underline" onclick={() => (showDetails = true)}>+ Add details</button>
-			{:else}
-				<div class="grid gap-3 sm:grid-cols-2">
-					<!-- Prefilled from what the traveller asked for, and editable because a
-					     date often moves during the conversation. Leaving them blank keeps
-					     the enquiry's dates rather than clearing them. -->
-					<label class="block">
-						<span class="text-[12.5px] text-slate-500">Travel starts</span>
-						<input type="date" name="startDate" bind:value={startDate} class="input mt-1" />
-					</label>
-					<label class="block">
-						<span class="text-[12.5px] text-slate-500">Travel ends</span>
-						<input type="date" name="endDate" bind:value={endDate} class="input mt-1" />
-					</label>
-					<label class="block">
-						<span class="text-[12.5px] text-slate-500">Valid until</span>
-						<input type="date" name="validUntil" bind:value={validUntil} class="input mt-1" />
-					</label>
-					<label class="block">
-						<span class="text-[12.5px] text-slate-500">What's included (optional)</span>
-						<input name="included" bind:value={quoteIncluded} class="input mt-1" placeholder="Park fees, lodging, transport…" />
-					</label>
+			<!--
+				The commercial terms are shown, not hidden.
+
+				These lived behind "+ Add details", so the default quotation went out with
+				no dates, no expiry, no inclusions and no payment terms — a bare number,
+				and a price with no expiry is an open-ended offer. None of them is
+				mandatory: an operator may still leave any of them empty, but that is now
+				a decision they can see themselves making rather than a disclosure they
+				never opened.
+			-->
+			<div class="grid gap-3 sm:grid-cols-2">
+				<!-- Prefilled from what the traveller asked for, and editable because a
+				     date often moves during the conversation. Leaving them blank keeps
+				     the enquiry's dates rather than clearing them. -->
+				<label class="block">
+					<span class="text-[12.5px] text-slate-500">Travel starts</span>
+					<input type="date" name="startDate" bind:value={startDate} class="input mt-1" />
+				</label>
+				<label class="block">
+					<span class="text-[12.5px] text-slate-500">Travel ends</span>
+					<input type="date" name="endDate" bind:value={endDate} class="input mt-1" />
+				</label>
+				<label class="block">
+					<span class="text-[12.5px] text-slate-500">Price held until</span>
+					<input type="date" name="validUntil" bind:value={validUntil} class="input mt-1" />
+					{#if !validUntil}
+						<span class="mt-1 block text-[12px] text-warning">Without a date this price stands indefinitely.</span>
+					{/if}
+				</label>
+				<label class="block">
+					<span class="text-[12.5px] text-slate-500">Payment terms</span>
+					<input
+						name="terms"
+						bind:value={quoteTerms}
+						class="input mt-1"
+						placeholder="30% deposit to confirm, balance 30 days before arrival"
+					/>
+				</label>
+				<label class="block sm:col-span-2">
+					<span class="text-[12.5px] text-slate-500">What's included</span>
+					<textarea
+						name="included"
+						bind:value={quoteIncluded}
+						rows="2"
+						class="input mt-1"
+						placeholder="Park fees, lodging, transport…"
+					></textarea>
+				</label>
+			</div>
+
+			<!--
+				Where this is actually going.
+
+				The traveller's email was shown on this page while the quote was emailed
+				to a different address the customer record happened to hold. The resolved
+				recipient is now stated before sending, and a detail this enquiry supplied
+				that disagrees with the record is shown rather than silently discarded.
+			-->
+			<div class="rounded-panel border border-slate-200 px-3 py-2 text-[12.5px]">
+				<span class="font-semibold text-slate-700">Send to</span>
+				<div class="mt-1 space-y-0.5 text-slate-600">
+					<div>Email — {data.customer?.email ?? 'no address on file'}</div>
+					<div>WhatsApp — {data.customer?.whatsappPhone ? `+${data.customer.whatsappPhone}` : 'no number on file'}</div>
 				</div>
-			{/if}
+				{#if contactConflicts.length}
+					<div class="mt-2 rounded-panel border border-warning/30 bg-warning/5 px-2.5 py-2 text-slate-700">
+						{#each contactConflicts as c (c.field)}
+							<div>
+								This enquiry gave <strong>{c.submitted}</strong>; the traveller's record has
+								<strong>{c.onFile}</strong>. The record is used — open the
+								{#if data.customer}<a href="/app/customers/{data.customer.id}" class="text-brand-600 underline">customer record</a
+									>{:else}customer record{/if} to change it.
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
 
 			<div class="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
 				<button name="send" value="0" class="btn-secondary" disabled={!canSubmitQuote}>Save draft</button>

@@ -129,5 +129,39 @@ export const actions: Actions = {
 		} catch (err) {
 			return fail(400, { message: toAppError(err).message });
 		}
+	},
+
+	/**
+	 * Correct the traveller's own contact details.
+	 *
+	 * There was no way to do this anywhere in the product. A traveller who typed a new
+	 * email on an enquiry kept whatever address the record already held — inbound
+	 * matching fills blanks but never overwrites — and the quotation then went to the
+	 * old one, with no screen able to change it. Deliberately only the fields that
+	 * decide who is contacted and how they are addressed: this is not a profile editor.
+	 */
+	contact: async ({ locals, params, request }) => {
+		requirePermission(locals.permissions, 'customers:write');
+		const tenantId = requireTenant(locals).id;
+		const data = await request.formData();
+		const email = String(data.get('email') ?? '').trim();
+		if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+			return fail(422, { message: 'That email address does not look right.' });
+		}
+		try {
+			// Phone normalisation happens inside updateCustomer against the customer's
+			// own country, so a local number is stored the way inbound WhatsApp stores it.
+			await updateCustomer(tenantId, idOf(params), {
+				firstName: String(data.get('firstName') ?? '').trim(),
+				lastName: String(data.get('lastName') ?? '').trim(),
+				email: email || null,
+				phone: String(data.get('phone') ?? '').trim() || null,
+				whatsappPhone: String(data.get('whatsappPhone') ?? '').trim() || null,
+				country: String(data.get('country') ?? '').trim() || null
+			});
+			return { success: true, notice: 'Contact details updated' };
+		} catch (err) {
+			return fail(400, { message: toAppError(err).message });
+		}
 	}
 };

@@ -186,8 +186,18 @@
 			</div>
 			<div>
 				<label class="label" for="quotationPrefix">Quotation prefix</label>
-				<input id="quotationPrefix" name="quotationPrefix" value={data.settings.quotationPrefix} class="input" disabled={!canWrite} />
-				<p class="mt-1 text-[12.5px] text-slate-400">e.g. {data.settings.quotationPrefix}-QT-2026-00001</p>
+				<input
+					id="quotationPrefix"
+					name="quotationPrefix"
+					value={data.settings.quotationPrefix ?? ''}
+					placeholder={data.settings.bookingReferencePrefix}
+					class="input"
+					disabled={!canWrite}
+				/>
+				<p class="mt-1 text-[12.5px] text-slate-400">
+					Leave blank to use your booking prefix — e.g. {data.settings.quotationPrefix ||
+						data.settings.bookingReferencePrefix}-QT-2026-00001
+				</p>
 			</div>
 			<div class="sm:col-span-2">
 				<label class="label" for="capabilities">How do you use Connect?</label>

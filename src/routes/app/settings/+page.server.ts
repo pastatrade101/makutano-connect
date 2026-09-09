@@ -299,11 +299,23 @@ export const actions: Actions = {
 						.toUpperCase()
 						.replace(/[^A-Z0-9]/g, '')
 						.slice(0, 8) || 'MKT',
-				quotationPrefix:
-					String(data.get('quotationPrefix') ?? 'QT')
+				/*
+				 * Blank means INHERIT the booking prefix, and is stored as NULL.
+				 *
+				 * nextReference() adds the document kind itself, so a prefix of 'QT'
+				 * yields QT-QT-2026-00001 — the tenant's identity replaced by the kind.
+				 * This defaulted to the literal 'QT', so any operator who opened Settings
+				 * and saved, never touching this field (it renders empty when NULL),
+				 * silently stamped every future quotation QT-QT-. A prefix equal to the
+				 * kind code is rejected for the same reason.
+				 */
+				quotationPrefix: (() => {
+					const raw = String(data.get('quotationPrefix') ?? '')
 						.toUpperCase()
 						.replace(/[^A-Z0-9]/g, '')
-						.slice(0, 8) || 'QT',
+						.slice(0, 8);
+					return !raw || raw === 'QT' ? null : raw;
+				})(),
 				updatedAt: new Date()
 			})
 			.where(eq(schema.tenants.id, requireTenant(locals).id));

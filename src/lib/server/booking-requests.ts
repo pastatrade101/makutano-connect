@@ -14,7 +14,7 @@ import { nextReference } from './db/references';
 import { recordUsage } from './billing';
 import { assertAllowed } from './entitlements';
 import { findOrCreateConversation } from './conversations';
-import { findOrCreateCustomer } from './customers';
+import { resolveCustomer } from './customers';
 import { emit } from './events';
 import { AppError } from './errors';
 import { createLead } from './leads';
@@ -101,7 +101,12 @@ export async function createBookingRequest(tenantId: string, input: CreateBookin
 	if (!tenant) throw new AppError('TENANT_NOT_FOUND', 'Tenant could not be found.');
 
 	// 1. Customer — matched, not blindly duplicated (§10).
-	const customer = await findOrCreateCustomer(
+	//
+	// A contact detail this enquiry supplied that disagrees with the matched record is
+	// kept ON THE ENQUIRY rather than written over the customer: the traveller typed it
+	// just now, so it is evidence, but a shared phone means it is not proof they are the
+	// same person. The operator settles it before the quote goes out.
+	const { customer, conflicts } = await resolveCustomer(
 		tenantId,
 		{ ...input.customer, source: input.source ?? 'WEBSITE' },
 		input.customer.country ?? tenant.country
@@ -127,7 +132,7 @@ export async function createBookingRequest(tenantId: string, input: CreateBookin
 			externalReference: input.externalReference ?? null,
 			externalSource: input.externalSource ?? null,
 			tourId: input.tourId ?? null,
-			metadata: input.metadata ?? {}
+			metadata: conflicts.length ? { ...(input.metadata ?? {}), contactConflicts: conflicts } : (input.metadata ?? {})
 		})
 		.returning();
 

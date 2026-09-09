@@ -221,6 +221,7 @@
 
 	let showMore = $state(false);
 	let showNote = $state(false);
+	let showContact = $state(false);
 	const primaryConversation = $derived(data.conversations[0] ?? null);
 </script>
 
@@ -262,8 +263,52 @@
 				{/if}
 				{#if can('customers:write')}
 					<button class="btn-secondary !py-1.5 text-xs" onclick={() => { showNote = !showNote; showMore = false; }}>Add a note</button>
+					<button class="btn-secondary !py-1.5 text-xs" onclick={() => { showContact = !showContact; showMore = false; }}>Edit contact details</button>
 				{/if}
 			</div>
+		{/if}
+
+		<!--
+			The only place a traveller's own contact details can be corrected.
+			Inbound matching fills blanks and never overwrites, so an address that
+			arrives changed on a new enquiry stays unchanged here until someone says so.
+		-->
+		{#if showContact && can('customers:write')}
+			<form method="POST" action="?/contact" use:enhance class="mt-3 space-y-2 border-t border-slate-100 pt-3">
+				<div class="grid gap-2 sm:grid-cols-2">
+					<label class="block">
+						<span class="label">First name</span>
+						<input name="firstName" value={data.customer.firstName ?? ''} class="input" />
+					</label>
+					<label class="block">
+						<span class="label">Last name</span>
+						<input name="lastName" value={data.customer.lastName ?? ''} class="input" />
+					</label>
+					<label class="block">
+						<span class="label">Email</span>
+						<input type="email" name="email" value={data.customer.email ?? ''} class="input" />
+					</label>
+					<label class="block">
+						<span class="label">Country</span>
+						<input name="country" value={data.customer.country ?? ''} class="input" />
+					</label>
+					<label class="block">
+						<span class="label">Phone</span>
+						<input name="phone" value={data.customer.phone ?? ''} class="input" />
+					</label>
+					<label class="block">
+						<span class="label">WhatsApp number</span>
+						<input name="whatsappPhone" value={data.customer.whatsappPhone ?? ''} class="input" />
+					</label>
+				</div>
+				<p class="text-[12.5px] text-slate-500">
+					Quotations and notifications go to whatever is stored here.
+				</p>
+				<div class="flex justify-end gap-2">
+					<button type="button" class="btn-secondary" onclick={() => (showContact = false)}>Cancel</button>
+					<button class="btn-primary">Save contact details</button>
+				</div>
+			</form>
 		{/if}
 
 		{#if showNote && can('customers:write')}

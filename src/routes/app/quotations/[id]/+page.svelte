@@ -29,6 +29,44 @@
 	const canWrite = $derived(data.permissions?.includes('quotations:write'));
 	const canBook = $derived(data.permissions?.includes('bookings:write'));
 	const isOpen = $derived(!['CONVERTED', 'DECLINED', 'EXPIRED'].includes(data.quotation.status));
+
+	// Delivery, said per channel and in the operator's language. "Sent" is a fact about
+	// the quotation; whether a traveller was reached is a different fact, and the two are
+	// reported separately rather than one standing in for the other.
+	const delivery = $derived(data.delivery ?? null);
+	const reached = $derived(
+		delivery
+			? delivery.email.status === 'SENT' ||
+					delivery.whatsapp.status === 'SENT' ||
+					delivery.whatsapp.status === 'QUEUED'
+			: false
+	);
+
+	function emailLine(o: { status: string; to?: string | null; reason?: string | null } | undefined) {
+		if (!o) return null;
+		if (o.status === 'SENT') return `Email delivered to ${o.to}.`;
+		if (o.status === 'NOT_AVAILABLE') return 'No email address on file for this traveller.';
+		if (o.reason === 'EMAIL_NOT_CONFIGURED') return 'Email is not configured on this workspace, so nothing was sent.';
+		return `Email to ${o.to} could not be sent.`;
+	}
+
+	function whatsappLine(o: { status: string; to?: string | null; reason?: string | null } | undefined) {
+		if (!o) return null;
+		if (o.status === 'SENT') return 'Sent on WhatsApp.';
+		if (o.status === 'QUEUED') return 'Queued for WhatsApp.';
+		if (o.status === 'NOT_AVAILABLE') return 'No WhatsApp number on file.';
+		if (o.status === 'NOT_CONNECTED') return 'WhatsApp is not connected, so no message was sent.';
+		// Meta's own codes mean nothing to an operator; name the thing they can act on
+		// and leave the raw code to the message record and the logs.
+		if (o.reason === '131037') return 'WhatsApp delivery failed — your WhatsApp display name is not yet approved by Meta.';
+		if (o.reason === '131047' || o.reason === '131026')
+			return 'WhatsApp delivery failed — this traveller cannot be messaged outside a 24-hour reply window.';
+		return 'WhatsApp delivery failed.';
+	}
+
+	const deliveryLine = $derived(
+		delivery ? [emailLine(delivery.email), whatsappLine(delivery.whatsapp)].filter(Boolean).join(' ') : ''
+	);
 </script>
 
 <svelte:head><title>{data.quotation.reference} · {data.tenant.name}</title></svelte:head>
@@ -43,14 +81,26 @@
 		received.
 	-->
 	{#if page.url.searchParams.get('sent') === '1'}
-		<div class="flex flex-wrap items-center gap-2 rounded-panel border border-success/25 bg-success/5 px-4 py-3">
-			<span class="text-sm font-semibold text-slate-900">Quotation sent</span>
-			<span class="text-[13px] text-slate-600">It has gone to the traveller by email, and on WhatsApp where that is connected.</span>
+		<div
+			class="flex flex-wrap items-center gap-2 rounded-panel px-4 py-3 {reached
+				? 'border border-success/25 bg-success/5'
+				: 'border border-warning/30 bg-warning/5'}"
+		>
+			<span class="text-sm font-semibold text-slate-900">
+				{reached ? 'Quotation sent' : 'Quote created and frozen'}
+			</span>
+			<span class="text-[13px] text-slate-600">
+				{#if reached}
+					{deliveryLine}
+				{:else}
+					We couldn't deliver it. {deliveryLine} The price is held — copy the traveller link or retry delivery.
+				{/if}
+			</span>
 		</div>
 	{:else if page.url.searchParams.get('sendfailed') === '1'}
 		<div class="flex flex-wrap items-center gap-2 rounded-panel border border-warning/30 bg-warning/5 px-4 py-3">
-			<span class="text-sm font-semibold text-slate-900">Saved, but not delivered</span>
-			<span class="text-[13px] text-slate-600">The quotation exists. Sending it failed — try Send again.</span>
+			<span class="text-sm font-semibold text-slate-900">Saved, but not sent</span>
+			<span class="text-[13px] text-slate-600">The quotation exists but sending it failed — try Send again.</span>
 		</div>
 	{:else if page.url.searchParams.get('created') === '1'}
 		<div class="flex flex-wrap items-center gap-2 rounded-panel border border-success/25 bg-success/5 px-4 py-3">
@@ -92,6 +142,33 @@
 		<p class="rounded-panel bg-success/10 px-3 py-2 text-xs text-success">
 			Converted to a booking. <a href="/app/bookings/{data.quotation.convertedBookingId}" class="font-semibold underline">Open booking →</a>
 		</p>
+	{/if}
+
+	<!--
+		Delivery, kept on the page rather than only in the moment after sending. An
+		operator chasing a quiet traveller needs to know whether the quote ever left
+		the building, and a tick per channel answers that without opening the inbox.
+	-->
+	{#if delivery}
+		<div class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-panel border border-slate-200 px-3 py-2 text-xs">
+			<span class="font-semibold text-slate-700">Delivery</span>
+			<span class:text-success={delivery.email.status === 'SENT'} class:text-slate-500={delivery.email.status !== 'SENT'}>
+				{delivery.email.status === 'SENT' ? '✓' : '✕'} Email — {emailLine(delivery.email)}
+			</span>
+			<span
+				class:text-success={delivery.whatsapp.status === 'SENT'}
+				class:text-slate-500={delivery.whatsapp.status !== 'SENT'}
+			>
+				{delivery.whatsapp.status === 'SENT' ? '✓' : delivery.whatsapp.status === 'QUEUED' ? '…' : '✕'} WhatsApp — {whatsappLine(
+					delivery.whatsapp
+				)}
+			</span>
+			{#if canWrite && isOpen && !reached}
+				<form method="POST" action="?/send" use:enhance class="ml-auto">
+					<button class="btn-ghost text-xs" type="submit">Retry delivery</button>
+				</form>
+			{/if}
+		</div>
 	{/if}
 
 	<section class="card">

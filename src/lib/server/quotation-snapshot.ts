@@ -32,7 +32,7 @@ import { AppError } from './errors';
  * whatever comes after. Stamping the shape means a future reader can tell what
  * it is looking at instead of guessing from which keys happen to be present.
  */
-export const SNAPSHOT_SCHEMA = 1;
+export const SNAPSHOT_SCHEMA = 2;
 
 /** One line of the offer, as a value. Nothing here is a reference. */
 export type FrozenItem = {
@@ -64,6 +64,17 @@ export type FrozenOffer = {
 	validUntil: string | null;
 	customerId: string | null;
 	bookingRequestId: string | null;
+	/**
+	 * The words that went out beside the money.
+	 *
+	 * The traveller's page renders these, so they are part of the offer that was
+	 * made, not delivery-channel decoration: a message reading "30% deposit confirms
+	 * the booking" is a commercial term. They were absent from the snapshot, so the
+	 * live columns could be rewritten under an accepted quote while the record still
+	 * claimed to be complete. Frozen with the rest.
+	 */
+	notes: string | null;
+	terms: string | null;
 	items: FrozenItem[];
 	/**
 	 * Why the price was what it was — for a human reading the record later.
@@ -101,6 +112,8 @@ export function freezeOffer(
 		validUntil: asDate(quotation.validUntil),
 		customerId: (quotation.customerId as string | null) ?? null,
 		bookingRequestId: (quotation.bookingRequestId as string | null) ?? null,
+		notes: (quotation.notes as string | null) ?? null,
+		terms: (quotation.terms as string | null) ?? null,
 		items: items.map((i) => ({
 			type: (i.type as string | null) ?? null,
 			title: String(i.title ?? ''),
@@ -128,7 +141,12 @@ export function freezeOffer(
  */
 export function readSnapshot(raw: Record<string, unknown>, version: number): FrozenOffer | null {
 	if (!raw) return null;
-	if (typeof raw.schema === 'number' && Array.isArray(raw.items)) return raw as unknown as FrozenOffer;
+	if (typeof raw.schema === 'number' && Array.isArray(raw.items)) {
+		// Schema 1 predates notes/terms. Absent means "nothing was said", which is the
+		// truth for those rows — normalised to null so every reader sees one shape.
+		const offer = raw as unknown as FrozenOffer;
+		return { ...offer, notes: offer.notes ?? null, terms: offer.terms ?? null };
+	}
 	const legacy = raw as { quotation?: Record<string, unknown>; items?: Record<string, unknown>[] };
 	if (!legacy.quotation) return null;
 	return {

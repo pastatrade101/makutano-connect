@@ -11,6 +11,14 @@ export type OutboundEmail = {
 	subject: string;
 	html: string;
 	text: string;
+	/**
+	 * Where a reply should land.
+	 *
+	 * Everything goes out from the platform address, so without this a traveller
+	 * answering their own quote reaches Makutano rather than the operator who wrote
+	 * it — on the one message most likely to be replied to.
+	 */
+	replyTo?: string | null;
 };
 
 export type SendResult = { delivered: boolean; provider: string; id?: string; reason?: string };
@@ -40,7 +48,8 @@ export async function sendEmail(message: OutboundEmail): Promise<SendResult> {
 				to: [message.to],
 				subject: message.subject,
 				html: message.html,
-				text: message.text
+				text: message.text,
+				...(message.replyTo ? { reply_to: [message.replyTo] } : {})
 			})
 		});
 		if (!res.ok) {
@@ -226,9 +235,9 @@ const quoteLines = (
 			.map(
 				(line) => `<tr>
 			<td style="padding:9px 0;border-bottom:1px solid #efeae1;font:400 14px/1.5 ${BODY};color:${INK}">${escapeHtml(line.title)}${
-				line.quantity > 1
-					? `<div style="font:400 12px/1.5 ${BODY};color:${MUTED}">${line.quantity} × ${escapeHtml(currency)} ${escapeHtml(line.unitPrice)}</div>`
-					: ''
+				// Every line shows its quantity, 1 included, matching the quote page. A
+				// bare amount on the child line read as a figure with no rate behind it.
+				`<div style="font:400 12px/1.5 ${BODY};color:${MUTED}">${line.quantity} × ${escapeHtml(currency)} ${escapeHtml(line.unitPrice)}</div>`
 			}</td>
 			<td align="right" style="padding:9px 0;border-bottom:1px solid #efeae1;font:400 14px/1.5 ${BODY};color:${INK};white-space:nowrap">${escapeHtml(currency)} ${escapeHtml(line.total)}</td>
 		</tr>`
@@ -249,21 +258,42 @@ export function quotationEmail(args: {
 	/** Line totals come from the server, never multiplied again here. */
 	items: { title: string; quantity: number; unitPrice: string; total: string }[];
 	notes?: string | null;
+	terms?: string | null;
 	validUntil?: Date | null;
+	/** The trip window, so the reader can check the offer without opening the link. */
+	startDate?: Date | null;
+	endDate?: Date | null;
+	adults?: number;
+	children?: number;
 	url: string;
 }): Omit<OutboundEmail, 'to'> {
 	const greeting = args.customerFirstName ? `Hello ${escapeHtml(args.customerFirstName)},` : 'Hello,';
 	const trip = args.items[0]?.title ?? 'your trip';
+	const day = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 	const expiry = args.validUntil
-		? `<p style="margin:16px 0 0;font:400 13px/1.6 ${BODY};color:${MUTED}">This price holds until ${args.validUntil.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.</p>`
+		? `<p style="margin:16px 0 0;font:400 13px/1.6 ${BODY};color:${MUTED}">This price holds until ${day(args.validUntil)}.</p>`
 		: '';
+
+	// The facts a traveller checks before the number: when, and for whom. Without these
+	// the email was a bare price, and every question came back as a reply asking for
+	// what the quote should already have said.
+	const party = [
+		args.adults ? `${args.adults} adult${args.adults === 1 ? '' : 's'}` : '',
+		args.children ? `${args.children} child${args.children === 1 ? '' : 'ren'}` : ''
+	]
+		.filter(Boolean)
+		.join(' · ');
+	const dates = args.startDate ? `${day(args.startDate)}${args.endDate ? ` – ${day(args.endDate)}` : ''}` : '';
+	const facts = [dates && `Travel dates: ${dates}`, party && `Travellers: ${party}`].filter(Boolean).join('<br>');
 
 	const body = `
 		<p style="margin:0 0 12px">${greeting}</p>
 		<p style="margin:0">${escapeHtml(args.operator.name)} has priced ${escapeHtml(trip)} for you.</p>
+		${facts ? `<p style="margin:14px 0 0;font:400 13px/1.7 ${BODY};color:${MUTED}">${facts}</p>` : ''}
 		${quoteLines(args.items, args.currency, args.total)}
 		${args.notes ? `<p style="margin:18px 0 0;padding:14px 16px;background:#faf8f4;border-radius:10px;font:400 13px/1.65 ${BODY};color:#4a453e">${escapeHtml(args.notes)}</p>` : ''}
-		${expiry}`;
+		${expiry}
+		${args.terms ? `<p style="margin:14px 0 0;font:400 12.5px/1.65 ${BODY};color:${MUTED}">${escapeHtml(args.terms)}</p>` : ''}`;
 
 	return {
 		subject: `Your quote from ${args.operator.name} — ${args.currency} ${args.total}`,
@@ -279,10 +309,14 @@ export function quotationEmail(args: {
 			greeting,
 			'',
 			`${args.operator.name} has priced ${trip} for you.`,
+			...(dates ? [`Travel dates: ${dates}`] : []),
+			...(party ? [`Travellers: ${party}`] : []),
 			'',
 			...args.items.map((l) => `${l.title} — ${l.quantity} × ${args.currency} ${l.unitPrice}`),
 			`Total: ${args.currency} ${args.total}`,
+			...(args.validUntil ? [`This price holds until ${day(args.validUntil)}.`] : []),
 			...(args.notes ? ['', args.notes] : []),
+			...(args.terms ? ['', args.terms] : []),
 			'',
 			`View your quote: ${args.url}`,
 			'',

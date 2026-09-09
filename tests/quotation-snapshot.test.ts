@@ -65,7 +65,12 @@ describe('the frozen offer is values, never references', () => {
 	});
 
 	it('is stamped so a reader in 2030 can tell what shape it is', () => {
-		expect(freezeOffer(sent(), lines()).schema).toBe(1);
+		// The stamp exists to MOVE when the shape does — schema 2 added the frozen notes
+		// and terms. Pinning the literal 1 asserted the opposite of what the stamp is
+		// for, so this follows the constant; the versions themselves are covered by
+		// their own cases (new snapshots carry the current shape, old ones still read).
+		expect(freezeOffer(sent(), lines()).schema).toBe(SNAPSHOT_SCHEMA);
+		expect(SNAPSHOT_SCHEMA).toBeGreaterThanOrEqual(2);
 	});
 });
 

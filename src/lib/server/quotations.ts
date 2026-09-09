@@ -439,9 +439,21 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 			 * shape it was. See quotation-snapshot.ts: money that has been sent is
 			 * read from here and from nowhere else.
 			 */
+			/*
+			 * Provenance travels with the offer, but never as a dependency.
+			 *
+			 * The composer records which rate card it recommended from; that label is
+			 * carried here so a reader in 2030 can see WHY 2,500 was the adult rate and
+			 * whether the operator overrode it. Nothing is ever recomputed from it —
+			 * the money above is values, and a tour id is only a footnote beside them.
+			 */
 			snapshot: freezeOffer(
 				quotation as unknown as Record<string, unknown>,
-				items as unknown as Record<string, unknown>[]
+				items as unknown as Record<string, unknown>[],
+				{
+					tourId: (quotation.metadata?.tourId as string | null) ?? null,
+					appliedPricing: (quotation.metadata?.appliedPricing as string | null) ?? null
+				}
 			) as unknown as Record<string, unknown>,
 			createdByUserId: sentByUserId
 		})
@@ -488,10 +500,37 @@ export async function sendQuotation(tenantId: string, id: string, sentByUserId: 
 	// because a message on the app someone actually reads is what gets a quote
 	// opened, and the two carry the same link to the same page.
 	//
-	// Both are fire-and-forget and independent: a Meta outage must not stop the
-	// email, and an unconfigured mailer must not stop the WhatsApp.
-	void deliverQuotation(tenantId, updated).catch(() => undefined);
-	return updated;
+	// The channels are independent — a Meta outage must not stop the email, and an
+	// unconfigured mailer must not stop the WhatsApp — but the OUTCOME is awaited and
+	// kept. This used to be `void deliverQuotation(...).catch(() => undefined)`, which
+	// meant every non-delivery was invisible and the operator was told the traveller
+	// had been reached regardless. The offer is already frozen and SENT above; nothing
+	// here rolls that back, because failing to deliver a quote does not un-quote it.
+	let delivery: QuotationDelivery | null = null;
+	try {
+		delivery = await deliverQuotation(tenantId, updated);
+	} catch (err) {
+		log.error('quotation_delivery_failed', { tenantId, quotationId: id, error: (err as Error)?.message });
+		delivery = {
+			at: new Date().toISOString(),
+			email: { status: 'FAILED', reason: 'DELIVERY_ERROR' },
+			whatsapp: { status: 'FAILED', reason: 'DELIVERY_ERROR' }
+		};
+	}
+
+	const [withDelivery] = await db()
+		.update(schema.quotations)
+		.set({
+			// Merge, never replace: metadata also carries the mirror's viewUrl and the
+			// legacy import's own keys, and a quotation that came from a tenant website
+			// loses its link if this overwrites the object.
+			metadata: sql`coalesce(${schema.quotations.metadata}, '{}'::jsonb) || ${JSON.stringify({ delivery })}::jsonb`,
+			updatedAt: new Date()
+		})
+		.where(and(eq(schema.quotations.id, id), eq(schema.quotations.tenantId, tenantId)))
+		.returning();
+
+	return { ...(withDelivery ?? updated), delivery };
 }
 
 /**
@@ -526,7 +565,40 @@ async function ensurePublicToken(tenantId: string, id: string, existing: string 
 	return token;
 }
 
-async function deliverQuotation(tenantId: string, quotation: schema.Quotation) {
+/**
+ * What actually happened on each channel, as against what the quotation row says.
+ *
+ * Sending a quotation and delivering one are different facts. The commercial event —
+ * the offer is frozen and SENT — stands whatever the transport does; these values say
+ * whether the traveller was actually reached, so no screen has to guess.
+ *
+ * Email is synchronous, so its verdict is final by the time this returns. WhatsApp is
+ * queued and settled later by the send worker, so the honest immediate answer is
+ * QUEUED plus the id of the row in `messages` that carries the eventual status — that
+ * table is already the durable per-attempt record, so nothing new is needed to hold it.
+ */
+export type ChannelOutcome = {
+	status: 'SENT' | 'QUEUED' | 'FAILED' | 'NOT_AVAILABLE' | 'NOT_CONNECTED';
+	to?: string | null;
+	reason?: string | null;
+	messageId?: string | null;
+};
+
+export type QuotationDelivery = {
+	at: string;
+	email: ChannelOutcome;
+	whatsapp: ChannelOutcome;
+};
+
+/** True when at least one channel carried the quote, or is queued to. */
+export function reachedTraveller(delivery: QuotationDelivery | null | undefined): boolean {
+	if (!delivery) return false;
+	return (
+		delivery.email.status === 'SENT' || delivery.whatsapp.status === 'SENT' || delivery.whatsapp.status === 'QUEUED'
+	);
+}
+
+async function deliverQuotation(tenantId: string, quotation: schema.Quotation): Promise<QuotationDelivery> {
 	const token = await ensurePublicToken(tenantId, quotation.id, quotation.publicToken);
 	const link = quotationLink({ publicToken: token, metadata: quotation.metadata });
 
@@ -547,7 +619,8 @@ async function deliverQuotation(tenantId: string, quotation: schema.Quotation) {
 			name: schema.operatorProfiles.displayName,
 			location: schema.operatorProfiles.location,
 			verified: schema.operatorProfiles.isVerified,
-			logoUrl: operatorLogo.url
+			logoUrl: operatorLogo.url,
+			publicEmail: schema.operatorProfiles.publicEmail
 		})
 		.from(schema.operatorProfiles)
 		.leftJoin(operatorLogo, eq(operatorLogo.id, schema.operatorProfiles.logoMediaId))
@@ -561,11 +634,17 @@ async function deliverQuotation(tenantId: string, quotation: schema.Quotation) {
 		location: operator?.location ?? null,
 		verified: operator?.verified ?? false
 	};
+	// The traveller asked the OPERATOR. Their published address takes the reply, so
+	// "reply to this quote" reaches the person who priced it rather than the platform.
+	const operatorReplyTo = operator?.publicEmail ?? null;
 
-	await Promise.allSettled([
-		// Email.
-		(async () => {
-			if (!customer?.email || !link) return;
+	const [email, whatsapp] = await Promise.all([
+		// Email. sendEmail never throws — every failure path returns delivered:false —
+		// so the result is READ here rather than discarded. Dropping it was what let a
+		// green banner sit on top of an unconfigured mailer.
+		(async (): Promise<ChannelOutcome> => {
+			if (!customer?.email) return { status: 'NOT_AVAILABLE', reason: 'NO_EMAIL_ON_FILE' };
+			if (!link) return { status: 'FAILED', to: customer.email, reason: 'NO_PUBLIC_LINK' };
 			const message = quotationEmail({
 				operator: brand,
 				customerFirstName: customer.firstName,
@@ -579,24 +658,97 @@ async function deliverQuotation(tenantId: string, quotation: schema.Quotation) {
 					total: line.total
 				})),
 				notes: quotation.notes,
+				terms: quotation.terms,
 				validUntil: quotation.validUntil,
+				startDate: quotation.startDate,
+				endDate: quotation.endDate,
+				adults: quotation.adults,
+				children: quotation.children,
 				url: link
 			});
-			await sendEmail({ ...message, to: customer.email });
+			try {
+				const result = await sendEmail({ ...message, to: customer.email, replyTo: operatorReplyTo });
+				return {
+					status: result.delivered ? 'SENT' : 'FAILED',
+					to: customer.email,
+					reason: result.delivered ? null : (result.reason ?? 'UNKNOWN')
+				};
+			} catch (err) {
+				log.error('quotation_email_failed', {
+					tenantId,
+					quotationId: quotation.id,
+					error: (err as Error)?.message
+				});
+				return { status: 'FAILED', to: customer.email, reason: 'UNEXPECTED_ERROR' };
+			}
 		})(),
-		// WhatsApp, through the Template Center. Skipped by its own empty-variable
-		// guard when there is no number, no connection or no mapped template.
-		sendEventTemplate(
-			tenantId,
-			'QUOTATION_READY',
-			customer?.whatsappPhone,
-			{
-				customer: { firstName: customer?.firstName, lastName: customer?.lastName },
-				quotation: { reference: quotation.reference, total: `${quotation.currency} ${quotation.total}`, link }
-			},
-			`quotation-QUOTATION_READY:${quotation.id}:${quotation.version}`
-		)
+		// WhatsApp, through the Template Center. It returns the queued row, or null when
+		// there is no number, no connection or no mapped template — three different facts
+		// that used to collapse into the same silence.
+		(async (): Promise<ChannelOutcome> => {
+			if (!customer?.whatsappPhone) return { status: 'NOT_AVAILABLE', reason: 'NO_WHATSAPP_NUMBER' };
+			try {
+				const queued = await sendEventTemplate(
+					tenantId,
+					'QUOTATION_READY',
+					customer.whatsappPhone,
+					{
+						customer: { firstName: customer.firstName, lastName: customer.lastName },
+						quotation: { reference: quotation.reference, total: `${quotation.currency} ${quotation.total}`, link }
+					},
+					`quotation-QUOTATION_READY:${quotation.id}:${quotation.version}`
+				);
+				if (!queued) {
+					return { status: 'NOT_CONNECTED', to: customer.whatsappPhone, reason: 'NO_CONNECTION_OR_TEMPLATE' };
+				}
+				// Queued, not delivered: the worker settles `messages.status` afterwards,
+				// and that row is where the final verdict lives.
+				return { status: 'QUEUED', to: customer.whatsappPhone, messageId: queued.id };
+			} catch (err) {
+				log.warn('quotation_whatsapp_failed', {
+					tenantId,
+					quotationId: quotation.id,
+					error: (err as Error)?.message
+				});
+				return { status: 'FAILED', to: customer.whatsappPhone, reason: 'SEND_ERROR' };
+			}
+		})()
 	]);
+
+	return { at: new Date().toISOString(), email, whatsapp };
+}
+
+/**
+ * The settled delivery state for a quotation.
+ *
+ * Email is stored as written. WhatsApp was only QUEUED at send time, so its row in
+ * `messages` is re-read here — that is the record the worker actually updates.
+ */
+export async function deliveryFor(
+	tenantId: string,
+	quotation: { metadata: Record<string, unknown> | null }
+): Promise<QuotationDelivery | null> {
+	const stored = (quotation.metadata ?? {}).delivery as QuotationDelivery | undefined;
+	if (!stored) return null;
+	if (stored.whatsapp?.status !== 'QUEUED' || !stored.whatsapp.messageId) return stored;
+
+	const [row] = await db()
+		.select({ status: schema.messages.status, errorCode: schema.messages.errorCode })
+		.from(schema.messages)
+		.where(and(eq(schema.messages.id, stored.whatsapp.messageId), eq(schema.messages.tenantId, tenantId)))
+		.limit(1);
+	if (!row) return stored;
+
+	const settled: ChannelOutcome['status'] =
+		row.status === 'FAILED'
+			? 'FAILED'
+			: row.status === 'SENT' || row.status === 'DELIVERED' || row.status === 'READ'
+				? 'SENT'
+				: 'QUEUED';
+	return {
+		...stored,
+		whatsapp: { ...stored.whatsapp, status: settled, reason: row.errorCode ?? stored.whatsapp.reason ?? null }
+	};
 }
 
 export async function markQuotationViewed(tenantId: string, id: string) {
