@@ -49,7 +49,48 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		? await draftQuotationFor(tenantId, idOf(params)).catch(() => null)
 		: null;
 
-	return { ...detail, travelers, messages, canSeeSensitive, quoteDraft };
+	/*
+	 * The most recent offer, so a REVISION starts from what was actually quoted.
+	 *
+	 * A revision is a new quotation, not an edit — but it is a new quotation of the
+	 * same trip, and making the operator retype the inclusions and terms they wrote
+	 * last week is how a revision ends up quietly dropping half of them. Read-only
+	 * here: the composer copies these into a fresh draft and the sent quotation is
+	 * never touched.
+	 */
+	const previous = detail.quotations[0] ?? null;
+	const lastQuote = previous
+		? {
+				...previous,
+				...(await (async () => {
+					const [row] = await db()
+						.select({
+							adults: schema.quotations.adults,
+							children: schema.quotations.children,
+							notes: schema.quotations.notes,
+							terms: schema.quotations.terms,
+							startDate: schema.quotations.startDate,
+							endDate: schema.quotations.endDate
+						})
+						.from(schema.quotations)
+						.where(eq(schema.quotations.id, previous.id))
+						.limit(1);
+					const items = await db()
+						.select({
+							title: schema.quotationItems.title,
+							description: schema.quotationItems.description,
+							quantity: schema.quotationItems.quantity,
+							unitPrice: schema.quotationItems.unitPrice
+						})
+						.from(schema.quotationItems)
+						.where(eq(schema.quotationItems.quotationId, previous.id))
+						.orderBy(schema.quotationItems.sortOrder);
+					return { ...row, items };
+				})())
+			}
+		: null;
+
+	return { ...detail, travelers, messages, canSeeSensitive, quoteDraft, lastQuote };
 };
 
 export const actions: Actions = {

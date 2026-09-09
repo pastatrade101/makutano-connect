@@ -30,6 +30,19 @@ const DIAL_CODES: Record<string, string> = {
  * @param raw       anything a form or Meta may hand us
  * @param country   ISO-3166 alpha-2, used only to expand a leading 0
  * @returns E.164 digits with no '+', or null when nothing usable remains
+ *
+ * KNOWN GAP, recorded deliberately rather than patched.
+ *
+ * The `digits.length <= 9` branch below cannot tell a national number from a typo, so
+ * normalizePhone('12345', 'TZ') returns '25512345' — a fragment becomes an apparently
+ * valid E.164 destination, and something will eventually try to message it. Pinned by
+ * tests/phone-normalisation.test.ts so it is met as a decision, not a surprise.
+ *
+ * The fix is NOT another prefix rule. It needs real validation — per-country length and
+ * prefix rules, or a library — and a decision about what to do with a number that fails
+ * it, since rejecting at capture time means refusing an enquiry over a mistyped phone.
+ * That is its own piece of work; see the send-time fix in toE164Digits below, which is
+ * the separate and narrower half.
  */
 export function normalizePhone(raw: string | null | undefined, country?: string | null): string | null {
 	if (!raw) return null;

@@ -1234,10 +1234,55 @@ export async function upsertQuotationMirror(tenantId: string, input: QuotationMi
 	const toDateOrNull = (v?: string | null): Date | null => (v ? new Date(v) : null);
 	const existing = await findQuotationByExternalReference(tenantId, input.externalReference);
 
+	/*
+	 * LOCAL STATE AUTHORITY.
+	 *
+	 * The external vocabulary is weaker than ours: a mirror can say DRAFT, SENT, VIEWED,
+	 * ACCEPTED, DECLINED or EXPIRED, and has no way to say CONVERTED or SUPERSEDED. It
+	 * wrote `status` straight through, so a sync arriving after a local sale reported
+	 * ACCEPTED over a CONVERTED row — un-converting a completed booking's quotation —
+	 * and one arriving after a re-quote put a SUPERSEDED offer back on the table.
+	 *
+	 * The rule is that a state the external system CANNOT EXPRESS is a state it cannot
+	 * overwrite. Those are the two ends of our own lifecycle, and both are decisions
+	 * Connect made and Goldfinch never saw:
+	 *
+	 *   CONVERTED   the traveller accepted and a booking exists here
+	 *   SUPERSEDED  an operator replaced this offer here
+	 *
+	 * DECLINED and EXPIRED are deliberately NOT protected. Both are facts the source
+	 * system can legitimately know better than we do — a traveller who declines by
+	 * replying to the legacy system, or an expiry it manages — and both are reversible
+	 * business states rather than terminal ones. Reopening those is the mirror's job.
+	 *
+	 * Everything else about the row still syncs; only the status is held back, so no
+	 * information is lost — the external status is kept in metadata for the record.
+	 */
+	const LOCALLY_OWNED: ReadonlyArray<schema.Quotation['status']> = ['CONVERTED', 'SUPERSEDED'];
+	const statusIsOurs = existing ? LOCALLY_OWNED.includes(existing.status) : false;
+	if (statusIsOurs && existing && existing.status !== (input.status as unknown)) {
+		log.info('quotation_mirror_status_ignored', {
+			tenantId,
+			quotationId: existing.id,
+			localStatus: existing.status,
+			externalStatus: input.status,
+			externalReference: input.externalReference
+		});
+	}
+
 	const values = {
-		customerId,
-		bookingRequestId,
-		status: input.status,
+		/*
+		 * A sync that carries no customer must not ERASE the one we hold.
+		 *
+		 * customerId and bookingRequestId are derived from this payload alone, so a
+		 * lifecycle ping without customer details wrote null over a real link — and a
+		 * quotation with no customer cannot be accepted at all, so a routine sync could
+		 * quietly make a live offer unacceptable. Absence in a mirror payload means
+		 * "not mentioned", never "cleared".
+		 */
+		customerId: customerId ?? existing?.customerId ?? null,
+		bookingRequestId: bookingRequestId ?? existing?.bookingRequestId ?? null,
+		status: statusIsOurs && existing ? existing.status : input.status,
 		currency: input.currency,
 		subtotal: input.total,
 		discount: '0',
@@ -1256,6 +1301,9 @@ export async function upsertQuotationMirror(tenantId: string, input: QuotationMi
 			external_reference: input.externalReference,
 			external_source: input.externalSource,
 			mirror: true,
+			// Kept even when it loses to local state, so the record still shows what the
+			// source system believed. Holding a status back must not discard it.
+			external_status: input.status,
 			...(input.declineReason ? { decline_reason: input.declineReason } : {})
 		} as Record<string, unknown>,
 		updatedAt: new Date()

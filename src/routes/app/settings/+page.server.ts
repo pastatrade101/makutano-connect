@@ -268,15 +268,21 @@ export const actions: Actions = {
 		const name = String(data.get('name') ?? '').trim();
 		if (!name) return fail(400, { message: 'Business name is required.' });
 
-		const capabilities = String(data.get('capabilities') ?? 'BOTH');
 		const tenant = requireTenant(locals);
+		/*
+		 * `capabilities` is NOT read from this form any more.
+		 *
+		 * The picker is gone (see +page.svelte), and reading the field anyway would be
+		 * worse than leaving it: a form that no longer renders the input posts nothing,
+		 * so `?? 'BOTH'` normalised to HYBRID and every unrelated Save silently widened
+		 * the workspace — the same shape of bug as the quotation prefix defaulting to
+		 * 'QT'. Whatever the tenant has is carried through untouched; Platform Admin
+		 * remains the one place it can change.
+		 */
 		await db()
 			.update(schema.tenants)
 			.set({
-				settings: {
-					...((tenant.settings as Record<string, unknown>) ?? {}),
-					capabilities: ['BOOKINGS', 'ORDERS', 'SERVICE', 'HYBRID'].includes(capabilities) ? capabilities : 'HYBRID'
-				},
+				settings: (tenant.settings as Record<string, unknown>) ?? {},
 				name,
 				timezone: String(data.get('timezone') ?? tenant.timezone),
 				currency: String(data.get('currency') ?? tenant.currency)

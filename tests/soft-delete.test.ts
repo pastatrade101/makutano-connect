@@ -214,8 +214,21 @@ suite('deleting is hiding, not destroying', () => {
 		// them can reach an enquiry — payment_requests has no booking_request_id.
 		// Idempotency is keyed on the SOURCE's reference because a replayed
 		// webhook, a retry and a second confirm all have to land on one booking.
+		//
+		// OPT-IN NOW. This path belongs to the older architecture, in which Goldfinch
+		// owned the sale; the product's direction is enquiry -> quotation -> acceptance
+		// -> booking, with Connect owning the commercial event. It is off unless a
+		// tenant is genuinely mid-cutover, so the flag is set here explicitly — the
+		// behaviour below is unchanged and still worth pinning for those tenants.
 		const { createBookingRequest, upsertBookingRequestMirror } = await import('../src/lib/server/booking-requests');
 		const { listBookings } = await import('../src/lib/server/bookings');
+		const { db, schema } = await import('../src/lib/server/db');
+		const { eq } = await import('drizzle-orm');
+		const [tenantRow] = await db().select().from(schema.tenants).where(eq(schema.tenants.id, tenantId));
+		await db()
+			.update(schema.tenants)
+			.set({ settings: { ...((tenantRow.settings as Record<string, unknown>) ?? {}), legacyBookingPromotion: true } })
+			.where(eq(schema.tenants.id, tenantId));
 		const ref = `GF-BKG-P${Date.now()}`;
 		await createBookingRequest(tenantId, {
 			customer: { firstName: 'Promote', lastName: 'Me' },

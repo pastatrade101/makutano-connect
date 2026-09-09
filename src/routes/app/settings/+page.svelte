@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { WORKSPACE_OPTIONS } from '$lib/workspace';
 	import FormToast from '$components/FormToast.svelte';
 	import { enhance } from '$lib/forms';
 	import { page } from '$app/state';
@@ -199,17 +198,19 @@
 						data.settings.bookingReferencePrefix}-QT-2026-00001
 				</p>
 			</div>
-			<div class="sm:col-span-2">
-				<label class="label" for="capabilities">How do you use Connect?</label>
-				<select id="capabilities" name="capabilities" class="input" disabled={!canWrite}>
-					{#each WORKSPACE_OPTIONS as opt (opt.value)}
-						<option value={opt.value} selected={data.settings.capabilities === opt.value}>{opt.label} — {opt.hint.toLowerCase()}</option>
-					{/each}
-				</select>
-				<p class="mt-1 text-[12.5px] text-slate-400">
-					This organises your menus and dashboard around your kind of work. It never adds or removes plan features.
-				</p>
-			</div>
+			<!--
+				The "how do you use Connect?" picker is gone.
+
+				Makutano sells ONE journey: a Tanzanian tour operator reaching a traveller
+				through enquiry, quotation, acceptance, booking. Signup already creates only
+				that, but this select let an operator pick "Customer orders" afterwards and
+				lose Quotations and Bookings from their own menu — breaking, from Settings,
+				the one flow the product exists to make work.
+
+				Tenants who legitimately need another shape (the legacy Orders businesses)
+				still have one, and Platform Admin can still set it; this is about what a
+				new operator is offered, not what the model can express.
+			-->
 		</div>
 		{#if canWrite}<div class="border-t border-slate-200 p-3"><button class="btn-primary">Save settings</button></div>{/if}
 		</form>

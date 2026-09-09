@@ -16,11 +16,33 @@
 		ACCEPTED: []
 	};
 	const forward = $derived(FORWARD[data.request.status] ?? []);
+	/*
+	 * QUOTED means "this enquiry has reached the quotation stage" — NOT "there may
+	 * only ever be one quotation".
+	 *
+	 * Reading it the second way made the Create quotation button vanish the moment the
+	 * first offer went out, so revising a price meant dragging the enquiry BACKWARD to
+	 * CONTACTED first: falsifying the lifecycle to unlock a button, and leaving the
+	 * record saying the traveller had never been quoted. A status records where the
+	 * work has got to; it is not a permission.
+	 *
+	 * DECLINED is here for the same reason — a traveller turning one price down is
+	 * usually the start of the negotiation rather than the end of it.
+	 */
 	const canQuote = $derived(
 		data.permissions?.includes('quotations:write') &&
 			data.entitlements?.['quotations.enabled'] === true &&
-			['NEW', 'UNDER_REVIEW', 'CONTACTED'].includes(data.request.status)
+			['NEW', 'UNDER_REVIEW', 'CONTACTED', 'QUOTED', 'DECLINED'].includes(data.request.status)
 	);
+
+	/** Offers already made, newest first. The current one is whichever is still open. */
+	const quotations = $derived(data.quotations ?? []);
+	const currentQuote = $derived(
+		quotations.find((q: { status: string }) => ['DRAFT', 'SENT', 'VIEWED'].includes(q.status)) ?? null
+	);
+	const pastQuotes = $derived(quotations.filter((q: { id: string }) => q.id !== currentQuote?.id));
+	/** The first offer is "Create"; anything after it is a revision, and should say so. */
+	const quoteVerb = $derived(quotations.length ? 'Revise quotation' : 'Create quotation');
 	let moreStatus = $state(false);
 
 	/*
@@ -99,6 +121,36 @@
 		quoteIncluded = '';
 		quoteTerms = '';
 		validUntil = '';
+
+		/*
+		 * A REVISION starts from what was actually quoted last time.
+		 *
+		 * Everything here is copied into a fresh draft; the previous quotation is read
+		 * and never written, which is what keeps a sent offer immutable. Prices come
+		 * from the last offer rather than the engine, because a revision is usually a
+		 * negotiation ABOUT that number — an operator dropping 2,500 to 2,300 should
+		 * see 2,500 in the box, not whatever the rate card says today. The party and
+		 * dates are still editable, and the engine's recommendation is still displayed
+		 * beside them.
+		 */
+		const last = data.lastQuote;
+		if (last) {
+			adults = last.adults ?? adults;
+			children = last.children ?? children;
+			const adultLine = last.items?.find((i) => /adult/i.test(i.title)) ?? last.items?.[0];
+			const childLine = last.items?.find((i) => /child/i.test(i.title));
+			if (adultLine?.unitPrice) adultPrice = adultLine.unitPrice;
+			if (childLine?.unitPrice) {
+				childPrice = childLine.unitPrice;
+				childPriceEdited = true;
+			}
+			// The inclusions ride on the adult line's description (see quotation-lines.ts).
+			quoteIncluded = adultLine?.description ?? '';
+			quoteMessage = last.notes ?? '';
+			quoteTerms = last.terms ?? '';
+			startDate = asDay(last.startDate) || startDate;
+			endDate = asDay(last.endDate) || endDate;
+		}
 		composing = true;
 	}
 
@@ -156,7 +208,7 @@
 		<span class="text-[13px] text-slate-500">What next?</span>
 		<div class="ml-auto flex flex-wrap gap-1.5">
 			{#if canQuote}
-				<button class="btn-primary !py-1.5 text-xs" onclick={openComposer}>Create quotation</button>
+				<button class="btn-primary !py-1.5 text-xs" onclick={openComposer}>{quoteVerb}</button>
 			{/if}
 			{#if data.request.conversationId}
 				<a href="/app/conversations/{data.request.conversationId}" class="btn-secondary !py-1.5 text-xs">Reply on WhatsApp</a>
@@ -176,7 +228,7 @@
 		</div>
 		<div class="flex flex-wrap items-center gap-1.5">
 			{#if canQuote}
-				<button class="btn-primary" onclick={openComposer}>Create quotation</button>
+				<button class="btn-primary" onclick={openComposer}>{quoteVerb}</button>
 			{/if}
 			{#if canWrite}
 				{#each forward as move (move.to)}
@@ -202,7 +254,7 @@
 		<form method="POST" action="?/createQuote" use:enhance class="card space-y-4 p-4">
 			<div>
 				<div class="flex items-start justify-between gap-3">
-					<h2 class="text-base font-semibold text-slate-900">Create quotation</h2>
+					<h2 class="text-base font-semibold text-slate-900">{quoteVerb}</h2>
 					<button type="button" class="text-[12.5px] text-slate-400 hover:underline" onclick={() => (composing = false)}>Cancel</button>
 				</div>
 				<p class="mt-2 text-sm font-medium text-slate-800">{traveller}</p>
@@ -495,6 +547,45 @@
 							{/each}
 						</tbody>
 					</table>
+				</section>
+			{/if}
+
+			<!--
+				What we have offered them, and what happened to each offer.
+				A revision is a new quotation rather than an edit, so this is a list. It
+				answers "what did we quote?" without leaving the enquiry, and it is where
+				the operator sees that sending a new price withdrew the old one.
+			-->
+			{#if quotations.length}
+				<section class="card">
+					<header class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+						<h2 class="text-sm font-semibold text-slate-800">Quotations</h2>
+						{#if canQuote}
+							<button class="text-xs font-medium text-brand hover:underline" onclick={openComposer}>{quoteVerb}</button>
+						{/if}
+					</header>
+					<div class="divide-y divide-slate-100">
+						{#if currentQuote}
+							<a href="/app/quotations/{currentQuote.id}" class="flex flex-wrap items-center gap-2 px-3 py-2 hover:bg-slate-50">
+								<span class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Current</span>
+								<span class="text-[13px] font-medium text-slate-800">{currentQuote.reference}</span>
+								<StatusBadge value={currentQuote.status} />
+								<span class="ml-auto text-[13px] text-slate-600">
+									<Money amount={currentQuote.total} currency={currentQuote.currency} />
+								</span>
+							</a>
+						{/if}
+						{#each pastQuotes as q (q.id)}
+							<a href="/app/quotations/{q.id}" class="flex flex-wrap items-center gap-2 px-3 py-2 hover:bg-slate-50">
+								<span class="text-[11px] uppercase tracking-wide text-slate-400">Previous</span>
+								<span class="text-[13px] text-slate-600">{q.reference}</span>
+								<StatusBadge value={q.status} />
+								<span class="ml-auto text-[13px] text-slate-500">
+									<Money amount={q.total} currency={q.currency} />
+								</span>
+							</a>
+						{/each}
+					</div>
 				</section>
 			{/if}
 

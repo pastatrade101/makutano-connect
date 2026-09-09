@@ -308,6 +308,193 @@ suite('acceptance integrity', () => {
 		).rejects.toThrow(/bookings_one_per_quotation|duplicate key/i);
 	});
 
+	/* ------------------------------------------- revision workflow ---- */
+
+	it('R1. a QUOTED enquiry can be revised without moving its status backward', async () => {
+		// The workflow this replaces: the operator had to drag the enquiry back to
+		// CONTACTED to unlock the button, leaving the record claiming the traveller had
+		// never been quoted. QUOTED means "reached the quotation stage", not "only one".
+		const { enquiryId, quotationId: v1 } = await sentQuote('revise');
+		const before = await bookingRequests.getBookingRequest(tenantId, enquiryId);
+		expect(before.status).toBe('QUOTED');
+
+		const v2 = await mod.createQuotation(tenantId, {
+			bookingRequestId: enquiryId,
+			currency: 'USD',
+			adults: 2,
+			items: [{ title: 'revise revised', quantity: 2, unitPrice: '1400.00', total: '2800.00' }]
+		});
+		// A new DRAFT, entirely separate from the sent offer.
+		expect(v2.status).toBe('DRAFT');
+		expect(v2.id).not.toBe(v1);
+		expect((await mod.getQuotation(tenantId, v1)).status).toBe('SENT');
+
+		await mod.sendQuotation(tenantId, v2.id, null);
+		expect((await mod.getQuotation(tenantId, v1)).status).toBe('SUPERSEDED');
+
+		// The enquiry never left QUOTED at any point.
+		const after = await bookingRequests.getBookingRequest(tenantId, enquiryId);
+		expect(after.status).toBe('QUOTED');
+	});
+
+	it('R2. editing the revision never touches the sent quotation or its snapshot', async () => {
+		const { v1, v2 } = await supersededPair('immutable');
+		const v1Row = await mod.getQuotation(tenantId, v1);
+		const { db, schema } = dbmod;
+		const { eq } = await import('drizzle-orm');
+
+		// Change the draft's world as an operator would while revising.
+		await db().update(schema.quotations).set({ notes: 'edited on the revision' }).where(eq(schema.quotations.id, v2));
+
+		const v1After = await mod.getQuotation(tenantId, v1);
+		expect(v1After.total).toBe(v1Row.total);
+		expect(v1After.notes).toBe(v1Row.notes);
+		const [snap] = await db()
+			.select()
+			.from(schema.quotationVersions)
+			.where(eq(schema.quotationVersions.quotationId, v1));
+		expect((snap.snapshot as Record<string, unknown>).total).toBe('2000.00');
+	});
+
+	/* ------------------------------------------------ mirror policy ---- */
+
+	it('M1. an external sync cannot un-convert a locally CONVERTED quotation', async () => {
+		const { quotationId } = await sentQuote('mirrorconv');
+		await mod.acceptQuotation(tenantId, quotationId, {});
+		const { db, schema } = dbmod;
+		const { eq } = await import('drizzle-orm');
+		// Give it the external anchor the mirror upserts on.
+		await db()
+			.update(schema.quotations)
+			.set({ metadata: { external_reference: 'GFQ-CONV-1', external_source: 'goldfinch' } })
+			.where(eq(schema.quotations.id, quotationId));
+
+		await mod.upsertQuotationMirror(tenantId, {
+			externalReference: 'GFQ-CONV-1',
+			externalSource: 'goldfinch',
+			status: 'ACCEPTED',
+			currency: 'USD',
+			total: '2000.00'
+		} as never);
+
+		const after = await mod.getQuotation(tenantId, quotationId);
+		// Local terminal state wins — a booking exists here and Goldfinch cannot see it.
+		expect(after.status).toBe('CONVERTED');
+		// ...and the external view is kept rather than discarded.
+		expect((after.metadata as Record<string, unknown>).external_status).toBe('ACCEPTED');
+	});
+
+	it('M2. an external sync cannot revive a SUPERSEDED quotation', async () => {
+		const { v1 } = await supersededPair('mirrorsup');
+		const { db, schema } = dbmod;
+		const { eq } = await import('drizzle-orm');
+		await db()
+			.update(schema.quotations)
+			.set({ metadata: { external_reference: 'GFQ-SUP-1', external_source: 'goldfinch' } })
+			.where(eq(schema.quotations.id, v1));
+
+		await mod.upsertQuotationMirror(tenantId, {
+			externalReference: 'GFQ-SUP-1',
+			externalSource: 'goldfinch',
+			status: 'SENT',
+			currency: 'USD',
+			total: '2000.00'
+		} as never);
+
+		expect((await mod.getQuotation(tenantId, v1)).status).toBe('SUPERSEDED');
+		// And it stays unacceptable, which is the point of protecting the status.
+		await expect(mod.acceptQuotation(tenantId, v1, {})).rejects.toThrow(/no longer open/i);
+	});
+
+	it('M3. the mirror still owns DECLINED and EXPIRED, and repeats are idempotent', async () => {
+		const { quotationId } = await sentQuote('mirrordecl');
+		const { db, schema } = dbmod;
+		const { eq } = await import('drizzle-orm');
+		await db()
+			.update(schema.quotations)
+			.set({ metadata: { external_reference: 'GFQ-DECL-1', external_source: 'goldfinch' } })
+			.where(eq(schema.quotations.id, quotationId));
+
+		const payload = {
+			externalReference: 'GFQ-DECL-1',
+			externalSource: 'goldfinch',
+			status: 'DECLINED',
+			currency: 'USD',
+			total: '2000.00'
+		};
+		// The source system genuinely knows this better than we do — a traveller who
+		// declined by replying to Goldfinch. Not protected, and must still apply.
+		await mod.upsertQuotationMirror(tenantId, payload as never);
+		expect((await mod.getQuotation(tenantId, quotationId)).status).toBe('DECLINED');
+
+		// Replay: same anchor, same result, no second row.
+		await mod.upsertQuotationMirror(tenantId, payload as never);
+		const rows = await db().select().from(schema.quotations).where(eq(schema.quotations.tenantId, tenantId));
+		expect(
+			rows.filter((r) => (r.metadata as Record<string, unknown>)?.external_reference === 'GFQ-DECL-1')
+		).toHaveLength(1);
+	});
+
+	/* ------------------------------------- legacy booking promotion ---- */
+
+	async function mirroredEnquiry(tag: string) {
+		const enquiry = await bookingRequests.createBookingRequest(tenantId, {
+			customer: { firstName: 'Mirror', lastName: tag, email: `mirror-${tag}@example.com` },
+			source: 'API',
+			adults: 2,
+			sendAcknowledgement: false,
+			createLead: false,
+			externalReference: `GF-${tag}`,
+			metadata: { goldfinch_booking_id: `GF-${tag}` }
+		});
+		return enquiry.request.id;
+	}
+
+	it('G1. a mirrored CONVERTED enquiry does NOT manufacture a booking by default', async () => {
+		// The legacy handover: Goldfinch says "confirmed" and Connect used to invent a
+		// booking with no quotation behind it — a second, parallel way to create bookings
+		// that the one-booking-per-quotation index cannot even see (quotation_id is null).
+		const enquiryId = await mirroredEnquiry('off');
+		const result = await bookingRequests.upsertBookingRequestMirror(tenantId, {
+			externalReference: 'GF-off',
+			externalSource: 'goldfinch',
+			status: 'confirmed'
+		} as never);
+
+		expect(result.bookingId).toBeNull();
+		expect(await bookingsFor(enquiryId)).toHaveLength(0);
+	});
+
+	it('G2. a tenant genuinely mid-cutover can still be switched back on', async () => {
+		// Kept, not removed — the point is that it is opt-in, not that it is gone.
+		const enquiryId = await mirroredEnquiry('on');
+		const { db, schema } = dbmod;
+		const { eq } = await import('drizzle-orm');
+		const [tenant] = await db().select().from(schema.tenants).where(eq(schema.tenants.id, tenantId));
+		await db()
+			.update(schema.tenants)
+			.set({ settings: { ...((tenant.settings as Record<string, unknown>) ?? {}), legacyBookingPromotion: true } })
+			.where(eq(schema.tenants.id, tenantId));
+
+		try {
+			const result = await bookingRequests.upsertBookingRequestMirror(tenantId, {
+				externalReference: 'GF-on',
+				externalSource: 'goldfinch',
+				status: 'confirmed'
+			} as never);
+			expect(result.bookingId).toBeTruthy();
+			const rows = await bookingsFor(enquiryId);
+			expect(rows).toHaveLength(1);
+			// Still quotation-free, which is exactly why it is off by default.
+			expect(rows[0].quotationId).toBeNull();
+		} finally {
+			await db()
+				.update(schema.tenants)
+				.set({ settings: (tenant.settings as Record<string, unknown>) ?? {} })
+				.where(eq(schema.tenants.id, tenantId));
+		}
+	});
+
 	it('10. a failure inside acceptance leaves neither a booking nor a claimed quotation', async () => {
 		const { enquiryId, quotationId } = await sentQuote('atomic');
 		const { db, schema } = dbmod;

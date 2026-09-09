@@ -427,7 +427,31 @@ export async function getBookingRequestDetail(tenantId: string, id: string) {
 			? db().select().from(schema.customers).where(eq(schema.customers.id, request.customerId)).limit(1)
 			: Promise.resolve([])
 	]);
-	return { request, items, travelers, notes, customer: customer[0] ?? null };
+
+	/*
+	 * Every offer this enquiry has produced, newest first.
+	 *
+	 * A revision is a NEW quotation row rather than an edit, so "what have we offered
+	 * them?" is a list, not a field. Without it the operator could see that an enquiry
+	 * was QUOTED but not what had been quoted, which is why re-quoting felt like
+	 * starting again from nothing.
+	 */
+	const quotations = await db()
+		.select({
+			id: schema.quotations.id,
+			reference: schema.quotations.reference,
+			status: schema.quotations.status,
+			currency: schema.quotations.currency,
+			total: schema.quotations.total,
+			sentAt: schema.quotations.sentAt,
+			createdAt: schema.quotations.createdAt,
+			convertedBookingId: schema.quotations.convertedBookingId
+		})
+		.from(schema.quotations)
+		.where(and(eq(schema.quotations.bookingRequestId, id), isNull(schema.quotations.deletedAt)))
+		.orderBy(desc(schema.quotations.createdAt));
+
+	return { request, items, travelers, notes, customer: customer[0] ?? null, quotations };
 }
 
 export type BookingRequestFilters = {
@@ -703,9 +727,42 @@ export async function upsertBookingRequestMirror(
 	// and Connect starts: money, trip and crew all hang off a BOOKING, and none
 	// of them can reach an enquiry — payment_requests has no booking_request_id
 	// and never should, or payments would attach to a lead.
+	/*
+	 * THE LEGACY HANDOVER, now off by default.
+	 *
+	 * This path belongs to the OLDER architecture, in which Goldfinch owned the sale and
+	 * Connect mirrored it: when the source said "confirmed", Connect manufactured a
+	 * booking straight from the enquiry — no quotation, no acceptance, no frozen offer,
+	 * and a booking whose quotation_id is null and which the one-booking-per-quotation
+	 * index therefore cannot see.
+	 *
+	 * The architecture is now the other way round: Journeys -> enquiry -> Connect ->
+	 * quotation -> acceptance -> booking, with Connect owning the commercial event. The
+	 * evidence agrees this is already true in practice — every booking in production is
+	 * source=ADMIN from quotation acceptance, and NO booking has ever been created by
+	 * this path (zero rows carry an external_source).
+	 *
+	 * So it is kept, not removed — a tenant genuinely mid-cutover can be switched back
+	 * on — but a NEW operator can no longer acquire a second, quotation-free way to
+	 * create a booking simply by having an integration pointed at them. Off is the
+	 * default; the skip is logged rather than silent, so a tenant that really needs it
+	 * shows up as a log line instead of a missing booking nobody can explain.
+	 */
 	let bookingId: string | null = null;
 	if (mapped === 'CONVERTED') {
-		bookingId = await ensureBookingForMirroredEnquiry(tenantId, row, input);
+		const tenant = await getTenantById(tenantId);
+		const legacyPromotion = ((tenant?.settings ?? {}) as Record<string, unknown>).legacyBookingPromotion === true;
+		if (legacyPromotion) {
+			bookingId = await ensureBookingForMirroredEnquiry(tenantId, row, input);
+		} else {
+			log.info('mirror_booking_promotion_skipped', {
+				tenantId,
+				bookingRequestId: row.id,
+				reference: row.reference,
+				externalReference: input.externalReference,
+				reason: 'legacy_promotion_disabled'
+			});
+		}
 	}
 
 	return { updated: true, reference: row.reference, bookingId };
