@@ -519,7 +519,17 @@
 				</div>
 
 				<div class="space-y-5 p-4">
-					{#each groups as group (group.label)}
+					<!--
+						Keyed the same way as the sidebar, and for a reason.
+
+						TWO groups carry `label: ''` — the Home/Inbox pair at the top and the
+						Settings footer at the bottom — so `(group.label)` produced the key ''
+						twice and Svelte threw each_key_duplicate while rendering this sheet.
+						The state flipped, the render died, and nothing appeared: "More" read
+						as a dead button on every phone, with the error visible only in the
+						console. The sidebar above has always used the composite key.
+					-->
+					{#each groups as group (group.label + group.items[0].href)}
 						<section>
 							<!-- Same accent and rule as the sidebar, so the grouping reads the
 							     same on a phone as it does on a laptop. -->
