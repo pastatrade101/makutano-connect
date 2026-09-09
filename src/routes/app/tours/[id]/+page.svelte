@@ -1886,26 +1886,46 @@
 								</div>
 							</details>
 
-							<!-- MARKETPLACE PRICE. Shown, never asked for. -->
+							<!--
+								MARKETPLACE PRICE. Shown, never asked for.
+
+								The BIG number is what travellers actually see on a card. It used to be
+								the "from" floor, with the real display price in small grey text below
+								it — so the figure an operator's eye landed on, and priced against, was
+								the one almost nobody is charged. On this catalogue those differ by about
+								a third. The floor is still here, because it is what the marketplace
+								sorts and filters on, but it is now the footnote it should always
+								have been.
+							-->
 							<div class="rounded-lg bg-slate-50 p-3">
-								<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Marketplace price</p>
-								<p class="mt-1 text-xl font-bold text-slate-900">
-									{derivedFrom ? `From ${draft.currency || 'USD'} ${derivedFrom}` : '—'}
-									<span class="text-sm font-normal text-slate-500">per person</span>
+								<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+									What travellers see
+								</p>
+								{#if cardPrice}
+									<p class="mt-1 text-xl font-bold text-slate-900">
+										<Money
+											amount={draftPricing.perGroup ? cardPrice.total : cardPrice.adultPrice}
+											currency={draft.currency || 'USD'}
+										/>
+										<span class="text-sm font-normal text-slate-500">
+											{draftPricing.perGroup ? 'for the group' : 'per person'}
+										</span>
+									</p>
+									{#if !draftPricing.perGroup}
+										<p class="text-xs text-slate-500">for 2 travellers — the commonest enquiry</p>
+									{/if}
+								{:else}
+									<p class="mt-1 text-xl font-bold text-slate-400">—</p>
+								{/if}
+								<p class="mt-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
+									Lowest price any party can reach:
+									<strong class="text-slate-700">
+										{#if derivedFrom}<Money amount={derivedFrom} currency={draft.currency || 'USD'} />{:else}—{/if}
+									</strong>. Used for sorting and filtering.
 								</p>
 								<p class="mt-1 text-xs text-slate-500">
 									Calculated automatically from your pricing. The server works it out again when you save.
 								</p>
-								{#if cardPrice}
-									<p class="mt-2 border-t border-slate-100 pt-2 text-xs text-slate-600">
-										On the marketplace card travellers see
-										<strong class="text-slate-800">
-											{draft.currency || 'USD'} {draftPricing.perGroup ? cardPrice.total : cardPrice.adultPrice}
-										</strong>
-										{draftPricing.perGroup ? 'for the group' : 'per person for 2 travellers'} — the price
-										a couple actually pays, which is what most enquiries are.
-									</p>
-								{/if}
 							</div>
 
 							<!-- PREVIEW, from the real engine. -->
