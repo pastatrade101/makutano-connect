@@ -318,6 +318,18 @@
 	});
 
 	const derivedFrom = $derived(lowestAdultPrice(draftPricing));
+	/*
+	 * What the marketplace CARD will advertise: two adults, no date.
+	 *
+	 * The "from" figure above is the floor — the cheapest tier, which on most of
+	 * this catalogue needs seven travellers. Operators price against it without
+	 * realising that the number a browsing couple sees is the one below, so both
+	 * are shown rather than leaving the difference to be discovered on the public
+	 * site. Same engine, same call the marketplace makes.
+	 */
+	const cardPrice = $derived(
+		calculateTourPrice(draftPricing, { travelDate: null, adults: 2, children: 0 })
+	);
 	const preview = $derived(
 		calculateTourPrice(draftPricing, {
 			travelDate: previewDate || null,
@@ -1884,6 +1896,16 @@
 								<p class="mt-1 text-xs text-slate-500">
 									Calculated automatically from your pricing. The server works it out again when you save.
 								</p>
+								{#if cardPrice}
+									<p class="mt-2 border-t border-slate-100 pt-2 text-xs text-slate-600">
+										On the marketplace card travellers see
+										<strong class="text-slate-800">
+											{draft.currency || 'USD'} {draftPricing.perGroup ? cardPrice.total : cardPrice.adultPrice}
+										</strong>
+										{draftPricing.perGroup ? 'for the group' : 'per person for 2 travellers'} — the price
+										a couple actually pays, which is what most enquiries are.
+									</p>
+								{/if}
 							</div>
 
 							<!-- PREVIEW, from the real engine. -->

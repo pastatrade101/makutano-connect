@@ -43,6 +43,7 @@ import {
 	tourReviewSummaries,
 	type ReviewSummary
 } from './reviews';
+import { calculateTourPrice, type GroupTier } from '../pricing';
 import { db, schema } from './db';
 import { renderRichText, richTextToPlain } from './richtext';
 import { srcsetFor } from './media';
@@ -185,6 +186,12 @@ export type TourCard = {
 	priceFrom: string | null;
 	currency: string | null;
 	pricingType: string;
+	/**
+	 * What a party of two would pay, so a card advertises the price the commonest
+	 * enquiry actually gets. See TourDisplayPrice — `priceFrom` keeps its own
+	 * meaning and is not redefined by this.
+	 */
+	displayPrice: TourDisplayPrice | null;
 	travelStyle: string | null;
 	groupType: string | null;
 	featured: boolean;
@@ -200,6 +207,41 @@ export type TourCard = {
 	destinations: TaxonomyRef[];
 	category: TaxonomyRef | null;
 	styles: TaxonomyRef[];
+};
+
+/**
+ * The reference price a card advertises.
+ *
+ * `priceFrom` is `lowestAdultPrice()` — the cheapest rate a party could ever
+ * reach, which across this catalogue is the 7+ traveller tier. It is honest
+ * about the floor and useless as a browsing price: two people, the commonest
+ * enquiry by far, pay about a third more, and they then met a different number
+ * the moment they opened Plan My Trip. `priceFrom` keeps its meaning and its
+ * sort order; this is a second, purpose-built figure that answers "what would
+ * WE pay" instead of "what is the least anyone pays".
+ *
+ * Derived, never stored: it comes out of the same pricing engine every other
+ * surface uses, so a card cannot drift from the quotation behind it.
+ *
+ * NO DATE, and therefore NO SEASON. `calculateTourPrice` is called with
+ * `travelDate: null`, which the engine defines as base-and-tier only. A card has
+ * no travel date, and advertising a festive rate — or hiding behind a low one —
+ * without the dates that earn it would be a claim we cannot honour.
+ */
+export type TourDisplayPrice = {
+	/** Per person when `perPerson`; otherwise the price of the whole trip. */
+	amount: string;
+	currency: string;
+	pricingType: string;
+	/** The reference party. Two adults, no children. */
+	adults: number;
+	children: number;
+	/**
+	 * How to read `amount`. Explicit rather than inferred from `pricingType`,
+	 * because a group price rendered per person is wrong by the size of the group
+	 * and that mistake should not be one field lookup away.
+	 */
+	perPerson: boolean;
 };
 
 /** Just enough of a related row to label it and link to it. */
@@ -796,6 +838,11 @@ const tourCardQuery = () =>
 				priceFrom: schema.tours.priceFrom,
 				currency: schema.tours.currency,
 				pricingType: schema.tours.pricingType,
+				// The structured base rates, for the reference display price below.
+				// Their PRESENCE is also what separates a priced tour from a legacy
+				// one carrying nothing but a hand-typed priceFrom.
+				adultPrice: schema.tours.adultPrice,
+				childPrice: schema.tours.childPrice,
 				travelStyle: schema.tours.travelStyle,
 				groupType: schema.tours.groupType,
 				customisable: schema.tours.customisable,
@@ -897,12 +944,85 @@ async function hydrateTourCards(rows: TourCardRow[]): Promise<TourCard[]> {
 	// for a listing and had no caller until now.
 	const byReviews = await tourReviewSummaries(ids);
 
+	// One tier query for the page, like everything else here. SEASONS ARE NOT
+	// LOADED: a card has no travel date, so the engine is asked for the
+	// base-and-tier answer and a season could not apply even if we had them.
+	const tiersByTour = new Map<string, GroupTier[]>();
+	if (ids.length) {
+		const tierRows = await db()
+			.select({
+				tourId: schema.tourPriceTiers.tourId,
+				minTravellers: schema.tourPriceTiers.minTravellers,
+				maxTravellers: schema.tourPriceTiers.maxTravellers,
+				adult: schema.tourPriceTiers.adultPrice,
+				child: schema.tourPriceTiers.childPrice
+			})
+			.from(schema.tourPriceTiers)
+			.where(inArray(schema.tourPriceTiers.tourId, ids))
+			.orderBy(asc(schema.tourPriceTiers.minTravellers));
+		for (const t of tierRows) {
+			const list = tiersByTour.get(t.tourId) ?? [];
+			list.push({
+				minTravellers: t.minTravellers,
+				maxTravellers: t.maxTravellers,
+				adult: t.adult,
+				child: t.child
+			});
+			tiersByTour.set(t.tourId, list);
+		}
+	}
+
 	for (const card of cards) {
 		card.destinations = byDest.get(card.id) ?? [];
 		card.styles = byStyle.get(card.id) ?? [];
 		card.reviews = byReviews.get(card.id) ?? { average: null, count: 0, distribution: {} };
+		const row = rows.find((r) => r.tour.id === card.id);
+		card.displayPrice = row ? displayPriceFor(row.tour, tiersByTour.get(card.id) ?? []) : null;
 	}
 	return cards;
+}
+
+/** The reference party a browsing price is quoted for. Two adults, no children. */
+export const DISPLAY_PARTY = { adults: 2, children: 0 } as const;
+
+/**
+ * What two adults would pay, or null when we cannot say.
+ *
+ * Null for a LEGACY tour — one carrying a hand-typed `priceFrom` and no
+ * structured rates. `tourPricing()` treats `priceFrom` as a base rate so a
+ * quotation can still be built from it, but that number is not evidence of any
+ * party size, and a card claiming "for 2 travellers" on top of it would be
+ * asserting something nobody entered. Those cards keep saying "From $X" alone.
+ */
+export function displayPriceFor(
+	tour: { adultPrice: string | null; childPrice: string | null; currency: string | null; pricingType: string },
+	tiers: GroupTier[]
+): TourDisplayPrice | null {
+	if (!tour.adultPrice) return null;
+
+	const perGroup = tour.pricingType === 'PER_GROUP';
+	const result = calculateTourPrice(
+		{
+			currency: tour.currency ?? 'USD',
+			perGroup,
+			base: { adult: tour.adultPrice, child: tour.childPrice },
+			tiers,
+			seasons: []
+		},
+		{ travelDate: null, adults: DISPLAY_PARTY.adults, children: DISPLAY_PARTY.children }
+	);
+	if (!result) return null;
+
+	return {
+		// Per person for a per-person tour; the whole trip for a group price, which
+		// the engine has already refused to multiply by the party.
+		amount: perGroup ? result.total : result.adultPrice,
+		currency: result.currency,
+		pricingType: tour.pricingType,
+		adults: DISPLAY_PARTY.adults,
+		children: DISPLAY_PARTY.children,
+		perPerson: !perGroup
+	};
 }
 
 const toTourCard = (row: TourCardRow): TourCard => ({
@@ -923,6 +1043,7 @@ const toTourCard = (row: TourCardRow): TourCard => ({
 	operator: operatorCardOf(row.operator, row.logo, row.cover),
 	category: row.category?.slug ? { name: row.category.name, slug: row.category.slug } : null,
 	// Filled in by hydrateTourCards; empty here so the shape is never undefined.
+	displayPrice: null,
 	destinations: [],
 	styles: []
 });
