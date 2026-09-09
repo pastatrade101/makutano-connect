@@ -261,6 +261,8 @@ export type TourDetail = {
 	priceFrom: string | null;
 	currency: string | null;
 	pricingType: string;
+	/** The same two-adult reference price the card shows. See TourDisplayPrice. */
+	displayPrice: TourDisplayPrice | null;
 	travelStyle: string | null;
 	groupType: string | null;
 	groupSizeMin: number | null;
@@ -1979,6 +1981,12 @@ export async function getPublishedTourBySlug(slug: string): Promise<{
 			priceFrom: row.tour.priceFrom,
 			currency: row.tour.currency,
 			pricingType: row.tour.pricingType,
+			/*
+			 * The same reference price the card shows, derived from the tiers the
+			 * rate card already loaded. A detail page reached from a card must not
+			 * quote a different number than the card the traveller just tapped.
+			 */
+			displayPrice: displayPriceFor(row.tour, rateCard?.tiers ?? []),
 			travelStyle: row.tour.travelStyle,
 			groupType: row.tour.groupType,
 			customisable: row.tour.customisable,
