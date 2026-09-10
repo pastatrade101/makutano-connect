@@ -235,7 +235,28 @@ export async function createTemplateDraft(
 	return row;
 }
 
-/** Submit a DRAFT/REJECTED template to Meta for approval. */
+/**
+ * Can this row be sent to Meta?
+ *
+ * The guard is about WHAT IS AT META, not about the word in our status column. DRAFT
+ * and REJECTED are the obvious yeses. The third case is the one that stranded a whole
+ * pack: a row with no metaTemplateId has never been submitted to anything, so however
+ * it came to say PENDING it cannot be a review in flight — there is nothing at Meta to
+ * duplicate.
+ *
+ * That shape is real and was reachable: an older sync inserted local pack rows and
+ * defaulted any unrecognised Meta status to PENDING. Those rows then had no exit at
+ * all — the prune skips a row with no metaTemplateId, no webhook can fire for a
+ * template Meta never received, the pack skips the name as already present, and this
+ * guard refused the one remaining door. Twelve templates sat "Pending" for weeks
+ * because of it.
+ */
+export function canSubmitToMeta(template: Pick<schema.WhatsappTemplate, 'status' | 'metaTemplateId'>): boolean {
+	if (template.status === 'DRAFT' || template.status === 'REJECTED') return true;
+	return template.status === 'PENDING' && !template.metaTemplateId;
+}
+
+/** Submit a DRAFT/REJECTED template — or one that never reached Meta — for approval. */
 export async function submitTemplateToMeta(tenantId: string, templateId: string): Promise<schema.WhatsappTemplate> {
 	const rows = await db()
 		.select()
@@ -244,7 +265,7 @@ export async function submitTemplateToMeta(tenantId: string, templateId: string)
 		.limit(1);
 	const template = rows[0];
 	if (!template) throw new AppError('NOT_FOUND', 'Template not found.');
-	if (template.status !== 'DRAFT' && template.status !== 'REJECTED') {
+	if (!canSubmitToMeta(template)) {
 		throw new AppError('CONFLICT', `A ${template.status} template cannot be submitted.`);
 	}
 	if (!template.bodyText) throw new AppError('VALIDATION_ERROR', 'The template has no body.');

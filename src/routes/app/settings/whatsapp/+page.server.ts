@@ -7,7 +7,7 @@ import { can } from '$lib/server/entitlements';
 import { embeddedSignupReady } from '$lib/server/env';
 import { enqueue } from '$lib/server/jobs/queue';
 import { disconnect, getConnectionForTenant, toSafeConnection } from '$lib/server/whatsapp/connections';
-import { listTemplates, setTemplateEvent, TEMPLATE_EVENTS } from '$lib/server/whatsapp/templates';
+import { listTemplates, setTemplateEvent, syncTemplates, TEMPLATE_EVENTS } from '$lib/server/whatsapp/templates';
 import { applyTemplatePack, packNeedsSetup, packState, PACK_VERSION } from '$lib/server/whatsapp/template-packs';
 import type { PageServerLoad } from './$types';
 
@@ -78,14 +78,35 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
+	/**
+	 * Sync, and say what actually happened.
+	 *
+	 * This used to enqueue a job and return { success: true } unconditionally — so it
+	 * reported success whether the sync found twelve templates, found none, or never
+	 * ran at all because the tenant has no WABA (syncTemplates returns 0 for that,
+	 * quietly). An operator whose templates were stuck pressed this, was told it
+	 * worked, and watched nothing change, with no way to tell the difference between
+	 * "Meta says they are still pending" and "we never asked Meta anything".
+	 *
+	 * It is one Graph GET, so it is awaited rather than queued: the answer is worth
+	 * more than the few hundred milliseconds.
+	 */
 	sync: async ({ locals }) => {
 		requirePermission(locals.permissions, 'whatsapp:connect');
-		await enqueue(
-			'whatsapp.templates.sync',
-			{ tenantId: requireTenant(locals).id },
-			{ tenantId: requireTenant(locals).id }
-		);
-		return { success: true, queued: true };
+		const tenantId = requireTenant(locals).id;
+		try {
+			const count = await syncTemplates(tenantId);
+			if (count === 0) {
+				return {
+					success: true,
+					notice:
+						'Meta returned no templates for this number. Nothing here was changed — templates that have never been submitted stay as they are.'
+				};
+			}
+			return { success: true, notice: `Synced ${count} template${count === 1 ? '' : 's'} from Meta.` };
+		} catch (err) {
+			return fail(502, { message: toAppError(err).message });
+		}
 	},
 
 	mapTemplate: async ({ locals, request }) => {

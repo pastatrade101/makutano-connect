@@ -24,6 +24,39 @@ type ConnectResult =
  * Meta's *Reconnect* flow returns only the code — no waba_id/phone_number_id — so they
  * are resolved from the token itself: debug_token → granular_scopes → phone_numbers.
  */
+/**
+ * Which of a WABA's numbers should the integration speak from?
+ *
+ * This used to be `data[0]` — whichever Meta happened to list first. On a brand-new
+ * WABA that is Meta's own auto-provisioned test number (the +1 555 range), which is
+ * the ONLY number present at the moment a business finishes signup. That is correct
+ * on day one and wrong the day the operator adds their real number: a reconnect would
+ * quietly re-select the test number and the business would go on being unable to send
+ * to anyone, with the settings page reporting a healthy connection.
+ *
+ * So: prefer a number that has completed Meta's verification, and put the test range
+ * last. The +1 555 check is a heuristic and is deliberately the LOWER-priority signal
+ * — code_verification_status is the fact, the prefix is only a tie-breaker for the
+ * case where nothing is verified yet. Falls back to the first number, so a WABA with
+ * a single unverified number behaves exactly as before.
+ */
+export function preferRealNumber<T extends { display_phone_number?: string; code_verification_status?: string }>(
+	numbers: T[]
+): T | undefined {
+	if (numbers.length <= 1) return numbers[0];
+	const isTestRange = (n: T) => /^\+?1\s*555/.test((n.display_phone_number ?? '').replace(/[^\d+\s]/g, ''));
+	const rank = (n: T) => {
+		const verified = (n.code_verification_status ?? '').toUpperCase() === 'VERIFIED';
+		if (verified && !isTestRange(n)) return 0;
+		if (verified) return 1;
+		if (!isTestRange(n)) return 2;
+		return 3;
+	};
+	// Stable: equal ranks keep Meta's own order, so this only ever reorders on a
+	// signal we actually have.
+	return [...numbers].map((n, i) => ({ n, i, r: rank(n) })).sort((a, b) => a.r - b.r || a.i - b.i)[0]?.n;
+}
+
 async function discoverWabaAndPhone(accessToken: string) {
 	const cfg = metaAppConfig();
 	try {
@@ -40,19 +73,34 @@ async function discoverWabaAndPhone(accessToken: string) {
 		for (const wabaId of wabaIds) {
 			try {
 				const pn = await appGraphRequest<{
-					data?: Array<{ id: string; display_phone_number?: string; verified_name?: string }>;
+					data?: Array<{
+						id: string;
+						display_phone_number?: string;
+						verified_name?: string;
+						code_verification_status?: string;
+					}>;
 				}>({
 					path: `${wabaId}/phone_numbers`,
 					token: accessToken,
-					query: { fields: 'id,display_phone_number,verified_name' }
+					query: { fields: 'id,display_phone_number,verified_name,code_verification_status' }
 				});
-				const first = pn?.data?.[0];
-				if (first?.id) {
+				const numbers = pn?.data ?? [];
+				const chosen = preferRealNumber(numbers);
+				if (chosen?.id) {
+					if (numbers.length > 1) {
+						// Worth a line in the log: this is the branch that decides which of a
+						// business's numbers the whole integration will speak from.
+						log.info('phone_number_selected', {
+							wabaId,
+							considered: numbers.length,
+							chose: chosen.display_phone_number ?? chosen.id
+						});
+					}
 					return {
 						wabaId,
-						phoneNumberId: first.id,
-						displayPhoneNumber: first.display_phone_number ?? null,
-						businessName: first.verified_name ?? null
+						phoneNumberId: chosen.id,
+						displayPhoneNumber: chosen.display_phone_number ?? null,
+						businessName: chosen.verified_name ?? null
 					};
 				}
 			} catch (err) {

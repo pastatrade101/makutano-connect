@@ -162,7 +162,11 @@
 							{/if}
 						</td>
 					<td class="table-cell mobile-record-action text-right">
-							{#if canWrite && (t.status === 'DRAFT' || t.status === 'REJECTED')}
+							<!-- Same rule as the server (canSubmitToMeta): a row with no
+							     metaTemplateId has never been sent to Meta, so it can be sent
+							     now whatever its status column happens to say. Without this the
+							     button is hidden on exactly the rows that need it. -->
+							{#if canWrite && (t.status === 'DRAFT' || t.status === 'REJECTED' || (t.status === 'PENDING' && !t.metaTemplateId))}
 								<form method="POST" action="?/submit" use:enhance>
 									<input type="hidden" name="id" value={t.id} />
 									<button class="btn-primary !py-1 text-xs">Submit to Meta</button>
