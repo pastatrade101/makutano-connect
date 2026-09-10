@@ -202,7 +202,7 @@ export async function syncTemplates(tenantId: string): Promise<number> {
 	const templates = result?.data ?? [];
 	const now = new Date();
 	for (const t of templates) {
-		const status = mapStatus(t.status);
+		const status = mapStatus(t.status, { tenantId, name: t.name });
 		/*
 		 * Meta returns the body but not what it is FOR. Without this the sync stores a
 		 * perfectly good APPROVED template with event_key NULL and variables [], so
@@ -329,8 +329,19 @@ export async function promoteApprovedPaymentReminderV2(tenantId: string): Promis
 	return true;
 }
 
-function mapStatus(metaStatus?: string): schema.WhatsappTemplate['status'] {
-	switch ((metaStatus ?? '').toUpperCase()) {
+/**
+ * Meta's status → ours.
+ *
+ * The `default` branch is load-bearing and was invisible: PENDING is both "Meta is
+ * reviewing this" AND "Meta said something we have no case for" AND "Meta sent no
+ * status at all". Those read identically on screen, so an operator staring at twelve
+ * Pending rows cannot tell a real review from a value we failed to map — and neither
+ * could we. Anything unrecognised is logged with the raw string so the next person
+ * gets an answer instead of a guess.
+ */
+function mapStatus(metaStatus?: string, context?: { tenantId: string; name: string }): schema.WhatsappTemplate['status'] {
+	const raw = (metaStatus ?? '').toUpperCase();
+	switch (raw) {
 		case 'APPROVED':
 			return 'APPROVED';
 		case 'REJECTED':
@@ -339,7 +350,13 @@ function mapStatus(metaStatus?: string): schema.WhatsappTemplate['status'] {
 			return 'PAUSED';
 		case 'DISABLED':
 			return 'DISABLED';
+		case 'PENDING':
+			return 'PENDING';
 		default:
+			log.info('template_status_unmapped', {
+				...context,
+				rawStatus: metaStatus ?? '(absent)'
+			});
 			return 'PENDING';
 	}
 }
