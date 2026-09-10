@@ -18,6 +18,7 @@
 	import { enhance } from '$lib/forms';
 	import FormToast from '$components/FormToast.svelte';
 	import Money from '$components/Money.svelte';
+	import { titleAdvice, descriptionAdvice, photoEvenness } from '$lib/itinerary-layout';
 	import RichText from '$components/RichText.svelte';
 	import { calculateTourPrice, lowestAdultPrice, type TourPricing } from '$lib/pricing';
 	import { multiplyAmount } from '$lib/money';
@@ -193,6 +194,17 @@
 		longitude: number | null;
 		/** DRIVE | FLY | BOAT — how this stop is reached from the previous one. */
 		travelMode: string | null;
+		/**
+		 * The day's photograph, chosen from the tour's own gallery.
+		 *
+		 * The column and the marketplace have always had this — TourItinerary puts
+		 * the day into a two-column layout when it is set and a single column when
+		 * it is not — but the composer never carried it, so saving the itinerary
+		 * posted a day with no mediaId and replaceItinerary's DELETE-then-INSERT
+		 * wrote back null. Editing an itinerary silently stripped every day photo
+		 * on the tour, which is most of what made the public page look uneven.
+		 */
+		mediaId: string | null;
 	};
 
 	/** Everything is held as a string: the server owns the parsing, and a half-typed
@@ -236,7 +248,8 @@
 					estimatedTravelTime: d.estimatedTravelTime ?? '',
 					latitude: d.latitude,
 					longitude: d.longitude,
-					travelMode: d.travelMode
+					travelMode: d.travelMode,
+					mediaId: d.mediaId ?? null
 				})
 			),
 			priceFrom: t.priceFrom ?? '',
@@ -611,7 +624,20 @@
 			// read as an unsaved change.
 			[...d.meals].sort(),
 			d.distance.trim(),
-			d.estimatedTravelTime.trim()
+			d.estimatedTravelTime.trim(),
+			// travelMode, the pin and the photograph were all missing from this
+			// list. A field absent here is worse than a field absent from the save:
+			// the step never turns "Unsaved changes", the leave-guard never fires,
+			// and the vendor walks away from work the page told them was safe.
+			d.travelMode,
+			d.latitude,
+			d.longitude,
+			d.mediaId,
+			// Printed the way the SERVER will store it, for the same reason the
+			// activities are split above: once meals are chosen the legacy sentence
+			// is cleared on save, so printing the raw string would leave the step
+			// claiming it was unsaved forever.
+			d.meals.length ? '' : d.mealsNote.trim()
 		]);
 
 	const BASICS_TEXT = [
@@ -769,6 +795,20 @@
 
 	/* ---------------------------------------------------------- itinerary ---- */
 
+	/**
+	 * How the days will print as a set.
+	 *
+	 * The page looks ragged when days disagree with each other, not when one day
+	 * is bad on its own — so this is deliberately about the whole itinerary, and
+	 * it is derived, never typed, like the Route strip it sits beside.
+	 */
+	const photoShape = $derived(
+		photoEvenness(draft.days.filter((d) => d.mediaId).length, draft.days.length)
+	);
+
+	/** The gallery, as the day picker sees it. Uploading stays in the Media step. */
+	const galleryById = $derived(new Map(data.gallery.map((m) => [m.id, m])));
+
 	const blankDay = (): Day => ({
 		title: '',
 		destinationId: '',
@@ -783,7 +823,8 @@
 		meals: [],
 		mealsNote: '',
 		distance: '',
-		estimatedTravelTime: ''
+		estimatedTravelTime: '',
+		mediaId: null
 	});
 
 	/** Removing a day destroys typing that has no other copy, so it asks first; the
@@ -1476,6 +1517,27 @@
 								{route.join(' → ')}
 							</p>
 						{/if}
+						<!--
+							How the days will PRINT, read off the days the same way the route
+							above is. It says nothing about any single day being wrong: a page
+							looks ragged when the days disagree with each other, and that is
+							the one thing an operator cannot see from inside a day card.
+							
+							Not a warning and not a blocker — an even itinerary with no
+							photographs at all is a perfectly consistent page, and this says so
+							rather than nagging for pictures.
+						-->
+						{#if photoShape.message}
+							<p
+								class="rounded-panel px-3 py-2 text-xs leading-5 {photoShape.even
+									? 'bg-slate-50 text-slate-500'
+									: 'bg-warning/10 text-slate-600'}"
+							>
+								<span class="text-xs font-semibold text-slate-400 uppercase">How this prints</span><br
+								/>
+								{photoShape.message}
+							</p>
+						{/if}
 
 						{#if basemapFailed}
 							<p class="rounded-panel bg-slate-50 px-3 py-2 text-sm text-slate-500">
@@ -1524,6 +1586,11 @@
 									<div>
 										<label class="label" for="d-title-{index}">Title</label>
 										<input id="d-title-{index}" bind:value={day.title} class="input" placeholder="Arusha to Tarangire" />
+										<!-- Silent while in band. A counter that always shows a number
+										     is noise the eye learns to skip. -->
+										{#if titleAdvice(day.title)}
+											<p class="mt-1 text-[11.5px] text-slate-500">{titleAdvice(day.title)}</p>
+										{/if}
 									</div>
 									<div>
 										<label class="label" for="d-dest-{index}">Destination</label>
@@ -1534,9 +1601,72 @@
 											{/each}
 										</select>
 									</div>
+									<!--
+										The day's photograph.
+										
+										This column has always existed and the marketplace has always
+										drawn it — a day with a picture renders as two columns, one
+										without renders as a single column — but the composer never
+										carried the field, so it could only ever be set by an import.
+										It is placed above the prose because that is the order the
+										public day reads in, and because the advice under "What
+										happens" changes depending on whether a picture is chosen.
+										
+										Chosen from this tour's own gallery rather than uploaded here:
+										the Media step already owns uploading, and a second uploader
+										would be a second place for the same picture to arrive.
+									-->
+									<div class="sm:col-span-2">
+										<span class="label mb-0">Photograph</span>
+										{#if data.gallery.length}
+											<div class="mt-1 flex gap-1.5 overflow-x-auto pb-1">
+												<button
+													type="button"
+													class="flex h-14 w-14 flex-none items-center justify-center rounded-md border text-[11px] transition {day.mediaId ===
+													null
+														? 'border-slate-900 bg-slate-900 text-white'
+														: 'border-slate-200 text-slate-500 hover:bg-slate-50'}"
+													aria-pressed={day.mediaId === null}
+													onclick={() => (day.mediaId = null)}>None</button
+												>
+												{#each data.gallery as shot (shot.id)}
+													<button
+														type="button"
+														class="h-14 w-14 flex-none overflow-hidden rounded-md border-2 transition {day.mediaId ===
+														shot.id
+															? 'border-slate-900'
+															: 'border-transparent hover:border-slate-300'}"
+														aria-pressed={day.mediaId === shot.id}
+														aria-label="Use this photograph for day {index + 1}"
+														onclick={() => (day.mediaId = day.mediaId === shot.id ? null : shot.id)}
+													>
+														<img src={shot.url} alt="" class="h-full w-full object-cover" loading="lazy" />
+													</button>
+												{/each}
+											</div>
+											<!-- The same picture twice makes a page look thinner than it
+											     is, and the operator cannot see the other days from here. -->
+											{#if day.mediaId && draft.days.filter((d) => d.mediaId === day.mediaId).length > 1}
+												<p class="mt-1 text-[11.5px] text-warning">
+													This photograph is already used on another day.
+												</p>
+											{/if}
+										{:else}
+											<p class="mt-1 text-[11.5px] text-slate-500">
+												Add photographs in the Media step and you can put one on each day.
+											</p>
+										{/if}
+									</div>
 									<div class="sm:col-span-2">
 										<label class="label" for="d-desc-{index}">What happens</label>
 										<RichText id="d-desc-{index}" bind:value={day.description} rows={3} linkTargets={data.linkTargets} placeholder="What happens on this day. Link another tour here and travellers — and search engines — can follow it." />
+										<!-- Depends on the picture above: the same paragraph that reads
+										     well on its own leaves a gap beside a 4:3 photograph. -->
+										{#if descriptionAdvice(day.description, !!day.mediaId)}
+											<p class="mt-1 text-[11.5px] text-slate-500">
+												{descriptionAdvice(day.description, !!day.mediaId)}
+											</p>
+										{/if}
 									</div>
 									<div class="sm:col-span-2">
 										<label class="label" for="d-act-{index}">Activities (comma-separated)</label>
@@ -1604,14 +1734,6 @@
 											</p>
 										{/if}
 									</div>
-									<div>
-										<label class="label" for="d-dist-{index}">Distance</label>
-										<input id="d-dist-{index}" bind:value={day.distance} class="input" placeholder="120 km" />
-									</div>
-									<div>
-										<label class="label" for="d-time-{index}">Travel time</label>
-										<input id="d-time-{index}" bind:value={day.estimatedTravelTime} class="input" placeholder="About 2 hours" />
-									</div>
 									{#if index > 0}
 										<!--
 											Only from day two: day one is arrival, and there is no
@@ -1647,6 +1769,27 @@
 													it — pick one and travellers watch that vehicle make the journey.
 												{/if}
 											</p>
+											<!--
+												Distance and travel time, which belong to the journey rather
+												than to the day. They used to be two permanent boxes on every
+												day card — 216 of them across the published catalogue, and not
+												one has ever been filled, including on day one where distance
+												from the previous stop does not exist. They render as part of
+												this single Travel fact, so they are asked for here, once a
+												mode says there was a journey to measure.
+											-->
+											{#if day.travelMode || day.distance || day.estimatedTravelTime}
+												<div class="mt-2 grid gap-2 sm:grid-cols-2">
+													<div>
+														<label class="label" for="d-dist-{index}">Distance</label>
+														<input id="d-dist-{index}" bind:value={day.distance} class="input" placeholder="120 km" />
+													</div>
+													<div>
+														<label class="label" for="d-time-{index}">Travel time</label>
+														<input id="d-time-{index}" bind:value={day.estimatedTravelTime} class="input" placeholder="About 2 hours" />
+													</div>
+												</div>
+											{/if}
 										</div>
 									{/if}
 								</div>

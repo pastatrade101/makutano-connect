@@ -156,7 +156,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			estimatedTravelTime: d.estimatedTravelTime,
 			latitude: d.latitude === null ? null : Number(d.latitude),
 			longitude: d.longitude === null ? null : Number(d.longitude),
-			travelMode: d.travelMode
+			travelMode: d.travelMode,
+			// The third break in the same round trip. Without this the composer seeds
+			// every day's photograph as absent, so even a correct save writes null.
+			mediaId: d.mediaId
 		})),
 		gallery: detail.gallery.map((m) => publicMedia(m)).filter((m): m is NonNullable<typeof m> => m !== null),
 		// What is attached, and the directory to attach from.
@@ -361,6 +364,7 @@ export const actions: Actions = {
 				accommodationImages: urlList(d.accommodationImages),
 				// Already a closed set from the composer; the service parses either.
 				meals: Array.isArray(d.meals) ? d.meals.map(String) : trimmed(d.meals),
+				mealsNote: trimmed(d.mealsNote),
 				activities: String(d.activities ?? '')
 					.split(',')
 					.map((a) => a.trim())
@@ -369,7 +373,11 @@ export const actions: Actions = {
 				estimatedTravelTime: trimmed(d.estimatedTravelTime),
 				latitude: coordinate(d.latitude),
 				longitude: coordinate(d.longitude),
-				travelMode: trimmed(d.travelMode)
+				travelMode: trimmed(d.travelMode),
+				// Without this the day arrives with mediaId undefined, and
+				// replaceItinerary — which deletes every day and re-inserts —
+				// writes null. Saving an itinerary destroyed its photographs.
+				mediaId: trimmed(d.mediaId)
 			};
 		});
 

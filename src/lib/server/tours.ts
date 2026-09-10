@@ -86,6 +86,17 @@ export type ItineraryDayInput = {
 	 * making somebody else pay for our schema change.
 	 */
 	meals?: string[] | string | null;
+	/**
+	 * The legacy free-text meals sentence, echoed back so a save can preserve it.
+	 *
+	 * It used to be nulled unconditionally below, on the reasoning that once an
+	 * operator has chosen from the set the old sentence has nothing left to tell
+	 * them. True — but only once they HAVE chosen. Saving any other step of a day
+	 * whose meals were never ticked destroyed the sentence, and marketplace.ts
+	 * serves `mealsLabel(meals) ?? mealsNote`, so the day lost its meals fact and
+	 * the public facts row lost a tile.
+	 */
+	mealsNote?: string | null;
 	activities?: string[];
 	distance?: string | null;
 	estimatedTravelTime?: string | null;
@@ -1040,9 +1051,9 @@ export async function replaceItinerary(
 					// two answers to one question in the row.
 					accommodationImages: day.accommodationId ? [] : dayImages(day.accommodationImages),
 					meals: parseMeals(day.meals),
-					// Cleared on save: once an operator has chosen, the old sentence
-					// has nothing left to tell them.
-					mealsNote: null,
+					// Cleared once an operator HAS chosen — not before. See the note
+					// on ItineraryDayInput.mealsNote.
+					mealsNote: parseMeals(day.meals).length ? null : (text(day.mealsNote) ?? null),
 					activities: list(day.activities) ?? [],
 					distance: text(day.distance) ?? null,
 					estimatedTravelTime: text(day.estimatedTravelTime) ?? null,
