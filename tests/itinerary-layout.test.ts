@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	titleAdvice,
+	printedTitle,
 	descriptionAdvice,
 	photoEvenness,
 	plainLength,
@@ -18,8 +19,8 @@ const words = (n: number) => 'x'.repeat(n);
 
 describe('the composer stays quiet about content that is already fine', () => {
 	it('says nothing about a median title', () => {
-		expect(titleAdvice('Tarangire to Ngorongoro Highlands')).toBeNull(); // 32
-		expect(titleAdvice(words(TITLE_ONE_LINE))).toBeNull();
+		expect(titleAdvice('Tarangire to Ngorongoro Highlands', 2)).toBeNull(); // 32
+		expect(titleAdvice(words(TITLE_ONE_LINE), 2)).toBeNull();
 	});
 
 	it('says nothing about a median description, with or without a photograph', () => {
@@ -30,13 +31,31 @@ describe('the composer stays quiet about content that is already fine', () => {
 
 	it('says nothing at all about an empty day, which the readiness panel owns', () => {
 		expect(descriptionAdvice('', true)).toBeNull();
-		expect(titleAdvice('')).toBeNull();
+		expect(titleAdvice('', 1)).toBeNull();
 	});
 });
 
 describe('and speaks where the rendered page actually changes', () => {
 	it('names the second line, past the width of the day header', () => {
-		expect(titleAdvice(words(TITLE_ONE_LINE + 1))).toMatch(/second line/i);
+		expect(titleAdvice(words(TITLE_ONE_LINE + 1), 3)).toMatch(/second line/i);
+	});
+
+	it('measures what the page PRINTS, not what was typed', () => {
+		// 40 of the catalogue's 75 Makutano days carry this prefix. Counting it
+		// would fire the length advice on titles that print well within the band.
+		const typed = 'Day 5: Ngorongoro Crater Game Drive';
+		expect(printedTitle(typed, 5)).toBe('Ngorongoro Crater Game Drive');
+		// Only the day's OWN number is a prefix; anything else is the title.
+		expect(printedTitle(typed, 4)).toBe(typed);
+		expect(printedTitle('Two days in Ruaha', 2)).toBe('Two days in Ruaha');
+	});
+
+	it('points out the prefix, because it is free to fix and why most are long', () => {
+		expect(titleAdvice('Day 5: Ngorongoro Crater Game Drive', 5)).toMatch(/numbers each day itself/i);
+		// A real 86-character title, from the live catalogue. Under the band once
+		// the prefix goes, so the advice is about the prefix and not the length.
+		const real = 'Day 5: Ngorongoro Crater Game Drive – Return to Arusha / Kilimanjaro Airport Departure';
+		expect(printedTitle(real, 5).length).toBe(79);
 	});
 
 	it('gives DIFFERENT advice for the same short prose depending on the picture', () => {

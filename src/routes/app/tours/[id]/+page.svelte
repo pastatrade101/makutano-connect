@@ -1588,8 +1588,8 @@
 										<input id="d-title-{index}" bind:value={day.title} class="input" placeholder="Arusha to Tarangire" />
 										<!-- Silent while in band. A counter that always shows a number
 										     is noise the eye learns to skip. -->
-										{#if titleAdvice(day.title)}
-											<p class="mt-1 text-[11.5px] text-slate-500">{titleAdvice(day.title)}</p>
+										{#if titleAdvice(day.title, index + 1)}
+											<p class="mt-1 text-[11.5px] text-slate-500">{titleAdvice(day.title, index + 1)}</p>
 										{/if}
 									</div>
 									<div>

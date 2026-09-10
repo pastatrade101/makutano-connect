@@ -46,15 +46,37 @@ export function plainLength(html: string | null | undefined): number {
 }
 
 /**
+ * The title as the page will PRINT it.
+ *
+ * The public day already carries its own number badge, so the renderer strips a
+ * leading "Day 5:" that matches the day's actual number before printing —
+ * mirrored here from TourItinerary's displayTitle, including the rule that only
+ * the exact, data-matched prefix goes ("Two days in Ruaha" survives).
+ *
+ * Mirrored rather than approximated because 40 of the catalogue's 75 Makutano
+ * days carry that prefix: measuring the raw string would count characters the
+ * traveller never sees, and every piece of advice below would fire early.
+ */
+export function printedTitle(title: string, dayNumber: number): string {
+	const n = String(dayNumber).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	return (title ?? '').replace(new RegExp(`^\\s*day\\s+${n}\\s*(?:[:|–—-]\\s*)?`, 'i'), '').trim();
+}
+
+/**
  * What to say about a day's title, or null while it is in band.
  *
  * Silent by default. A counter that always shows a number is noise the eye
  * learns to skip, so these speak only where the rendered page actually changes,
  * and each one names the change rather than scolding.
  */
-export function titleAdvice(title: string): string | null {
-	const n = title.trim().length;
-	if (n > TITLE_ONE_LINE) return 'Long enough to wrap onto a second line in the day header.';
+export function titleAdvice(title: string, dayNumber: number): string | null {
+	const printed = printedTitle(title, dayNumber);
+	// Said first, because it is free to fix and it is why most long titles are
+	// long: the characters are being typed and then thrown away.
+	if (printed !== (title ?? '').trim()) {
+		return 'The page numbers each day itself, so the “Day ' + dayNumber + ':” is dropped before printing — you can leave it out.';
+	}
+	if (printed.length > TITLE_ONE_LINE) return 'Long enough to wrap onto a second line in the day header.';
 	return null;
 }
 
